@@ -1,3 +1,111 @@
 # dsh-dock
 
-dsh-dock · DeepSeek Harness 功能中枢：用一张管理面板统一注册、开关所有小功能（模型余额、Token 用量记录、任务动画等）。每个功能独立模块，支持开关与错误隔离，新功能即插即用。0.1.0 为基础框架，功能接入按 README 路线图迭代
+[![npm version](https://img.shields.io/npm/v/dsh-dock)](https://www.npmjs.com/package/dsh-dock)
+[![license](https://img.shields.io/npm/l/dsh-dock)](LICENSE)
+
+**DeepSeek Harness 功能中枢插件**：用一张管理面板，统一注册、开关所有小功能。
+
+模型余额、Token 用量记录、任务动画……这些散落的小功能，全部收进一个面板：
+每个功能是独立模块，有注册表、有开关、有错误隔离。新功能按注册表模式追加，老功能互不牵连。
+
+> 前身：本地原型 `feature-hub`（已安装验证），本包为其正式发布的 npm 版本。
+> 相关功能包：`@wycto/dsh-balance-panel`、`@wycto/dsh-token-usage`、`@wycto/dsh-task-pulse`
+> （后续按路线图吸收为中枢内的功能模块，或保持独立包并注册进中枢）。
+> 开发背景与决策见 [docs/session-notes.md](docs/session-notes.md)。
+
+---
+
+## 当前状态（v0.1.0 · 基础框架）
+
+- ✅ 设置页新增一整页「功能中枢」面板（侧栏底部 → 设置 → 功能中枢）
+- ✅ 功能注册表：`FEATURES` 一处登记，面板自动渲染
+- ✅ 每功能独立开关 + 错误隔离：单个功能出错只降级自己
+- ✅ 示例功能：心跳监视、主题信息（纯 Client，开箱可用）
+- 🚧 示例功能的开关为浏览器内存态，刷新重置（持久化在 0.5.0）
+- 🚧 三个真实功能已登记为**规划占位**，面板可见但显示"规划中"
+
+## 面板入口
+
+```
+设置（侧栏底部）→ 功能中枢
+```
+
+## 目录结构
+
+```
+dsh-dock/
+├── index.js          # Host 半部：功能注册表 + 每功能生命周期（setup/dispose）+ 错误隔离
+├── client.js         # Client 半部：中枢面板（settings.section），浏览器 bundle，无需构建器
+├── cordis.patch.yml  # 组合层：insert 一行 dsh-dock
+├── package.json      # 双面程序包清单（dsh.bundle.patch + dsh.client）
+├── scripts/publish.sh # 一键发布（登录检查 + 预览 + publish）
+└── docs/session-notes.md # 会话总结与决策记录（新会话续作前先读）
+```
+
+## 路线图（后面要干嘛）
+
+| 版本 | 内容 | 动哪里 |
+| --- | --- | --- |
+| **0.2.0** | 接入**模型余额**：拉取所有模型 Provider 账户余额并展示 | `index.js` 的 `hostSetups.balance` 实现拉取；打通 Client↔Host 联通（typert）；`client.js` 的 balance 占位改为真实视图 |
+| **0.3.0** | 接入 **Token 用量记录**：记录全部 LLM API 调用，支持时间范围/维度筛选与统计 | `hostSetups.tokenlog` 监听事件记账；面板加统计视图 |
+| **0.4.0** | 接入**任务动画**：任务进度动画、完成/卡住通知 | 纯 Client 功能模块；如需挂对话区，在模块内注册对应 slot（如 `conversation.composer.dock`） |
+| **0.5.0** | 开关状态**持久化**、Host↔Client 双侧注册表打通 | 状态写入持久化服务；可选依赖注册（面板不在，功能照跑） |
+
+后续新增功能遵循同一模式：**注册表加一条 + 视图加一个**，即插即用。
+
+## 新增一个功能（三步）
+
+1. `client.js` 的 `FEATURES` 加一条 `{ id, name, description, defaultEnabled }`；
+2. `featureViews` 加同名组件（`react.createElement` 写法，可用 `ctx.get(...)` 取 Client 服务）；
+3. 需要 Host 侧逻辑的，在 `index.js` 的 `hostSetups` 加一个返回 disposer 的函数。
+
+## 安装
+
+开发期（link 模式）：
+
+```sh
+dsh plugin --profile web add dsh-dock   # npm 版安装
+# 或本地路径：dsh plugin --profile web add /path/to/dsh-dock
+```
+
+查看/卸载：
+
+```sh
+dsh web --dump-config                    # 查看合成层（含 dsh-dock）
+dsh plugin --profile web remove dsh-dock # 卸载
+```
+
+### 从 feature-hub 迁移
+
+本包是 feature-hub 原型的正式发布版，面板与功能几乎一致：
+
+```sh
+dsh plugin --profile web remove dsh-feature-hub
+dsh plugin --profile web add dsh-dock
+```
+
+（两个插件共存亦可，只是面板重复；建议迁移后移除旧版。）
+
+## 开发与发布
+
+- **开发提交**：Gitea 开发仓库（本仓库）
+  `ssh://git@172.18.99.124:9022/wycto/dsh-dock.git`
+- **发版**：GitHub 仓库（`github.com/wycto/dsh-dock`，待建）打 tag 发 Release
+- **npm 发布**（无作用域名先到先得，已占用后归本账号所有）：
+
+```sh
+cd dsh-dock
+npm login          # 首次：登录你的 npm 账号（wycto）
+scripts/publish.sh # 预览 → 登录检查 → 发布
+```
+
+> 若发布时报 `EPERM`（npm 缓存目录里有 root 属主文件的历史 bug）：
+> 修复一次 `sudo chown -R 501:20 ~/.npm`，或临时绕过
+> `CACHE_DIR=/tmp/dsh-dock-npm-cache ./scripts/publish.sh`。
+
+> 注：`package.json` 中 repository 指向 GitHub（发版仓库），Gitea 建好后
+> 建议把两个地址都确认一遍。
+
+## License
+
+MIT
