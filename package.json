@@ -1,7 +1,7 @@
 {
   "name": "dsh-dock",
-  "version": "0.1.0",
-  "description": "DeepSeek Harness 功能中枢插件：用一张管理面板统一注册、开关所有小功能（模型余额、Token 用量记录、任务动画等）。0.1.0 为基础框架版本，功能接入路线见 README。",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness 功能中枢插件：用一张管理面板统一注册、开关所有小功能（模型余额已接入，Token 用量记录、任务动画等按路线图接入）。",
   "type": "module",
   "main": "index.js",
   "files": [
@@ -38,5 +38,8 @@
   "homepage": "https://github.com/wycto/dsh-dock",
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6"
   }
 }

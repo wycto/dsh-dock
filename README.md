@@ -10,19 +10,29 @@
 
 > 前身：本地原型 `feature-hub`（已安装验证），本包为其正式发布的 npm 版本。
 > 相关功能包：`@wycto/dsh-balance-panel`、`@wycto/dsh-token-usage`、`@wycto/dsh-task-pulse`
-> （后续按路线图吸收为中枢内的功能模块，或保持独立包并注册进中枢）。
+> （余额功能已于 0.2.0 吸收为中枢内模块；其余按路线图继续吸收或保持独立包注册进中枢）。
 > 开发背景与决策见 [docs/session-notes.md](docs/session-notes.md)。
 
 ---
 
-## 当前状态（v0.1.0 · 基础框架）
+## 当前状态（v0.2.0 · 模型余额已接入）
 
 - ✅ 设置页新增一整页「功能中枢」面板（侧栏底部 → 设置 → 功能中枢）
 - ✅ 功能注册表：`FEATURES` 一处登记，面板自动渲染
 - ✅ 每功能独立开关 + 错误隔离：单个功能出错只降级自己
 - ✅ 示例功能：心跳监视、主题信息（纯 Client，开箱可用）
-- 🚧 示例功能的开关为浏览器内存态，刷新重置（持久化在 0.5.0）
-- 🚧 三个真实功能已登记为**规划占位**，面板可见但显示"规划中"
+- ✅ **模型余额（0.2.0）**：Host 半部枚举全部已配置 Provider，按内置策略表查询余额/配额/控制台链接；面板内实时展示，5 分钟自动刷新 + 手动刷新
+- 🚧 示例功能与余额开关为浏览器内存态，刷新重置（持久化在 0.5.0）
+- 🚧 两个真实功能（Token 用量记录、任务动画）已登记为规划占位，面板可见但显示"规划中"
+
+### 模型余额支持情况（0.2.0）
+
+内置余额策略表覆盖：**DeepSeek**（官方余额接口）、**StepFun**、**Kimi Coding**（配额）、**OpenRouter**、**MiniMax**、**xAI/grok**；
+按 provider id（含别名）或 baseURL 家族自动匹配；`qwen-token-plan-*`（阿里云百炼）等无 API 余额接口的 Provider 显示"需登录"并提供控制台跳转链接；
+其余未知 Provider 显示"不支持"。自定义余额接口可在 Provider profile 里配 `balance.endpoint` 覆盖（沿用 `dsh-balance-panel` 约定）。
+
+密钥全程留在 Host 进程内：只按 `apiKeyEnv` 解析凭证使用，不出 Host、不下发到浏览器。
+数据经回环 webServer 路由 `GET /dsh-dock/balance` 同源下发（Client `fetch` 拉取，不依赖 typert RPC，详见 [docs/session-notes.md](docs/session-notes.md)）。
 
 ## 面板入口
 
@@ -34,8 +44,8 @@
 
 ```
 dsh-dock/
-├── index.js          # Host 半部：功能注册表 + 每功能生命周期（setup/dispose）+ 错误隔离
-├── client.js         # Client 半部：中枢面板（settings.section），浏览器 bundle，无需构建器
+├── index.js          # Host 半部：功能注册表 + 每功能生命周期（setup/dispose）+ 错误隔离 + 模型余额拉取（/dsh-dock/balance）
+├── client.js         # Client 半部：中枢面板（settings.section）+ 各功能视图，浏览器 bundle，无需构建器
 ├── cordis.patch.yml  # 组合层：insert 一行 dsh-dock
 ├── package.json      # 双面程序包清单（dsh.bundle.patch + dsh.client）
 ├── scripts/publish.sh # 一键发布（登录检查 + 预览 + publish）
@@ -44,12 +54,12 @@ dsh-dock/
 
 ## 路线图（后面要干嘛）
 
-| 版本 | 内容 | 动哪里 |
+| 版本 | 内容 | 状态 |
 | --- | --- | --- |
-| **0.2.0** | 接入**模型余额**：拉取所有模型 Provider 账户余额并展示 | `index.js` 的 `hostSetups.balance` 实现拉取；打通 Client↔Host 联通（typert）；`client.js` 的 balance 占位改为真实视图 |
+| **0.2.0** | 接入**模型余额**：拉取所有模型 Provider 账户余额并展示（含配额/控制台跳转，策略表覆盖 DeepSeek/StepFun/Kimi/OpenRouter/MiniMax/xAI） | ✅ 已接入（v0.2.0 代码，待发布） |
 | **0.3.0** | 接入 **Token 用量记录**：记录全部 LLM API 调用，支持时间范围/维度筛选与统计 | `hostSetups.tokenlog` 监听事件记账；面板加统计视图 |
 | **0.4.0** | 接入**任务动画**：任务进度动画、完成/卡住通知 | 纯 Client 功能模块；如需挂对话区，在模块内注册对应 slot（如 `conversation.composer.dock`） |
-| **0.5.0** | 开关状态**持久化**、Host↔Client 双侧注册表打通 | 状态写入持久化服务；可选依赖注册（面板不在，功能照跑） |
+| **0.5.0** | 开关状态**持久化**、Host↔Client 双侧注册表打通 | 状态写入持久化服务；Host 侧开关与 Client 面板同步；可选依赖注册（面板不在，功能照跑） |
 
 后续新增功能遵循同一模式：**注册表加一条 + 视图加一个**，即插即用。
 
@@ -58,6 +68,10 @@ dsh-dock/
 1. `client.js` 的 `FEATURES` 加一条 `{ id, name, description, defaultEnabled }`；
 2. `featureViews` 加同名组件（`react.createElement` 写法，可用 `ctx.get(...)` 取 Client 服务）；
 3. 需要 Host 侧逻辑的，在 `index.js` 的 `hostSetups` 加一个返回 disposer 的函数。
+
+需要从 Host 拿数据的功能（如模型余额）：Host 在 `hostSetups.<id>` 里用 `webServer.register`
+注册一条同源路由（纯 JSON），Client 视图 `fetch('/dsh-dock/<id>')` 拉取——密钥只进 Host，
+绝不下发浏览器。详见 [docs/session-notes.md](docs/session-notes.md) 8.3。
 
 ## 安装
 
