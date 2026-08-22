@@ -269,3 +269,17 @@
   识别小图正确（答「红色」）。⚠️ in-app browser 无文件选择器，完整"发图→识别→回复"流待用户真实浏览器验证。
 - **依赖新增**：@deepseek-ai/dsh-llm、@deepseek-ai/dsh-settings、@deepseek-ai/schemastery
   （package.json 声明 + 仓库 node_modules 软链 shim，同 dsh-credentials 模式）。
+
+### 8.12 事故复盘：图片代理包装致「全模型 stream is not async iterable」（已修复）
+
+- **现象**：重启加载图片理解代理后，**所有模型**每轮请求报 `本轮运行失败 stream is not async iterable`。
+- **根因**：`prepareCall` 包装层用了 `async (options) => …` —— 返回 **Promise** 而非 AsyncIterable。
+  消费方（agent-loop）`const stream = preparedCall.stream(request); for await (const chunk of stream)`
+  的 `of` 表达式**不会先 await Promise**（Node 语义：直接取 Symbol.asyncIterator），Promise 上没有
+  该符号 → 全量失败。（`llm.stream` 包装用的是 IIFE async generator，同步返回可迭代，没炸；
+  只有 prepareCall 路径炸——主对话全走这条路。）
+- **修复**：两层包装统一为 `(options) => (async function* () { … })()` —— 同步返回 async generator。
+- **防复发**：Host 冒烟新增「包装契约」断言——`llm.stream(...)` 与 `prepareCall().stream(...)`
+  都必须同步返回 AsyncIterable（非 Promise、有 Symbol.asyncIterator、可迭代）。
+- **教训**：包装官方函数必须逐条保契约（返回类型同步性也在内）；冒烟当时只测了 llm.stream 路径，
+  漏了 prepareCall 主路径——以后每个被包装的入口都要有契约断言。
