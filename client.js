@@ -150,6 +150,11 @@ window.__ModuleLoader__.load({
 			".dkm-msg.err{color:var(--dsw-alias-state-error-primary);}",
 			".dkm-list{display:flex;flex-direction:column;gap:8px;}",
 			".dkm-ro{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+			// 一键批量操作小按钮与 Provider 级工具栏
+			".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
+			".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
+			".dkm-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--dsw-alias-border-l1);padding-top:8px;}",
+			".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}",
 			// 首页总揽（dockh- 前缀）：导航首项图标 + 模块卡片网格
 			".dockm-navhome{display:inline-flex;align-items:center;color:var(--dsw-alias-accent,#4d9fff);flex:none;}",
 			".dockh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;}",
@@ -735,6 +740,16 @@ window.__ModuleLoader__.load({
 					patchDraft({ models: models });
 				};
 				const toggleIn = (list, v) => list.indexOf(v) >= 0 ? list.filter((x) => x !== v) : list.concat([v]);
+				// 一键批量：输入支持（官方模态 + 标注）与强度档。输入留空 = 继承目录默认（Host 写回时删除 input 字段，安全）
+				const ALL_INPUT = DKM_MODALITIES.map((x) => x[0]);
+				const ALL_TAGS = DKM_TAGS.map((x) => x[0]);
+				const allInputs = (on) => ({ input: on ? ALL_INPUT.slice() : [], tags: on ? ALL_TAGS.slice() : [] });
+				const allLevels = (on) => {
+					const lv = {};
+					for (const k of DKM_PI_LEVELS) lv[k] = !!on;
+					return { effortsMode: "custom", effortLevels: lv };
+				};
+				const bulkModels = (fn) => patchDraft({ models: draft.models.map((m) => Object.assign({}, m, fn(m))) });
 				const selectProvider = (id) => { setSelId(id); setMsg(null); };
 
 				const save = () => {
@@ -805,7 +820,9 @@ window.__ModuleLoader__.load({
 						react.createElement("span", { className: "dkm-label dkm-tag", title: "标注仅在本面板展示与持久化，不参与请求路由（官方 schema 只接受文本/图片）" }, "标注："),
 						DKM_TAGS.map(([v, label]) => react.createElement("label", { key: v, className: "dkm-check dkm-tag" },
 							react.createElement("input", { type: "checkbox", checked: m.tags.indexOf(v) >= 0, onChange: () => patchModel(i, { tags: toggleIn(m.tags, v) }) }),
-							label))),
+							label)),
+						react.createElement("button", { type: "button", className: "dkm-mini", title: "一键勾选全部输入类型与标注", onClick: () => patchModel(i, allInputs(true)) }, "全选"),
+						react.createElement("button", { type: "button", className: "dkm-mini", title: "一键取消全部勾选（输入留空 = 继承目录默认）", onClick: () => patchModel(i, allInputs(false)) }, "取消全选")),
 					react.createElement("div", { className: "dkm-efforts" },
 						react.createElement("span", { className: "dkm-label" }, "思考强度："),
 						cur.kind === "deepseek"
@@ -836,7 +853,9 @@ window.__ModuleLoader__.load({
 											}
 										}),
 										DKM_EFFORT_NAMES[lv] || lv))
-									: null)));
+									: null,
+								react.createElement("button", { type: "button", className: "dkm-mini", title: "一键勾选全部强度档（切为自定义）", onClick: () => patchModel(i, allLevels(true)) }, "全选"),
+								react.createElement("button", { type: "button", className: "dkm-mini", title: "一键取消全部强度档", onClick: () => patchModel(i, allLevels(false)) }, "取消全选"))));
 
 				const body = [];
 				if (snap.error) {
@@ -874,6 +893,16 @@ window.__ModuleLoader__.load({
 								react.createElement("select", { className: "dkm-select", value: draft.defaultEffort, onChange: (e) => patchDraft({ defaultEffort: e.target.value }) },
 									DKM_DS_LEVELS.map((lv) => react.createElement("option", { key: lv, value: lv }, DKM_EFFORT_NAMES[lv] || lv))))
 							: null,
+						react.createElement("div", { className: "dkm-toolbar" },
+							react.createElement("span", { className: "dkm-toolbar-label" }, "批量（全部模型）："),
+							react.createElement("button", { type: "button", className: "dkm-mini", title: "全部模型：勾选全部输入类型与标注", onClick: () => bulkModels(() => allInputs(true)) }, "输入全选"),
+							react.createElement("button", { type: "button", className: "dkm-mini", title: "全部模型：取消全部输入勾选（留空 = 继承目录默认）", onClick: () => bulkModels(() => allInputs(false)) }, "输入取消全选"),
+							cur.kind !== "deepseek"
+								? react.createElement("button", { type: "button", className: "dkm-mini", title: "全部模型：勾选全部强度档（切为自定义）", onClick: () => bulkModels(() => allLevels(true)) }, "强度全选")
+								: null,
+							cur.kind !== "deepseek"
+								? react.createElement("button", { type: "button", className: "dkm-mini", title: "全部模型：取消全部强度档", onClick: () => bulkModels(() => allLevels(false)) }, "强度取消全选")
+								: null),
 						react.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } },
 							draft.models.map(modelRow),
 							react.createElement("button", {
