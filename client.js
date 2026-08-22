@@ -65,6 +65,85 @@ var FeatureBoundary = class extends import_react.default.Component {
     return this.props.children;
   }
 };
+var featureState = /* @__PURE__ */ new Map();
+var stateListeners = /* @__PURE__ */ new Set();
+function notifyState() {
+  for (const fn of stateListeners) fn();
+}
+function initFeatureState(defs) {
+  for (const f of defs) {
+    if (!featureState.has(f.id)) featureState.set(f.id, { enabled: !f.planned && f.defaultEnabled !== false, error: null });
+  }
+}
+function stateOf(id) {
+  let st = featureState.get(id);
+  if (!st) {
+    st = { enabled: true, error: null };
+    featureState.set(id, st);
+  }
+  return st;
+}
+function toggleFeature(id) {
+  const st = stateOf(id);
+  st.enabled = !st.enabled;
+  notifyState();
+}
+function subscribeFeatureState(fn) {
+  stateListeners.add(fn);
+  return () => {
+    stateListeners.delete(fn);
+  };
+}
+var CHIP_STORE_KEY = "dsh-dock/chips/v1";
+var chipVisible = { map: {} };
+try {
+  if (typeof localStorage !== "undefined") {
+    const raw = localStorage.getItem(CHIP_STORE_KEY);
+    const obj = raw ? JSON.parse(raw) : null;
+    if (obj && typeof obj === "object") chipVisible.map = obj;
+  }
+} catch {
+}
+function persistChipVisible() {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(CHIP_STORE_KEY, JSON.stringify(chipVisible.map));
+  } catch {
+  }
+}
+function chipShown(id) {
+  return chipVisible.map[id] !== false;
+}
+function setChipShown(id, value) {
+  chipVisible.map[id] = value !== false;
+  persistChipVisible();
+  notifyState();
+}
+var panelNav = { open: false, active: "home", params: null };
+var navListeners = /* @__PURE__ */ new Set();
+function notifyNav() {
+  for (const fn of navListeners) fn();
+}
+function openPanel(active, params) {
+  panelNav.open = true;
+  panelNav.active = typeof active === "string" && active ? active : "home";
+  panelNav.params = params && typeof params === "object" ? params : null;
+  notifyNav();
+}
+function setPanelOpen(value) {
+  panelNav.open = !!value;
+  if (!value) panelNav.params = null;
+  notifyNav();
+}
+function navigatePanel(active) {
+  panelNav.active = typeof active === "string" && active ? active : "home";
+  notifyNav();
+}
+function subscribePanel(fn) {
+  navListeners.add(fn);
+  return () => {
+    navListeners.delete(fn);
+  };
+}
 
 // features/tokenlog/view.jsx
 var import_react2 = require("react");
@@ -233,7 +312,8 @@ function Detail({ rec, onClose, rate }) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", style: { marginTop: 12 }, onClick: onClose, children: "\u5173\u95ED" })
   ] }) });
 }
-function TokenLogView() {
+function TokenLogView(props) {
+  const navSession = props && props.params && props.params.sessionId ? props.params.sessionId : null;
   const [savedFilters] = (0, import_react2.useState)(loadSavedFilters);
   const [fromStr, setFromStr] = (0, import_react2.useState)(() => savedFilters && savedFilters.fromStr || "");
   const [toStr, setToStr] = (0, import_react2.useState)(() => savedFilters && savedFilters.toStr || "");
@@ -302,6 +382,16 @@ function TokenLogView() {
       setPage(0);
     }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
   }, [buildQ]);
+  (0, import_react2.useEffect)(() => {
+    if (!navSession) return;
+    setSessionId(navSession);
+    setLoading(true);
+    setErr("");
+    rpcCall("query", Object.assign({}, buildQ(true), { sessionId: navSession })).then((d) => {
+      setData(d);
+      setPage(0);
+    }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
+  }, [navSession]);
   const resetFilters = (0, import_react2.useCallback)(() => {
     setFromStr("");
     setToStr("");
@@ -587,6 +677,43 @@ function TokenLogHomeStat() {
     "\uFF09"
   ] });
 }
+function TokenLogChip(props) {
+  const sid = props && props.sessionId || props && props.session && props.session.sessionId || null;
+  const [snap, setSnap] = (0, import_react2.useState)({ totals: null, err: "" });
+  (0, import_react2.useEffect)(() => {
+    if (!sid) return;
+    let cancel = false;
+    const load = () => rpcCall("query", { sessionId: sid }).then((d) => {
+      if (!cancel) setSnap({ totals: d && d.totals, err: "" });
+    }).catch((e) => {
+      if (!cancel) setSnap((s) => ({ totals: s.totals, err: String(e && e.message || e) }));
+    });
+    load();
+    const timer = setInterval(load, 1e4);
+    return () => {
+      cancel = true;
+      clearInterval(timer);
+    };
+  }, [sid]);
+  if (!sid) return null;
+  const t = snap.totals;
+  const label = snap.err && !t ? "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCost(t.cost) : "") : "\u26C1 \u2026";
+  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCost(t.cost) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+    "button",
+    {
+      type: "button",
+      className: "dockchip" + (snap.err && !t ? " err" : ""),
+      title,
+      "aria-label": "\u4F1A\u8BDD\u7528\u91CF",
+      onClick: () => openPanel("tokenlog", { sessionId: sid }),
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: "#fbbf24" } }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: label })
+      ]
+    }
+  );
+}
 var feature = {
   id: "tokenlog",
   name: "\u7528\u91CF\u8BB0\u5F55",
@@ -595,7 +722,8 @@ var feature = {
   description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u65F6\u95F4\u7B5B\u9009\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u5CF0\u8C37\u8BA1\u4EF7+\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
   css,
   View: TokenLogView,
-  HomeStat: TokenLogHomeStat
+  HomeStat: TokenLogHomeStat,
+  Chip: TokenLogChip
 };
 
 // features/modelconfig/view.js
@@ -1218,6 +1346,23 @@ function useBalance(ctx) {
 function BalanceView(props) {
   const snap = useBalance(props && props.ctx);
   const load = () => balanceStore.load();
+  import_react6.default.useEffect(() => {
+    const pid = props && props.params && props.params.provider;
+    if (!pid || typeof document === "undefined") return;
+    const t = setTimeout(() => {
+      try {
+        const el = document.querySelector('[data-dock-provider="' + pid + '"]');
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          el.classList.remove("dkb-flash");
+          void el.offsetWidth;
+          el.classList.add("dkb-flash");
+        }
+      } catch {
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [props && props.params]);
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
   const okCount = providers.filter((p) => p.balance && p.balance.status === "ok").length;
@@ -1288,7 +1433,7 @@ function BalanceView(props) {
         if (cells.length > 0) balBody = import_react6.default.createElement("div", { className: "dkb-rows" }, cells);
         return import_react6.default.createElement(
           "div",
-          { key: p.id, className: "dkb-row" },
+          { key: p.id, className: "dkb-row", "data-dock-provider": p.id },
           import_react6.default.createElement(
             "div",
             { className: "dkb-row-head" },
@@ -1337,6 +1482,49 @@ function BalanceStat(props) {
   const ok = providers.filter((p) => p.balance && p.balance.status === "ok").length;
   return import_react6.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
 }
+function chipBalanceText(p) {
+  const b = p && p.balance;
+  if (!b) return "\u4F59\u989D \u2026";
+  if (b.status !== "ok") {
+    if (b.status === "login-required") return "\u4F59\u989D\xB7\u9700\u767B\u5F55";
+    if (b.status === "no-credential") return "\u4F59\u989D\xB7\u65E0\u5BC6\u94A5";
+    if (b.status === "unsupported") return "\u4F59\u989D\xB7\u4E0D\u652F\u6301";
+    return "\u4F59\u989D\xB7\u67E5\u8BE2\u5931\u8D25";
+  }
+  if (b.kind === "quota") {
+    const v2 = Number(b.remaining);
+    const s2 = Number.isFinite(v2) ? v2 >= 1e4 ? (v2 / 1e4).toFixed(1) + "\u4E07" : String(Math.round(v2)) : fmt(b.remaining);
+    return "\u4F59\u989D \u5269 " + s2 + (b.unit ? " " + b.unit : "");
+  }
+  const info = Array.isArray(b.infos) && b.infos[0] ? b.infos[0] : null;
+  if (!info) return "\u4F59\u989D \u2026";
+  const cur = info.currency === "USD" ? "$" : "\xA5";
+  const v = Number(info.totalBalance);
+  const s = Number.isFinite(v) ? v >= 1e4 ? (v / 1e4).toFixed(2) + "\u4E07" : String(Math.round(v * 100) / 100) : fmt(info.totalBalance);
+  return "\u4F59\u989D " + cur + s;
+}
+function BalanceChip(props) {
+  const snap = useBalance(props && props.ctx);
+  const data = snap.data;
+  const providers = data && Array.isArray(data.providers) ? data.providers : [];
+  const def = data && data.default ? data.default.provider : null;
+  const cur = def ? providers.find((p) => p.id === def) : null;
+  const accent = cur ? accentOf(cur.id) : "#94a3b8";
+  const text = snap.error ? "\u4F59\u989D\xB7\u5931\u8D25" : !data ? snap.loading ? "\u4F59\u989D \u2026" : "\u4F59\u989D \u2014" : cur ? chipBalanceText(cur) : "\u4F59\u989D \u2014";
+  const title = cur ? (cur.displayName || cur.id) + (def ? "\uFF08\u5F53\u524D\u9009\u4E2D Provider\uFF09" : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
+  return import_react6.default.createElement(
+    "button",
+    {
+      type: "button",
+      className: "dockchip" + (snap.error || cur && cur.balance && cur.balance.status === "error" ? " err" : ""),
+      title,
+      "aria-label": "\u6A21\u578B\u4F59\u989D",
+      onClick: () => openPanel("balance", def ? { provider: def } : null)
+    },
+    import_react6.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
+    import_react6.default.createElement("span", null, text)
+  );
+}
 var feature5 = {
   id: "balance",
   name: "\u6A21\u578B\u4F59\u989D",
@@ -1367,10 +1555,14 @@ var feature5 = {
     ".dkb-link:hover{text-decoration:underline;}",
     ".dkb-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;}",
     ".dkb-refresh{cursor:pointer;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
-    ".dkb-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}"
+    ".dkb-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    // chips 点击定位后的行高亮闪烁
+    ".dkb-row.dkb-flash{animation:dkb-flash 1.8s var(--ds-ease-in-out);}",
+    "@keyframes dkb-flash{0%,55%{border-color:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 0 2px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 25%,transparent);}100%{border-color:var(--dsw-alias-border-l1);box-shadow:none;}}"
   ].join("\n"),
   View: BalanceView,
-  HomeStat: BalanceStat
+  HomeStat: BalanceStat,
+  Chip: BalanceChip
 };
 
 // src/client.jsx
@@ -1426,21 +1618,6 @@ var dockBridge = {
 };
 function allModules() {
   return BUILTIN_FEATURES.concat(PLANNED_FEATURES, externalDefs).slice().sort((a, b) => (a.order || 500) - (b.order || 500));
-}
-var state = /* @__PURE__ */ new Map();
-for (const f of BUILTIN_FEATURES) state.set(f.id, { enabled: f.defaultEnabled !== false, error: null });
-for (const f of PLANNED_FEATURES) state.set(f.id, { enabled: false, error: null });
-function stateOf(id) {
-  let st = state.get(id);
-  if (!st) {
-    st = { enabled: true, error: null };
-    state.set(id, st);
-  }
-  return st;
-}
-function toggleFeature(id) {
-  const st = stateOf(id);
-  st.enabled = !st.enabled;
 }
 var SHELL_CSS = [
   ".dock-root{display:flex;flex-direction:column;gap:12px;padding:4px 0;color:var(--dsw-alias-label-primary);font-size:13px;}",
@@ -1509,7 +1686,13 @@ var SHELL_CSS = [
   ".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
   ".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
   ".dockh-foot{display:flex;align-items:center;gap:8px;}",
-  ".dockh-go{color:var(--dsw-alias-label-tertiary);font-size:11px;}"
+  ".dockh-go{color:var(--dsw-alias-label-tertiary);font-size:11px;}",
+  // 会话输入区工具行 chips（dockchip- 前缀）：余额/用量随身小控件，挂在模型选择器左侧
+  ".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;}",
+  ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+  ".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  ".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
+  ".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
 ].join("\n");
 var dockCssTag = null;
 function fullDockCss() {
@@ -1544,18 +1727,7 @@ function useExternalVersion() {
     };
   }, []);
 }
-var panelState = { open: false, listeners: /* @__PURE__ */ new Set() };
 var lastGeom = { x: null, y: null, w: null, h: null };
-function setPanelOpen(value) {
-  panelState.open = !!value;
-  for (const fn of panelState.listeners) fn();
-}
-function subscribePanel(fn) {
-  panelState.listeners.add(fn);
-  return () => {
-    panelState.listeners.delete(fn);
-  };
-}
 function DockIcon() {
   return import_react7.default.createElement(
     "svg",
@@ -1568,8 +1740,8 @@ function DockIcon() {
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react7.default.useState(panelState.open);
-  import_react7.default.useEffect(() => subscribePanel(() => setOpen(panelState.open)), []);
+  const [open, setOpen] = import_react7.default.useState(panelNav.open);
+  import_react7.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
   return import_react7.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : ""),
@@ -1581,9 +1753,12 @@ function DockEntry(props) {
   }, import_react7.default.createElement(DockIcon, null), wide ? import_react7.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [open, setOpen] = import_react7.default.useState(panelState.open || typeof document === "undefined");
-  import_react7.default.useEffect(() => subscribePanel(() => setOpen(panelState.open)), []);
-  const [active, setActive] = import_react7.default.useState("home");
+  const [nav, setNav] = import_react7.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react7.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const open = nav.open || typeof document === "undefined";
+  const active = nav.active;
+  const setActive = navigatePanel;
+  const navParams = nav.params;
   const [, force] = import_react7.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const [win, setWin] = import_react7.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
@@ -1632,7 +1807,7 @@ function DockModal() {
     import_react7.default.createElement(
       mod.external ? FeatureBoundary : import_react7.default.Fragment,
       null,
-      import_react7.default.createElement(View, { ctx: ctxRef.current, feature: mod })
+      import_react7.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -1748,7 +1923,16 @@ function DockModal() {
                 toggleFeature(mod.id);
                 force();
               }
-            }, st.enabled ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09") : null
+            }, st.enabled ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09") : null,
+            !isHome && mod && typeof mod.Chip === "function" ? import_react7.default.createElement("button", {
+              type: "button",
+              className: "dockm-switch" + (chipShown(mod.id) ? " on" : ""),
+              title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
+              onClick: () => {
+                setChipShown(mod.id, !chipShown(mod.id));
+                force();
+              }
+            }, chipShown(mod.id) ? "\u4F1A\u8BDD\u9875\u663E\u793A\u4E2D" : "\u4F1A\u8BDD\u9875\u5DF2\u9690\u85CF") : null
           )
         )
       ),
@@ -1864,7 +2048,15 @@ function DockPanel() {
           f.planned ? import_react7.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react7.default.createElement("button", {
             className: "dock-switch" + (st.enabled ? " on" : ""),
             onClick: () => toggle(f.id)
-          }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528")
+          }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+          !f.planned && typeof f.Chip === "function" ? import_react7.default.createElement("button", {
+            className: "dock-switch" + (chipShown(f.id) ? " on" : ""),
+            title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
+            onClick: () => {
+              setChipShown(f.id, !chipShown(f.id));
+              force();
+            }
+          }, chipShown(f.id) ? "\u4F1A\u8BDD\u9875\u663E\u793A" : "\u4F1A\u8BDD\u9875\u9690\u85CF") : null
         ),
         f.planned ? import_react7.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react7.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
@@ -1872,10 +2064,29 @@ function DockPanel() {
     })
   );
 }
+function DockChips(props) {
+  const [, force] = import_react7.default.useReducer((n) => n + 1, 0);
+  import_react7.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const items = [];
+  for (const f of allModules()) {
+    if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
+    items.push(import_react7.default.createElement(f.Chip, {
+      key: f.id,
+      ctx: props.ctx,
+      feature: f,
+      session: props.session,
+      sessionId: props.sessionId,
+      input: props.input
+    }));
+  }
+  if (items.length === 0) return null;
+  return import_react7.default.createElement("div", { className: "dockchip-row" }, items);
+}
 var ctxRef = { current: null };
 function apply(ctx) {
   ctxRef.current = ctx;
   ensureCss();
+  initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
   const slots = ctx.get("slots");
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
@@ -1889,6 +2100,10 @@ function apply(ctx) {
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
     () => import_react7.default.createElement(DockPanel, null)
+  ));
+  slots.inject("conversation.input.left", () => slots.register(
+    { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
+    (zone) => import_react7.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];

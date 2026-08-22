@@ -12,7 +12,12 @@
 // （sidebar.footer.action），点击弹出居中功能面板（shell.overlay）。
 // 弹层窗口：默认大窗，支持最大化/最小化、标题栏拖动、右下角缩放（几何页内记忆）。
 import react from "react";
-import { FeatureBoundary } from "./shared.js";
+import {
+	FeatureBoundary,
+	initFeatureState, stateOf, toggleFeature, subscribeFeatureState,
+	chipShown, setChipShown,
+	panelNav, openPanel, setPanelOpen, navigatePanel, subscribePanel,
+} from "./shared.js";
 import { feature as fTokenlog } from "../features/tokenlog/view.jsx";
 import { feature as fModelconfig } from "../features/modelconfig/view.js";
 import { feature as fHeartbeat } from "../features/heartbeat/view.js";
@@ -84,19 +89,7 @@ function allModules() {
 		.sort((a, b) => ((a.order || 500) - (b.order || 500)));
 }
 
-// ---- 开关状态：浏览器内存态，随页面生命周期 ----
-const state = new Map();
-for (const f of BUILTIN_FEATURES) state.set(f.id, { enabled: f.defaultEnabled !== false, error: null });
-for (const f of PLANNED_FEATURES) state.set(f.id, { enabled: false, error: null });
-function stateOf(id) {
-	let st = state.get(id);
-	if (!st) { st = { enabled: true, error: null }; state.set(id, st); } // 外部功能默认启用
-	return st;
-}
-function toggleFeature(id) {
-	const st = stateOf(id);
-	st.enabled = !st.enabled;
-}
+// ---- 开关状态与面板导航总线在 src/shared.js（会话区 chips 与面板共用，避免外壳↔模块循环依赖） ----
 
 // ---- 样式：外壳样式 + 各功能模块自带样式（css 字段）合并注入一个 <style> ----
 // ⚠️ 变量名不得用 CSS：浏览器存在全局 window.CSS 命名空间，bundle 任何作用域解析歧义
@@ -168,7 +161,13 @@ const SHELL_CSS = [
 	".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
 	".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 	".dockh-foot{display:flex;align-items:center;gap:8px;}",
-	".dockh-go{color:var(--dsw-alias-label-tertiary);font-size:11px;}"
+	".dockh-go{color:var(--dsw-alias-label-tertiary);font-size:11px;}",
+	// 会话输入区工具行 chips（dockchip- 前缀）：余额/用量随身小控件，挂在模型选择器左侧
+	".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;}",
+	".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+	".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+	".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
+	".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
 ].join("\n");
 
 let dockCssTag = null;
@@ -208,17 +207,8 @@ function useExternalVersion() {
 	}, []);
 }
 
-// ---- 侧栏入口按钮与弹层共享的面板开关（浏览器内存态，随页面生命周期） ----
-const panelState = { open: false, listeners: new Set() };
+// ---- 弹层窗口几何记忆（页面生命周期内）：拖动/缩放后记住位置与尺寸，重开还原 ----
 let lastGeom = { x: null, y: null, w: null, h: null };
-function setPanelOpen(value) {
-	panelState.open = !!value;
-	for (const fn of panelState.listeners) fn();
-}
-function subscribePanel(fn) {
-	panelState.listeners.add(fn);
-	return () => { panelState.listeners.delete(fn); };
-}
 
 function DockIcon() {
 	return react.createElement("svg", { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
@@ -230,8 +220,8 @@ function DockIcon() {
 
 function DockEntry(props) {
 	const wide = !!props.wide;
-	const [open, setOpen] = react.useState(panelState.open);
-	react.useEffect(() => subscribePanel(() => setOpen(panelState.open)), []);
+	const [open, setOpen] = react.useState(panelNav.open);
+	react.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
 	return react.createElement("button", {
 		type: "button",
 		className: "docke2-btn" + (open ? " docke2-on" : ""),
@@ -252,9 +242,13 @@ function DockEntry(props) {
 // 左侧导航：首项「首页」总揽（默认选中），其后是各功能模块（order 升序）；planned 模块只占位展示
 function DockModal() {
 	// 默认关闭；SSR/无浏览器环境下默认展开内容（便于冒烟测试渲染整棵弹层树）
-	const [open, setOpen] = react.useState(panelState.open || typeof document === "undefined");
-	react.useEffect(() => subscribePanel(() => setOpen(panelState.open)), []);
-	const [active, setActive] = react.useState("home");
+	// 导航总线（open/active/params）驱动：chips 点击 openPanel(...) 即可打开并定位
+	const [nav, setNav] = react.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+	react.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+	const open = nav.open || typeof document === "undefined";
+	const active = nav.active;
+	const setActive = navigatePanel;
+	const navParams = nav.params;
 	const [, force] = react.useReducer((n) => n + 1, 0);
 	useExternalVersion();
 	// ---- 窗口几何：普通（默认居中大窗）/最大化/最小化；拖动标题栏移动、右下角缩放 ----
@@ -295,12 +289,13 @@ function DockModal() {
 	const isHome = active === "home";
 	const mod = isHome ? null : (MODULES.find((m) => m.id === active) || MODULES[0]);
 	const st = mod ? stateOf(mod.id) : null;
-	// 外部包视图包错误边界；视图统一收到 { ctx } props（需要 timer/theme 服务的模块自行取用）
+	// 外部包视图包错误边界；视图统一收到 { ctx, feature, params } props
+	//（params 来自导航总线：如 { provider } 高亮余额行、{ sessionId } 按会话筛选用量）
 	const View = mod ? mod.View : null;
 	const viewNode = mod && View
 		? react.createElement("div", { className: "dockm-view" },
 			react.createElement(mod.external ? FeatureBoundary : react.Fragment, null,
-				react.createElement(View, { ctx: ctxRef.current, feature: mod })))
+				react.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })))
 		: null;
 	const enabledCount = MODULES.filter((m) => { const s = stateOf(m.id); return !!(s && s.enabled); }).length;
 	// 最大化：铺满视口（留 10px 边）；被拖过/缩放过：固定坐标；否则 CSS 默认居中
@@ -391,13 +386,21 @@ function DockModal() {
 						react.createElement("span", null, isHome
 							? "功能坞 v" + DOCK_VERSION + " · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
 							: "功能坞 v" + DOCK_VERSION + " · 新功能按路线图追加"),
-						!isHome && mod && !mod.planned && st
-							? react.createElement("button", {
-								type: "button",
-								className: "dockm-switch" + (st.enabled ? " on" : ""),
-								onClick: () => { toggleFeature(mod.id); force(); }
-							}, st.enabled ? "已启用（点击停用）" : "已停用（点击启用）")
-							: null))),
+					!isHome && mod && !mod.planned && st
+						? react.createElement("button", {
+							type: "button",
+							className: "dockm-switch" + (st.enabled ? " on" : ""),
+							onClick: () => { toggleFeature(mod.id); force(); }
+						}, st.enabled ? "已启用（点击停用）" : "已停用（点击启用）")
+						: null,
+					!isHome && mod && typeof mod.Chip === "function"
+						? react.createElement("button", {
+							type: "button",
+							className: "dockm-switch" + (chipShown(mod.id) ? " on" : ""),
+							title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
+							onClick: () => { setChipShown(mod.id, !chipShown(mod.id)); force(); }
+						}, chipShown(mod.id) ? "会话页显示中" : "会话页已隐藏")
+						: null))),
 			win.mode === "normal"
 				? react.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") })
 				: null));
@@ -478,12 +481,19 @@ function DockPanel() {
 					react.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
 					react.createElement("span", { className: "dock-name" }, f.name),
 					react.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "（来自外部包" + (f.package ? " " + f.package : "") + "）" : "")),
-					f.planned
-						? react.createElement("span", { className: "dock-badge" }, "规划中")
-						: react.createElement("button", {
-							className: "dock-switch" + (st.enabled ? " on" : ""),
-							onClick: () => toggle(f.id)
-						}, st.enabled ? "已启用" : "已停用")),
+				f.planned
+					? react.createElement("span", { className: "dock-badge" }, "规划中")
+					: react.createElement("button", {
+						className: "dock-switch" + (st.enabled ? " on" : ""),
+						onClick: () => toggle(f.id)
+					}, st.enabled ? "已启用" : "已停用"),
+				!f.planned && typeof f.Chip === "function"
+					? react.createElement("button", {
+						className: "dock-switch" + (chipShown(f.id) ? " on" : ""),
+						title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
+						onClick: () => { setChipShown(f.id, !chipShown(f.id)); force(); }
+					}, chipShown(f.id) ? "会话页显示" : "会话页隐藏")
+					: null),
 				f.planned
 					? react.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "待接入：见 README 路线图")
 					: st.error ? react.createElement("div", { className: "dock-body dockm-err" }, "功能出错：" + st.error) : null,
@@ -491,13 +501,32 @@ function DockPanel() {
 		}));
 }
 
-// ---- 插件应用：注册三处 UI（入口按钮 / 弹层 / 设置页），注入样式 ----
+// ---- 会话输入区工具行 chips：已启用功能的随身小控件（模型选择器左侧） ----
+// 功能模块在 feature 描述符上挂可选 Chip 组件（props: { ctx, session, sessionId, input, feature }），
+// 启用即在 conversation.input.left 渲染；点击通常经 openPanel(...) 打开功能坞定位到对应功能页。
+function DockChips(props) {
+	const [, force] = react.useReducer((n) => n + 1, 0);
+	react.useEffect(() => subscribeFeatureState(() => force()), []);
+	const items = [];
+	for (const f of allModules()) {
+		if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
+		items.push(react.createElement(f.Chip, {
+			key: f.id, ctx: props.ctx, feature: f,
+			session: props.session, sessionId: props.sessionId, input: props.input,
+		}));
+	}
+	if (items.length === 0) return null;
+	return react.createElement("div", { className: "dockchip-row" }, items);
+}
+
+// ---- 插件应用：注册四处 UI（入口按钮 / 弹层 / 设置页 / 会话区 chips），注入样式 ----
 // ctx 以 ref 供视图组件使用（timer/theme 等服务按需自取；重装/HMR 时更新）
 const ctxRef = { current: null };
 
 export function apply(ctx) {
 	ctxRef.current = ctx;
 	ensureCss();
+	initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
 	const slots = ctx.get("slots");
 	if (slots === undefined) return;
 
@@ -510,6 +539,10 @@ export function apply(ctx) {
 	slots.inject("settings.section", () => slots.register(
 		{ name: "settings.section", id: "dsh-dock", order: 90, label: "功能坞" },
 		() => react.createElement(DockPanel, null)));
+	// 会话输入卡工具行左端（模型选择器左侧）：已启用功能的随身小控件
+	slots.inject("conversation.input.left", () => slots.register(
+		{ name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "功能坞" },
+		(zone) => react.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))));
 }
 
 export const inject = ["timer"];
