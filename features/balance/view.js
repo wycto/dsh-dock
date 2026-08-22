@@ -168,7 +168,7 @@ function BalanceStat(props) {
 export const feature = {
 	id: "balance",
 	name: "模型余额",
-	order: 130,
+	order: 120,
 	accent: "#4d9fff",
 	description: "展示所有模型 Provider 账户余额（Host 拉取，5 分钟自动刷新）",
 	css: [

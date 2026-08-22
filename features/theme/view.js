@@ -27,7 +27,7 @@ function ThemeStat(props) {
 export const feature = {
 	id: "theme",
 	name: "主题信息",
-	order: 120,
+	order: 150,
 	accent: "#a78bfa",
 	description: "示例功能：读取当前主题快照（纯 Client）",
 	View: ThemeView,

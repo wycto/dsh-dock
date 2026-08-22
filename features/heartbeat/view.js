@@ -26,7 +26,7 @@ function HeartbeatStat(props) {
 export const feature = {
 	id: "heartbeat",
 	name: "心跳监视",
-	order: 110,
+	order: 140,
 	accent: "#34d399",
 	description: "示例功能：面板侧运行时长心跳（纯 Client）",
 	View: HeartbeatView,
