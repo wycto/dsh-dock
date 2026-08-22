@@ -1,6 +1,7 @@
 // dsh-dock · Client 半部（浏览器 bundle，手写 lazy-CJS 工厂格式，无需构建器）
 // 中文名：功能坞（dsh-dock）。完整面板挂载在 settings.section：设置 → 功能坞；
-// 侧栏底部另有「功能坞」入口按钮（sidebar.footer.action），点击弹出居中功能弹层（shell.overlay）。
+// 侧栏底部另有「功能坞」入口按钮（sidebar.footer.action），点击弹出居中功能面板（shell.overlay）：
+// 左侧导航 = 首页总揽 + 各功能模块，默认打开「首页」（所有子功能的状态/概要/快捷开关一览）。
 // 每个功能是一个模块：FEATURES 注册表 + featureViews 视图组件 + 独立开关（内存态）。
 // v0.2.0：模型余额已接入 —— balance 视图通过同源 fetch('/dsh-dock/balance') 拉取
 //   Host 半部汇总好的各 Provider 余额/配额（Host 函数在 index.js，数据形状与其一致）。
@@ -99,7 +100,21 @@ window.__ModuleLoader__.load({
 			".dockm-foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:11px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;flex-wrap:wrap;}",
 			".dockm-switch{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:4px 12px;font-family:inherit;font-size:12px;margin-left:auto;}",
 			".dockm-switch:hover{color:var(--dsw-alias-label-primary);}",
-			".dockm-switch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}"
+			".dockm-switch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+			// 首页总揽（dockh- 前缀）：导航首项图标 + 模块卡片网格
+			".dockm-navhome{display:inline-flex;align-items:center;color:var(--dsw-alias-accent,#4d9fff);flex:none;}",
+			".dockh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;}",
+			".dockh-card{display:flex;flex-direction:column;gap:6px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;cursor:pointer;transition:border-color .15s var(--ds-ease-in-out);}",
+			".dockh-card:hover,.dockh-card:focus-visible{border-color:var(--dsw-alias-accent,#4d9fff);outline:none;}",
+			".dockh-head{display:flex;align-items:center;gap:8px;}",
+			".dockh-name{font-weight:600;flex:none;}",
+			".dockh-badge{margin-left:auto;flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
+			".dockh-badge.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+			".dockh-badge.off{border-style:dashed;}",
+			".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
+			".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+			".dockh-foot{display:flex;align-items:center;gap:8px;}",
+			".dockh-go{color:var(--dsw-alias-label-tertiary);font-size:11px;}"
 		].join("\n");
 
 		// ---- 模型余额视图的配色与工具（沿用 dsh-balance-panel@0.1.1，MIT 同作者）----
@@ -189,8 +204,8 @@ window.__ModuleLoader__.load({
 				}, react.createElement(DockIcon, null), wide ? react.createElement("span", { className: "docke2-label" }, "功能坞") : null);
 			}
 
-// ---- 功能坞弹出面板：shell.overlay（仿 dsh 设置：居中模态 = 遮罩 + 对话框；左侧功能模块导航 + 右侧内容区）----
-			// 模块配色与 FEATURES/featureViews 同源；planned 模块只占位展示
+// ---- 功能坞弹出面板：shell.overlay（仿 dsh 设置：居中模态 = 遮罩 + 对话框）----
+			// 左侧导航：首项「首页」总揽（默认选中），其后是各功能模块；planned 模块只占位展示
 			const MODULE_ACCENTS = { heartbeat: "#34d399", theme: "#a78bfa", balance: "#4d9fff", tokenlog: "#fbbf24", animation: "#f472b6" };
 			const MODULES = FEATURES.map((f) => Object.assign({}, f, { accent: MODULE_ACCENTS[f.id] || accentOf(f.id) }));
 			const PLANNED_NOTES = {
@@ -207,12 +222,14 @@ window.__ModuleLoader__.load({
 				// 默认关闭；SSR/无浏览器环境下默认展开内容（便于冒烟测试渲染整棵弹层树）
 				const [open, setOpen] = react.useState(panelState.open || typeof document === "undefined");
 				react.useEffect(() => subscribePanel(() => setOpen(panelState.open)), []);
-				const [active, setActive] = react.useState("balance");
+				const [active, setActive] = react.useState("home");
 				const [, force] = react.useReducer((n) => n + 1, 0);
 				if (!open) return null;
-				const mod = MODULES.find((m) => m.id === active) || MODULES[0];
-				const st = state.get(mod.id);
-				const View = featureViews[mod.id];
+				const isHome = active === "home";
+				const mod = isHome ? null : (MODULES.find((m) => m.id === active) || MODULES[0]);
+				const st = mod ? state.get(mod.id) : null;
+				const View = mod ? featureViews[mod.id] : null;
+				const enabledCount = MODULES.filter((m) => { const s = state.get(m.id); return !!(s && s.enabled); }).length;
 				return react.createElement("div", { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
 					react.createElement("div", { className: "dockm-dialog", onClick: (e) => e.stopPropagation() },
 						react.createElement("div", { className: "dockm-head" },
@@ -222,6 +239,14 @@ window.__ModuleLoader__.load({
 							react.createElement("button", { type: "button", className: "dockm-close", "aria-label": "关闭", onClick: () => setPanelOpen(false) }, "✕")),
 						react.createElement("div", { className: "dockm-body" },
 							react.createElement("nav", { className: "dockm-nav", "aria-label": "功能模块" },
+								react.createElement("button", {
+									type: "button",
+									key: "home",
+									className: "dockm-nav-item" + (isHome ? " on" : ""),
+									onClick: () => setActive("home")
+								},
+									react.createElement("span", { className: "dockm-navhome" }, react.createElement(DockIcon, null)),
+									react.createElement("span", null, "首页")),
 								MODULES.map((m) =>
 									react.createElement("button", {
 										type: "button",
@@ -235,20 +260,29 @@ window.__ModuleLoader__.load({
 							react.createElement("div", { className: "dockm-content" },
 								react.createElement("div", { className: "dockm-content-head" },
 									react.createElement("div", { className: "dockm-name" },
-										react.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
-										mod.name,
-										mod.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null),
-									react.createElement("div", { className: "dockm-desc" }, mod.description)),
-								mod.planned
-									? react.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "待接入：见 README 路线图")
-									: st && st.enabled && View
-										? react.createElement("div", { className: "dockm-view" }, react.createElement(View, null))
-										: st && st.error
-											? react.createElement("div", { className: "dockm-note dockm-err" }, "功能出错：" + st.error)
-											: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（记忆态随页面生命周期，0.5.0 起持久化）"),
+										isHome
+											? react.createElement("span", { className: "dockm-navhome" }, react.createElement(DockIcon, null))
+											: react.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+										isHome ? "首页" : mod.name,
+										!isHome && mod.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null),
+									react.createElement("div", { className: "dockm-desc" },
+										isHome
+											? "所有子功能总揽：运行状态、概要与快捷开关，点击卡片进入对应功能页。"
+											: mod.description)),
+							isHome
+								? react.createElement("div", { className: "dockm-view" }, react.createElement(HomeView, { onOpen: setActive, onToggle: force }))
+									: mod.planned
+										? react.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "待接入：见 README 路线图")
+										: st && st.enabled && View
+											? react.createElement("div", { className: "dockm-view" }, react.createElement(View, null))
+											: st && st.error
+												? react.createElement("div", { className: "dockm-note dockm-err" }, "功能出错：" + st.error)
+												: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（记忆态随页面生命周期，0.5.0 起持久化）"),
 								react.createElement("div", { className: "dockm-foot" },
-									react.createElement("span", null, "功能坞 v0.2.0 · 新功能按路线图追加"),
-									!mod.planned && st
+									react.createElement("span", null, isHome
+										? "功能坞 v0.2.0 · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
+										: "功能坞 v0.2.0 · 新功能按路线图追加"),
+									!isHome && mod && !mod.planned && st
 										? react.createElement("button", {
 											type: "button",
 											className: "dockm-switch" + (st.enabled ? " on" : ""),
@@ -261,14 +295,117 @@ window.__ModuleLoader__.load({
 		const state = new Map();
 		for (const f of FEATURES) state.set(f.id, { enabled: !!f.defaultEnabled, error: null });
 
-		// ---- 每个功能的客户端视图：key 与注册表 id 一致 ----
+		// 面板加载时刻：心跳视图与首页总揽共用的运行时长基准（同一数字，不分谁先挂载）
+		const loadedAt = Date.now();
+		function uptimeText() {
+			const sec = Math.max(0, Math.floor((Date.now() - loadedAt) / 1000));
+			const m = Math.floor(sec / 60);
+			return "面板已运行 " + (m > 0 ? m + " 分 " : "") + (sec % 60) + " 秒";
+		}
+
+		// ---- 模型余额共享快照：balance 视图（弹层/设置页）与首页总揽共用一份数据与刷新 ----
+		const balanceStore = {
+			snap: { data: null, loading: false, error: null },
+			listeners: new Set(),
+			subscribe(fn) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; },
+			set(patch) { this.snap = Object.assign({}, this.snap, patch); for (const fn of this.listeners) fn(); },
+			load() {
+				if (this.snap.loading) return;
+				this.set({ loading: true });
+				fetch("/dsh-dock/balance", { signal: AbortSignal.timeout(20000) })
+					.then((res) => (res.ok ? res.json() : Promise.reject(new Error("余额接口 HTTP " + res.status))))
+					.then((data) => this.set({ data: data, loading: false, error: null }))
+					.catch((e) => this.set({ loading: false, error: (e && e.message) || String(e) }));
+			}
+		};
+		function useBalance() {
+			const [snap, setSnap] = react.useState(balanceStore.snap);
+			react.useEffect(() => {
+				const off = balanceStore.subscribe(() => setSnap(balanceStore.snap));
+				if (!balanceStore.snap.data && !balanceStore.snap.loading) balanceStore.load();
+				const disposer = ctx.interval(() => balanceStore.load(), 5 * 60 * 1000);
+				return () => { off(); if (disposer) disposer(); };
+			}, []);
+			return snap;
+		}
+
+		// ---- 首页总揽：每个功能模块一张卡片（状态徽章 + 运行概要 + 快捷开关），点击进入对应功能 ----
+		function HeartbeatStat() {
+			const [txt, setTxt] = react.useState(uptimeText());
+			react.useEffect(() => ctx.interval(() => setTxt(uptimeText()), 1000), []);
+			return react.createElement("span", null, txt);
+		}
+		function ThemeStat() {
+			const theme = ctx.get("theme");
+			if (theme === undefined) return react.createElement("span", null, "theme 服务不可用");
+			let label = "未知";
+			try {
+				const snap = theme.getTheme();
+				if (snap && typeof snap.id === "string") label = snap.id;
+				else if (snap && typeof snap.name === "string") label = snap.name;
+			} catch (err) { return react.createElement("span", null, "读取失败：" + String((err && err.message) || err)); }
+			return react.createElement("span", null, "当前主题：" + label);
+		}
+		function BalanceStat() {
+			const snap = useBalance();
+			const data = snap.data;
+			const providers = data && Array.isArray(data.providers) ? data.providers : [];
+			if (snap.error) return react.createElement("span", { className: "dockm-err" }, "余额查询失败（点击进入查看详情）");
+			if (!data) return react.createElement("span", null, snap.loading ? "正在拉取余额…" : "等待拉取余额");
+			const ok = providers.filter((p) => p.balance && p.balance.status === "ok").length;
+			return react.createElement("span", null, providers.length + " 个 Provider · " + ok + " 个可查余额");
+		}
+		const homeStats = { heartbeat: HeartbeatStat, theme: ThemeStat, balance: BalanceStat };
+		function HomeView(props) {
+			const [, force] = react.useReducer((n) => n + 1, 0);
+			const open = (id) => { if (props && typeof props.onOpen === "function") props.onOpen(id); };
+			return react.createElement("div", { className: "dockh-grid" },
+				MODULES.map((m) => {
+					const st = state.get(m.id);
+					const enabled = !!(st && st.enabled);
+					const Stat = homeStats[m.id];
+					return react.createElement("div", {
+						key: m.id,
+						className: "dockh-card",
+						role: "button",
+						tabIndex: 0,
+						onClick: () => open(m.id),
+						onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(m.id); } }
+					},
+						react.createElement("div", { className: "dockh-head" },
+							react.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+							react.createElement("span", { className: "dockh-name" }, m.name),
+							react.createElement("span", { className: "dockh-badge" + (m.planned ? "" : enabled ? " on" : " off") },
+								m.planned ? "规划中" : enabled ? "已启用" : "已停用")),
+						react.createElement("div", { className: "dockh-desc" }, m.description),
+						react.createElement("div", { className: "dockh-stat" },
+							m.planned
+								? react.createElement("span", null, PLANNED_NOTES[m.id] || "待接入：见 README 路线图")
+								: enabled && Stat
+									? react.createElement(Stat, null)
+									: react.createElement("span", null, "已停用，启用后在此展示运行概要")),
+						react.createElement("div", { className: "dockh-foot" },
+							react.createElement("span", { className: "dockh-go" }, "查看详情 →"),
+							m.planned ? null : react.createElement("button", {
+								type: "button",
+								className: "dockm-switch" + (enabled ? " on" : ""),
+								onClick: (e) => {
+									e.stopPropagation();
+									toggleFeature(m.id);
+									// onToggle = DockModal 的 force：连带刷新弹层脚注的「N 个已启用」统计
+									if (props && typeof props.onToggle === "function") props.onToggle();
+									force();
+								}
+							}, enabled ? "停用" : "启用")));
+				}));
+		}
+
+			// ---- 每个功能的客户端视图：key 与注册表 id 一致 ----
 			const featureViews = {
 			heartbeat: function HeartbeatView() {
-				const [sec, setSec] = react.useState(0);
-				react.useEffect(() => ctx.interval(() => setSec((s) => s + 1), 1000), []);
-				const m = Math.floor(sec / 60);
-				return react.createElement("div", null,
-					"面板已运行 " + (m > 0 ? m + " 分 " : "") + (sec % 60) + " 秒");
+				const [txt, setTxt] = react.useState(uptimeText());
+				react.useEffect(() => ctx.interval(() => setTxt(uptimeText()), 1000), []);
+				return react.createElement("div", null, txt);
 			},
 				theme: function ThemeView() {
 					const theme = ctx.get("theme");
@@ -281,20 +418,9 @@ window.__ModuleLoader__.load({
 					return react.createElement("div", null, "当前主题：" + label);
 				},
 			balance: function BalanceView() {
-				const [snap, setSnap] = react.useState({ data: null, loading: false, error: null });
-				// load 只依赖 setSnap（函数式更新），无闭包变化，可安全被 interval 与按钮复用
-				const load = react.useCallback(() => {
-					setSnap((s) => (s.loading ? s : Object.assign({}, s, { loading: true })));
-					fetch("/dsh-dock/balance", { signal: AbortSignal.timeout(20000) })
-						.then((res) => (res.ok ? res.json() : Promise.reject(new Error("余额接口 HTTP " + res.status))))
-						.then((result) => setSnap({ data: result, loading: false, error: null }))
-						.catch((e) => setSnap((s) => Object.assign({}, s, { loading: false, error: (e && e.message) || String(e) })));
-				}, []);
-				react.useEffect(() => {
-					load();
-					const disposer = ctx.interval(load, 5 * 60 * 1000);
-					return () => { if (disposer) disposer(); };
-				}, [load]);
+				// 数据与刷新走共享 balanceStore：首页总揽、弹层与设置页共用同一份快照（挂载即拉取，5 分钟自动刷新）
+				const snap = useBalance();
+				const load = () => balanceStore.load();
 
 				const data = snap.data;
 					const providers = data && Array.isArray(data.providers) ? data.providers : [];
