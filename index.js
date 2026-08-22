@@ -1024,12 +1024,14 @@ function installVisionProxy(ctx, directory) {
   })()
   llm.prepareCall = async (config, signal) => {
     const prepared = await origPrepare.call(llm, config, signal)
-    // prepared 是冻结对象：浅拷贝后包一层 stream，dispatched 一次性约束经原闭包保持
+    // prepared 是冻结对象：浅拷贝后包一层 stream，dispatched 一次性约束经原闭包保持。
+    // ⚠️ stream 必须同步返回 AsyncIterable：消费方 `for await (of stream)` 不接受
+    // Promise（Node 语义：of 表达式直接取 Symbol.asyncIterator），async 包装会令
+    // 全部请求报 "stream is not async iterable"（2026-08-22 事故）。
     return Object.assign({}, prepared, {
-      stream: async (options) => {
-        const transformed = await transformForVisionProxy(deps, options)
-        return prepared.stream(transformed)
-      },
+      stream: (options) => (async function* () {
+        yield* prepared.stream(await transformForVisionProxy(deps, options))
+      })(),
     })
   }
   return () => {
