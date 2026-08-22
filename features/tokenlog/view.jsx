@@ -7,6 +7,7 @@
 //  - 挂载即扫描历史+按暂存条件查询；挂载期间每 5s 静默自动刷新
 // Host 通信：fetch('/dsh-dock/tokenlog/<method>')（见 features/tokenlog/host.js）。
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { openPanel } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
@@ -187,7 +188,9 @@ function Detail({ rec, onClose, rate }) {
 }
 
 // ---------- 主视图（嵌入 dock 面板内容区） ----------
-export function TokenLogView() {
+export function TokenLogView(props) {
+	// props.params.sessionId（chips 点击带入）：立即按该会话筛选并查询
+	const navSession = props && props.params && props.params.sessionId ? props.params.sessionId : null;
 	// 挂载即视为「打开」：恢复上次暂存的条件(时间不选=显示全部记录); savedFilters 稳定快照, 仅初始化时读取一次
 	const [savedFilters] = useState(loadSavedFilters);
 	const [fromStr, setFromStr] = useState(() => (savedFilters && savedFilters.fromStr) || "");
@@ -261,9 +264,19 @@ export function TokenLogView() {
 			.finally(() => setLoading(false));
 	}, [buildQ]);
 
+	// chips 定位：按带入的会话立即筛选查询（覆盖暂存条件里的会话项）
+	useEffect(() => {
+		if (!navSession) return;
+		setSessionId(navSession);
+		setLoading(true); setErr("");
+		rpcCall("query", Object.assign({}, buildQ(true), { sessionId: navSession }))
+			.then((d) => { setData(d); setPage(0); })
+			.catch((e) => setErr(String((e && e.message) || e)))
+			.finally(() => setLoading(false));
+	}, [navSession]);
+
 	// 重置: 清空所有筛选(时间不选=显示全部记录), 并立即查询
-	const resetFilters = useCallback(() => {
-		setFromStr(""); setToStr("");
+	const resetFilters = useCallback(() => {		setFromStr(""); setToStr("");
 		setProvider(""); setModel(""); setStatus(""); setEffort(""); setSessionId(""); setDim("");
 		setLoading(true); setErr("");
 		rpcCall("query", {})
@@ -507,6 +520,35 @@ function TokenLogHomeStat() {
 	return <span>今日 {fmtNum(t.calls)} 次调用 · {fmtCompact(t.totalTokens)} Token · {fmtCost(t.cost)}（{fmtCostCny(t.cost, snap.rate)}）</span>;
 }
 
+// ---------- 会话输入区 chip：显示当前会话总 Token（10s 静默刷新），点击打开功能坞并按该会话筛选 ----------
+export function TokenLogChip(props) {
+	const sid = (props && props.sessionId) || (props && props.session && props.session.sessionId) || null;
+	const [snap, setSnap] = useState({ totals: null, err: "" });
+	useEffect(() => {
+		if (!sid) return;
+		let cancel = false;
+		const load = () => rpcCall("query", { sessionId: sid })
+			.then((d) => { if (!cancel) setSnap({ totals: d && d.totals, err: "" }); })
+			.catch((e) => { if (!cancel) setSnap((s) => ({ totals: s.totals, err: String((e && e.message) || e) })); });
+		load();
+		const timer = setInterval(load, 10000);
+		return () => { cancel = true; clearInterval(timer); };
+	}, [sid]);
+	if (!sid) return null;
+	const t = snap.totals;
+	const label = snap.err && !t ? "用量·失败" : (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · " + fmtCost(t.cost) : "") : "⛁ …");
+	const title = t
+		? "本会话 " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCost(t.cost) + "（估算）\n点击在功能坞查看用量记录"
+		: "点击在功能坞查看用量记录";
+	return (
+		<button type="button" className={"dockchip" + (snap.err && !t ? " err" : "")} title={title} aria-label="会话用量"
+			onClick={() => openPanel("tokenlog", { sessionId: sid })}>
+			<span className="dockchip-dot" style={{ background: "#fbbf24" }} />
+			<span>{label}</span>
+		</button>
+	);
+}
+
 export const feature = {
 	id: "tokenlog",
 	name: "用量记录",
@@ -516,4 +558,5 @@ export const feature = {
 	css,
 	View: TokenLogView,
 	HomeStat: TokenLogHomeStat,
+	Chip: TokenLogChip,
 };

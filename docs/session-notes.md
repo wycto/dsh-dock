@@ -354,7 +354,8 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 
 - 仓库重构：`features/<id>/host.js`（宿主半部，纯 ESM 零构建）+ `features/<id>/view.js(x)`（客户端视图）+ `src/client.jsx`（外壳组装）+ `src/host-core.js`（共享内核）；`index.js` 只 import 组装（1359 行 → ~90 行）。
 - **客户端放弃零构建**（本版唯一推翻的历史决策，见三、表格 8.7 条上下文）：esbuild bundle 成单文件 `client.js`（react 系外部化走运行时 seed，`@wycto/dsh-token-usage` 同款线上已验证模式）。理由：650 行 JSX 视图手写 createElement 不可维护、真实源码文件无从模块化。**宿主半部保持零构建**。改客户端后必须 `node scripts/build-client.mjs`。
-- 模块契约：视图导出 `{ id, name, order, accent, description, css, View, HomeStat? }`（order 定菜单次序：tokenlog=10 → 第二菜单）；宿主导出 `{ id, name, description, defaultEnabled, setup(ctx)→disposer }`；视图收到 `{ ctx, feature }` props。
+- 模块契约：视图导出 `{ id, name, order, accent, description, css, View, HomeStat?, Chip? }`（order 定菜单次序，当前：modelconfig=100/tokenlog=110/balance=120/animation=130/heartbeat=140/theme=150）；宿主导出 `{ id, name, description, defaultEnabled, setup(ctx)→disposer }`；视图收到 `{ ctx, feature, params }` props（params 来自导航总线）。
+- **会话区 chips（0.4.0 追加）**：外壳注册 `conversation.input.left`（模型选择器左侧工具行，官方文档指定可点击小控件的座位），渲染各已启用且「会话页显示」功能的 `Chip` 组件；余额 chip 显示当前选中 Provider 余额（agentDefaultModel 快照），点击 openPanel('balance', {provider}) 定位并高亮行；用量 chip 显示当前会话总 Token（query sessionId，10s 刷新），点击 openPanel('tokenlog', {sessionId}) 按会话筛选。开关状态经 shared.js 总线（面板导航 + 功能开关 + chip 显隐，localStorage 持久化 `dsh-dock/chips/v1`），避免外壳↔模块循环依赖。
 - **dockBridge 回装通道**：`client.js` 导出 `dockBridge.register(def)`；独立功能包（`scripts/extract-feature.mjs` 生成的骨架）在浏览器端 `ctx.modules.import('dsh-dock')` 成功→注册进功能坞（独立入口隐藏），失败→自己独立面板。跨插件 import 是 DSH client-modules 官方机制（懒 CJS 注册表 + boot 图，已读 `dsh-client-modules` 源码验证），非 hack。外部视图有 FeatureBoundary 错误边界 + 「外部」徽章 + package 标注。
 - 提取脚手架 `scripts/extract-feature.mjs <id>`：镜像仓库布局生成独立包（宿主入口/双形态客户端入口/构建脚本/patch/package.json），脚手架性质、发布前需裁剪实测。
 
