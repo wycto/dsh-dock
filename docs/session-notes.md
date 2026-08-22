@@ -225,3 +225,17 @@
 
 - 静态版本：`GET /dsh-dock/balance`（webServer 路由 + 同源 fetch）；动态预览：`harness.handle`
   + `host.call`。两者等价，静态为主。
+
+### 8.10 续作会话（2026-08-22 晚）：模型设置一键批量操作
+
+- **需求**：模型的输入支持（文本/图片 + 标注 视频/音频/文档）与思考强度档，支持一键全勾选和取消勾选。
+- **实现（client.js `ModelsView`）**：
+  - 每个模型行：输入行尾部加「全选 / 取消全选」；强度行加「全选 / 取消全选」
+    （强度全选/取消 = 切 custom 并把全部档置 true/false）；
+  - Provider 区工具栏（`dkm-toolbar`）：输入全选 / 输入取消全选 / 强度全选 / 强度取消全选，
+    作用于该 Provider 全部模型草稿；官方 deepseek Provider 强度为 Provider 级共享，隐藏强度批量按钮；
+  - 语义安全：输入取消全选 = `input: []` = 继承目录默认（Host 写回时删除 input 字段，
+    见 index.js 写回逻辑，不会写坏配置）。
+- 样式：`dkm-mini` / `dkm-toolbar`。验证：`node --check` + SSR（含弹层整树）+ Host 冒烟全绿。
+- ⚠️ 8.9 的遗留提醒仍有效：若线上进程未重启加载新 Host 写回代码，面板保存可能清掉存量
+  compat 治愈字段——保存前先确认已重启过 `dsh web`。
