@@ -1,0 +1,7 @@
+node_modules/
+*.tgz
+*.log
+.DS_Store
+.idea/
+client.tmp.cjs
+.zcode/
