@@ -504,7 +504,8 @@ window.__ModuleLoader__.load({
 						input: m.input && m.input.length ? m.input.slice() : ["text"],
 						tags: (m.tags || []).slice(),
 						effortsMode: m.efforts === "custom" ? "custom" : m.efforts === "off" ? "off" : "inherit",
-						effortLevels: levels
+						effortLevels: levels,
+						raw: m.raw && typeof m.raw === "object" ? m.raw : null
 					};
 				})
 			};
@@ -746,7 +747,8 @@ window.__ModuleLoader__.load({
 						input: m.input,
 						tags: m.tags,
 						effortsMode: m.effortsMode,
-						effortLevels: m.effortLevels
+						effortLevels: m.effortLevels,
+						raw: m.raw
 					}));
 					const payload = { provider: cur.id, revisions: (data && data.revisions) || {}, models: models };
 					if (cur.kind === "deepseek") {
