@@ -1,11 +1,11 @@
-# dsh-dock
+# dsh-dock · 功能坞
 
 [![npm version](https://img.shields.io/npm/v/dsh-dock)](https://www.npmjs.com/package/dsh-dock)
 [![license](https://img.shields.io/npm/l/dsh-dock)](LICENSE)
 
-**DeepSeek Harness 功能中枢插件**：用一张管理面板，统一注册、开关所有小功能。
+**DeepSeek Harness 功能坞插件（dsh-dock）**：用一张管理面板，统一注册、开关所有小功能。
 
-模型余额、Token 用量记录、任务动画……这些散落的小功能，全部收进一个面板：
+模型余额、Token 用量记录、任务动画……这些散落的小功能，全部收进一个「功能坞」：
 每个功能是独立模块，有注册表、有开关、有错误隔离。新功能按注册表模式追加，老功能互不牵连。
 
 > 前身：本地原型 `feature-hub`（已安装验证），本包为其正式发布的 npm 版本。
@@ -17,7 +17,8 @@
 
 ## 当前状态（v0.2.0 · 模型余额已接入）
 
-- ✅ 设置页新增一整页「功能中枢」面板（侧栏底部 → 设置 → 功能中枢）
+- ✅ 设置页新增一整页「功能坞」面板（侧栏底部 → 设置 → 功能坞）
+- ✅ **侧栏入口按钮**：侧栏底部动作区右端（设置按钮同一区域）出现「功能坞」按钮，点击弹出**功能面板**（仿 dsh 设置：居中模态 = 遮罩 + 对话框；左侧导航首项为**「首页」总揽**（默认选中，所有子功能的状态/概要/快捷开关卡片一览，点击卡片进入对应功能），下方为各功能模块导航；点遮罩或 ✕ 关闭）
 - ✅ 功能注册表：`FEATURES` 一处登记，面板自动渲染
 - ✅ 每功能独立开关 + 错误隔离：单个功能出错只降级自己
 - ✅ 示例功能：心跳监视、主题信息（纯 Client，开箱可用）
@@ -37,15 +38,19 @@
 ## 面板入口
 
 ```
-设置（侧栏底部）→ 功能中枢
+① 快捷入口：侧栏底部「功能坞」按钮（与设置按钮同底对齐）→ 弹出功能面板（首页总揽 + 模块导航 + 内容区）
+② 完整面板：设置（侧栏底部）→ 功能坞
 ```
+
+入口按钮与功能弹层挂载在 shell 的 `sidebar.footer.action` / `shell.overlay` 座位；
+按钮状态为浏览器内存态；弹层与完整面板共用同一份 `/dsh-dock/balance` 数据（模块级共享快照，首页总揽概要与余额视图同源）与各功能视图。
 
 ## 目录结构
 
 ```
 dsh-dock/
 ├── index.js          # Host 半部：功能注册表 + 每功能生命周期（setup/dispose）+ 错误隔离 + 模型余额拉取（/dsh-dock/balance）
-├── client.js         # Client 半部：中枢面板（settings.section）+ 各功能视图，浏览器 bundle，无需构建器
+├── client.js         # Client 半部：功能坞面板（settings.section）+ 侧栏入口按钮（sidebar.footer.action）+ 功能弹层（shell.overlay，模块导航 + 内容）+ 各功能视图，浏览器 bundle，无需构建器
 ├── cordis.patch.yml  # 组合层：insert 一行 dsh-dock
 ├── package.json      # 双面程序包清单（dsh.bundle.patch + dsh.client）
 ├── scripts/publish.sh # 一键发布（登录检查 + 预览 + publish）
@@ -56,7 +61,7 @@ dsh-dock/
 
 | 版本 | 内容 | 状态 |
 | --- | --- | --- |
-| **0.2.0** | 接入**模型余额**：拉取所有模型 Provider 账户余额并展示（含配额/控制台跳转，策略表覆盖 DeepSeek/StepFun/Kimi/OpenRouter/MiniMax/xAI） | ✅ 已接入（v0.2.0 代码，待发布） |
+| **0.2.0** | 接入**模型余额**：拉取所有模型 Provider 账户余额并展示（含配额/控制台跳转，策略表覆盖 DeepSeek/StepFun/Kimi/OpenRouter/MiniMax/xAI）；侧栏「功能坞」入口按钮 + 功能弹层（模块导航列表 + 内容区） | ✅ 已接入（v0.2.0 代码，待发布） |
 | **0.3.0** | 接入 **Token 用量记录**：记录全部 LLM API 调用，支持时间范围/维度筛选与统计 | `hostSetups.tokenlog` 监听事件记账；面板加统计视图 |
 | **0.4.0** | 接入**任务动画**：任务进度动画、完成/卡住通知 | 纯 Client 功能模块；如需挂对话区，在模块内注册对应 slot（如 `conversation.composer.dock`） |
 | **0.5.0** | 开关状态**持久化**、Host↔Client 双侧注册表打通 | 状态写入持久化服务；Host 侧开关与 Client 面板同步；可选依赖注册（面板不在，功能照跑） |

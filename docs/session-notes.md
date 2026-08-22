@@ -2,11 +2,11 @@
 
 > 给后续 DSH 会话的交接文档：新会话继续完善本项目前，先读本文件 + README。
 > **2026-08-22 更新**：0.2.0 模型余额已接入，见文末「八、续作会话（2026-08-22）」；
-> 其中的 typert 假设已被推翻（见 8.3），下一会话从 0.3.0 Token 用量开始。
+> 其中 8.7 记录了「CSS 全局名冲突致 dsh 启动崩溃」事故与修复，改 client 半部前必读。
 
 ## 一、本项目是什么
 
-`dsh-dock` —— DeepSeek Harness 功能中枢插件。一张管理面板统一注册、开关所有小功能（模型余额、Token 用量记录、任务动画，以及未来任意新功能）。已发布 npm：**dsh-dock@0.1.0**（maintainer: wycto），0.2.0（模型余额）代码完成待发布。
+`dsh-dock`（中文名：**功能坞**）—— DeepSeek Harness 功能坞插件。一张管理面板统一注册、开关所有小功能（模型余额、Token 用量记录、任务动画，以及未来任意新功能）。已发布 npm：**dsh-dock@0.1.0**（maintainer: wycto），0.2.0（模型余额 + 侧栏入口按钮 + 功能弹层）代码完成待发布。
 
 ## 二、本会话做了什么
 
@@ -112,7 +112,26 @@
 
 ### 8.5 下一步（按顺序）
 
-1. 用户重启 `dsh web` → 在设置页确认「功能中枢」新面板（心跳/主题/模型余额）与余额卡片数据。
+0. **v0.2.0 追加（本次会话）**：中文名定为「功能坞」；新增侧栏入口按钮
+   （`sidebar.footer.action` id `dsh-dock`，order 1，靠右端 = 设置旁） + 功能弹层（仿 dsh 设置：居中模态、左导航 + 右内容区）
+   （`shell.overlay` id `dsh-dock-panel`，order 21）；
+   CSS 由页内 `<style>` 改为 apply 时全局注入（`ensureCss`/`data-plugin-css="dsh-dock"`）。
+   **首页总揽（2026-08-22 追加）**：导航首项「首页」为默认选中页，网格卡片总揽全部子功能
+   （状态徽章 + 运行概要 + 快捷开关，点卡片跳对应功能页）；为此把余额数据提升为模块级共享快照
+   `balanceStore`（首页概要与余额视图共用一份请求/5 分钟刷新），心跳改用模块级 `loadedAt` 运行时长基准。
+   位置对齐：设置 button 在宽栏是满宽 42px 行（`margin:4px -2px`，行带 50px）、窄栏
+   36px 居中（`margin:8px 0 10px`，行带 54px）→ 入口按钮用
+   `transform: translateY(46px)`（宽）/`44px`（窄）+ `zIndex:1` 下移进设置行右端空白区，
+   与设置按钮同底对齐（transform 不动布局、不遮齿轮图标）。
+   注意：设置面板的 open/select 是 `ui-settings-general` 内部 useState，**无公开 API**——
+   入口按钮只能打开自己的弹层，无法编程式打开设置页并选中 section（若未来需要，得给
+   `ui-settings-general` 加服务或事件）。
+   ⚠️ 2026-08-22 修复：弹层 JSX 链尾部缺一个右括号（`client.js` 曾处于语法非法状态，
+   页面能跑是 HMR 缓存的旧有效版本）；已补齐并以 `node --check` + SSR 冒烟把关。
+   状态：用户已重启 `dsh web`，静态版生效（动态预览随之清空）；重启后曾发生启动崩溃事故，
+   根因与修复见 8.7。
+1. 用户在页面确认：入口按钮与设置按钮同底对齐不再悬空；功能弹层默认打开「首页」总揽
+   （卡片网格：状态/概要/快捷开关，点击进入模块页），下方菜单为各子功能；设置页「功能坞」面板有样式。
 2. 确认后：`CACHE_DIR=/tmp/dsh-dock-npm-cache ./scripts/publish.sh` 发布 0.2.0 → 本仓库提交/推送。
 3. **0.3.0 Token 用量记录**：`hostSetups.tokenlog` 监听 LLM API 事件记账 + 面板统计视图，参考 `@wycto/dsh-token-usage`。
 4. **0.4.0 任务动画**：纯 Client 模块。
@@ -128,3 +147,30 @@
 4. **真实实例**（不碰线上）：`DSH_HOME=/tmp/dsh-verify-home` 拷贝 profile（node_modules 里
    `dsh-dock` 改回绝对链接指向本仓库）+ settings.yaml，起 `dsh web --port 3999`，
    curl `/dsh-dock/balance` 断言 200 与分类。⚠️ 别用真实 home 起第二实例，避免与线上进程争存储。
+
+### 8.7 事故复盘：`CSS.join is not a function` 导致 dsh 整页启动崩溃（务必读）
+
+- **现象**：重启 `dsh web` 后页面报 `Failed to load plugins / dsh-dock / failed to apply loader
+  entry <rev> (dsh-dock): CSS.join is not a function`，整个 GUI 起不来。
+- **根因**：bundle 的样式数组被命名为 `CSS`，与浏览器全局 `window.CSS`（命名空间对象，无 `.join`）
+  同名。在浏览器执行环境里标识符解析歧义，`ensureCss()` 里的 `CSS.join("\n")` 实际调到了全局
+  命名空间 → 插件 apply 抛错 → 该 entry 加载失败 → **整页启动失败**。
+- **为什么本地验证没拦住**：SSR 冒烟里 `typeof document === "undefined"` 让 `ensureCss()`
+  提前 return，`CSS.join` 那行根本没执行；`node --check` 只查语法。即：**只在浏览器端炸的
+  环境相关 bug，纯 Node 冒烟查不出**。
+- **修复（已落地）**：
+  1. 变量改名 `DOCK_CSS`（唯一命名，任何作用域都解析不到全局）；
+  2. 恢复 `tag.textContent = DOCK_CSS.join("\n")` 正确注入（注意：事故后他人先用
+     `textContent = CSS`（数组直接赋值）止血，那会让 CSS 被逗号拼接成碎样式，已一并修正）；
+  3. `ensureCss()` 整体 try/catch + `Array.isArray` 防御：**注入永不抛错，坏了只降级不炸页**。
+- **验证升级（防复发）**：`client-ssr.mjs` 增加「浏览器模拟」段：注入毒化的全局
+  `CSS`（无 join 的命名空间）+ 假 `document`，让 `ensureCss()` 真实执行，断言样式按行 join、
+  幂等、且带 `data-plugin-css`。今后任何把样式数组命名为 CSS/作用域错位的改动，测试当场红。
+- **硬规矩（勿违反）**：bundle 顶层变量一律避开浏览器全局名（`CSS`、`window`、`document`、
+  `fetch`、`AbortSignal` 等直接用但**自定义变量不要占这些名字**）；改 client 半部后
+  SSR 冒烟 + 浏览器模拟段必须全绿，且真实 `dsh web` 启动验收前不允许发布/提交收尾。
+
+### 8.8 数据通道（确认可行，勿改）
+
+- 静态版本：`GET /dsh-dock/balance`（webServer 路由 + 同源 fetch）；动态预览：`harness.handle`
+  + `host.call`。两者等价，静态为主。
