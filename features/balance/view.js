@@ -183,8 +183,36 @@ function BalanceStat(props) {
 	return react.createElement("span", null, providers.length + " 个 Provider · " + ok + " 个可查余额");
 }
 
-// ---- 会话输入区 chip：显示当前选中 Provider 的账户余额（agentDefaultModel 快照，随余额刷新更新） ----
+// ---- 会话输入区 chip：显示当前选中 Provider 的账户余额 ----
+// 当前选中以会话级模型选择为准（client 服务 modelDirectories：选择器切换即时推送），
+// 无该服务时回退余额快照里的默认选中（agentDefaultModel）。
 // 点击打开功能坞并定位到模型余额页、高亮该 Provider 行。
+function useCurrentProvider(ctx, sessionId) {
+	const [cur, setCur] = react.useState(null);
+	react.useEffect(() => {
+		let alive = true, off = null;
+		try {
+			const models = ctx && ctx.get ? ctx.get("modelDirectories") : undefined;
+			if (models && typeof models.directoryFor === "function" && sessionId) {
+				const dir = models.directoryFor(sessionId);
+				const face = dir && typeof dir.subscribe === "function" ? dir : (dir && dir.store);
+				const read = () => {
+					if (!alive) return;
+					try {
+						const snap = face && typeof face.getSnapshot === "function" ? face.getSnapshot() : null;
+						setCur(snap && snap.current ? snap.current : null);
+					} catch { /* 快照读取失败保持旧值 */ }
+				};
+				if (face && typeof face.subscribe === "function") {
+					read();
+					off = face.subscribe(read);
+				}
+			}
+		} catch { /* 服务不可用回退默认 */ }
+		return () => { alive = false; if (typeof off === "function") off(); };
+	}, [sessionId]);
+	return cur;
+}
 function chipBalanceText(p) {
 	const b = p && p.balance;
 	if (!b) return "余额 …";
@@ -212,12 +240,16 @@ function BalanceChip(props) {
 	const snap = useBalance(props && props.ctx);
 	const data = snap.data;
 	const providers = data && Array.isArray(data.providers) ? data.providers : [];
-	const def = data && data.default ? data.default.provider : null;
+	// 会话级当前选中（模型选择器切换即时推送）；无该服务时回退余额快照里的默认选中
+	const sel = useCurrentProvider(props && props.ctx, props && props.sessionId);
+	const selProvider = sel && (sel.provider || (sel.selected && sel.selected.provider)) || null;
+	const def = selProvider || (data && data.default ? data.default.provider : null);
 	const cur = def ? providers.find((p) => p.id === def) : null;
 	const accent = cur ? accentOf(cur.id) : "#94a3b8";
 	const text = snap.error ? "余额·失败" : (!data ? (snap.loading ? "余额 …" : "余额 —") : (cur ? chipBalanceText(cur) : "余额 —"));
+	const selModel = sel && (sel.model || (sel.selected && sel.selected.model)) || null;
 	const title = cur
-		? (cur.displayName || cur.id) + (def ? "（当前选中 Provider）" : "") + " · 点击在功能坞查看余额详情"
+		? (cur.displayName || cur.id) + (selModel ? " · 当前模型 " + selModel : "") + " · 点击在功能坞查看余额详情"
 		: "点击打开功能坞 · 模型余额";
 	return react.createElement("button", {
 		type: "button",
