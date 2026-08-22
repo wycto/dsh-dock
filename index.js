@@ -1,5 +1,12 @@
 // dsh-dock · Host 半部（Node 侧入口）
 //
+// v0.3.1 图片理解代理：
+//   - hostSetups.visionproxy：纯文本模型收到图片时，自动调用配置的视觉模型识别图片，
+//     把识别文本替换进请求（多模态模型不受影响，原样自识别）；
+//   - 集成点：包装 llm.stream / llm.prepareCall（官方 llm/stream 瀑布流不可改写 frozen 请求，
+//     registerAdapter 不允许重复注册，方法级包装是唯一请求级拦截层；dispose 时恢复原函数）；
+//   - 配置存自有 settings 命名空间 dsh-dock（visionProxy: enabled/provider/model）。
+//
 // v0.3.0 模型设置（已接入）：
 //   - hostSetups.models：/dsh-dock/models GET 读模型目录（输入类型/思考强度），
 //     POST 把面板编辑写回官方 settings（settings.mutate，热生效）；
@@ -23,13 +30,13 @@
 //   - 0.4.0 接入 Token 用量记录：hostSetups.tokenlog 监听事件记账；
 //   - 0.5.0 接入任务动画。
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { BlockAssembler } from '@deepseek-ai/dsh-llm'
+import z from '@deepseek-ai/schemastery'
 
 export const name = 'dsh-dock'
 
-// 硬依赖 webServer：余额功能要注册 /dsh-dock/balance 路由。
-// 0.1.0 框架未声明 inject，apply 在 webServer 就绪前执行导致取不到服务；
-// 随 0.2.0 第一个真实 Host 功能一起补上（与 @wycto/dsh-balance-panel 一致）。
-export const inject = ['webServer']
+// 硬依赖 webServer（路由注册）+ llm（图片理解代理包装）+ settings（自有命名空间读写）。
+export const inject = ['webServer', 'llm', 'settings']
 
 // ---------------------------------------------------------------------------
 // 余额策略表（v0.2.0 模型余额 · 沿用 dsh-balance-panel@0.1.1，官方 Bearer 计费接口）
@@ -762,6 +769,36 @@ function deepSeekModelWrite(m) {
  */
 async function writeModelConfig(ctx, body) {
   if (!body || typeof body !== 'object') throw new Error('请求体不是 JSON 对象')
+
+  const settings = ctx.get('settings')
+  if (!settings || typeof settings.mutate !== 'function') throw new Error('settings 服务不可用或不可写')
+
+  // 图片理解代理配置：独立于 Provider 目录的小分支
+  if (body.visionProxy !== undefined) {
+    const vp = body.visionProxy
+    if (!vp || typeof vp !== 'object' || Array.isArray(vp)) throw new Error('visionProxy 格式不符')
+    const value = {
+      enabled: !!vp.enabled,
+      provider: typeof vp.provider === 'string' ? vp.provider : '',
+      model: typeof vp.model === 'string' ? vp.model : '',
+    }
+    if (value.enabled && (!value.provider || !value.model)) {
+      const err = new Error('启用图片理解代理需要选择视觉模型')
+      err.statusCode = 400
+      throw err
+    }
+    const revision = body.revisions && typeof body.revisions[DOCK_NS] === 'number' ? body.revisions[DOCK_NS] : undefined
+    try {
+      await settings.mutate(DOCK_NS, [{ op: 'set', path: ['visionProxy'], value }], revision)
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e)
+      const err = new Error(`保存图片理解代理配置被拒绝：${msg}`)
+      err.statusCode = /conflict|revision/i.test(msg) ? 409 : 400
+      throw err
+    }
+    return { ok: true, savedAt: Date.now() }
+  }
+
   const dir = readModelDirectory(ctx)
   const p = dir.providers.find((x) => x.id === body.provider)
   if (!p) throw new Error(`未找到 Provider：${body.provider}`)
@@ -775,9 +812,6 @@ async function writeModelConfig(ctx, body) {
     if (seen.has(id)) throw new Error(`模型 id 重复：${id}`)
     seen.add(id)
   }
-
-  const settings = ctx.get('settings')
-  if (!settings || typeof settings.mutate !== 'function') throw new Error('settings 服务不可用或不可写')
 
   const ops = []
   if (p.kind === 'deepseek') {
@@ -835,6 +869,171 @@ function readBody(req) {
 }
 
 // ---------------------------------------------------------------------------
+// 图片理解代理（v0.3.1）：纯文本模型的图片自动走视觉模型识别
+//   官方行为：纯文本模型收到图片时，运行时把图片替换为 "[image omitted …]" 占位文本。
+//   本功能：在请求进入运行时投影之前，先用配置的视觉模型识别每张图片，
+//   把图片块替换为识别文本（多模态模型不在此列，按官方链路原样自识别）。
+//   拦截点：官方 llm/stream 瀑布流不允许改写 frozen 请求、registerAdapter 拒绝重复注册，
+//   故对 llm.stream / llm.prepareCall 做方法级包装（保存原函数，dispose 恢复）。
+// ---------------------------------------------------------------------------
+
+/** dsh-dock 自有 settings 命名空间的 schema（当前仅图片理解代理配置）。 */
+const DOCK_NS = 'dsh-dock'
+const DockConfig = z.object({
+  visionProxy: z.object({
+    enabled: z.boolean().default(false),
+    provider: z.string().default(''),
+    model: z.string().default(''),
+  }).default({}),
+})
+
+/** 递归判断内容块里是否有图片（含 tool-result 嵌套，与官方 contentHasImage 同构）。 */
+function contentHasImageDeep(content) {
+  if (!Array.isArray(content)) return false
+  for (const block of content) {
+    if (block && block.type === 'image') return true
+    if (block && block.type === 'tool-result' && contentHasImageDeep(block.content)) return true
+  }
+  return false
+}
+
+/** 让视觉模型描述一张图片，返回识别文本（失败抛错）。 */
+async function describeImage(streamFn, cfg, block, signal, sessionId) {
+  const prompt = '请用中文详细描述这张图片的内容：主体、文字（若有则逐字转写）、数据/图表要点、与编码任务相关的细节。控制在 300 字以内，直接输出描述，不要客套。'
+  const options = {
+    provider: cfg.provider,
+    model: cfg.model,
+    maxTokens: 4096, // 识别调用给足：视觉模型若带思考，小限额会被思考吃光（实测）
+    sessionId,
+    messages: [{
+      role: 'user',
+      source: { kind: 'plugin', plugin: 'dsh-dock' },
+      content: [block, { type: 'text', text: prompt }],
+    }],
+    // 递归保护：本请求由代理发起，包装层直接放行
+    dockVisionProxy: true,
+  }
+  if (signal) options.signal = signal
+  const assembler = new BlockAssembler()
+  for await (const chunk of streamFn(options)) {
+    assembler.push(chunk)
+    if (assembler.finish) break
+  }
+  if (assembler.finish && assembler.finish.kind === 'error') {
+    throw new Error(String(assembler.finish.failure?.message || '视觉模型调用失败'))
+  }
+  const text = assembler.blocks()
+    .filter((b) => b && b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim()
+  if (!text) throw new Error('视觉模型没有返回文本')
+  return text
+}
+
+/**
+ * 请求改写：目标是纯文本模型且带图片时，逐图调用视觉模型，图片块替换为识别文本。
+ * 任何失败都只降级（保留原图或占位说明），绝不阻断主请求。
+ * @returns 改写后的 options（无需改写时原样返回）
+ */
+async function transformForVisionProxy(deps, options) {
+  const cfg = deps.config()
+  try {
+    if (!cfg || !cfg.enabled || !cfg.provider || !cfg.model) return options
+    if (!options || typeof options !== 'object') return options
+    if (options.dockVisionProxy) return options
+    if (options.provider === cfg.provider && options.model === cfg.model) return options
+    if (options.purpose) return options // 内部辅助调用（如会话标题）不代理
+    if (!Array.isArray(options.messages)) return options
+    if (!options.messages.some((m) => m && contentHasImageDeep(m.content))) return options
+
+    // 目标模型是否纯文本：以本插件维护的模型目录为准（输入类型不含 image 即纯文本）
+    const dir = deps.directory()
+    const p = (dir.providers || []).find((x) => x.id === options.provider)
+    const m = p && Array.isArray(p.models) ? p.models.find((x) => x.id === options.model) : undefined
+    const imageCapable = !!(m && Array.isArray(m.input) && m.input.includes('image'))
+    if (imageCapable) return options
+
+    let changed = false
+    const replaceBlocks = async (blocks) => {
+      const next = []
+      for (const block of blocks) {
+        if (block && block.type === 'image') {
+          changed = true
+          try {
+            const desc = await describeImage(deps.stream, cfg, block, options.signal, options.sessionId)
+            next.push({ type: 'text', text: `[图片内容（由视觉模型 ${cfg.provider}/${cfg.model} 识别）：${desc}]` })
+          } catch (e) {
+            // 识别失败：降级为说明文本，官方投影不会再把请求打挂
+            next.push({ type: 'text', text: `[图片未能识别（${e instanceof Error ? e.message : String(e)}），已省略]` })
+          }
+          continue
+        }
+        if (block && block.type === 'tool-result' && contentHasImageDeep(block.content)) {
+          next.push(Object.assign({}, block, { content: await replaceBlocks(block.content) }))
+          continue
+        }
+        next.push(block)
+      }
+      return next
+    }
+    const messages = []
+    for (const msg of options.messages) {
+      if (msg && contentHasImageDeep(msg.content)) {
+        messages.push(Object.assign({}, msg, { content: await replaceBlocks(msg.content) }))
+      } else {
+        messages.push(msg)
+      }
+    }
+    return changed ? Object.assign({}, options, { messages }) : options
+  } catch {
+    return options // 总兜底：代理自身异常不影响主请求
+  }
+}
+
+/** 安装 llm 方法包装：stream 与 prepareCall 两条入口都过一遍图片代理改写。 */
+function installVisionProxy(ctx, directory) {
+  const llm = ctx.get('llm')
+  if (!llm || typeof llm.stream !== 'function' || typeof llm.prepareCall !== 'function') {
+    throw new Error('llm 服务不可用，无法安装图片理解代理')
+  }
+  const deps = {
+    config: () => {
+      try {
+        const settings = ctx.get('settings')
+        const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : undefined
+        return v && v.visionProxy ? v.visionProxy : { enabled: false, provider: '', model: '' }
+      } catch {
+        return { enabled: false, provider: '', model: '' }
+      }
+    },
+    // 识别调用走保存的原函数：天然绕开包装层，无递归
+    stream: (options) => llm.__dockOrigStream(options),
+    directory,
+  }
+  llm.__dockOrigStream = llm.stream.bind(llm)
+  const origPrepare = llm.prepareCall
+  llm.stream = (options) => (async function* () {
+    yield* llm.__dockOrigStream(await transformForVisionProxy(deps, options))
+  })()
+  llm.prepareCall = async (config, signal) => {
+    const prepared = await origPrepare.call(llm, config, signal)
+    // prepared 是冻结对象：浅拷贝后包一层 stream，dispatched 一次性约束经原闭包保持
+    return Object.assign({}, prepared, {
+      stream: async (options) => {
+        const transformed = await transformForVisionProxy(deps, options)
+        return prepared.stream(transformed)
+      },
+    })
+  }
+  return () => {
+    delete llm.__dockOrigStream
+    delete llm.stream
+    delete llm.prepareCall
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 插件主体
 // ---------------------------------------------------------------------------
 
@@ -847,6 +1046,12 @@ export function apply(ctx) {
       id: 'models',
       name: '模型设置',
       description: '模型目录读写：编辑输入类型与思考强度，写回官方配置热生效',
+      defaultEnabled: true,
+    },
+    {
+      id: 'visionproxy',
+      name: '图片理解代理',
+      description: '纯文本模型收图时自动调用视觉模型识别（多模态模型不受影响）',
       defaultEnabled: true,
     },
     {
@@ -872,10 +1077,30 @@ export function apply(ctx) {
   const state = new Map()
   for (const f of FEATURES) state.set(f.id, { enabled: false, dispose: null, error: null })
 
+  // 自有 settings 命名空间（dsh-dock）：图片理解代理等插件配置的持久化；
+  // 读取走 settings.get（内存 resolved 值，写入经 settings.mutate，均热生效）
+  ctx.inject(['settings'], (sctx) => {
+    sctx.settings.register(DOCK_NS, DockConfig, {})
+  })
+
+  // 模型目录的 TTL 缓存：图片代理判定目标模型是否纯文本时用（避免每个请求都全量 describe）
+  let dockDirCache = { at: 0, data: { providers: [] } }
+  const directoryCached = () => {
+    if (Date.now() - dockDirCache.at > 10000) {
+      try {
+        dockDirCache = { at: Date.now(), data: readModelDirectory(ctx) }
+      } catch {
+        // 保持旧缓存
+      }
+    }
+    return dockDirCache.data
+  }
+
   // 每个功能的 Host 半部安装函数：返回 disposer，关闭功能时调用。
   // balance：在回环 webServer 上挂 /dsh-dock/balance 路由，查询即请求时执行，
   //   密钥全程留在进程内不出 Host（credentials.resolve 只取用不输出）。
   // models：挂 /dsh-dock/models（GET 读目录 / POST 写回官方 settings，热生效）。
+  // visionproxy：包装 llm.stream / llm.prepareCall 做图片代理改写（dispose 恢复原函数）。
   const hostSetups = {
     balance: () => {
       const webServer = ctx.get('webServer')
@@ -898,7 +1123,23 @@ export function apply(ctx) {
       const handler = async (req, res) => {
         try {
           if (req.method === 'GET') {
-            sendJson(res, 200, readModelDirectory(ctx))
+            const payload = readModelDirectory(ctx)
+            // 附带图片理解代理配置与自有命名空间 revision（面板保存用）
+            try {
+              const settings = ctx.get('settings')
+              const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : undefined
+              payload.visionProxy = v && v.visionProxy
+                ? { enabled: !!v.visionProxy.enabled, provider: String(v.visionProxy.provider || ''), model: String(v.visionProxy.model || '') }
+                : { enabled: false, provider: '', model: '' }
+              const desc = settings && typeof settings.describe === 'function'
+                ? settings.describe({ redactSecrets: true }) : []
+              for (const d of desc || []) {
+                if (d && d.ns === DOCK_NS && d.revision !== undefined) payload.revisions[DOCK_NS] = d.revision
+              }
+            } catch {
+              payload.visionProxy = { enabled: false, provider: '', model: '' }
+            }
+            sendJson(res, 200, payload)
             return
           }
           if (req.method === 'POST') {
@@ -915,6 +1156,7 @@ export function apply(ctx) {
       }
       return webServer.register({ kind: 'exact', path: '/dsh-dock/models', handler })
     },
+    visionproxy: () => installVisionProxy(ctx, directoryCached),
   }
 
   function setEnabled(id, enabled) {
