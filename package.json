@@ -1,6 +1,6 @@
 {
   "name": "dsh-dock",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "DeepSeek Harness 功能坞插件（dsh-dock）：侧栏入口 + 居中可拖拽弹窗（最大化/最小化/缩放）+ 模型设置（输入类型/思考强度，写回官方配置热生效）+ 模型余额 + 设置页管理面板。",
   "type": "module",
   "main": "index.js",
