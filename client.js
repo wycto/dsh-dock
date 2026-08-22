@@ -1,5 +1,6 @@
 // dsh-dock · Client 半部（浏览器 bundle，手写 lazy-CJS 工厂格式，无需构建器）
-// 面板挂载在 settings.section：设置 → 功能中枢
+// 中文名：功能坞（dsh-dock）。完整面板挂载在 settings.section：设置 → 功能坞；
+// 侧栏底部另有「功能坞」入口按钮（sidebar.footer.action），点击弹出居中功能弹层（shell.overlay）。
 // 每个功能是一个模块：FEATURES 注册表 + featureViews 视图组件 + 独立开关（内存态）。
 // v0.2.0：模型余额已接入 —— balance 视图通过同源 fetch('/dsh-dock/balance') 拉取
 //   Host 半部汇总好的各 Provider 余额/配额（Host 函数在 index.js，数据形状与其一致）。
@@ -24,7 +25,7 @@ window.__ModuleLoader__.load({
 			{ id: "animation", name: "任务动画", description: "接入路线图 0.4.0：任务进度动画与通知", planned: true }
 		];
 
-		const CSS = [
+		const DOCK_CSS = [
 			".dock-root{display:flex;flex-direction:column;gap:12px;padding:4px 0;color:var(--dsw-alias-label-primary);font-size:13px;}",
 			".dock-intro{color:var(--dsw-alias-label-secondary);line-height:1.6;}",
 			".dock-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;}",
@@ -62,7 +63,43 @@ window.__ModuleLoader__.load({
 			".dkb-link:hover{text-decoration:underline;}",
 			".dkb-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;}",
 			".dkb-refresh{cursor:pointer;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
-			".dkb-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}"
+			".dkb-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+// 侧栏入口按钮（docke2- 前缀）+ 功能坞弹出面板（dockm- 前缀，仿 dsh 设置的居中模态：遮罩 + 对话框，左导航 + 右内容）
+			".docke2-btn{box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--dsw-alias-label-secondary);border-radius:10px;height:32px;font-family:inherit;font-size:13px;line-height:32px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+			".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+			".docke2-btn.docke2-on{color:var(--dsw-alias-accent,#4d9fff);background:var(--dsw-alias-accent-soft,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 12%,transparent));}",
+			".docke2-label{white-space:nowrap;overflow:hidden;}",
+			// 弹层遮罩（点击关闭）与对话框
+			".dockm-backdrop{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 55%,transparent);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
+			"@keyframes dockm-fade{from{opacity:0}to{opacity:1}}",
+			".dockm-dialog{box-sizing:border-box;width:min(820px,calc(100vw - 40px));height:min(600px,calc(100vh - 48px));display:flex;flex-direction:column;border-radius:16px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .32);overflow:hidden;animation:dockm-pop .18s var(--ds-ease-in-out);}",
+			"@keyframes dockm-pop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}",
+			".dockm-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--dsw-alias-border-l1);}",
+			".dockm-title{font-weight:600;font-size:14px;}",
+			".dockm-sub{color:var(--dsw-alias-label-tertiary);font-size:12px;}",
+			".dockm-close{margin-left:auto;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;}",
+			".dockm-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+			".dockm-body{flex:1;min-height:0;display:flex;}",
+			// 左侧功能模块导航
+			".dockm-nav{flex:none;width:176px;display:flex;flex-direction:column;gap:2px;padding:10px 8px;overflow-y:auto;border-right:1px solid var(--dsw-alias-border-l1);}",
+			".dockm-nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:none;background:transparent;border-radius:10px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:13px;text-align:left;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+			".dockm-nav-item:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+			".dockm-nav-item.on{background:var(--dsw-alias-accent-soft,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 12%,transparent));color:var(--dsw-alias-label-primary);font-weight:600;}",
+			".dockm-nav-item .dockm-badge{margin-left:auto;}",
+			".dockm-dot{width:8px;height:8px;border-radius:50%;flex:none;}",
+			".dockm-badge{flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
+			// 右侧内容区
+			".dockm-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;padding:16px 18px;overflow-y:auto;}",
+			".dockm-content-head{display:flex;flex-direction:column;gap:4px;}",
+			".dockm-name{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;}",
+			".dockm-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
+			".dockm-view{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
+			".dockm-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
+			".dockm-err{color:var(--dsw-alias-state-error-primary);}",
+			".dockm-foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:11px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;flex-wrap:wrap;}",
+			".dockm-switch{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:4px 12px;font-family:inherit;font-size:12px;margin-left:auto;}",
+			".dockm-switch:hover{color:var(--dsw-alias-label-primary);}",
+			".dockm-switch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}"
 		].join("\n");
 
 		// ---- 模型余额视图的配色与工具（沿用 dsh-balance-panel@0.1.1，MIT 同作者）----
@@ -95,19 +132,144 @@ window.__ModuleLoader__.load({
 			const slots = ctx.get("slots");
 			if (slots === undefined) return;
 
-			// 开关状态：浏览器内存态，随页面生命周期
-			const state = new Map();
-			for (const f of FEATURES) state.set(f.id, { enabled: !!f.defaultEnabled, error: null });
+			// 样式全局注入一次（入口按钮与右下角浮层挂在设置页之外，不能依赖页内 <style>）。
+			// ⚠️ 变量名不得用 CSS：浏览器存在全局 window.CSS 命名空间，bundle 任何作用域解析歧义
+			// 都会把标识符解析成该全局对象（无 .join），曾导致插件应用失败、整页启动崩溃。
+			// 这里用 DOCK_CSS 唯一命名，并做防御：注入永不抛错、失败只降级不打断启动。
+			function ensureCss() {
+				if (typeof document === "undefined") return;
+				try {
+					if (document.querySelector('style[data-plugin-css="dsh-dock"]')) return;
+					const tag = document.createElement("style");
+					tag.dataset.pluginCss = "dsh-dock";
+					tag.textContent = Array.isArray(DOCK_CSS) ? DOCK_CSS.join("\n") : String(DOCK_CSS || "");
+					document.head.appendChild(tag);
+				} catch (e) {
+					console.error("[dsh-dock] ensureCss failed:", e && e.message ? e.message : String(e));
+				}
+			}
+			ensureCss();
 
-			// ---- 每个功能的客户端视图：key 与注册表 id 一致 ----
+			// 入口按钮与右下角浮层共享的面板开关（浏览器内存态，随页面生命周期）
+			const panelState = { open: false, listeners: new Set() };
+			function setPanelOpen(value) {
+				panelState.open = !!value;
+				for (const fn of panelState.listeners) fn();
+			}
+			function subscribePanel(fn) {
+				panelState.listeners.add(fn);
+				return () => { panelState.listeners.delete(fn); };
+			}
+
+			// ---- 侧栏入口按钮：sidebar.footer.action（设置在右下方，按钮靠右端 = 右下角）----
+			function DockIcon() {
+				return react.createElement("svg", { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+					react.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+					react.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+					react.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+					react.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 }));
+			}
+			function DockEntry(props) {
+				const wide = !!props.wide;
+				const [open, setOpen] = react.useState(panelState.open);
+				react.useEffect(() => subscribePanel(() => setOpen(panelState.open)), []);
+				return react.createElement("button", {
+					type: "button",
+					className: "docke2-btn" + (open ? " docke2-on" : ""),
+					style: wide
+						// 与设置按钮精确同框：设置 trigger 宽栏 = 42px 高、margin-top 4 → 下移 46px、高度同为 42，
+						// 使本按钮的四条边与设置按钮完全重合（同一水平线）；rail = 36px、margin-top 8 → 下移 44px、高 36 亦然。
+						// zIndex 保证盖在满宽设置按钮之上（其右侧为空白区，不遮齿轮图标）
+						? { marginLeft: "auto", transform: "translateY(46px)", zIndex: 1, height: 42, lineHeight: "42px", padding: "0 12px" }
+						: { transform: "translateY(44px)", zIndex: 1, width: 36, height: 36, justifyContent: "center", padding: 0 },
+					title: "功能坞",
+					"aria-label": "功能坞",
+					"aria-expanded": open,
+					onClick: () => setPanelOpen(!open)
+				}, react.createElement(DockIcon, null), wide ? react.createElement("span", { className: "docke2-label" }, "功能坞") : null);
+			}
+
+// ---- 功能坞弹出面板：shell.overlay（仿 dsh 设置：居中模态 = 遮罩 + 对话框；左侧功能模块导航 + 右侧内容区）----
+			// 模块配色与 FEATURES/featureViews 同源；planned 模块只占位展示
+			const MODULE_ACCENTS = { heartbeat: "#34d399", theme: "#a78bfa", balance: "#4d9fff", tokenlog: "#fbbf24", animation: "#f472b6" };
+			const MODULES = FEATURES.map((f) => Object.assign({}, f, { accent: MODULE_ACCENTS[f.id] || accentOf(f.id) }));
+			const PLANNED_NOTES = {
+				tokenlog: "待接入（路线图 0.3.0）：记录全部 LLM API 调用，统计 Token 用量与花费。",
+				animation: "待接入（路线图 0.4.0）：任务进度动画与完成通知。",
+			};
+			function toggleFeature(id) {
+				const st = state.get(id);
+				if (!st) return;
+				st.enabled = !st.enabled;
+			}
+
+			function DockModal() {
+				// 默认关闭；SSR/无浏览器环境下默认展开内容（便于冒烟测试渲染整棵弹层树）
+				const [open, setOpen] = react.useState(panelState.open || typeof document === "undefined");
+				react.useEffect(() => subscribePanel(() => setOpen(panelState.open)), []);
+				const [active, setActive] = react.useState("balance");
+				const [, force] = react.useReducer((n) => n + 1, 0);
+				if (!open) return null;
+				const mod = MODULES.find((m) => m.id === active) || MODULES[0];
+				const st = state.get(mod.id);
+				const View = featureViews[mod.id];
+				return react.createElement("div", { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
+					react.createElement("div", { className: "dockm-dialog", onClick: (e) => e.stopPropagation() },
+						react.createElement("div", { className: "dockm-head" },
+							react.createElement(DockIcon, null),
+							react.createElement("span", { className: "dockm-title" }, "功能坞"),
+							react.createElement("span", { className: "dockm-sub" }, "dsh-dock · 也可在 设置 → 功能坞 打开管理页"),
+							react.createElement("button", { type: "button", className: "dockm-close", "aria-label": "关闭", onClick: () => setPanelOpen(false) }, "✕")),
+						react.createElement("div", { className: "dockm-body" },
+							react.createElement("nav", { className: "dockm-nav", "aria-label": "功能模块" },
+								MODULES.map((m) =>
+									react.createElement("button", {
+										type: "button",
+										key: m.id,
+										className: "dockm-nav-item" + (m.id === active ? " on" : ""),
+										onClick: () => setActive(m.id)
+									},
+										react.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+										react.createElement("span", null, m.name),
+										m.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null))),
+							react.createElement("div", { className: "dockm-content" },
+								react.createElement("div", { className: "dockm-content-head" },
+									react.createElement("div", { className: "dockm-name" },
+										react.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+										mod.name,
+										mod.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null),
+									react.createElement("div", { className: "dockm-desc" }, mod.description)),
+								mod.planned
+									? react.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "待接入：见 README 路线图")
+									: st && st.enabled && View
+										? react.createElement("div", { className: "dockm-view" }, react.createElement(View, null))
+										: st && st.error
+											? react.createElement("div", { className: "dockm-note dockm-err" }, "功能出错：" + st.error)
+											: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（记忆态随页面生命周期，0.5.0 起持久化）"),
+								react.createElement("div", { className: "dockm-foot" },
+									react.createElement("span", null, "功能坞 v0.2.0 · 新功能按路线图追加"),
+									!mod.planned && st
+										? react.createElement("button", {
+											type: "button",
+											className: "dockm-switch" + (st.enabled ? " on" : ""),
+											onClick: () => { toggleFeature(mod.id); force(); }
+										}, st.enabled ? "已启用（点击停用）" : "已停用（点击启用）")
+										: null)))));
+			}
+
+		// 开关状态：浏览器内存态，随页面生命周期
+		const state = new Map();
+		for (const f of FEATURES) state.set(f.id, { enabled: !!f.defaultEnabled, error: null });
+
+		// ---- 每个功能的客户端视图：key 与注册表 id 一致 ----
 			const featureViews = {
-				heartbeat: function HeartbeatView() {
-					const [sec, setSec] = react.useState(0);
-					react.useEffect(() => ctx.interval(() => setSec((s) => s + 1), 1000), []);
-					const m = Math.floor(sec / 60);
-					return react.createElement("div", null,
-						"面板已运行 " + (m > 0 ? m + " 分 " : "") + (sec % 60) + " 秒");
-				},
+			heartbeat: function HeartbeatView() {
+				const [sec, setSec] = react.useState(0);
+				react.useEffect(() => ctx.interval(() => setSec((s) => s + 1), 1000), []);
+				const m = Math.floor(sec / 60);
+				return react.createElement("div", null,
+					"面板已运行 " + (m > 0 ? m + " 分 " : "") + (sec % 60) + " 秒");
+			},
 				theme: function ThemeView() {
 					const theme = ctx.get("theme");
 					if (theme === undefined) return react.createElement("div", null, "theme 服务不可用");
@@ -118,23 +280,23 @@ window.__ModuleLoader__.load({
 						: snap && typeof snap.name === "string" ? snap.name : "未知";
 					return react.createElement("div", null, "当前主题：" + label);
 				},
-				balance: function BalanceView() {
-					const [snap, setSnap] = react.useState({ data: null, loading: false, error: null });
-					// load 只依赖 setSnap（函数式更新），无闭包变化，可安全被 interval 与按钮复用
-					const load = react.useCallback(() => {
-						setSnap((s) => (s.loading ? s : Object.assign({}, s, { loading: true })));
-						fetch("/dsh-dock/balance", { signal: AbortSignal.timeout(20000) })
-							.then((res) => (res.ok ? res.json() : Promise.reject(new Error("余额接口 HTTP " + res.status))))
-							.then((result) => setSnap({ data: result, loading: false, error: null }))
-							.catch((e) => setSnap((s) => Object.assign({}, s, { loading: false, error: (e && e.message) || String(e) })));
-					}, []);
-					react.useEffect(() => {
-						load();
-						const disposer = ctx.interval(load, 5 * 60 * 1000);
-						return () => { if (disposer) disposer(); };
-					}, [load]);
+			balance: function BalanceView() {
+				const [snap, setSnap] = react.useState({ data: null, loading: false, error: null });
+				// load 只依赖 setSnap（函数式更新），无闭包变化，可安全被 interval 与按钮复用
+				const load = react.useCallback(() => {
+					setSnap((s) => (s.loading ? s : Object.assign({}, s, { loading: true })));
+					fetch("/dsh-dock/balance", { signal: AbortSignal.timeout(20000) })
+						.then((res) => (res.ok ? res.json() : Promise.reject(new Error("余额接口 HTTP " + res.status))))
+						.then((result) => setSnap({ data: result, loading: false, error: null }))
+						.catch((e) => setSnap((s) => Object.assign({}, s, { loading: false, error: (e && e.message) || String(e) })));
+				}, []);
+				react.useEffect(() => {
+					load();
+					const disposer = ctx.interval(load, 5 * 60 * 1000);
+					return () => { if (disposer) disposer(); };
+				}, [load]);
 
-					const data = snap.data;
+				const data = snap.data;
 					const providers = data && Array.isArray(data.providers) ? data.providers : [];
 					const okCount = providers.filter((p) => p.balance && p.balance.status === "ok").length;
 					const def = data && data.default ? data.default.provider : null;
@@ -240,9 +402,8 @@ window.__ModuleLoader__.load({
 					force();
 				};
 				return react.createElement("div", { className: "dock-root" },
-					react.createElement("style", null, CSS),
 					react.createElement("div", { className: "dock-intro" },
-						"功能中枢（dsh-dock）· 所有小功能集中在这一个面板里管理。每个功能是独立模块：开关只影响自己，单个功能出错不影响其他功能。新功能按注册表模式追加（FEATURES + featureViews 各加一条）。"),
+						"功能坞（dsh-dock）· 所有小功能集中在这一个面板里管理。每个功能是独立模块：开关只影响自己，单个功能出错不影响其他功能。新功能按注册表模式追加（FEATURES + featureViews 各加一条）。"),
 					FEATURES.map((f) => {
 						const st = state.get(f.id);
 						const View = featureViews[f.id];
@@ -266,8 +427,14 @@ window.__ModuleLoader__.load({
 					}));
 			}
 
+			slots.inject("sidebar.footer.action", () => slots.register(
+				{ name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "功能坞" },
+				(props) => react.createElement(DockEntry, props)));
+			slots.inject("shell.overlay", () => slots.register(
+				{ name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "功能坞面板" },
+				() => react.createElement(DockModal, null)));
 			slots.inject("settings.section", () => slots.register(
-				{ name: "settings.section", id: "dsh-dock", order: 90, label: "功能中枢" },
+				{ name: "settings.section", id: "dsh-dock", order: 90, label: "功能坞" },
 				() => react.createElement(DockPanel, null)));
 		}
 
