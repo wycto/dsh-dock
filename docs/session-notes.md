@@ -170,6 +170,31 @@
   `fetch`、`AbortSignal` 等直接用但**自定义变量不要占这些名字**）；改 client 半部后
   SSR 冒烟 + 浏览器模拟段必须全绿，且真实 `dsh web` 启动验收前不允许发布/提交收尾。
 
+### 8.9 续作会话（2026-08-22 下午）：0.3.0 模型设置 + 弹层窗口化
+
+1. **0.3.0 模型设置（集成官方链路，不改内核）**：
+   - 官方链路勘察结论（勿重复探索）：会话模型选择器（`ui-model-selection`，slot `conversation.input.model`）
+     按 `model.reasoning.efforts` 展示强度档；档位源自 Provider 配置——
+     pi-ai 每模型 `reasoningEfforts`（**键=档位，值=wire 值**；`off: null` = 支持关闭不发参数；`false` = 不支持思考；
+     档位全集 off/minimal/low/medium/high/xhigh/max）；
+     deepseek 官方连接级 `thinking`（enabled/disabled）+ `reasoningEffort` 默认档（off/low/high/max，全模型共享）。
+   - 输入模态：官方 schema 仅收 `text`/`image`（pi-ai `input`、deepseek `inputModalities`）；
+     **schemastery 保留未知字段（实测）**→「视频/音频/文档」以 `dockTags` 标注随官方配置持久化，不参与请求路由。
+   - Host（index.js）：`GET/POST /dsh-dock/models`——GET 枚举目录（deepseek 官方始终可编辑，schema 默认兜底；
+     其余按"已配置"口径）；POST 经 `settings.mutate(ns, ops, revision)` 写回（revision 乐观锁，冲突 409）。
+   - Client（client.js）：`modelconfig` 模块（FEATURES 首位 = 导航第二项，紧跟「首页」）：
+     Provider chips + 模型行编辑（id/名称/上下文/最大输出/输入类型/标注/思考强度三态）+ 添加/删除 + 保存/重新拉取；
+     `modelsStore` 共享快照（首页总揽概要 "N 个 Provider · M 个模型"）。
+   - 验证：Host 冒烟 `/tmp/dock-smoke/models-smoke.mjs`（读分类/写回 ops/拒绝用例/409）全绿；
+     隔离实例（`/tmp/dsh-verify-home3`，端口 3999，profile link 仓库 + `@deepseek-ai/dsh-credentials` 软链）
+     浏览器实测：GET 5 Provider；编辑 qwen `glm-5.2` 为自定义档（off/low/high）+ 视频标注 → 保存 →
+     隔离 settings.yaml 出现 `reasoningEfforts: {off: null, low: low, high: high}` + `dockTags: [video]` ✅。
+2. **弹层窗口化**：默认 `min(1080px, vw-32) × min(700px, vh-32)`；标题栏 ─ ▢ ✕ 三键
+   （最小化折叠内容、最大化 inset 10px 铺满、双击标题栏切换）；标题栏 pointer 拖动（视口钳制）、
+   右下角 16px 手柄缩放（≥640×420）；`lastGeom` 页面生命周期内记忆几何。实测拖动/缩放/最大化/最小化/还原全过。
+3. **版本**：package.json 0.3.0；路线图顺延（0.4.0 tokenlog、0.5.0 动画、0.6.0 持久化）。
+   ⚠️ 线上 `dsh web`（3080）需**用户手动重启**才会加载新 Host 半部（/dsh-dock/models 路由在 Host 进程内注册）。
+
 ### 8.8 数据通道（确认可行，勿改）
 
 - 静态版本：`GET /dsh-dock/balance`（webServer 路由 + 同源 fetch）；动态预览：`harness.handle`
