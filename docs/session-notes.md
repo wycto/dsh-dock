@@ -344,3 +344,25 @@ agent 每轮重试/多步都带历史图片重发，逐图重识别既慢又易�
   deepseek-v4-flash-0731 正确答出"蓝底+黄方块+绿长条"（与测试图一致），无工具折腾；
 - qwen-token-plan-cn/qwen3.8-max 视觉模型（用户实际配置）：识别 174 字，同样正确。
 Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重复加）、识别缓存命中断言。
+
+### 8.15 v0.4.0：模块化架构 + 用量记录（2026-08-22 深夜）
+
+**需求**：①新功能【用量记录】放第二个菜单，功能与页面参照 `/Users/weiyi/develop/gitea/wycto/dsh-token-usage`
+（仅作参照，不动那个仓库与 npm 包）；②dsh-dock 像dsh 一样由一个个独立功能模块组成，任何模块可拎出单独打包发布，又能装回面板。
+
+**架构落地（feature 模块化）**：
+
+- 仓库重构：`features/<id>/host.js`（宿主半部，纯 ESM 零构建）+ `features/<id>/view.js(x)`（客户端视图）+ `src/client.jsx`（外壳组装）+ `src/host-core.js`（共享内核）；`index.js` 只 import 组装（1359 行 → ~90 行）。
+- **客户端放弃零构建**（本版唯一推翻的历史决策，见三、表格 8.7 条上下文）：esbuild bundle 成单文件 `client.js`（react 系外部化走运行时 seed，`@wycto/dsh-token-usage` 同款线上已验证模式）。理由：650 行 JSX 视图手写 createElement 不可维护、真实源码文件无从模块化。**宿主半部保持零构建**。改客户端后必须 `node scripts/build-client.mjs`。
+- 模块契约：视图导出 `{ id, name, order, accent, description, css, View, HomeStat? }`（order 定菜单次序：tokenlog=10 → 第二菜单）；宿主导出 `{ id, name, description, defaultEnabled, setup(ctx)→disposer }`；视图收到 `{ ctx, feature }` props。
+- **dockBridge 回装通道**：`client.js` 导出 `dockBridge.register(def)`；独立功能包（`scripts/extract-feature.mjs` 生成的骨架）在浏览器端 `ctx.modules.import('dsh-dock')` 成功→注册进功能坞（独立入口隐藏），失败→自己独立面板。跨插件 import 是 DSH client-modules 官方机制（懒 CJS 注册表 + boot 图，已读 `dsh-client-modules` 源码验证），非 hack。外部视图有 FeatureBoundary 错误边界 + 「外部」徽章 + package 标注。
+- 提取脚手架 `scripts/extract-feature.mjs <id>`：镜像仓库布局生成独立包（宿主入口/双形态客户端入口/构建脚本/patch/package.json），脚手架性质、发布前需裁剪实测。
+
+**用量记录（tokenlog）**：宿主移植 `dsh-token-usage/lib/index.js`（session/event 实时 + 启动全量扫描、sessionId:seq 去重、turn/end 两遍回填、峰谷定价 + 官网价目 24h 抓取 + `dsh-dock-tokenlog` 命名空间覆盖），RPC `POST /dsh-dock/tokenlog/query|export|scan`；视图移植其 client v6（筛选/KPI/分组/明细/CSV/5s 自刷新/localStorage 暂存），CSS 前缀 `dtok-`，dock 内自适应（无 overlay 壳，全屏用弹窗最大化）。顺带修了原版分组按钮一次旧维度过期查询（runQuery 带 dimOverride）。
+
+**验证**：`node --check` 全绿；构建产物含 ModuleLoader 壳/`exports.dockBridge`/仅 react 系外部依赖（bundle 纯度断言，8.7/8.12 教训延续）；`/tmp/dock-smoke-v040/smoke.cjs` 全绿——假 react（手搓 hooks 派发）渲染整棵弹层树断言菜单次序（首页/用量记录/模型设置…）、外部桥注册排序与徽章、错误边界；宿主假 ctx 装配断言三路由注册、tokenlog 摄取→查询→分组→CSV 闭环（含 token 桶/派生字段/llmMs/状态回填/金额非零）。浏览器实测见后续补充。
+
+**注意**：
+- 冒烟假 ctx 的 `effect(fn)` 必须立即执行 fn（cordis 语义），否则 tokenlog 路由注册不到——曾在此误判路由缺失。
+- Node 26 有实验性全局 localStorage，冒烟里 `typeof localStorage` 不再是 undefined（try/catch 兜底无碍）。
+- visionproxy 依赖 modelconfig 的 `readModelDirectory`（模块间 import），提取时两个模块要一起拎。
