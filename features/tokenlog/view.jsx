@@ -510,7 +510,7 @@ function TokenLogHomeStat() {
 export const feature = {
 	id: "tokenlog",
 	name: "用量记录",
-	order: 10,
+	order: 110,
 	accent: "#fbbf24",
 	description: "记录全部 LLM API 调用：秒级时间筛选、Token/费用统计（峰谷计价+官网价目自动同步）、分组汇总、明细检索与 CSV 导出",
 	css,

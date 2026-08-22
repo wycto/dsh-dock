@@ -590,7 +590,7 @@ function TokenLogHomeStat() {
 var feature = {
   id: "tokenlog",
   name: "\u7528\u91CF\u8BB0\u5F55",
-  order: 10,
+  order: 110,
   accent: "#fbbf24",
   description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u65F6\u95F4\u7B5B\u9009\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u5CF0\u8C37\u8BA1\u4EF7+\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
   css,
@@ -1118,7 +1118,7 @@ function HeartbeatStat(props) {
 var feature3 = {
   id: "heartbeat",
   name: "\u5FC3\u8DF3\u76D1\u89C6",
-  order: 110,
+  order: 140,
   accent: "#34d399",
   description: "\u793A\u4F8B\u529F\u80FD\uFF1A\u9762\u677F\u4FA7\u8FD0\u884C\u65F6\u957F\u5FC3\u8DF3\uFF08\u7EAF Client\uFF09",
   View: HeartbeatView,
@@ -1152,7 +1152,7 @@ function ThemeStat(props) {
 var feature4 = {
   id: "theme",
   name: "\u4E3B\u9898\u4FE1\u606F",
-  order: 120,
+  order: 150,
   accent: "#a78bfa",
   description: "\u793A\u4F8B\u529F\u80FD\uFF1A\u8BFB\u53D6\u5F53\u524D\u4E3B\u9898\u5FEB\u7167\uFF08\u7EAF Client\uFF09",
   View: ThemeView,
@@ -1340,7 +1340,7 @@ function BalanceStat(props) {
 var feature5 = {
   id: "balance",
   name: "\u6A21\u578B\u4F59\u989D",
-  order: 130,
+  order: 120,
   accent: "#4d9fff",
   description: "\u5C55\u793A\u6240\u6709\u6A21\u578B Provider \u8D26\u6237\u4F59\u989D\uFF08Host \u62C9\u53D6\uFF0C5 \u5206\u949F\u81EA\u52A8\u5237\u65B0\uFF09",
   css: [
@@ -1377,7 +1377,7 @@ var feature5 = {
 var DOCK_VERSION = "0.4.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5];
 var PLANNED_FEATURES = [
-  { id: "animation", name: "\u4EFB\u52A1\u52A8\u753B", order: 1e3, accent: "#f472b6", planned: true, description: "\u63A5\u5165\u8DEF\u7EBF\u56FE 0.5.0\uFF1A\u4EFB\u52A1\u8FDB\u5EA6\u52A8\u753B\u4E0E\u901A\u77E5" }
+  { id: "animation", name: "\u4EFB\u52A1\u52A8\u753B", order: 130, accent: "#f472b6", planned: true, description: "\u63A5\u5165\u8DEF\u7EBF\u56FE 0.5.0\uFF1A\u4EFB\u52A1\u8FDB\u5EA6\u52A8\u753B\u4E0E\u901A\u77E5" }
 ];
 var PLANNED_NOTES = {
   animation: "\u5F85\u63A5\u5165\uFF08\u8DEF\u7EBF\u56FE 0.5.0\uFF09\uFF1A\u4EFB\u52A1\u8FDB\u5EA6\u52A8\u753B\u4E0E\u5B8C\u6210\u901A\u77E5\u3002"

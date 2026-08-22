@@ -26,7 +26,7 @@ const DOCK_VERSION = "0.4.0";
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [
-	{ id: "animation", name: "任务动画", order: 1000, accent: "#f472b6", planned: true, description: "接入路线图 0.5.0：任务进度动画与通知" },
+	{ id: "animation", name: "任务动画", order: 130, accent: "#f472b6", planned: true, description: "接入路线图 0.5.0：任务进度动画与通知" },
 ];
 const PLANNED_NOTES = {
 	animation: "待接入（路线图 0.5.0）：任务进度动画与完成通知。",
