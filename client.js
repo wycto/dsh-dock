@@ -156,6 +156,9 @@ function rpcCall(method, args) {
   }).then(async (res) => {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data && data.ok === true) return data.data;
+    if (res.status === 405 || res.status === 404) {
+      throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u662F\u65E7\u7248\u672C\uFF08\u6CA1\u6709\u7528\u91CF\u8BB0\u5F55\u8DEF\u7531\uFF09\uFF0C\u91CD\u542F dsh web \u540E\u91CD\u8BD5");
+    }
     if (data && data.ok === false) throw new Error(data.error && data.error.message || "HTTP " + res.status);
     throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
   });
@@ -697,8 +700,8 @@ function TokenLogChip(props) {
   }, [sid]);
   if (!sid) return null;
   const t = snap.totals;
-  const label = snap.err && !t ? "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCost(t.cost) : "") : "\u26C1 \u2026";
-  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCost(t.cost) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
+  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCost(t.cost) : "") : "\u26C1 \u2026";
+  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCost(t.cost) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "button",
     {
@@ -1482,6 +1485,37 @@ function BalanceStat(props) {
   const ok = providers.filter((p) => p.balance && p.balance.status === "ok").length;
   return import_react6.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
 }
+function useCurrentProvider(ctx, sessionId) {
+  const [cur, setCur] = import_react6.default.useState(null);
+  import_react6.default.useEffect(() => {
+    let alive = true, off = null;
+    try {
+      const models = ctx && ctx.get ? ctx.get("modelDirectories") : void 0;
+      if (models && typeof models.directoryFor === "function" && sessionId) {
+        const dir = models.directoryFor(sessionId);
+        const face = dir && typeof dir.subscribe === "function" ? dir : dir && dir.store;
+        const read = () => {
+          if (!alive) return;
+          try {
+            const snap = face && typeof face.getSnapshot === "function" ? face.getSnapshot() : null;
+            setCur(snap && snap.current ? snap.current : null);
+          } catch {
+          }
+        };
+        if (face && typeof face.subscribe === "function") {
+          read();
+          off = face.subscribe(read);
+        }
+      }
+    } catch {
+    }
+    return () => {
+      alive = false;
+      if (typeof off === "function") off();
+    };
+  }, [sessionId]);
+  return cur;
+}
 function chipBalanceText(p) {
   const b = p && p.balance;
   if (!b) return "\u4F59\u989D \u2026";
@@ -1507,11 +1541,14 @@ function BalanceChip(props) {
   const snap = useBalance(props && props.ctx);
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
-  const def = data && data.default ? data.default.provider : null;
+  const sel = useCurrentProvider(props && props.ctx, props && props.sessionId);
+  const selProvider = sel && (sel.provider || sel.selected && sel.selected.provider) || null;
+  const def = selProvider || (data && data.default ? data.default.provider : null);
   const cur = def ? providers.find((p) => p.id === def) : null;
   const accent = cur ? accentOf(cur.id) : "#94a3b8";
   const text = snap.error ? "\u4F59\u989D\xB7\u5931\u8D25" : !data ? snap.loading ? "\u4F59\u989D \u2026" : "\u4F59\u989D \u2014" : cur ? chipBalanceText(cur) : "\u4F59\u989D \u2014";
-  const title = cur ? (cur.displayName || cur.id) + (def ? "\uFF08\u5F53\u524D\u9009\u4E2D Provider\uFF09" : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
+  const selModel = sel && (sel.model || sel.selected && sel.selected.model) || null;
+  const title = cur ? (cur.displayName || cur.id) + (selModel ? " \xB7 \u5F53\u524D\u6A21\u578B " + selModel : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
   return import_react6.default.createElement(
     "button",
     {

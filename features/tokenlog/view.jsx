@@ -19,6 +19,10 @@ function rpcCall(method, args) {
 		.then(async (res) => {
 			const data = await res.json().catch(() => ({}));
 			if (res.ok && data && data.ok === true) return data.data;
+			// 旧宿主进程没有用量路由（405/404）：给出可操作提示而非裸状态码
+			if (res.status === 405 || res.status === 404) {
+				throw new Error("宿主进程是旧版本（没有用量记录路由），重启 dsh web 后重试");
+			}
 			if (data && data.ok === false) throw new Error((data.error && data.error.message) || ("HTTP " + res.status));
 			throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
 		});
@@ -536,10 +540,12 @@ export function TokenLogChip(props) {
 	}, [sid]);
 	if (!sid) return null;
 	const t = snap.totals;
-	const label = snap.err && !t ? "用量·失败" : (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · " + fmtCost(t.cost) : "") : "⛁ …");
+	const label = snap.err && !t
+		? (snap.err.includes("重启") ? "用量·需重启宿主" : "用量·失败")
+		: (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · " + fmtCost(t.cost) : "") : "⛁ …");
 	const title = t
 		? "本会话 " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCost(t.cost) + "（估算）\n点击在功能坞查看用量记录"
-		: "点击在功能坞查看用量记录";
+		: (snap.err ? snap.err + "\n" : "") + "点击在功能坞查看用量记录";
 	return (
 		<button type="button" className={"dockchip" + (snap.err && !t ? " err" : "")} title={title} aria-label="会话用量"
 			onClick={() => openPanel("tokenlog", { sessionId: sid })}>
