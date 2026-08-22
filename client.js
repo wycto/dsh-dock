@@ -904,7 +904,12 @@ window.__ModuleLoader__.load({
 				}
 
 				// ---- 图片理解代理（全局配置）：纯文本模型收图自动走视觉模型识别 ----
-				if (data && vpDraft) {
+				// 宿主较旧（GET 无 visionProxy 字段）时降级为提示，避免保存撞到旧写回分支
+				if (data && data.visionProxy === undefined) {
+					body.push(react.createElement("div", { key: "visionproxy-old", className: "dkm-note" },
+						"图片理解代理需要新版宿主进程：当前 dsh web 较旧，重启后此面板可用。"));
+				}
+				if (data && data.visionProxy !== undefined && vpDraft) {
 					const vpCandidates = [];
 					for (const p of providers) {
 						for (const m of (p.models || [])) {
