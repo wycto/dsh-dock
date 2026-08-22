@@ -679,6 +679,26 @@ function readModelDirectory(ctx) {
   return { generatedAt: Date.now(), default: sel, revisions, providers }
 }
 
+/**
+ * 给目录视图补运行时视角的输入模态（llm.resolveModelInfo，与官方投影同源：
+ * entry.input → 内置目录 → 路由默认）。面板据此展示「原图直发 vs 走视觉代理」，
+ * 避免"条目留空但目录继承多模态"的模型被误分组。
+ */
+async function enrichRuntimeInput(ctx, dir) {
+  const llm = ctx.get('llm')
+  if (!llm || typeof llm.resolveModelInfo !== 'function') return
+  await Promise.all((dir.providers || []).flatMap((p) => (p.models || []).map(async (m) => {
+    try {
+      const info = await llm.resolveModelInfo(p.id, m.id)
+      if (info && Array.isArray(info.inputModalities)) {
+        m.runtimeInput = info.inputModalities.filter((x) => HOST_MODALITIES.includes(x))
+      }
+    } catch {
+      // 单模型解析失败不影响整表（面板回退用 input 展示）
+    }
+  })))
+}
+
 /** 校验面板数字草稿并落到条目上（空 = 删除字段，继承默认）。 */
 function setPosInt(entry, field, value) {
   if (value === undefined || value === null || value === '') {
@@ -906,35 +926,47 @@ function contentHasImageDeep(content) {
 /** 让视觉模型描述一张图片，返回识别文本（失败抛错）。 */
 async function describeImage(streamFn, cfg, block, signal, sessionId) {
   const prompt = '请用中文详细描述这张图片的内容：主体、文字（若有则逐字转写）、数据/图表要点、与编码任务相关的细节。控制在 300 字以内，直接输出描述，不要客套。'
-  const options = {
-    provider: cfg.provider,
-    model: cfg.model,
-    maxTokens: 4096, // 识别调用给足：视觉模型若带思考，小限额会被思考吃光（实测）
-    sessionId,
-    messages: [{
-      role: 'user',
-      source: { kind: 'plugin', plugin: 'dsh-dock' },
-      content: [block, { type: 'text', text: prompt }],
-    }],
-    // 递归保护：本请求由代理发起，包装层直接放行
-    dockVisionProxy: true,
+  const run = async (extra) => {
+    const options = {
+      provider: cfg.provider,
+      model: cfg.model,
+      maxTokens: 4096, // 识别调用给足：视觉模型若带思考，小限额会被思考吃光（实测）
+      sessionId,
+      messages: [{
+        role: 'user',
+        source: { kind: 'plugin', plugin: 'dsh-dock' },
+        content: [block, { type: 'text', text: prompt }],
+      }],
+      // 递归保护：本请求由代理发起，包装层直接放行
+      dockVisionProxy: true,
+      ...extra,
+    }
+    if (signal) options.signal = signal
+    const assembler = new BlockAssembler()
+    for await (const chunk of streamFn(options)) {
+      assembler.push(chunk)
+      if (assembler.finish) break
+    }
+    if (assembler.finish && assembler.finish.kind === 'error') {
+      throw new Error(String(assembler.finish.failure?.message || '视觉模型调用失败'))
+    }
+    const text = assembler.blocks()
+      .filter((b) => b && b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim()
+    if (!text) throw new Error('视觉模型没有返回文本')
+    return text
   }
-  if (signal) options.signal = signal
-  const assembler = new BlockAssembler()
-  for await (const chunk of streamFn(options)) {
-    assembler.push(chunk)
-    if (assembler.finish) break
+  // 识别是辅助调用，求快：先试关思考（off）；模型不支持该档时回退默认档重试
+  try {
+    return await run({ reasoningEffort: 'off' })
+  } catch (e) {
+    if (e instanceof Error && /does not support reasoning effort|UNSUPPORTED_REASONING_EFFORT/i.test(e.message)) {
+      return run({})
+    }
+    throw e
   }
-  if (assembler.finish && assembler.finish.kind === 'error') {
-    throw new Error(String(assembler.finish.failure?.message || '视觉模型调用失败'))
-  }
-  const text = assembler.blocks()
-    .filter((b) => b && b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim()
-  if (!text) throw new Error('视觉模型没有返回文本')
-  return text
 }
 
 /**
@@ -953,11 +985,23 @@ async function transformForVisionProxy(deps, options) {
     if (!Array.isArray(options.messages)) return options
     if (!options.messages.some((m) => m && contentHasImageDeep(m.content))) return options
 
-    // 目标模型是否纯文本：以本插件维护的模型目录为准（输入类型不含 image 即纯文本）
-    const dir = deps.directory()
-    const p = (dir.providers || []).find((x) => x.id === options.provider)
-    const m = p && Array.isArray(p.models) ? p.models.find((x) => x.id === options.model) : undefined
-    const imageCapable = !!(m && Array.isArray(m.input) && m.input.includes('image'))
+    // 目标模型是否支持图片：优先问运行时（llm.resolveModelInfo，与官方投影同源：
+    // entry.input → 内置目录 → 路由默认），避免插件目录误判"靠内置目录继承多模态"的
+    // 模型（如 kimi-k2.7，条目未写 input 但目录里是 [text,image]）；
+    // 旧宿主无此方法或单次解析失败时，退回插件目录视图兜底。
+    let imageCapable
+    try {
+      const info = deps.resolveModelInfo ? await deps.resolveModelInfo(options.provider, options.model) : undefined
+      if (info && Array.isArray(info.inputModalities)) imageCapable = info.inputModalities.includes('image')
+    } catch {
+      // 落到目录回退
+    }
+    if (imageCapable === undefined) {
+      const dir = deps.directory()
+      const p = (dir.providers || []).find((x) => x.id === options.provider)
+      const m = p && Array.isArray(p.models) ? p.models.find((x) => x.id === options.model) : undefined
+      imageCapable = !!(m && Array.isArray(m.input) && m.input.includes('image'))
+    }
     if (imageCapable) return options
 
     let changed = false
@@ -1015,6 +1059,10 @@ function installVisionProxy(ctx, directory) {
     },
     // 识别调用走保存的原函数：天然绕开包装层，无递归
     stream: (options) => llm.__dockOrigStream(options),
+    // 运行时模型信息查询（图片能力判定与官方投影同源）；旧宿主无此方法时为 null
+    resolveModelInfo: typeof llm.resolveModelInfo === 'function'
+      ? (provider, model) => llm.resolveModelInfo(provider, model)
+      : null,
     directory,
   }
   llm.__dockOrigStream = llm.stream.bind(llm)
@@ -1132,6 +1180,7 @@ export function apply(ctx) {
         try {
           if (req.method === 'GET') {
             const payload = readModelDirectory(ctx)
+            await enrichRuntimeInput(ctx, payload)
             // 附带图片理解代理配置与自有命名空间 revision（面板保存用）
             try {
               const settings = ctx.get('settings')

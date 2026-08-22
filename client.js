@@ -403,8 +403,8 @@ window.__ModuleLoader__.load({
 												: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（记忆态随页面生命周期，0.5.0 起持久化）"),
 								react.createElement("div", { className: "dockm-foot" },
 									react.createElement("span", null, isHome
-										? "功能坞 v0.3.0 · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
-										: "功能坞 v0.3.0 · 新功能按路线图追加"),
+										? "功能坞 v0.3.1 · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
+										: "功能坞 v0.3.1 · 新功能按路线图追加"),
 									!isHome && mod && !mod.planned && st
 										? react.createElement("button", {
 											type: "button",
@@ -844,7 +844,11 @@ window.__ModuleLoader__.load({
 						react.createElement("input", { className: "dkm-input", placeholder: "最大输出", inputMode: "numeric", value: m.maxTokens, onChange: (e) => patchModel(i, { maxTokens: e.target.value }) })),
 					react.createElement("div", { className: "dkm-checks" },
 						react.createElement("span", { className: "dkm-label" }, "输入类型："),
-						DKM_MODALITIES.map(([v, label]) => react.createElement("label", { key: v, className: "dkm-check" },
+						DKM_MODALITIES.map(([v, label]) => react.createElement("label", {
+							key: v,
+							className: "dkm-check",
+							title: v === "image" ? "勾选=端点原生支持图片（原图直发，图片理解代理跳过）；纯文本模型勿勾——收图会自动交给图片理解代理识别" : null
+						},
 							react.createElement("input", {
 								type: "checkbox",
 								checked: m.input.indexOf(v) >= 0,
@@ -910,14 +914,17 @@ window.__ModuleLoader__.load({
 						"图片理解代理需要新版宿主进程：当前 dsh web 较旧，重启后此面板可用。"));
 				}
 				if (data && data.visionProxy !== undefined && vpDraft) {
-					const vpCandidates = [];
+					// 图片能力以运行时视角（runtimeInput，与官方投影同源）为准，无则回退条目 input
+					const effInput = (m) => (m.runtimeInput && m.runtimeInput.length > 0 ? m.runtimeInput : m.input) || [];
+					const vpDirect = [];
+					const vpProxied = [];
 					for (const p of providers) {
 						for (const m of (p.models || [])) {
-							if (m.input && m.input.indexOf("image") >= 0) {
-								vpCandidates.push({ key: p.id + "/" + m.id, label: p.displayName + " / " + (m.name || m.id) });
-							}
+							const item = { key: p.id + "/" + m.id, label: (p.displayName || p.id) + " / " + (m.name || m.id), model: m.name || m.id };
+							(effInput(m).indexOf("image") >= 0 ? vpDirect : vpProxied).push(item);
 						}
 					}
+					const vpCandidates = vpDirect.slice();
 					const vpKey = vpDraft.provider + "/" + vpDraft.model;
 					const vpKnown = vpCandidates.some((c) => c.key === vpKey);
 					body.push(react.createElement("div", { key: "visionproxy", className: "dkm-prov" },
@@ -948,8 +955,20 @@ window.__ModuleLoader__.load({
 								!vpKnown && vpDraft.provider ? react.createElement("option", { value: vpKey }, vpDraft.provider + " / " + vpDraft.model + "（当前）") : null,
 								vpCandidates.map((c) => react.createElement("option", { key: c.key, value: c.key }, c.label))),
 							vpCandidates.length === 0
-								? react.createElement("span", { className: "dkm-sub" }, "目录里暂无多模态模型——先在下方给模型勾选「图片」输入类型")
+								? react.createElement("span", { className: "dkm-sub" }, "目录里暂无多模态模型——先在下方给真·多模态模型勾选「图片」输入类型")
 								: null),
+						react.createElement("div", { className: "dkm-sub" },
+							"判定与官方运行时同源：「图片」勾选（或目录默认）= 端点原生支持、原图直发；其余模型收图自动走视觉模型。注意：若端点实际不认图却勾了「图片」，模型会看不见图片、转而用工具瞎折腾——不确定就不要勾，交给代理。"),
+						vpDirect.length > 0
+							? react.createElement("div", { className: "dkm-checks" },
+								react.createElement("span", { className: "dkm-label" }, "原图直发（多模态，" + vpDirect.length + "）："),
+								vpDirect.map((c) => react.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model)))
+							: null,
+						vpProxied.length > 0
+							? react.createElement("div", { className: "dkm-checks" },
+								react.createElement("span", { className: "dkm-label" }, "走视觉代理（纯文本，" + vpProxied.length + "）："),
+								react.createElement("span", { className: "dkm-sub" }, vpProxied.map((c) => c.model).join("、")))
+							: null,
 						react.createElement("div", { className: "dkm-savebar" },
 							react.createElement("button", { type: "button", className: "dkm-save", disabled: !vpDirty || vpSaving, onClick: saveVp }, vpSaving ? "保存中…" : "保存图片代理配置"),
 							vpMsg ? react.createElement("span", { className: "dkm-msg " + (vpMsg.ok ? "ok" : "err") }, vpMsg.text)

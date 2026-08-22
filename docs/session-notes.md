@@ -283,3 +283,31 @@
   都必须同步返回 AsyncIterable（非 Promise、有 Symbol.asyncIterator、可迭代）。
 - **教训**：包装官方函数必须逐条保契约（返回类型同步性也在内）；冒烟当时只测了 llm.stream 路径，
   漏了 prepareCall 主路径——以后每个被包装的入口都要有契约断言。
+### 8.13 事故复盘：误勾「图片」输入致模型瞎折腾 14 分钟 + PyYAML 二次事故（已修复）
+
+- **用户现象**：给 deepseek-v4-flash-0731 发图问「图中有什么」，模型 87 步 / 14 分钟用
+  bash+tesseract+swift OCR 自己折腾图片文件，而非走视觉模型。
+- **根因 1（配置语义）**：此前「批量输入全选」把 qwen 路由 4 个模型全勾了「图片」——
+  其中 glm-5.2 / deepseek-v4-flash-0731 / deepseek-v4-pro-0813 在 pi-ai 内置目录里是**纯文本**
+  （GLM-5.x 全系纯文本；qwen 编程套餐目录里多模态的只有 kimi-k2.5+、qwen3.6+/3.7-plus/3.8-max-preview）。
+  代理规则「多模态模型自己识别」→ 跳过；图片原样发端点 → 端点不认 → 模型只拿到附件文本引用 → 工具瞎找。
+- **修复 1**：治愈 settings（4 处 input 删除、留空继承目录=纯文本；qwen3.8-max 真多模态保留）。
+  语义已在面板写明：勾「图片」= 端点原生支持、原图直发；不确定勿勾，交给代理。
+- **根因 2（判定源不一致）**：代理此前用**插件目录副本**判多模态——条目留空时副本显示路由默认
+  （纯文本），但运行时解析链是 `entry.input ?? 内置目录 ?? 路由默认`：kimi-k2.7（qwen 路由）条目
+  留空却靠目录继承 [text,image]，会被误拦。
+  **修复 2**：判定改用 `llm.resolveModelInfo(provider, model)`（dsh-llm 运行时公开方法，与官方
+  投影同源）；旧宿主无此方法/单次解析失败时回退插件目录。GET 目录逐模型附 `runtimeInput`，
+  面板「图片理解代理」区展示「原图直发（多模态）/ 走视觉代理（纯文本）」分组。
+- **提速**：识别调用先试 `reasoningEffort: 'off'`（关思考求快）；报 UNSUPPORTED_REASONING_EFFORT
+  则回退默认档重试一次。
+- **二次事故（自查自纠）**：治愈脚本用 PyYAML load/dump 转储 settings.yaml——PyYAML 是 YAML 1.1，
+  把 `off:` 键解析成布尔 False 再写回成 `false: null`（**键名腐蚀**）；且全新启动时 llm-pi-ai
+  schema 校验不过 → **全部 pi-ai Provider 消失**（热加载进程不重启则无感，极具迷惑性）。
+  补救：从备份做**纯文本手术**（只删 input 行、不动其他字节）。
+  **教训：绝不用 PyYAML 转储用户 settings.yaml**（YAML 1.1 布尔陷阱 off/yes/on/no）；要改就文本级
+  手术，或让 settings 服务自己写（settings.mutate）。
+- **验证**：双实例（3080 线上 / 3999 隔离）全新启动后 5 Provider 齐全；runtime 判定
+  治愈模型=text（走代理）、qwen3.8-max=text,image（直发+当视觉模型）；Host 冒烟新增 5 断言
+  （runtimeInput 附带 / 目录继承多模态不误拦 / 解析失败回退 / off 被拒自动重试 / off 先行尝试）全绿。
+- GLM-5.3（fangzhou 自定义路由）：未进内置目录 → 运行时默认纯文本 → 收图自动走视觉代理 ✓。
