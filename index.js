@@ -683,13 +683,16 @@ function readModelDirectory(ctx) {
  * 给目录视图补运行时视角的输入模态（llm.resolveModelInfo，与官方投影同源：
  * entry.input → 内置目录 → 路由默认）。面板据此展示「原图直发 vs 走视觉代理」，
  * 避免"条目留空但目录继承多模态"的模型被误分组。
+ * 注意：功能启用后 llm.resolveModelInfo 被本插件包装（虚拟多模态），此处须取原函数保真。
  */
 async function enrichRuntimeInput(ctx, dir) {
   const llm = ctx.get('llm')
-  if (!llm || typeof llm.resolveModelInfo !== 'function') return
+  const resolve = llm && (llm.__dockOrigResolveModelInfo
+    || (typeof llm.resolveModelInfo === 'function' ? llm.resolveModelInfo.bind(llm) : null))
+  if (!resolve) return
   await Promise.all((dir.providers || []).flatMap((p) => (p.models || []).map(async (m) => {
     try {
-      const info = await llm.resolveModelInfo(p.id, m.id)
+      const info = await resolve(p.id, m.id)
       if (info && Array.isArray(info.inputModalities)) {
         m.runtimeInput = info.inputModalities.filter((x) => HOST_MODALITIES.includes(x))
       }
@@ -924,14 +927,22 @@ function contentHasImageDeep(content) {
 }
 
 /** 让视觉模型描述一张图片，返回识别文本（失败抛错）。 */
-async function describeImage(streamFn, cfg, block, signal, sessionId) {
+async function describeImage(deps, cfg, block, signal) {
   const prompt = '请用中文详细描述这张图片的内容：主体、文字（若有则逐字转写）、数据/图表要点、与编码任务相关的细节。控制在 300 字以内，直接输出描述，不要客套。'
-  const run = async (extra) => {
-    const options = {
-      provider: cfg.provider,
-      model: cfg.model,
-      maxTokens: 4096, // 识别调用给足：视觉模型若带思考，小限额会被思考吃光（实测）
-      sessionId,
+  // 单次识别调用：返回文本（可为空串，由调用方决定重试），失败抛错。
+  // ⚠️ 不带 sessionId：llm/stream 的会话检查点监听对带 sessionId 的调用先做检查点，
+  // 回合进行中会 fail-closed 短路适配器。
+  // ⚠️ 走 prepareCall 通道而非 llm.stream：llm/stream 公共路径对带图请求实测会被
+  // 截断（单 block-start 后静默结束，两种适配器均然，端点直连正常）；agent-loop 的
+  // 带图请求全部经 prepareCall().stream() 且工作正常，此处同通道。
+  // prepareCall(config).stream(options) 要求 options 与 config 在 provider/model/
+  // reasoningEffort/maxTokens 等请求控制字段上完全一致，故两处同源构造。
+  const run = async (effort) => {
+    const config = { provider: cfg.provider, model: cfg.model, maxTokens: 4096 }
+    if (effort) config.reasoningEffort = effort
+    const prepared = await deps.prepareCall(config, signal)
+    // options 必须与 resolvedConfig 完全一致（callConfigEquals），以 prepared.config 为底
+    const options = Object.assign({}, prepared.config, {
       messages: [{
         role: 'user',
         source: { kind: 'plugin', plugin: 'dsh-dock' },
@@ -939,34 +950,37 @@ async function describeImage(streamFn, cfg, block, signal, sessionId) {
       }],
       // 递归保护：本请求由代理发起，包装层直接放行
       dockVisionProxy: true,
-      ...extra,
-    }
+    })
     if (signal) options.signal = signal
     const assembler = new BlockAssembler()
-    for await (const chunk of streamFn(options)) {
+    for await (const chunk of prepared.stream(options)) {
       assembler.push(chunk)
-      if (assembler.finish) break
+      // ⚠️ BlockAssembler.finish 是 getter，未收到 finish chunk 时也返回 {kind:'stop'}
+      // （恒真值）——只能用 chunk.type 判断，用 assembler.finish 当条件会在第一个
+      // chunk 后就 break，识别永远为空（2026-08-22 排查一下午的根因）。
+      if (chunk && chunk.type === 'finish') break
     }
     if (assembler.finish && assembler.finish.kind === 'error') {
       throw new Error(String(assembler.finish.failure?.message || '视觉模型调用失败'))
     }
-    const text = assembler.blocks()
+    return assembler.blocks()
       .filter((b) => b && b.type === 'text')
       .map((b) => b.text)
       .join('')
       .trim()
-    if (!text) throw new Error('视觉模型没有返回文本')
-    return text
   }
-  // 识别是辅助调用，求快：先试关思考（off）；模型不支持该档时回退默认档重试
+  // 识别是辅助调用，求快：先试关思考（off）；报不支持或返回空内容都回退默认档重试
+  let text
   try {
-    return await run({ reasoningEffort: 'off' })
+    text = await run('off')
   } catch (e) {
-    if (e instanceof Error && /does not support reasoning effort|UNSUPPORTED_REASONING_EFFORT/i.test(e.message)) {
-      return run({})
+    if (!(e instanceof Error && /does not support reasoning effort|UNSUPPORTED_REASONING_EFFORT/i.test(e.message))) {
+      throw e
     }
-    throw e
   }
+  if (!text) text = await run(undefined)
+  if (!text) throw new Error('视觉模型没有返回文本')
+  return text
 }
 
 /**
@@ -974,8 +988,41 @@ async function describeImage(streamFn, cfg, block, signal, sessionId) {
  * 任何失败都只降级（保留原图或占位说明），绝不阻断主请求。
  * @returns 改写后的 options（无需改写时原样返回）
  */
+/**
+ * 识别结果缓存（attachmentId + 视觉模型 → 文本）。
+ * 端点对连续识图有节流（实测第 ~6 次起掐流成单个 block-start）；agent 每轮
+ * 重试/多步都会带着历史图片重发请求，逐图重识别既慢又会撞限流——同一张图
+ * 10 分钟内只识别一次，失败不缓存。
+ */
+const describeCache = new Map()
+const DESCRIBE_CACHE_TTL = 10 * 60 * 1000
+const DESCRIBE_CACHE_MAX = 64
+
+function cacheKey(cfg, block) {
+  return `${cfg.provider}/${cfg.model}:${block && block.attachment ? block.attachment.attachmentId : ''}`
+}
+
+function cacheGet(key) {
+  const hit = describeCache.get(key)
+  if (!hit) return undefined
+  if (Date.now() - hit.at > DESCRIBE_CACHE_TTL) {
+    describeCache.delete(key)
+    return undefined
+  }
+  return hit.text
+}
+
+function cacheSet(key, text) {
+  if (describeCache.size >= DESCRIBE_CACHE_MAX) {
+    const oldest = describeCache.keys().next().value
+    describeCache.delete(oldest)
+  }
+  describeCache.set(key, { text, at: Date.now() })
+}
+
 async function transformForVisionProxy(deps, options) {
   const cfg = deps.config()
+  const log = (msg) => { try { console.log('[dsh-dock] visionproxy ' + msg) } catch { /* 日志失败不影响主流程 */ } }
   try {
     if (!cfg || !cfg.enabled || !cfg.provider || !cfg.model) return options
     if (!options || typeof options !== 'object') return options
@@ -984,6 +1031,7 @@ async function transformForVisionProxy(deps, options) {
     if (options.purpose) return options // 内部辅助调用（如会话标题）不代理
     if (!Array.isArray(options.messages)) return options
     if (!options.messages.some((m) => m && contentHasImageDeep(m.content))) return options
+    log(`带图请求 ${options.provider}/${options.model}`)
 
     // 目标模型是否支持图片：优先问运行时（llm.resolveModelInfo，与官方投影同源：
     // entry.input → 内置目录 → 路由默认），避免插件目录误判"靠内置目录继承多模态"的
@@ -1002,7 +1050,10 @@ async function transformForVisionProxy(deps, options) {
       const m = p && Array.isArray(p.models) ? p.models.find((x) => x.id === options.model) : undefined
       imageCapable = !!(m && Array.isArray(m.input) && m.input.includes('image'))
     }
-    if (imageCapable) return options
+    if (imageCapable) {
+      log(`跳过 ${options.provider}/${options.model}：运行时判定多模态（原图直发）`)
+      return options
+    }
 
     let changed = false
     const replaceBlocks = async (blocks) => {
@@ -1010,11 +1061,21 @@ async function transformForVisionProxy(deps, options) {
       for (const block of blocks) {
         if (block && block.type === 'image') {
           changed = true
+          const key = cacheKey(cfg, block)
+          const cached = cacheGet(key)
+          if (cached !== undefined) {
+            log('命中识别缓存')
+            next.push({ type: 'text', text: `[图片内容（由视觉模型 ${cfg.provider}/${cfg.model} 识别）：${cached}]` })
+            continue
+          }
           try {
-            const desc = await describeImage(deps.stream, cfg, block, options.signal, options.sessionId)
+            const desc = await describeImage(deps, cfg, block, options.signal)
+            cacheSet(key, desc)
+            log(`识别成功 ${desc.length} 字`)
             next.push({ type: 'text', text: `[图片内容（由视觉模型 ${cfg.provider}/${cfg.model} 识别）：${desc}]` })
           } catch (e) {
             // 识别失败：降级为说明文本，官方投影不会再把请求打挂
+            log(`识别失败：${e instanceof Error ? e.message : String(e)}`)
             next.push({ type: 'text', text: `[图片未能识别（${e instanceof Error ? e.message : String(e)}），已省略]` })
           }
           continue
@@ -1047,6 +1108,10 @@ function installVisionProxy(ctx, directory) {
   if (!llm || typeof llm.stream !== 'function' || typeof llm.prepareCall !== 'function') {
     throw new Error('llm 服务不可用，无法安装图片理解代理')
   }
+  // 原函数先绑定保存：改写判定与识别调用都走原函数，不受包装影响
+  const origResolve = typeof llm.resolveModelInfo === 'function' ? llm.resolveModelInfo.bind(llm) : null
+  if (origResolve) llm.__dockOrigResolveModelInfo = origResolve
+  const origPrepareCall = llm.prepareCall.bind(llm)
   const deps = {
     config: () => {
       try {
@@ -1059,10 +1124,10 @@ function installVisionProxy(ctx, directory) {
     },
     // 识别调用走保存的原函数：天然绕开包装层，无递归
     stream: (options) => llm.__dockOrigStream(options),
+    // 识别调用走原 prepareCall 通道（带图请求的被验证路径）
+    prepareCall: origPrepareCall,
     // 运行时模型信息查询（图片能力判定与官方投影同源）；旧宿主无此方法时为 null
-    resolveModelInfo: typeof llm.resolveModelInfo === 'function'
-      ? (provider, model) => llm.resolveModelInfo(provider, model)
-      : null,
+    resolveModelInfo: origResolve,
     directory,
   }
   llm.__dockOrigStream = llm.stream.bind(llm)
@@ -1082,16 +1147,45 @@ function installVisionProxy(ctx, directory) {
       })(),
     })
   }
+  // 虚拟多模态：代理启用时，纯文本模型对外宣称支持图片，让官方带图准入放行——
+  // apiproxy 的 prompt 收图校验、mcp-client/tool-fs 的图片声明检查都查
+  // llm.resolveModelInfo 的 inputModalities；图片真正到端点前会被 stream/prepareCall
+  // 包装层替换为识别文本。视觉模型自身与多模态模型不受影响；官方内部投影不走
+  // 此公共方法，truth 不变。
+  if (origResolve) {
+    llm.resolveModelInfo = async (provider, model, signal) => {
+      const info = await origResolve(provider, model, signal)
+      try {
+        const cfg = deps.config()
+        if (!cfg || !cfg.enabled || !cfg.provider || !cfg.model) return info
+        if (provider === cfg.provider && model === cfg.model) return info
+        if (info && Array.isArray(info.inputModalities) && info.inputModalities.length > 0
+          && !info.inputModalities.includes('image')) {
+          return Object.assign({}, info, { inputModalities: info.inputModalities.concat('image') })
+        }
+      } catch {
+        // 保真回退
+      }
+      return info
+    }
+  }
   return () => {
     delete llm.__dockOrigStream
     delete llm.stream
     delete llm.prepareCall
+    delete llm.__dockOrigResolveModelInfo
+    delete llm.resolveModelInfo
   }
 }
 
 // ---------------------------------------------------------------------------
 // 插件主体
 // ---------------------------------------------------------------------------
+
+/** 测试钩子：清空识别缓存（冒烟在用例间隔离）。 */
+export function __clearDescribeCache() {
+  describeCache.clear()
+}
 
 export function apply(ctx) {
   // ---- 功能注册表（Host 侧）----
