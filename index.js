@@ -800,6 +800,12 @@ async function writeModelConfig(ctx, body) {
   }
 
   const dir = readModelDirectory(ctx)
+  if (typeof body.provider !== 'string' || !body.provider) {
+    // 典型场景：新 Client（图片代理面板）打到旧 Host（无 visionProxy 分支）
+    const err = new Error('请求缺少 provider——若正在保存图片代理配置，说明宿主进程是旧版本，重启 dsh web 后重试')
+    err.statusCode = 400
+    throw err
+  }
   const p = dir.providers.find((x) => x.id === body.provider)
   if (!p) throw new Error(`未找到 Provider：${body.provider}`)
   if (p.kind === 'other') throw new Error('该 Provider 暂不支持编辑')
