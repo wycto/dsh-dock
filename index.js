@@ -552,10 +552,10 @@ function strList(v) {
   return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x) : []
 }
 
-/** 把 pi-ai 模型条目归一为面板视图。 */
+/** 把 pi-ai 模型条目归一为面板视图（raw = 原始条目，保存时原样回传保留未知字段）。 */
 function piAiModelView(entry, routeDefaultInput) {
   const input = strList(entry.input).filter((m) => HOST_MODALITIES.includes(m))
-  const raw = entry.reasoningEfforts
+  const raw = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {}
   return {
     id: typeof entry.id === 'string' ? entry.id : '',
     name: typeof entry.name === 'string' ? entry.name : undefined,
@@ -563,15 +563,17 @@ function piAiModelView(entry, routeDefaultInput) {
     maxTokens: posInt(entry.maxTokens),
     input: input.length > 0 ? input : (strList(routeDefaultInput).length > 0 ? strList(routeDefaultInput) : ['text']),
     inputInherited: input.length === 0,
-    efforts: raw === undefined ? 'inherit' : raw === false ? 'off' : 'custom',
-    effortMap: raw && typeof raw === 'object' ? raw : null,
+    efforts: raw.reasoningEfforts === undefined ? 'inherit' : raw.reasoningEfforts === false ? 'off' : 'custom',
+    effortMap: raw.reasoningEfforts && typeof raw.reasoningEfforts === 'object' ? raw.reasoningEfforts : null,
     tags: strList(entry.dockTags),
+    raw,
   }
 }
 
 /** 把 deepseek 目录模型归一为面板视图。 */
 function deepSeekModelView(entry) {
   const input = strList(entry.inputModalities).filter((m) => HOST_MODALITIES.includes(m))
+  const raw = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {}
   return {
     id: typeof entry.id === 'string' ? entry.id : '',
     name: typeof entry.name === 'string' ? entry.name : undefined,
@@ -580,6 +582,7 @@ function deepSeekModelView(entry) {
     input: input.length > 0 ? input : ['text'],
     inputInherited: input.length === 0,
     tags: strList(entry.dockTags),
+    raw,
   }
 }
 
@@ -669,23 +672,41 @@ function readModelDirectory(ctx) {
   return { generatedAt: Date.now(), default: sel, revisions, providers }
 }
 
-/** 校验面板提交的模型草稿，产出写回 pi-ai 的模型条目（不合法直接抛错）。 */
-function piAiModelWrite(m) {
+/** 校验面板数字草稿并落到条目上（空 = 删除字段，继承默认）。 */
+function setPosInt(entry, field, value) {
+  if (value === undefined || value === null || value === '') {
+    delete entry[field]
+    return
+  }
+  const n = Number(value)
+  if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${entry.id} 的 ${field} 须为正整数`)
+  entry[field] = n
+}
+
+/**
+ * 校验面板提交的模型草稿，产出写回 pi-ai 的模型条目（不合法直接抛错）。
+ * 基于原条目（raw）合并编辑：未知字段（用户自配 compat/description 等）原样保留。
+ * 启用思考（custom）时的兜底（2026-08-22 事故修复）：
+ *   不在 pi-ai 内置目录里的模型没有 catalog compat，检测默认 supportsDeveloperRole=true，
+ *   而 pi-ai 对 reasoning 模型会把 system 改写成 developer 角色 → 百炼等 OpenAI 兼容端点 400。
+ *   故凡启用思考一律显式 supportsDeveloperRole:false（system 全端点通用）；
+ *   百炼/阿里云家族 baseURL 再补 thinkingFormat:'qwen'（与目录内模型一致，思考参数用 qwen 格式）。
+ */
+function piAiModelWrite(m, p) {
   if (!m || typeof m.id !== 'string' || !m.id) throw new Error('模型 id 不能为空')
-  const entry = { id: m.id }
+  const raw = m.raw && typeof m.raw === 'object' && !Array.isArray(m.raw) ? m.raw : {}
+  const entry = Object.assign({}, raw)
+  entry.id = m.id
   if (typeof m.name === 'string' && m.name) entry.name = m.name
-  if (m.contextWindow !== undefined && m.contextWindow !== null && m.contextWindow !== '') {
-    const n = Number(m.contextWindow)
-    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的上下文窗口须为正整数`)
-    entry.contextWindow = n
-  }
-  if (m.maxTokens !== undefined && m.maxTokens !== null && m.maxTokens !== '') {
-    const n = Number(m.maxTokens)
-    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的最大输出须为正整数`)
-    entry.maxTokens = n
-  }
+  else delete entry.name
+  setPosInt(entry, 'contextWindow', m.contextWindow)
+  setPosInt(entry, 'maxTokens', m.maxTokens)
   const input = Array.isArray(m.input) ? m.input.filter((x) => HOST_MODALITIES.includes(x)) : []
   if (input.length > 0) entry.input = input // 留空 = 继承路由/目录默认
+  else delete entry.input
+  const tags = strList(m.tags)
+  if (tags.length > 0) entry.dockTags = tags // 标注（如 video），官方校验忽略、随配置持久化
+  else delete entry.dockTags
   if (m.effortsMode === 'off') {
     entry.reasoningEfforts = false
   } else if (m.effortsMode === 'custom') {
@@ -699,31 +720,39 @@ function piAiModelWrite(m) {
     }
     if (real === 0) throw new Error(`模型 ${m.id} 至少要勾选一个思考档位（off 之外）`)
     entry.reasoningEfforts = map
-  } // inherit = 不写该字段，跟随内置目录
-  const tags = strList(m.tags)
-  if (tags.length > 0) entry.dockTags = tags // 标注（如 video），官方校验忽略、随配置持久化
+    // 目录路由（用户层未写 api/baseURL，靠 pi-ai 内置目录提供）视作 openai 兼容
+    const apiOk = !p.api || (typeof p.api === 'string' && p.api.indexOf('openai') === 0)
+    if (apiOk) {
+      const compat = Object.assign({}, entry.compat)
+      compat.supportsDeveloperRole = false
+      // 百炼/阿里云家族（路由 id 或 baseURL 命中）思考参数用 qwen 格式，与目录内模型一致
+      if (/qwen|dashscope|aliyuncs/i.test(String(p.route || '') + ' ' + String(p.baseURL || ''))) {
+        compat.thinkingFormat = 'qwen'
+      }
+      entry.compat = compat
+    }
+  } else {
+    delete entry.reasoningEfforts // inherit = 不写该字段，跟随内置目录
+  }
   return entry
 }
 
-/** 校验并产出写回 deepseek 官方的目录模型条目。 */
+/** 校验并产出写回 deepseek 官方的目录模型条目（raw 未知字段保留）。 */
 function deepSeekModelWrite(m) {
   if (!m || typeof m.id !== 'string' || !m.id) throw new Error('模型 id 不能为空')
-  const entry = { id: m.id }
+  const raw = m.raw && typeof m.raw === 'object' && !Array.isArray(m.raw) ? m.raw : {}
+  const entry = Object.assign({}, raw)
+  entry.id = m.id
   if (typeof m.name === 'string' && m.name) entry.name = m.name
-  if (m.contextWindow !== undefined && m.contextWindow !== null && m.contextWindow !== '') {
-    const n = Number(m.contextWindow)
-    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的上下文窗口须为正整数`)
-    entry.contextWindow = n
-  }
-  if (m.maxTokens !== undefined && m.maxTokens !== null && m.maxTokens !== '') {
-    const n = Number(m.maxTokens)
-    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的最大输出须为正整数`)
-    entry.maxTokens = n
-  }
+  else delete entry.name
+  setPosInt(entry, 'contextWindow', m.contextWindow)
+  setPosInt(entry, 'maxTokens', m.maxTokens)
   const input = Array.isArray(m.input) ? m.input.filter((x) => HOST_MODALITIES.includes(x)) : []
   if (input.includes('image')) entry.inputModalities = input // 纯文本留空走 schema 默认 ['text']
+  else delete entry.inputModalities
   const tags = strList(m.tags)
   if (tags.length > 0) entry.dockTags = tags
+  else delete entry.dockTags
   return entry
 }
 
@@ -762,7 +791,7 @@ async function writeModelConfig(ctx, body) {
   } else {
     const route = p.route
     if (!route) throw new Error('pi-ai 路由 key 缺失，无法写回')
-    ops.push({ op: 'set', path: ['providers', route, 'models'], value: body.models.map(piAiModelWrite) })
+    ops.push({ op: 'set', path: ['providers', route, 'models'], value: body.models.map((m) => piAiModelWrite(m, p)) })
   }
 
   const revision = body.revisions && typeof body.revisions[p.settingsNs] === 'number'
