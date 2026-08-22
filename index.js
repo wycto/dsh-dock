@@ -1,5 +1,12 @@
 // dsh-dock · Host 半部（Node 侧入口）
 //
+// v0.3.0 模型设置（已接入）：
+//   - hostSetups.models：/dsh-dock/models GET 读模型目录（输入类型/思考强度），
+//     POST 把面板编辑写回官方 settings（settings.mutate，热生效）；
+//   - 集成官方链路而非另起炉灶：pi-ai 每模型 reasoningEfforts（档位→wire 值）、
+//     deepseek 连接级 thinking/reasoningEffort；输入模态官方仅收 text/image，
+//     「视频」等以 dockTags 标注持久化（不参与请求路由）。
+//
 // v0.2.0 模型余额（已接入）：
 //   - hostSetups.balance：在回环 webServer 上注册 /dsh-dock/balance 路由，
 //     枚举所有已配置的模型 Provider，按余额策略查询各账号余额/配额，
@@ -13,8 +20,8 @@
 //   - 函数级错误隔离：单个功能 setup 抛错只标记 error，不影响其他功能。
 //
 // 路线图：
-//   - 0.3.0 接入 Token 用量记录：hostSetups.tokenlog 监听事件记账；
-//   - 0.4.0 接入任务动画。
+//   - 0.4.0 接入 Token 用量记录：hostSetups.tokenlog 监听事件记账；
+//   - 0.5.0 接入任务动画。
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 
 export const name = 'dsh-dock'
@@ -511,6 +518,294 @@ function sendJson(res, status, value) {
 }
 
 // ---------------------------------------------------------------------------
+// 模型设置（v0.3.0）：模型目录读 + 官方配置写
+//   GET  /dsh-dock/models —— 枚举全部已配置 Provider 的模型目录（含输入类型/思考强度）
+//   POST /dsh-dock/models —— 把面板编辑写回官方 settings（settings.mutate，热生效）
+// 官方链路（集成不改内核）：
+//   - 会话模型选择器按 model.reasoning.efforts 展示强度档；档位源自 Provider 配置：
+//     · pi-ai 路由：每模型 reasoningEfforts（档位 → wire 值；off:null 表示"支持关闭、不发参数"；false = 不支持思考）
+//     · deepseek 官方：连接级 thinking（enabled/disabled）+ reasoningEffort 默认档，全模型共享 Off/Low/High/Max
+//   - 输入类型官方 schema 仅接受 text/image；「视频」等以 dockTags 标注随配置持久化（不参与请求路由）
+//   - schemastery 保留未知字段（实测），dockTags 对官方校验透明
+// ---------------------------------------------------------------------------
+
+/** 官方 schema 接受的输入模态（写回配置的 input 只允许这两个）。 */
+const HOST_MODALITIES = ['text', 'image']
+/** pi-ai 支持的思考档位（升序）。 */
+const PI_AI_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+/** deepseek 官方支持的思考档位。 */
+const DEEPSEEK_LEVELS = ['off', 'low', 'high', 'max']
+
+function providerKindOf(entry) {
+  if (entry.settingsNs === 'llm-deepseek') return 'deepseek'
+  if (entry.settingsNs === 'llm-pi-ai') return 'pi-ai'
+  return 'other'
+}
+
+/** 正整数或 undefined（目录数字字段透传）。 */
+function posInt(v) {
+  return Number.isInteger(v) && v > 0 ? v : undefined
+}
+
+/** 字符串数组透传（仅保留非空字符串）。 */
+function strList(v) {
+  return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x) : []
+}
+
+/** 把 pi-ai 模型条目归一为面板视图。 */
+function piAiModelView(entry, routeDefaultInput) {
+  const input = strList(entry.input).filter((m) => HOST_MODALITIES.includes(m))
+  const raw = entry.reasoningEfforts
+  return {
+    id: typeof entry.id === 'string' ? entry.id : '',
+    name: typeof entry.name === 'string' ? entry.name : undefined,
+    contextWindow: posInt(entry.contextWindow),
+    maxTokens: posInt(entry.maxTokens),
+    input: input.length > 0 ? input : (strList(routeDefaultInput).length > 0 ? strList(routeDefaultInput) : ['text']),
+    inputInherited: input.length === 0,
+    efforts: raw === undefined ? 'inherit' : raw === false ? 'off' : 'custom',
+    effortMap: raw && typeof raw === 'object' ? raw : null,
+    tags: strList(entry.dockTags),
+  }
+}
+
+/** 把 deepseek 目录模型归一为面板视图。 */
+function deepSeekModelView(entry) {
+  const input = strList(entry.inputModalities).filter((m) => HOST_MODALITIES.includes(m))
+  return {
+    id: typeof entry.id === 'string' ? entry.id : '',
+    name: typeof entry.name === 'string' ? entry.name : undefined,
+    contextWindow: posInt(entry.contextWindow),
+    maxTokens: posInt(entry.maxTokens),
+    input: input.length > 0 ? input : ['text'],
+    inputInherited: input.length === 0,
+    tags: strList(entry.dockTags),
+  }
+}
+
+/**
+ * 读模型目录：按 collectProviders 同样的"已配置"口径枚举 Provider，
+ * 输出各 Provider 的模型列表（含输入类型 / 思考强度）与各 settings 命名空间的 revision。
+ */
+function readModelDirectory(ctx) {
+  const llm = ctx.get('llm')
+  const settings = ctx.get('settings')
+  const entries = (llm && llm.listConfigurableProviders ? llm.listConfigurableProviders() : []) || []
+  let views = []
+  try {
+    views = (settings && settings.describe ? settings.describe({ redactSecrets: true }) : []) || []
+  } catch {
+    // settings 未挂载
+  }
+  const descOf = (ns) => views.find((v) => v && String(v.ns) === ns)
+
+  let sel = null
+  try {
+    sel = (ctx.get('agentDefaultModel') && ctx.get('agentDefaultModel').currentSelection()) || null
+  } catch {
+    // 服务缺失
+  }
+
+  const providers = []
+  for (const e of entries) {
+    const kind = providerKindOf(e)
+    if (kind === 'other') continue // 官方之外的适配器暂不编辑（无稳定 schema）
+    const desc = descOf(e.settingsNs)
+    if (!desc) continue
+    const profileUser = desc.user ? walkPath(desc.user, e.settingsPath) : undefined
+    const profileBase = desc.base ? walkPath(desc.base, e.settingsPath) : undefined
+    const isDefaultProvider = !!(sel && sel.provider === e.provider)
+    // deepseek 官方始终可编辑（schema 默认目录兜底）；其余按"已配置"口径
+    const configured = kind === 'deepseek' || isDefaultProvider
+      || (profileUser && typeof profileUser === 'object')
+      || (profileBase && typeof profileBase === 'object')
+    if (!configured) continue
+
+    const resolved = walkPath(desc.value, e.settingsPath) // schema 默认已套上的合成视图
+    if (kind === 'deepseek') {
+      const section = resolved && typeof resolved === 'object' ? resolved : {}
+      const models = Array.isArray(section.models) ? section.models : []
+      providers.push({
+        id: e.provider,
+        displayName: (profileUser && profileUser.displayName) || e.displayName || e.provider,
+        api: 'deepseek',
+        baseURL: (profileUser && profileUser.baseURL) || section.baseURL || DEEPSEEK_DEFAULTS.baseURL,
+        apiKeyEnv: (profileUser && profileUser.apiKeyEnv) || DEEPSEEK_DEFAULTS.apiKeyEnv,
+        kind,
+        settingsNs: e.settingsNs,
+        settingsPath: [...e.settingsPath],
+        thinking: section.thinking === 'disabled' ? 'disabled' : 'enabled',
+        defaultEffort: DEEPSEEK_LEVELS.includes(section.reasoningEffort) ? section.reasoningEffort : undefined,
+        effortLevels: DEEPSEEK_LEVELS.slice(),
+        models: models.map(deepSeekModelView),
+      })
+    } else {
+      const route = e.settingsPath[1] || e.provider
+      const profile = (profileUser && typeof profileUser === 'object' ? profileUser
+        : (profileBase && typeof profileBase === 'object' ? profileBase : resolved)) || {}
+      const resolvedProfile = (resolved && typeof resolved === 'object' ? resolved : {}) || {}
+      const models = Array.isArray(profile.models) ? profile.models : []
+      providers.push({
+        id: e.provider,
+        route,
+        displayName: profile.displayName || e.displayName || e.provider,
+        api: typeof profile.api === 'string' ? profile.api : undefined,
+        baseURL: typeof profile.baseURL === 'string' ? profile.baseURL : undefined,
+        apiKeyEnv: typeof profile.apiKeyEnv === 'string' ? profile.apiKeyEnv : undefined,
+        kind,
+        settingsNs: e.settingsNs,
+        settingsPath: [...e.settingsPath],
+        defaultInput: strList(resolvedProfile.defaultInput),
+        models: models.map((m) => piAiModelView(m && typeof m === 'object' ? m : { id: String(m) }, resolvedProfile.defaultInput)),
+      })
+    }
+  }
+
+  const revisions = {}
+  for (const ns of ['llm-pi-ai', 'llm-deepseek']) {
+    const d = descOf(ns)
+    if (d && d.revision !== undefined) revisions[ns] = d.revision
+  }
+  return { generatedAt: Date.now(), default: sel, revisions, providers }
+}
+
+/** 校验面板提交的模型草稿，产出写回 pi-ai 的模型条目（不合法直接抛错）。 */
+function piAiModelWrite(m) {
+  if (!m || typeof m.id !== 'string' || !m.id) throw new Error('模型 id 不能为空')
+  const entry = { id: m.id }
+  if (typeof m.name === 'string' && m.name) entry.name = m.name
+  if (m.contextWindow !== undefined && m.contextWindow !== null && m.contextWindow !== '') {
+    const n = Number(m.contextWindow)
+    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的上下文窗口须为正整数`)
+    entry.contextWindow = n
+  }
+  if (m.maxTokens !== undefined && m.maxTokens !== null && m.maxTokens !== '') {
+    const n = Number(m.maxTokens)
+    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的最大输出须为正整数`)
+    entry.maxTokens = n
+  }
+  const input = Array.isArray(m.input) ? m.input.filter((x) => HOST_MODALITIES.includes(x)) : []
+  if (input.length > 0) entry.input = input // 留空 = 继承路由/目录默认
+  if (m.effortsMode === 'off') {
+    entry.reasoningEfforts = false
+  } else if (m.effortsMode === 'custom') {
+    const levels = m.effortLevels || {}
+    const map = {}
+    let real = 0
+    for (const lv of PI_AI_LEVELS) {
+      if (!levels[lv]) continue
+      if (lv === 'off') map.off = null // 支持关闭：不发参数
+      else { map[lv] = lv; real += 1 }
+    }
+    if (real === 0) throw new Error(`模型 ${m.id} 至少要勾选一个思考档位（off 之外）`)
+    entry.reasoningEfforts = map
+  } // inherit = 不写该字段，跟随内置目录
+  const tags = strList(m.tags)
+  if (tags.length > 0) entry.dockTags = tags // 标注（如 video），官方校验忽略、随配置持久化
+  return entry
+}
+
+/** 校验并产出写回 deepseek 官方的目录模型条目。 */
+function deepSeekModelWrite(m) {
+  if (!m || typeof m.id !== 'string' || !m.id) throw new Error('模型 id 不能为空')
+  const entry = { id: m.id }
+  if (typeof m.name === 'string' && m.name) entry.name = m.name
+  if (m.contextWindow !== undefined && m.contextWindow !== null && m.contextWindow !== '') {
+    const n = Number(m.contextWindow)
+    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的上下文窗口须为正整数`)
+    entry.contextWindow = n
+  }
+  if (m.maxTokens !== undefined && m.maxTokens !== null && m.maxTokens !== '') {
+    const n = Number(m.maxTokens)
+    if (!Number.isInteger(n) || n <= 0) throw new Error(`模型 ${m.id} 的最大输出须为正整数`)
+    entry.maxTokens = n
+  }
+  const input = Array.isArray(m.input) ? m.input.filter((x) => HOST_MODALITIES.includes(x)) : []
+  if (input.includes('image')) entry.inputModalities = input // 纯文本留空走 schema 默认 ['text']
+  const tags = strList(m.tags)
+  if (tags.length > 0) entry.dockTags = tags
+  return entry
+}
+
+/**
+ * 写回官方配置：按 Provider kind 生成 settings.mutate ops。
+ * 校验失败/官方 schema 拒绝时抛错（路由层转 4xx 带信息）。
+ */
+async function writeModelConfig(ctx, body) {
+  if (!body || typeof body !== 'object') throw new Error('请求体不是 JSON 对象')
+  const dir = readModelDirectory(ctx)
+  const p = dir.providers.find((x) => x.id === body.provider)
+  if (!p) throw new Error(`未找到 Provider：${body.provider}`)
+  if (p.kind === 'other') throw new Error('该 Provider 暂不支持编辑')
+  if (!Array.isArray(body.models)) throw new Error('models 必须是数组')
+
+  const seen = new Set()
+  for (const m of body.models) {
+    const id = m && typeof m.id === 'string' ? m.id : ''
+    if (!id) throw new Error('模型 id 不能为空')
+    if (seen.has(id)) throw new Error(`模型 id 重复：${id}`)
+    seen.add(id)
+  }
+
+  const settings = ctx.get('settings')
+  if (!settings || typeof settings.mutate !== 'function') throw new Error('settings 服务不可用或不可写')
+
+  const ops = []
+  if (p.kind === 'deepseek') {
+    ops.push({ op: 'set', path: ['models'], value: body.models.map(deepSeekModelWrite) })
+    if (body.thinking === 'enabled' || body.thinking === 'disabled') {
+      ops.push({ op: 'set', path: ['thinking'], value: body.thinking })
+    }
+    if (DEEPSEEK_LEVELS.includes(body.defaultEffort)) {
+      ops.push({ op: 'set', path: ['reasoningEffort'], value: body.defaultEffort })
+    }
+  } else {
+    const route = p.route
+    if (!route) throw new Error('pi-ai 路由 key 缺失，无法写回')
+    ops.push({ op: 'set', path: ['providers', route, 'models'], value: body.models.map(piAiModelWrite) })
+  }
+
+  const revision = body.revisions && typeof body.revisions[p.settingsNs] === 'number'
+    ? body.revisions[p.settingsNs]
+    : undefined
+  try {
+    await settings.mutate(p.settingsNs, ops, revision)
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e)
+    const conflict = /conflict|revision/i.test(msg)
+    const err = new Error(`写回官方配置被拒绝：${msg}`)
+    err.statusCode = conflict ? 409 : 400
+    throw err
+  }
+  return { ok: true, savedAt: Date.now() }
+}
+
+/** 解析 POST 请求体 JSON（限长 2MB）。 */
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0
+    const chunks = []
+    req.on('data', (c) => {
+      size += c.length
+      if (size > 2 * 1024 * 1024) {
+        reject(new Error('请求体过大'))
+        req.destroy()
+        return
+      }
+      chunks.push(c)
+    })
+    req.on('end', () => {
+      try {
+        resolve(chunks.length === 0 ? {} : JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      } catch (e) {
+        reject(new Error('请求体不是合法 JSON'))
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+// ---------------------------------------------------------------------------
 // 插件主体
 // ---------------------------------------------------------------------------
 
@@ -520,6 +815,12 @@ export function apply(ctx) {
   // 规划中的功能缺省 false，等实现后移除 roadmap 并打开。
   const FEATURES = [
     {
+      id: 'models',
+      name: '模型设置',
+      description: '模型目录读写：编辑输入类型与思考强度，写回官方配置热生效',
+      defaultEnabled: true,
+    },
+    {
       id: 'balance',
       name: '模型余额',
       description: '拉取所有模型 Provider 账户余额并展示',
@@ -528,13 +829,13 @@ export function apply(ctx) {
     {
       id: 'tokenlog',
       name: 'Token 用量记录',
-      roadmap: '0.3.0',
+      roadmap: '0.4.0',
       description: '记录全部 LLM API 调用并统计',
     },
     {
       id: 'animation',
       name: '任务动画',
-      roadmap: '0.4.0',
+      roadmap: '0.5.0',
       description: '任务进度动画与通知',
     },
   ]
@@ -545,6 +846,7 @@ export function apply(ctx) {
   // 每个功能的 Host 半部安装函数：返回 disposer，关闭功能时调用。
   // balance：在回环 webServer 上挂 /dsh-dock/balance 路由，查询即请求时执行，
   //   密钥全程留在进程内不出 Host（credentials.resolve 只取用不输出）。
+  // models：挂 /dsh-dock/models（GET 读目录 / POST 写回官方 settings，热生效）。
   const hostSetups = {
     balance: () => {
       const webServer = ctx.get('webServer')
@@ -560,6 +862,29 @@ export function apply(ctx) {
         }
       }
       return webServer.register({ kind: 'exact', path: '/dsh-dock/balance', handler })
+    },
+    models: () => {
+      const webServer = ctx.get('webServer')
+      if (webServer === undefined) throw new Error('webServer 服务不可用，无法提供模型设置路由')
+      const handler = async (req, res) => {
+        try {
+          if (req.method === 'GET') {
+            sendJson(res, 200, readModelDirectory(ctx))
+            return
+          }
+          if (req.method === 'POST') {
+            const body = await readBody(req)
+            const result = await writeModelConfig(ctx, body)
+            sendJson(res, 200, result)
+            return
+          }
+          sendJson(res, 405, { error: `不支持的请求方法：${req.method}` })
+        } catch (e) {
+          const status = e && e.statusCode ? e.statusCode : 500
+          sendJson(res, status, { ok: false, error: e instanceof Error ? e.message : String(e) })
+        }
+      }
+      return webServer.register({ kind: 'exact', path: '/dsh-dock/models', handler })
     },
   }
 
