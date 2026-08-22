@@ -723,6 +723,12 @@ window.__ModuleLoader__.load({
 				const [dirty, setDirty] = react.useState(false);
 				const [saving, setSaving] = react.useState(false);
 				const [msg, setMsg] = react.useState(null);
+				// 图片理解代理（全局配置，独立于 Provider 草稿）
+				const [vpDraft, setVpDraft] = react.useState(null);
+				const [vpBuilt, setVpBuilt] = react.useState(null);
+				const [vpDirty, setVpDirty] = react.useState(false);
+				const [vpSaving, setVpSaving] = react.useState(false);
+				const [vpMsg, setVpMsg] = react.useState(null);
 
 				const cur = providers.length > 0 ? (providers.find((p) => p.id === selId) || providers[0]) : null;
 				// 选中 Provider 或目录刷新时重建草稿（render 期受控重置；msg 只在切 Provider/编辑时清）
@@ -732,6 +738,37 @@ window.__ModuleLoader__.load({
 					setDraft(draftFromProvider(cur));
 					setDirty(false);
 				}
+				// 图片代理草稿随目录刷新重建（保存成功 → load() → 新 generatedAt → 重建为已保存态，msg 保留）
+				const vpWantKey = data ? String(data.generatedAt) : null;
+				if (data && vpBuilt !== vpWantKey) {
+					setVpBuilt(vpWantKey);
+					const vp = data.visionProxy || {};
+					setVpDraft({ enabled: !!vp.enabled, provider: String(vp.provider || ""), model: String(vp.model || "") });
+					setVpDirty(false);
+				}
+				const saveVp = () => {
+					if (!vpDraft || vpSaving) return;
+					setVpSaving(true);
+					fetch("/dsh-dock/models", {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({ visionProxy: vpDraft, revisions: (data && data.revisions) || {} }),
+						signal: AbortSignal.timeout(20000)
+					})
+						.then((res) => res.json()
+							.then((b2) => ({ status: res.status, body: b2 }))
+							.catch(() => ({ status: res.status, body: {} })))
+						.then((r2) => {
+							if (r2.status === 200 && r2.body && r2.body.ok) {
+								setVpMsg({ ok: true, text: "图片代理配置已保存，即时生效" });
+								modelsStore.load();
+							} else {
+								setVpMsg({ ok: false, text: (r2.body && r2.body.error) || ("HTTP " + r2.status) });
+							}
+						})
+						.catch((e) => setVpMsg({ ok: false, text: (e && e.message) || String(e) }))
+						.then(() => setVpSaving(false));
+				};
 
 				const patchDraft = (patch) => { setDraft(Object.assign({}, draft, patch)); setDirty(true); setMsg(null); };
 				const patchModel = (i, patch) => {
@@ -865,6 +902,55 @@ window.__ModuleLoader__.load({
 				} else if (!data) {
 					body.push(react.createElement("div", { key: "loading", className: "dkm-note" }, snap.loading ? "正在拉取模型目录…" : "等待拉取模型目录"));
 				}
+
+				// ---- 图片理解代理（全局配置）：纯文本模型收图自动走视觉模型识别 ----
+				if (data && vpDraft) {
+					const vpCandidates = [];
+					for (const p of providers) {
+						for (const m of (p.models || [])) {
+							if (m.input && m.input.indexOf("image") >= 0) {
+								vpCandidates.push({ key: p.id + "/" + m.id, label: p.displayName + " / " + (m.name || m.id) });
+							}
+						}
+					}
+					const vpKey = vpDraft.provider + "/" + vpDraft.model;
+					const vpKnown = vpCandidates.some((c) => c.key === vpKey);
+					body.push(react.createElement("div", { key: "visionproxy", className: "dkm-prov" },
+						react.createElement("div", { className: "dkm-prov-head" },
+							react.createElement("span", { className: "dkm-name" }, "图片理解代理"),
+							react.createElement("span", { className: "dkm-badge" }, vpDraft.enabled ? "已启用" : "已停用"),
+							react.createElement("span", { className: "dkm-sub" }, "纯文本模型收到图片时自动调用所选视觉模型识别，识别文本替换图片；多模态模型原样自识别")),
+						react.createElement("div", { className: "dkm-checks" },
+							react.createElement("label", { className: "dkm-check" },
+								react.createElement("input", {
+									type: "checkbox",
+									checked: vpDraft.enabled,
+									onChange: () => { setVpDraft(Object.assign({}, vpDraft, { enabled: !vpDraft.enabled })); setVpDirty(true); setVpMsg(null); }
+								}),
+								"启用"),
+							react.createElement("span", { className: "dkm-label" }, "视觉模型："),
+							react.createElement("select", {
+								className: "dkm-select",
+								value: vpKey,
+								onChange: (e) => {
+									const idx = e.target.value.indexOf("/");
+									setVpDraft(Object.assign({}, vpDraft, { provider: e.target.value.slice(0, idx), model: e.target.value.slice(idx + 1) }));
+									setVpDirty(true);
+									setVpMsg(null);
+								}
+							},
+								react.createElement("option", { value: "/" }, "（未选择）"),
+								!vpKnown && vpDraft.provider ? react.createElement("option", { value: vpKey }, vpDraft.provider + " / " + vpDraft.model + "（当前）") : null,
+								vpCandidates.map((c) => react.createElement("option", { key: c.key, value: c.key }, c.label))),
+							vpCandidates.length === 0
+								? react.createElement("span", { className: "dkm-sub" }, "目录里暂无多模态模型——先在下方给模型勾选「图片」输入类型")
+								: null),
+						react.createElement("div", { className: "dkm-savebar" },
+							react.createElement("button", { type: "button", className: "dkm-save", disabled: !vpDirty || vpSaving, onClick: saveVp }, vpSaving ? "保存中…" : "保存图片代理配置"),
+							vpMsg ? react.createElement("span", { className: "dkm-msg " + (vpMsg.ok ? "ok" : "err") }, vpMsg.text)
+								: react.createElement("span", { className: "dkm-msg" }, vpDirty ? "有未保存的修改" : ""))));
+				}
+
 				if (data && providers.length === 0) {
 					body.push(react.createElement("div", { key: "empty", className: "dkm-note" }, "没有可编辑的模型 Provider（Host 侧尚未配置）"));
 				}
