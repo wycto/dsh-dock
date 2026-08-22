@@ -195,6 +195,32 @@
 3. **版本**：package.json 0.3.0；路线图顺延（0.4.0 tokenlog、0.5.0 动画、0.6.0 持久化）。
    ⚠️ 线上 `dsh web`（3080）需**用户手动重启**才会加载新 Host 半部（/dsh-dock/models 路由在 Host 进程内注册）。
 
+### 8.10 事故复盘：开思考后 qwen 请求 400「developer is not one of …」（2026-08-22 晚，已修复）
+
+- **现象**：用户给 qwen 路由模型开思考档后，选强度发消息即 400：
+  `developer is not one of ['system','assistant','user','tool','function']`（百炼端点）。
+  且只要模型 `reasoning=true`，**不选强度也 400**（system 一直被改写为 developer 角色）。
+- **根因链**（关键代码均已核实）：
+  1. pi-ai `openai-completions.js:787`：`useDeveloperRole = model.reasoning && compat.supportsDeveloperRole`；
+  2. 非内置目录模型无 catalog compat → 检测默认 `supportsDeveloperRole: true`（标准端点）；
+  3. **`qwen3.8-max` / `deepseek-v4-*-0731/0813` 不在 pi-ai 内置目录**（`glm-5.2` 在，自带
+     `{thinkingFormat: qwen, supportsDeveloperRole: false}` 兜底，所以它没事）；
+  4. 我们的模型设置让用户给非目录模型开了 `reasoningEfforts` → `reasoning=true` → 触发 2+3。
+  另：qwen 路由是**纯目录路由**（用户层只有 models，api/baseURL 靠内置目录），修复时不能依赖 profile.api。
+- **修复（index.js `piAiModelWrite`）**：
+  1. **raw round-trip**：GET 带出原条目 `raw`，写回基于 raw 合并——未知字段（用户自配 compat/description 等）不再丢失（旧版保存会把它们清掉，这次也顺带修了）；
+  2. **思考 compat 兜底**：凡启用 custom 档位，显式写 `compat.supportsDeveloperRole: false`
+     （system 角色全端点通用）；目录路由（无 api）视作 openai 兼容；路由 id/baseURL 命中
+     `qwen|dashscope|aliyuncs` 再补 `thinkingFormat: 'qwen'`（与目录内模型一致，实测 schema 接受）。
+- **存量治愈**：直接给 `~/.dsh/settings.yaml` qwen 路由 4 个模型插入
+  `compat: {thinkingFormat: qwen, supportsDeveloperRole: false}`（备份 `.bak-dock-heal`）；
+  settings.yaml 被 chokidar 监听（watch:true）热生效。
+- **端到端验证**（隔离实例 3999 + 治愈后配置 + 修复代码 + 拷贝凭证）：
+  qwen3.8-max · High 发送成功，出现思考块且正常回复，无 400。
+  （坑：隔离 home 缺 `.credentials.yaml` 会先报 MISSING_CREDENTIAL——从 ~/.dsh 拷 `.credentials.yaml` 即可。）
+- **遗留提醒**：线上 3080 跑的还是旧写回代码——**在面板重复保存 qwen 模型会把 compat 再次清掉**，
+  需重启 `dsh web` 加载新 Host 代码后才能安全使用面板保存。
+
 ### 8.8 数据通道（确认可行，勿改）
 
 - 静态版本：`GET /dsh-dock/balance`（webServer 路由 + 同源 fetch）；动态预览：`harness.handle`
