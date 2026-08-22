@@ -25,7 +25,7 @@
 - ✅ **模块化架构（0.4.0）**：功能代码从两个大文件拆进 `features/<id>/` 模块目录；
   宿主半部 `index.js` 与客户端外壳 `src/client.jsx` 只做组装，不含功能逻辑；
   每个模块可单独提取成包（见下文「提取一个功能成独立包」）
-- ✅ **用量记录（0.4.0，第二菜单）**：记录全部 LLM API 调用并统计——
+- ✅ **用量记录（0.4.0）**：记录全部 LLM API 调用并统计——
   - 秒级时间范围 + 会话/提供商/模型（联动）/状态/推理强度筛选，条件本地暂存（下次打开恢复）；
   - 9 张 KPI 卡（调用次数 / 总 Token / 输入 / 缓存命中 / 命中率 / 输出 / 金额($) / 金额(¥) / 累计耗时）；
   - 分组统计（无/provider/model/status/effort 维度切换）；
@@ -39,6 +39,10 @@
 - ✅ **模型余额（0.2.0）**：枚举全部已配置 Provider，内置策略表查询余额/配额/控制台链接，5 分钟自动刷新
 - ✅ 每功能独立开关 + 错误隔离：单个功能出错只降级自己（外部包视图另有错误边界保护）
 - ✅ 示例功能：心跳监视、主题信息（纯 Client，开箱可用）
+- ✅ **会话区随身小控件（0.4.0）**：启用后在会话输入区工具行（模型选择器左侧）显示——
+  - **模型余额**：当前选中 Provider 的账户余额（随余额刷新更新），点击打开功能坞并高亮该 Provider 行；
+  - **用量记录**：当前会话总 Token 与估算花费（10s 静默刷新），点击打开功能坞并按该会话筛选；
+  - 每个功能可单独设置「会话页显示/隐藏」（面板页脚与设置页均有开关，localStorage 持久化）
 - 🚧 功能开关为浏览器内存态，刷新重置（持久化在 0.6.0）
 - 🚧 任务动画已登记为规划占位（0.5.0）
 
@@ -70,8 +74,12 @@ dsh-dock/
 
 - 宿主模块 `features/<id>/host.js` 导出 `feature = { id, name, description, defaultEnabled, setup(ctx) → disposer }`；
 - 视图模块 `features/<id>/view.js(x)` 导出 `feature = { id, name, order, accent, description, css, View, HomeStat? }`；
-  `order` 决定菜单次序（首页固定第一；tokenlog=10 → 第二菜单，存量功能 100 起）；
-  视图收到 `{ ctx, feature }` props（需要 timer/theme 等 Client 服务的模块自行取用）；
+  `order` 决定菜单次序（首页固定第一；modelconfig=100 → 第二菜单，tokenlog=110 第三）；
+  视图收到 `{ ctx, feature, params }` props（`params` 来自导航总线：chips 点击可带入
+  `{ provider }` 高亮余额行、`{ sessionId }` 按会话筛选用量）；
+  可选 `Chip` 组件（`{ ctx, session, sessionId, input, feature }` props）：启用且「会话页显示」
+  时渲染在会话输入区工具行左端（`conversation.input.left`，模型选择器左侧），点击通常经
+  `openPanel(id, params)` 打开功能坞定位到对应功能页；
   每模块自带 `css`（类名前缀隔离：dkb-/dkm-/dtok- …），外壳统一注入；
 - 客户端外壳 `src/client.jsx`：import 模块 → 组装导航/首页/设置页；导出
   `apply` / `inject` / **`dockBridge`**（外部功能回装通道）。
@@ -174,7 +182,7 @@ node scripts/extract-feature.mjs tokenlog --out ../dsh-dock-tokenlog
 | --- | --- | --- |
 | **0.2.0** | 接入**模型余额**：策略表查询各 Provider 余额/配额；侧栏入口 + 功能弹层 | ✅ 已接入 |
 | **0.3.0** | 接入**模型设置**：官方目录链路集成，写回热生效；弹层窗口化 | ✅ 已接入 |
-| **0.4.0** | **模块化架构**（features/ 模块目录 + 客户端构建 + dockBridge 回装通道）+ 接入**用量记录**（第二菜单） | ✅ 已接入（本版） |
+| **0.4.0** | **模块化架构**（features/ 模块目录 + 客户端构建 + dockBridge 回装通道）+ 接入**用量记录** + **会话区随身小控件**（余额/用量 chips，模型选择器左侧，可单独开关） | ✅ 已接入（本版） |
 | **0.5.0** | 接入**任务动画**：任务进度动画、完成/卡住通知 | 纯 Client 功能模块；如需挂对话区，在模块内注册对应 slot（如 `conversation.composer.dock`） |
 | **0.6.0** | 开关状态**持久化**、Host↔Client 双侧注册表打通 | 状态写入持久化服务；Host 侧开关与 Client 面板同步；外部功能包的可选依赖注册（面板不在，功能照跑） |
 
