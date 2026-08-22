@@ -239,3 +239,33 @@
 - 样式：`dkm-mini` / `dkm-toolbar`。验证：`node --check` + SSR（含弹层整树）+ Host 冒烟全绿。
 - ⚠️ 8.9 的遗留提醒仍有效：若线上进程未重启加载新 Host 写回代码，面板保存可能清掉存量
   compat 治愈字段——保存前先确认已重启过 `dsh web`。
+
+### 8.11 图片理解代理（2026-08-22 晚，v0.3.0 内追加）
+
+- **需求**：纯文本模型也能"看图"——收图时自动调用配置的视觉模型识别，识别文本替换图片；
+  多模态模型不受影响；视觉模型从模型目录（多模态模型）里点选。
+- **官方现状**：纯文本模型收图时运行时把图片替换为 `[image omitted …]` 占位（`projectImagesForTextModel`，
+  发生在 `LlmRuntime.adapterStream`，判定依据 prepareCall 返回的 `modelInfo.inputModalities`）；**没有**视觉代理机制。
+- **拦截点勘察（勿重复探索）**：
+  1. `llm/stream` 是 cordis waterfall，但 `next()` 不收参数、请求对象 frozen——**监听器无法改写请求**（只读）；
+  2. `llm.registerAdapter` 对已有 provider 抛 `DUPLICATE_ADAPTER`——不能包装官方适配器；
+  3. 主对话走 `llm.prepareCall` → `preparedCall.stream(request)`，其余走 `llm.stream`，两路都汇于 `streamWithRegistration`；
+  4. 结论：**方法级包装 `llm.stream` + `llm.prepareCall`**（原函数存 `llm.__dockOrigStream`，own-property 覆盖，
+     dispose 时 delete 恢复原型方法）——唯一的请求级拦截层。dsh 升级若改这两个方法需回归验证。
+- **实现**：
+  - 自有 settings 命名空间 `dsh-dock`（`settings.register` + schemastery）：`visionProxy{enabled,provider,model}`，
+    写走 `settings.mutate`（revision 乐观锁），读走 `settings.get`（内存 resolved 值，热生效）；
+  - `transformForVisionProxy`：目标是目录中**输入类型不含 image** 的模型且请求带图（含 tool-result 嵌套）→
+    逐图调用视觉模型（`BlockAssembler` 聚合文本；maxTokens 4096——视觉模型带思考时小限额会被思考吃光，实测），
+    图片块替换为 `[图片内容（由视觉模型 p/m 识别）：…]`；识别失败降级为说明文本；总兜底异常不改写不阻断；
+  - 递归保护：识别调用走 `__dockOrigStream`（天然绕开包装）+ `dockVisionProxy` 标记双保险；
+    `options.purpose` 存在（内部辅助调用）不代理；视觉模型自身不代理；
+  - 目录判定用 `readModelDirectory` 的 10s TTL 缓存（避免每请求全量 settings.describe）；
+  - GET /dsh-dock/models 附带 visionProxy 与 dsh-dock revision；POST 支持 `{visionProxy, revisions}` 分支。
+- **Client**：模型设置页顶部「图片理解代理」面板——启用开关 + 视觉模型下拉
+  （候选 = 目录中输入类型含 image 的全部模型，跨 Provider；当前值不在候选时保留"（当前）"选项）+ 独立保存按钮。
+- **验证**：Host 冒烟（改写/多模态不改写/关闭不代理/visionProxy 读写/缺模型 400）全绿；
+  隔离实例 UI 保存 → settings.yaml 持久化 → GET 反映 ✓；真实 API 验证 deepseek-v4-flash-vision-exp
+  识别小图正确（答「红色」）。⚠️ in-app browser 无文件选择器，完整"发图→识别→回复"流待用户真实浏览器验证。
+- **依赖新增**：@deepseek-ai/dsh-llm、@deepseek-ai/dsh-settings、@deepseek-ai/schemastery
+  （package.json 声明 + 仓库 node_modules 软链 shim，同 dsh-credentials 模式）。
