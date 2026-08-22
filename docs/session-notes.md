@@ -311,3 +311,36 @@
   治愈模型=text（走代理）、qwen3.8-max=text,image（直发+当视觉模型）；Host 冒烟新增 5 断言
   （runtimeInput 附带 / 目录继承多模态不误拦 / 解析失败回退 / off 被拒自动重试 / off 先行尝试）全绿。
 - GLM-5.3（fangzhou 自定义路由）：未进内置目录 → 运行时默认纯文本 → 收图自动走视觉代理 ✓。
+
+### 8.14 终局复盘：图片理解代理「配了还是不能识别」三层根因（已修复，真实全链路验证通过）
+
+用户反馈配好了代理仍不能识图（模型抱怨"sha256 不是文件路径"）。隔离实例 + API 注图复现，
+探针矩阵二分定位，共三层根因（一次比一次深）：
+
+1. **官方带图准入拦截**（首层）：apiproxy 的 `session.prompt` 收到图片先查
+   `ctx.llm.resolveModelInfo(provider, model)` 的 inputModalities，纯文本模型直接拒绝
+   `MODEL_DOES_NOT_SUPPORT_IMAGES`——请求根本进不到 llm.stream 包装层。
+   **修复**：安装时同时包装 `resolveModelInfo`（虚拟多模态）：代理启用且目标≠视觉模型时，
+   纯文本模型的 inputModalities 对外补 'image'（浅拷贝，不改 truth）；改写判定继续用原函数。
+   副作用勘察：其余调用方（模型选择器目录只用 reasoning 字段；mcp-client/tool-fs 的图片
+   声明检查——放行反而正确，工具产图也走代理）；官方内部投影不走此公共方法。
+2. **`BlockAssembler.finish` 是 getter，恒真值**（最深的根因）：`finish` 未收到 finish chunk
+   时返回 `{kind:'stop'}`——`if (assembler.finish) break` 会在**第一个 chunk 后就 break**，
+   识别永远只消费 1 个块（block-start）→ 空文本 → "视觉模型没有返回文本"。
+   ~350ms 秒败 + 位置相关曾误导出"端点限流"假说（探针 A-E 用 `c.type==='finish'` 恰好成功，
+   F-J 用 `asm.finish` 恰好失败，与调用次序重合）。**修复**：`if (chunk.type === 'finish') break`。
+   教训：**消费官方对象先核对属性语义**（getter/方法/默认值），冒烟的 fake 流第一个 chunk
+   就带文本所以测不出该 bug。
+3. **识别调用通道**：改走原 `prepareCall().stream()`（与 agent-loop 带图请求同通道，被验证
+   路径）；options 以 `prepared.config`（resolved）为底构造，否则 `callConfigEquals` 拒绝。
+   不带 sessionId（llm/stream 的会话检查点监听对带 sessionId 的调用先做检查点）。
+
+**识别结果缓存**（防真实限流）：`attachmentId+视觉模型 → 文本`，TTL 10 分钟、上限 64 条。
+agent 每轮重试/多步都带历史图片重发，逐图重识别既慢又易撞端点节流；失败不缓存。
+导出 `__clearDescribeCache()` 供冒烟隔离。
+
+**验证**（隔离实例 3999 真实全链路，API 注图）：
+- deepseek-official/deepseek-v4-flash-vision-exp 视觉模型：识别 168 字，主模型
+  deepseek-v4-flash-0731 正确答出"蓝底+黄方块+绿长条"（与测试图一致），无工具折腾；
+- qwen-token-plan-cn/qwen3.8-max 视觉模型（用户实际配置）：识别 174 字，同样正确。
+Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重复加）、识别缓存命中断言。
