@@ -1693,7 +1693,7 @@ function rpcCall2(method, args) {
 }
 var EFFECT_MODES = [
   { id: "flow", name: "\u6D41\u5149\u7EC6\u7EBF", desc: "\u9876\u90E8\u7EC6\u7EBF\u6D41\u5149\u5F80\u8FD4\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\u52A0\u5FEB" },
-  { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u72B6\u6001\u5FBD\u6807\u5706\u70B9\u547C\u5438\uFF0C\u8D8A\u5FD9\u547C\u5438\u8D8A\u5FEB" },
+  { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u9192\u76EE\u547C\u5438\u5149\u70B9\u5E26\u6269\u6563\u5149\u6655\uFF1A\u989C\u8272\u968F\u4EFB\u52A1\u9636\u6BB5\uFF08\u601D\u8003\u84DD/\u8F93\u51FA\u7EFF/\u4EE3\u7801\u6A59/\u67E5\u8D44\u6599\u9752\uFF09\uFF0C\u547C\u5438\u968F\u541E\u5410\u52A0\u5FEB" },
   { id: "ring", name: "\u8F68\u9053\u5149\u73AF", desc: "\u7EC6\u73AF\u7ED5\u5706\u70B9\u65CB\u8F6C\uFF0C\u8F6C\u901F\u968F\u4EFB\u52A1\u901F\u5EA6" },
   { id: "orbit", name: "\u73AF\u5C4F\u5DE1\u822A", desc: "\u4E00\u9897\u5149\u70B9\u6CBF\u5C4F\u5E55\u8FB9\u7F18\u5DE1\u822A\u6574\u5708\uFF0C\u9192\u76EE\u4E0D\u906E\u6321" },
   { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u66F4\u5177\u8C61\u7684\u4EBA\u7269\u5750\u9547\u591A\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003\u3001\u8F93\u51FA\u3001\u67E5\u8D44\u6599\u968F\u4EFB\u52A1\u9636\u6BB5\u5207\u6362\uFF1B\u591A\u4EFB\u52A1\u65F6\u70B9\u4EAE\u591A\u5957\u952E\u9F20\u5C4F\u5E55\u3001\u6ED1\u7740\u6EDA\u6905\u8F6E\u6D41\u7167\u770B" },
@@ -1704,6 +1704,10 @@ var EFFECT_MODES = [
 var PHASE_LABELS = { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" };
 function phaseLabel(p) {
   return PHASE_LABELS[p] || "\u5DE5\u4F5C\u4E2D";
+}
+var PHASE_COLORS = { think: "#60a5fa", write: "#34d399", code: "#fbbf24", search: "#2dd4bf" };
+function phaseColor(p) {
+  return PHASE_COLORS[p] || "#4d9fff";
 }
 var END_LABELS = {
   completed: { label: "\u5B8C\u6210", cls: "ok" },
@@ -2386,19 +2390,22 @@ function AnimationOverlay(props) {
       "button",
       {
         type: "button",
-        className: "dkan-badge",
-        style: speedStyle,
-        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
+        className: "dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : ""),
+        style: Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(phase) }),
+        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + phaseLabel(phase) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
         onClick: () => openPanel("animation"),
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }),
+            mode === "breathe" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-halo" }) : null,
             mode === "ring" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-ring" }) : null
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-badge-txt", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "n", children: active.length }),
             " \u4E2A\u4EFB\u52A1",
-            elapsed ? " \xB7 " + elapsed : ""
+            elapsed ? " \xB7 " + elapsed : "",
+            " \xB7 ",
+            phaseLabel(phase)
           ] })
         ]
       }
@@ -2454,7 +2461,10 @@ function ModePreview({ id }) {
   if (id === "robot") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-bot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase: "code" }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dotwrap dkan-breathe", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap dkan-breathe", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-halo" })
+  ] }) });
 }
 function TaskRow(props) {
   const t = props.t;
@@ -3007,10 +3017,16 @@ var css2 = [
   ".dkan-badge .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
   "@keyframes dkan-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}",
   // 徽标圆点与两种动效（呼吸 / 轨道环）
-  ".dkan-dotwrap{position:relative;width:16px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
-  ".dkan-dot{width:9px;height:9px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);}",
-  ".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.6s / var(--dkan-speed,1)) ease-in-out infinite;}",
-  "@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.6);opacity:1}}",
+  ".dkan-dotwrap{position:relative;width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
+  ".dkan-dot{width:12px;height:12px;border-radius:50%;background:var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));box-shadow:0 0 10px color-mix(in srgb,var(--dkan-phase,var(--dsw-alias-accent,#4d9fff)) 70%,transparent);transition:background .4s var(--ds-ease-in-out),box-shadow .4s var(--ds-ease-in-out);}",
+  ".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+  "@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.7);opacity:1}}",
+  // 呼吸光晕：向外扩散的波纹环，与圆点同频（颜色随阶段）
+  ".dkan-halo{position:absolute;inset:0;border-radius:50%;border:2px solid var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));animation:dkan-halo calc(2.2s / var(--dkan-speed,1)) ease-out infinite;}",
+  "@keyframes dkan-halo{0%{transform:scale(.5);opacity:.9}70%{transform:scale(1.5);opacity:.25}100%{transform:scale(1.7);opacity:0}}",
+  // breathe 模式徽标更醒目：阶段色描边 + 呼吸辉光
+  ".dkan-badge-breathe{border-color:color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent);animation:dkan-rise .3s var(--ds-ease-in-out),dkan-badge-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+  "@keyframes dkan-badge-breathe{0%,100%{box-shadow:0 0 6px color-mix(in srgb,var(--dkan-phase,#4d9fff) 22%,transparent),0 6px 24px rgb(0 0 0 / .16)}50%{box-shadow:0 0 18px color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent),0 6px 24px rgb(0 0 0 / .16)}}",
   ".dkan-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 68%,var(--dsw-alias-accent,#4d9fff) 92%,#fff);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));animation:dkan-spin calc(2.2s / var(--dkan-speed,1)) linear infinite;opacity:.9;}",
   "@keyframes dkan-spin{to{transform:rotate(360deg)}}",
   // 通知卡片栈（右上角）
