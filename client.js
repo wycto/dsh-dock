@@ -1324,7 +1324,6 @@ var CURATED_ACCENTS = {
   anthropic: "#d97757",
   "google-gemini": "#4285f4"
 };
-var C_TOTAL = "#34d399";
 var C_GRANTED = "#22d3ee";
 var C_TOPUP = "#fbbf24";
 var C_ERR = "#f87171";
@@ -1400,10 +1399,12 @@ function BalanceView(props) {
   } else if (providers.length === 0) {
     body.push(import_react6.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
   } else {
+    const rank = (p) => p.balance && p.balance.status === "ok" ? 0 : p.balance && p.balance.status === "login-required" ? 1 : 2;
+    const sorted = providers.slice().sort((a, b) => rank(a) - rank(b));
     body.push(import_react6.default.createElement(
       "div",
       { key: "rows", className: "dkb-rows" },
-      providers.map((p) => {
+      sorted.map((p) => {
         const accent = accentOf(p.id);
         const b = p.balance;
         let badge = ["\u672A\u77E5", ""];
@@ -1414,48 +1415,64 @@ function BalanceView(props) {
           else if (b.status === "login-required") badge = ["\u9700\u767B\u5F55", "warn"];
           else badge = ["\u67E5\u8BE2\u5931\u8D25", "err"];
         }
-        const sub = ["ID: " + p.id, p.api ? "api: " + p.api : null, p.baseURL ? p.baseURL : null].filter(Boolean).join(" \xB7 ");
-        const cells = [];
         let balBody = null;
         if (b && b.status === "ok" && b.kind === "quota") {
-          cells.push(import_react6.default.createElement(
-            "div",
-            { key: "q", className: "dkb-bal" },
-            import_react6.default.createElement("span", { className: "dkb-cur", style: { color: accent } }, "\u603B\u989D\u5EA6"),
-            import_react6.default.createElement("span", { className: "dkb-total", style: { color: C_TOTAL } }, "\u5269\u4F59 " + fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
-            import_react6.default.createElement("span", { className: "dkb-part" }, "\u5DF2\u7528 " + fmt(b.used) + " / \u603B " + fmt(b.limit)),
-            b.resetTime ? import_react6.default.createElement("span", { className: "dkb-part" }, "\u91CD\u7F6E " + String(b.resetTime).slice(0, 16)) : null
-          ));
-          (Array.isArray(b.dims) ? b.dims : []).forEach((d, i) => {
-            cells.push(import_react6.default.createElement(
+          const dims = Array.isArray(b.dims) ? b.dims : [];
+          balBody = import_react6.default.createElement(
+            import_react6.default.Fragment,
+            null,
+            import_react6.default.createElement(
               "div",
-              { key: "d" + i, className: "dkb-bal" },
-              import_react6.default.createElement("span", { className: "dkb-cur", style: { color: accent } }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
-              import_react6.default.createElement("span", { className: "dkb-total", style: { color: C_TOTAL } }, "\u5269\u4F59 " + fmt(d.remaining)),
-              import_react6.default.createElement("span", { className: "dkb-part" }, "\u5DF2\u7528 " + fmt(d.used) + " / " + fmt(d.limit)),
-              d.resetTime ? import_react6.default.createElement("span", { className: "dkb-part" }, "\u91CD\u7F6E " + String(d.resetTime).slice(0, 16)) : null
-            ));
-          });
+              { className: "dkb-main" },
+              import_react6.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
+              import_react6.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
+              import_react6.default.createElement(
+                "span",
+                { className: "dkb-main-part" },
+                "\u5DF2\u7528 " + fmt(b.used) + " / \u603B " + fmt(b.limit),
+                b.resetTime ? import_react6.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
+              )
+            ),
+            dims.map((d, i) => import_react6.default.createElement(
+              "div",
+              { key: "d" + i, className: "dkb-dim" },
+              import_react6.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
+              import_react6.default.createElement(
+                "span",
+                { className: "dkb-dim-bar" },
+                import_react6.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
+              ),
+              import_react6.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
+            ))
+          );
         } else if (b && b.status === "ok") {
           const infos = Array.isArray(b.infos) ? b.infos : [];
-          cells.push(infos.map((i, idx) => import_react6.default.createElement(
+          balBody = import_react6.default.createElement(
             "div",
-            { key: idx, className: "dkb-bal" },
-            import_react6.default.createElement("span", { className: "dkb-cur", style: { color: accent } }, i.currency),
-            import_react6.default.createElement("span", { className: "dkb-total", style: { color: C_TOTAL } }, "\u603B\u989D " + fmt(i.totalBalance)),
-            i.grantedBalance != null ? import_react6.default.createElement("span", { className: "dkb-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
-            i.toppedUpBalance != null ? import_react6.default.createElement("span", { className: "dkb-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
-          )));
+            { className: "dkb-mains" },
+            infos.map((i, idx) => import_react6.default.createElement(
+              "div",
+              { key: idx, className: "dkb-main" },
+              import_react6.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+              import_react6.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+              import_react6.default.createElement(
+                "span",
+                { className: "dkb-main-parts" },
+                i.grantedBalance != null ? import_react6.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
+                i.toppedUpBalance != null ? import_react6.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
+              )
+            ))
+          );
         } else if (b && b.status === "login-required" && b.consoleUrl) {
           balBody = import_react6.default.createElement(
             "div",
-            { className: "dkb-bal" },
+            { className: "dkb-main" },
             import_react6.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
           );
         } else {
-          balBody = import_react6.default.createElement("div", { className: "dkb-note" }, b && b.message || "\u672A\u77E5\u72B6\u6001");
+          balBody = b && b.message ? import_react6.default.createElement("div", { className: "dkb-note" }, b.message) : import_react6.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
         }
-        if (cells.length > 0) balBody = import_react6.default.createElement("div", { className: "dkb-rows" }, cells);
+        const sub = ["ID " + p.id, p.api, p.baseURL ? p.baseURL.replace(/^https?:\/\//, "") : null].filter(Boolean).join(" \xB7 ");
         return import_react6.default.createElement(
           "div",
           { key: p.id, className: "dkb-row", "data-dock-provider": p.id },
@@ -1465,7 +1482,17 @@ function BalanceView(props) {
             import_react6.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
             import_react6.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
             def === p.id ? import_react6.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
-            import_react6.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0])
+            import_react6.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
+            // 模型数折叠提示（点开展开 chips）
+            p.models && p.models.length > 0 ? import_react6.default.createElement("button", {
+              type: "button",
+              className: "dkb-models-toggle",
+              title: p.models.join(", "),
+              onClick: (e) => {
+                const row = e.currentTarget.closest(".dkb-row");
+                if (row) row.classList.toggle("dkb-models-open");
+              }
+            }, p.models.length + " \u4E2A\u6A21\u578B \u25BE") : null
           ),
           sub ? import_react6.default.createElement("div", { className: "dkb-sub" }, sub) : null,
           p.apiKeyEnv ? import_react6.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
@@ -1487,7 +1514,7 @@ function BalanceView(props) {
     import_react6.default.createElement(
       "div",
       { className: "dkb-note" },
-      data && !snap.error && providers.length > 0 ? okCount + "/" + providers.length + " \u4E2A Provider \u53EF\u67E5\u4F59\u989D" : "\u6A21\u578B\u4F59\u989D \xB7 Host \u534A\u90E8\u5B9E\u65F6\u62C9\u53D6"
+      data && !snap.error && providers.length > 0 ? okCount + "/" + providers.length + " \u4E2A Provider \u53EF\u67E5\u4F59\u989D\uFF08\u53EF\u67E5\u7684\u6392\u524D\u9762\uFF09" : "\u6A21\u578B\u4F59\u989D \xB7 Host \u534A\u90E8\u5B9E\u65F6\u62C9\u53D6"
     ),
     body,
     import_react6.default.createElement(
@@ -1593,8 +1620,9 @@ var feature5 = {
   css: [
     ".dkb-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
     ".dkb-error{color:var(--dsw-alias-state-error-primary);}",
-    ".dkb-rows{display:flex;flex-direction:column;gap:8px;}",
-    ".dkb-row{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;}",
+    ".dkb-rows{display:flex;flex-direction:column;gap:10px;}",
+    // Provider 卡片：行距收窄、留白分层
+    ".dkb-row{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 14px 12px;display:flex;flex-direction:column;gap:6px;}",
     ".dkb-row-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
     ".dkb-dot{width:8px;height:8px;border-radius:50%;flex:none;}",
     ".dkb-name{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);}",
@@ -1603,13 +1631,28 @@ var feature5 = {
     ".dkb-badge.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
     ".dkb-badge.warn{color:var(--dsw-alias-state-warning-primary);border-color:currentColor;}",
     ".dkb-badge.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
+    // 模型数折叠开关（点行头右侧"N 个模型 ▾"展开/收起 chips）
+    ".dkb-models-toggle{margin-left:auto;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);font-family:inherit;font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap;}",
+    ".dkb-models-toggle:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+    ".dkb-row:not(.dkb-models-open) .dkb-chips{display:none;}",
+    '.dkb-row.dkb-models-open .dkb-models-toggle::after{content:"";}',
+    // 连接信息弱化单行（省略 URL 协议头、超出省略号）
     ".dkb-sub{color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-    ".dkb-chips{display:flex;flex-wrap:wrap;gap:4px;}",
+    ".dkb-chips{display:flex;flex-wrap:wrap;gap:4px;padding:2px 0 4px;}",
     ".dkb-chip{font-size:10px;border-radius:6px;padding:1px 6px;}",
-    ".dkb-bal{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--dsw-alias-label-primary);align-items:baseline;}",
-    ".dkb-cur{font-weight:600;min-width:48px;}",
-    ".dkb-total{font-weight:600;}",
-    ".dkb-part{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+    // 余额主数字卡（大号数字 + 小字辅助信息；多币种横排多卡）
+    ".dkb-mains{display:flex;gap:12px;flex-wrap:wrap;}",
+    ".dkb-main{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);min-width:150px;}",
+    ".dkb-main-label{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+    ".dkb-main-value{font-size:20px;font-weight:700;color:var(--dsw-alias-state-success-primary);font-variant-numeric:tabular-nums;line-height:1.2;}",
+    ".dkb-main-parts{display:flex;gap:10px;flex-wrap:wrap;}",
+    ".dkb-main-part{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+    // 配额维度条（周/小时额度：进度条 + 剩余/总量）
+    ".dkb-dim{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--dsw-alias-label-secondary);}",
+    ".dkb-dim-label{flex:none;min-width:44px;color:var(--dsw-alias-label-tertiary);}",
+    ".dkb-dim-bar{flex:1;max-width:220px;height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);overflow:hidden;}",
+    ".dkb-dim-fill{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--dsw-alias-state-success-primary),color-mix(in srgb,var(--dsw-alias-state-success-primary) 60%,#fff));}",
+    ".dkb-dim-text{flex:none;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;}",
     ".dkb-link{font-size:12px;text-decoration:none;}",
     ".dkb-link:hover{text-decoration:underline;}",
     ".dkb-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;}",
