@@ -169,69 +169,81 @@ function Box3(props) {
 
 function Monitor3(props) {
 	const w = props.w, h = props.h;
+	// 屏幕内容：10 行代码（5 行×2 循环）+ 光标，整体向上滚动（速度随 --dkan-speed）
+	const lines = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
 	return (
 		<span className={"dk3-mon3 " + (props.cls || "")}
-			style={{ left: props.x - w / 2, top: props.y - h / 2, width: w, height: h, transform: "translateZ(-3px) rotateY(" + (props.ry || 0) + "deg)" }}>
+			style={{ left: props.x - w / 2, top: props.y - h / 2, width: w, height: h, transform: "translateZ(" + (props.z || -3) + "px) rotateY(" + (props.ry || 0) + "deg)" }}>
 			<Box3 w={w} h={h} d={5} cls="dk3-frame" x={w / 2} y={h / 2} />
 			<span className="dk3-screen" style={{ width: w - 4, height: h - 4, transform: "translate(-50%,-50%) translateZ(3.1px)" }}>
-				<i /><i /><i /><i /><i />
+				<span className="dk3-code">
+					{lines.map((n, i) => <i key={i} />)}
+					<span className="dk3-cur" />
+				</span>
 			</span>
 		</span>
 	);
 }
 
-// 3D 动漫人物：头发+脸+卫衣+手臂+坐姿腿，侧身（面朝 +X 三屏），坐在桌前近镜头侧（z=30，不被桌体遮挡）
+// 3D 动漫人物：更拟人的比例与细节（圆角头/ volumetric 头发/五官/脖颈/弯肘/腿脚鞋），侧身面向三屏
 function RobotScene(props) {
 	const phase = props && props.phase ? props.phase : "code";
 	return (
 		<div className="dkan-bot-scene" data-phase={phase} aria-hidden="true">
 			<div className="dk3-world">
-				{/* 书桌（横贯场景，人物居中） */}
-				<Box3 w={200} h={7} d={40} cls="dk3-desk" x={110} y={78} />
-				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={18} y={94} />
-				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={202} y={94} />
-				{/* 三屏立在桌后缘，扇形面向人物 */}
-				<Monitor3 w={36} h={25} x={128} y={60} ry={20} cls="left" />
-				<Monitor3 w={44} h={32} x={166} y={56} ry={0} cls="center" />
-				<Monitor3 w={30} h={22} x={196} y={62} ry={-20} cls="right" />
-				{/* 键盘（人物手边，桌前缘） */}
+				{/* 书桌（缩短：150 宽，人物居中） */}
+				<Box3 w={150} h={7} d={40} cls="dk3-desk" x={115} y={78} />
+				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={48} y={94} />
+				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={182} y={94} />
+				{/* 四屏：三台扇形 + 中屏上叠一台竖屏 */}
+				<Monitor3 w={34} h={24} x={140} y={60} ry={24} cls="left" />
+				<Monitor3 w={40} h={30} x={168} y={58} ry={0} cls="center" />
+				<Monitor3 w={28} h={21} x={188} y={62} ry={-24} cls="right" />
+				<Monitor3 w={30} h={20} x={168} y={28} ry={0} cls="top" />
+				{/* 键盘 + 咖啡杯（人物手边） */}
 				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={126} y={73} z={14} />
-				{/* 人物组：坐在桌子中间近镜头侧（z=30），侧身面朝 +X */}
+				<Box3 w={4} h={5} d={4} cls="dk3-mug" x={140} y={71} z={14} />
+				{/* 人物组：坐在桌子中间近镜头侧（z=30） */}
 				<div className="dk3-person">
-					{/* 椅子：靠背/坐垫/支柱 */}
+					{/* 椅子：靠背/坐垫/支柱/底盘 */}
 					<Box3 w={4} h={30} d={22} cls="dk3-chairback" x={2} y={42} />
 					<Box3 w={20} h={4} d={22} cls="dk3-chairseat" x={12} y={58} />
-					<Box3 w={3} h={16} d={3} cls="dk3-metal" x={12} y={68} />
-					{/* 坐姿腿：大腿前伸 + 小腿垂下 */}
-					<Box3 w={12} h={5} d={9} cls="dk3-pants" x={20} y={54} />
-					<Box3 w={4} h={12} d={4} cls="dk3-pants" x={25} y={62} />
-					{/* 躯干（卫衣） */}
-					<Box3 w={16} h={22} d={12} cls="dk3-hood dk3-torso" x={12} y={34} />
-					{/* 头组：后发+顶发+脸+眼睛（俯仰=rotateZ，左右看=rotateY） */}
+					<Box3 w={3} h={12} d={3} cls="dk3-metal" x={12} y={68} />
+					<Box3 w={14} h={2} d={14} cls="dk3-metal" x={12} y={74} />
+					{/* 腿：大腿/小腿/鞋 */}
+					<Box3 w={13} h={5} d={9} cls="dk3-pants" x={20} y={54} />
+					<Box3 w={4} h={12} d={4} cls="dk3-pants" x={26} y={62} />
+					<Box3 w={6} h={3} d={5} cls="dk3-shoe" x={28} y={73} />
+					{/* 躯干（卫衣）+ 后帽兜 */}
+					<Box3 w={15} h={20} d={11} cls="dk3-hood dk3-torso" x={12} y={36} />
+					<Box3 w={5} h={8} d={9} cls="dk3-hood dk3-hoodbump" x={5} y={30} />
+					{/* 脖颈 */}
+					<Box3 w={4} h={3} d={4} cls="dk3-skin" x={14} y={25} />
+					{/* 头组：圆角头 + volumetric 头发 + 眼睛 + 嘴（俯仰=rotateZ，左右看=rotateY） */}
 					<div className="dk3-head3">
-						<Box3 w={4} h={12} d={13} cls="dk3-hair" x={2} y={9} />
-						<Box3 w={16} h={8} d={14} cls="dk3-hair" x={8} y={4} />
-						<Box3 w={14} h={12} d={12} cls="dk3-skin dk3-headbox" x={8.5} y={9}>
-							<span className="dk3-eyes" style={{ width: 11, height: 8, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }}>
+						<Box3 w={13} h={12} d={12} cls="dk3-skin dk3-headbox" x={8} y={10}>
+							<span className="dk3-eyes" style={{ width: 10, height: 7, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }}>
 								<i /><i />
 							</span>
+							<span className="dk3-mouth" style={{ transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }} />
 						</Box3>
-						<Box3 w={4} h={5} d={4} cls="dk3-skin" x={9} y={17} />
+						<Box3 w={14} h={6} d={13} cls="dk3-hair" x={8} y={4} />
+						<Box3 w={4} h={11} d={13} cls="dk3-hair" x={2} y={9} />
 					</div>
-					{/* 近侧手臂：肩→肘→前臂+手（write/code 时肘部高频敲击） */}
+					{/* 近侧手臂：上臂微前倾 + 肘 + 前臂 + 手 */}
 					<div className="dk3-arm3">
-						<Box3 w={4} h={12} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
+						<Box3 w={4} h={11} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
 						<div className="dk3-elbow">
-							<Box3 w={12} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={6} y={2} />
-							<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={13.5} y={2} />
+							<Box3 w={11} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={6} y={2} />
+							<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={12.5} y={2} />
 						</div>
 					</div>
-					{/* 远侧手臂（景深后方，稍暗） */}
+					{/* 远侧手臂 */}
 					<div className="dk3-arm3 dk3-far">
-						<Box3 w={4} h={12} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
+						<Box3 w={4} h={11} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
 						<div className="dk3-elbow">
-							<Box3 w={12} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={6} y={2} />
-							<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={13.5} y={2} />
+							<Box3 w={11} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={6} y={2} />
+							<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={12.5} y={2} />
 						</div>
 					</div>
 				</div>
@@ -984,12 +996,16 @@ const css = [
 	".dk3-frame .dk3-face{background:#3a465b;}",
 	".dk3-frame .dk3-face:nth-child(5){background:#55647d;}",
 	".dk3-screen{position:absolute;left:50%;top:50%;background:var(--dk3-screen);border-radius:2px;overflow:hidden;transition:opacity .4s var(--ds-ease-in-out),box-shadow .4s var(--ds-ease-in-out);}",
-	".dk3-screen i{display:block;height:3px;border-radius:1.5px;margin:3px 3px 0;background:var(--dkan-code-b);opacity:.5;}",
-	".dk3-screen i:nth-child(1){width:58%;background:var(--dkan-code-a);}",
-	".dk3-screen i:nth-child(2){width:82%;}",
-	".dk3-screen i:nth-child(3){width:46%;background:var(--dkan-code-c);}",
-	".dk3-screen i:nth-child(4){width:72%;}",
-	".dk3-screen i:nth-child(5){width:54%;background:var(--dkan-code-a);}",
+	// 屏幕内容：代码块整体向上滚动（10 行=5 行×2 循环，滚半程无缝接回）+ 闪烁光标，速度随 --dkan-speed
+	".dk3-code{position:absolute;left:0;top:0;right:0;display:block;animation:dk3-scroll calc(5s / var(--dkan-speed,1)) linear infinite;}",
+	".dk3-code i{display:block;height:2px;border-radius:1px;margin:2px 3px 0;background:var(--dkan-code-b);opacity:.55;}",
+	".dk3-code i:nth-child(5n+1){width:58%;background:var(--dkan-code-a);}",
+	".dk3-code i:nth-child(5n+2){width:82%;}",
+	".dk3-code i:nth-child(5n+3){width:46%;background:var(--dkan-code-c);}",
+	".dk3-code i:nth-child(5n+4){width:72%;}",
+	".dk3-code i:nth-child(5n){width:54%;background:var(--dkan-code-a);}",
+	".dk3-cur{position:absolute;left:3px;bottom:2px;width:4px;height:2px;background:var(--dkan-code-b);animation:dkan-blink3 1s steps(1) infinite;}",
+	"@keyframes dk3-scroll{to{transform:translateY(-50%)}}",
 	// 人物组（坐在桌子中间近镜头侧 z=30，侧身面朝 +X 三屏；不会被桌体遮挡）
 	".dk3-person{position:absolute;left:96px;top:14px;width:44px;height:64px;transform-style:preserve-3d;transform:translateZ(30px);}",
 	// 动漫人物配色：皮肤/头发/卫衣/裤子
@@ -1001,6 +1017,14 @@ const css = [
 	".dk3-hood .dk3-face:nth-child(5){background:#93a5ba;}",
 	".dk3-pants .dk3-face{background:linear-gradient(180deg,#3d4a5c,#2c3646);}",
 	".dk3-pants .dk3-face:nth-child(5){background:#4a5a70;}",
+	// 人物细节：圆角 + 鞋 + 咖啡杯 + 嘴
+	".dk3-headbox .dk3-face{border-radius:3px;}",
+	".dk3-torso .dk3-face{border-radius:3px;}",
+	".dk3-hair .dk3-face{border-radius:2px;}",
+	".dk3-shoe .dk3-face{background:#20262f;border-radius:2px;}",
+	".dk3-mug .dk3-face{background:#c2703d;border-radius:1px;}",
+	".dk3-mug .dk3-face:nth-child(5){background:#e08a52;}",
+	".dk3-mouth{position:absolute;left:50%;top:76%;width:4px;height:1.5px;border-radius:1px;background:#b5766a;}",
 	// 椅子
 	".dk3-chairback .dk3-face{background:linear-gradient(180deg,#3f4c60,#2c3648);}",
 	".dk3-chairseat .dk3-face{background:#33415a;}",
@@ -1026,20 +1050,14 @@ const css = [
 	".dkan-bot-scene[data-phase=think] .dk3-head3{transform:rotateZ(-10deg) translateY(-1px);}",
 	// write/code：中屏高亮代码滚动 + 肘部高频敲击 + 低头专注
 	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 45%,transparent);}",
-	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i{animation:dkan-code calc(1.1s / var(--dkan-speed,1)) ease-in-out infinite;}",
-	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(2),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(2){animation-delay:.15s;}",
-	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(3),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(3){animation-delay:.3s;}",
-	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(4),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(4){animation-delay:.45s;}",
-	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(5),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(5){animation-delay:.6s;}",
-	"@keyframes dkan-code{0%,100%{opacity:.3}50%{opacity:1}}",
+	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-code,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-code{animation-duration:calc(2.2s / var(--dkan-speed,1));}",
 	".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type3 calc(.22s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
 	".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far .dk3-elbow{animation-delay:.11s;}",
 	"@keyframes dkan-type3{from{transform:rotate(6deg)}to{transform:rotate(-7deg)}}",
 	".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{transform:rotateZ(5deg);}",
-	// search：侧屏高亮滚动 + 头部左右扫视（一会忙这个一会看那个）
+	// search：侧屏高亮 + 滚动加速 + 头部左右扫视（一会忙这个一会看那个）
 	".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-a,#4ade80) 40%,transparent);}",
-	".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen i{animation:dkan-code 1.3s ease-in-out infinite;}",
-	".dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen i{animation:dkan-code 1.3s ease-in-out infinite .35s;}",
+	".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-code{animation-duration:calc(1.6s / var(--dkan-speed,1));}",
 	".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-scan3 3.4s ease-in-out infinite;}",
 	"@keyframes dkan-scan3{0%,16%{transform:rotateZ(3deg) rotateY(-38deg)}30%,48%{transform:rotateZ(3deg) rotateY(6deg)}62%,80%{transform:rotateZ(3deg) rotateY(38deg)}100%{transform:rotateZ(3deg) rotateY(-38deg)}}",
 	// 通知子选项行
