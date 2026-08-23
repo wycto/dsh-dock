@@ -1696,7 +1696,7 @@ var EFFECT_MODES = [
   { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u72B6\u6001\u5FBD\u6807\u5706\u70B9\u547C\u5438\uFF0C\u8D8A\u5FD9\u547C\u5438\u8D8A\u5FEB" },
   { id: "ring", name: "\u8F68\u9053\u5149\u73AF", desc: "\u7EC6\u73AF\u7ED5\u5706\u70B9\u65CB\u8F6C\uFF0C\u8F6C\u901F\u968F\u4EFB\u52A1\u901F\u5EA6" },
   { id: "orbit", name: "\u73AF\u5C4F\u5DE1\u822A", desc: "\u4E00\u9897\u5149\u70B9\u6CBF\u5C4F\u5E55\u8FB9\u7F18\u5DE1\u822A\u6574\u5708\uFF0C\u9192\u76EE\u4E0D\u906E\u6321" },
-  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u66F4\u5177\u8C61\u7684\u4EBA\u7269\u5750\u9547\u56DB\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003\u3001\u8F93\u51FA\u3001\u67E5\u8D44\u6599\u968F\u4EFB\u52A1\u9636\u6BB5\u5207\u6362" },
+  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u66F4\u5177\u8C61\u7684\u4EBA\u7269\u5750\u9547\u591A\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003\u3001\u8F93\u51FA\u3001\u67E5\u8D44\u6599\u968F\u4EFB\u52A1\u9636\u6BB5\u5207\u6362\uFF1B\u591A\u4EFB\u52A1\u65F6\u70B9\u4EAE\u591A\u5957\u952E\u9F20\u5C4F\u5E55\u3001\u6ED1\u7740\u6EDA\u6905\u8F6E\u6D41\u7167\u770B" },
   { id: "matrix", name: "\u4EE3\u7801\u96E8", desc: "\u5B57\u7B26\u6CBF\u5C4F\u5E55\u7F13\u843D\u5982\u6570\u636E\u6D41\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\uFF0C\u514B\u5236\u7684\u4F4E\u900F\u660E\u5EA6" },
   { id: "stars", name: "\u661F\u91CE", desc: "\u7EC6\u788E\u661F\u70B9\u7F13\u6162\u98D8\u79FB\u95EA\u70C1\uFF0C\u5B89\u9759\u8010\u770B\u7684\u80CC\u666F\u6C1B\u56F4" },
   { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" }
@@ -1842,22 +1842,32 @@ function Monitor3(props) {
 }
 function RobotScene(props) {
   const phase = props && props.phase ? props.phase : "code";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-bot-scene", "data-phase": phase, "aria-hidden": "true", children: [
+  const tasks = Array.isArray(props && props.tasks) ? props.tasks : null;
+  const n = tasks ? Math.max(1, Math.min(3, tasks.length)) : 1;
+  const multi = tasks && tasks.length > 1;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-bot-scene", "data-phase": phase, "data-tasks": tasks ? String(n) : void 0, "aria-hidden": "true", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-world", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 150, h: 7, d: 40, cls: "dk3-desk", x: 115, y: 78 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 48, y: 94 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 182, y: 94 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 34, h: 24, x: 140, y: 60, ry: 24, cls: "left" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 40, h: 30, x: 168, y: 58, ry: 0, cls: "center" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 28, h: 21, x: 188, y: 62, ry: -24, cls: "right" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 30, h: 20, x: 168, y: 28, ry: 0, cls: "top" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 126, y: 73, z: 14 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 5, d: 4, cls: "dk3-mug", x: 140, y: 71, z: 14 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-person", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 170, h: 7, d: 40, cls: "dk3-desk", x: 115, y: 78 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 33, y: 94 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 197, y: 94 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 34, h: 24, x: 136, y: 60, ry: 24, cls: "left" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 40, h: 30, x: 166, y: 58, ry: 0, cls: "center" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 28, h: 21, x: 190, y: 62, ry: -24, cls: "right" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 30, h: 20, x: 166, y: 28, ry: 0, cls: "top" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 118, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 2.5, d: 6, cls: "dk3-metal dk3-mouse3", x: 129, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 148, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 2.5, d: 6, cls: "dk3-metal dk3-mouse3", x: 159, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 5, d: 4, cls: "dk3-mug", x: 142, y: 71, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 178, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 2.5, d: 6, cls: "dk3-metal dk3-mouse3", x: 189, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-person" + (multi ? " dk3-slide" : ""), children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 30, d: 22, cls: "dk3-chairback", x: 2, y: 42 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 20, h: 4, d: 22, cls: "dk3-chairseat", x: 12, y: 58 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 12, d: 3, cls: "dk3-metal", x: 12, y: 68 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 2, d: 14, cls: "dk3-metal", x: 12, y: 74 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 3, d: 3, cls: "dk3-wheel", x: 6, y: 77 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 3, d: 3, cls: "dk3-wheel", x: 18, y: 77 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 13, h: 5, d: 9, cls: "dk3-pants", x: 20, y: 54 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-pants", x: 26, y: 62 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 6, h: 3, d: 5, cls: "dk3-shoe", x: 28, y: 73 }),
@@ -2340,7 +2350,7 @@ function AnimationOverlay(props) {
           }
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase, tasks: active }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-bot-cap", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "n", children: active.length }),
             " \u4E2A\u4EFB\u52A1",
@@ -2471,13 +2481,16 @@ function AnimationView(props) {
   const [saveErr, setSaveErr] = (0, import_react7.useState)("");
   const [testing, setTesting] = (0, import_react7.useState)(false);
   const [testState, setTestState] = (0, import_react7.useState)(null);
+  const [feishuTestState, setFeishuTestState] = (0, import_react7.useState)(null);
+  const [feishuTesting, setFeishuTesting] = (0, import_react7.useState)(false);
   const cfgRef = (0, import_react7.useRef)(null);
   const pendingSavesRef = (0, import_react7.useRef)(0);
   const editingWebhookRef = (0, import_react7.useRef)(false);
+  const editingFeishuRef = (0, import_react7.useRef)(false);
   (0, import_react7.useEffect)(() => {
     const c = snap.status && snap.status.config;
     if (!c) return;
-    if (pendingSavesRef.current > 0 || editingWebhookRef.current) return;
+    if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
     if (c !== cfgRef.current) {
       cfgRef.current = c;
       setCfg(Object.assign({}, c));
@@ -2509,6 +2522,17 @@ function AnimationView(props) {
       setCfg(Object.assign({}, c));
     }
   };
+  const saveFeishuWebhook = async () => {
+    if (!editingFeishuRef.current) return;
+    const hook = String(cfg.feishuWebhook || "").trim();
+    await patch({ feishuWebhook: hook });
+    editingFeishuRef.current = false;
+    const c = animationStore.snap.status && animationStore.snap.status.config;
+    if (c && c !== cfgRef.current) {
+      cfgRef.current = c;
+      setCfg(Object.assign({}, c));
+    }
+  };
   const runDingtalkTest = async () => {
     setTesting(true);
     setTestState(null);
@@ -2528,6 +2552,27 @@ function AnimationView(props) {
       setTestState({ ok: false, msg: e && e.message || String(e) });
     } finally {
       setTesting(false);
+    }
+  };
+  const runFeishuTest = async () => {
+    setFeishuTesting(true);
+    setFeishuTestState(null);
+    try {
+      if (editingFeishuRef.current) {
+        const hook = String(cfg.feishuWebhook || "").trim();
+        if (!hook) throw new Error("\u8BF7\u5148\u586B\u5199 Webhook \u5730\u5740");
+        const d = await rpcCall2("config", { feishuWebhook: hook });
+        animationStore.applyConfig(d && d.config);
+        editingFeishuRef.current = false;
+        cfgRef.current = d && d.config || cfgRef.current;
+        setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
+      }
+      const r = await rpcCall2("test", { target: "feishu" });
+      setFeishuTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
+    } catch (e) {
+      setFeishuTestState({ ok: false, msg: e && e.message || String(e) });
+    } finally {
+      setFeishuTesting(false);
     }
   };
   const enableSystemNotify = async (next) => {
@@ -2812,7 +2857,66 @@ function AnimationView(props) {
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u9489\u9489\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u667A\u80FD\u7FA4\u52A9\u624B \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\uFF08Webhook\uFF09\uFF0C \u5B89\u5168\u8BBE\u7F6E\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
         ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u9489\u9489\u3002" })
-      ] }, "dingtalk")
+      ] }, "dingtalk"),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u98DE\u4E66\u63A8\u9001" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.feishuEnabled ? " on" : ""), children: cfg.feishuEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.feishuEnabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.feishuEnabled,
+                "aria-label": "\u5F00\u5173\u98DE\u4E66\u63A8\u9001",
+                title: cfg.feishuEnabled ? "\u5173\u95ED\u98DE\u4E66\u63A8\u9001" : "\u5F00\u542F\u98DE\u4E66\u63A8\u9001",
+                onClick: () => patch({ feishuEnabled: !cfg.feishuEnabled })
+              }
+            )
+          ] })
+        ] }),
+        cfg.feishuEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row dkan-row-webhook", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "Webhook" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                type: "text",
+                className: "dkan-input",
+                spellCheck: false,
+                value: cfg.feishuWebhook || "",
+                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/\u2026",
+                onChange: (e) => {
+                  editingFeishuRef.current = true;
+                  setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkan-btn",
+                disabled: !editingFeishuRef.current,
+                onClick: saveFeishuWebhook,
+                children: editingFeishuRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-btn", disabled: feishuTesting, onClick: runFeishuTest, children: feishuTesting ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
+            feishuTestState ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-row-sub" + (feishuTestState.ok ? " dkan-ok" : " dkan-err"), children: [
+              feishuTestState.ok ? "\u2713 " : "\u2717 ",
+              feishuTestState.msg
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u98DE\u4E66\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u7FA4\u673A\u5668\u4EBA \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\u673A\u5668\u4EBA\uFF08\u83B7\u53D6 Webhook \u5730\u5740\uFF09\uFF1B \u5B89\u5168\u8BBE\u7F6E\u5982\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u98DE\u4E66\u3002" })
+      ] }, "feishu")
     );
   }
   if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note dkan-err", children: saveErr }, "err"));
@@ -3056,6 +3160,17 @@ var css2 = [
   ".dkan-bubble i:nth-child(2){animation-delay:.2s;}",
   ".dkan-bubble i:nth-child(3){animation-delay:.4s;}",
   "@keyframes dkan-bubdot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}",
+  // ===== 多任务工位（data-tasks=活跃任务数，上限 3） =====
+  // 椅子滚轮
+  ".dk3-wheel .dk3-face{background:#1c232e;border-radius:50%;}",
+  // 未被任务占用的工位屏幕调暗（中位是第 1 个任务的主工位，恒亮）
+  ".dkan-bot-scene[data-tasks] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks] .dk3-mon3.right .dk3-screen{opacity:.3;}",
+  // 2 个任务：左工位点亮；3 个任务：左右都点亮（各自带辉光、代码滚动加速）
+  '.dkan-bot-scene[data-tasks="2"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 42%,transparent);}',
+  '.dkan-bot-scene[data-tasks="2"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.right .dk3-code{animation-duration:calc(2.6s / var(--dkan-speed,1));}',
+  // 多任务：人物坐滚椅沿桌左右滑动，轮流照看各工位（alternate 来回，中段各停留数秒）
+  ".dk3-person.dk3-slide{animation:dkan-slide3 12s ease-in-out infinite alternate;}",
+  "@keyframes dkan-slide3{0%,26%{transform:translateZ(30px) translateX(0) rotateY(0deg)}40%,58%{transform:translateZ(30px) translateX(32px) rotateY(-4deg)}72%,100%{transform:translateZ(30px) translateX(64px) rotateY(0deg)}}",
   // ===== 阶段驱动（data-phase 四态，host 由 chunk 流实时同步） =====
   // think：屏幕调暗 + 仰头苦想 + 泡泡浮现
   ".dkan-bot-scene[data-phase=think] .dk3-screen{opacity:.32;}",
