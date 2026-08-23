@@ -12,12 +12,13 @@
 //   - visionproxy 图片理解代理（v0.3.1）：纯文本模型收图自动走视觉模型识别
 //   - balance     模型余额（v0.2.0）：各 Provider 账户余额/配额
 //   - tokenlog    用量记录（v0.4.0）：LLM 调用记账与统计（移植自 @wycto/dsh-token-usage）
-//   - animation   任务动画（路线图 0.5.0 占位）
+//   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效/通知配置持久化（参照 @wycto/dsh-task-pulse）
 import { DOCK_NS, DockConfig } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
 import { feature as fTokenlog } from './features/tokenlog/host.js'
+import { feature as fAnimation } from './features/animation/host.js'
 
 export const name = 'dsh-dock'
 
@@ -36,12 +37,7 @@ export function apply(ctx) {
     fVisionProxy,
     fBalance,
     fTokenlog,
-    {
-      id: 'animation',
-      name: '任务动画',
-      roadmap: '0.5.0',
-      description: '任务进度动画与通知',
-    },
+    fAnimation,
   ]
 
   const state = new Map()
@@ -80,8 +76,8 @@ export function apply(ctx) {
   }
 
   // 默认启用已实现的功能（与 Client 半部 defaultEnabled 对齐）。
-  // 目前 Host↔Client 的开关同步在 0.5.0（持久化 + 双侧注册表打通）落地，
-  // 在此之前 Host 侧开关以本处 defaultEnabled 为准。
+  // Client 侧功能开关已 localStorage 持久化（v0.5.0）；Host↔Client 的开关双向同步仍未打通，
+  // 在此之前 Host 侧开关以本处 defaultEnabled 为准（面板停用某功能只影响浏览器侧 UI）。
   for (const f of FEATURES) {
     if (f.defaultEnabled) setEnabled(f.id, true)
   }
