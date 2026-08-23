@@ -2232,15 +2232,21 @@ function AnimationView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u8FD0\u884C\u52A8\u753B" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u8FDB\u884C\u4E2D\u624D\u51FA\u73B0\uFF1B\u514B\u5236\u7684\u52A8\u6548\uFF0C\u6697/\u4EAE\u8272\u81EA\u9002\u5E94" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "button",
-            {
-              type: "button",
-              className: "dockm-switch" + (cfg.animationEnabled ? " on" : ""),
-              onClick: () => patch({ animationEnabled: !cfg.animationEnabled }),
-              children: cfg.animationEnabled ? "\u5DF2\u5F00\u542F\uFF08\u70B9\u51FB\u5173\u95ED\uFF09" : "\u5DF2\u5173\u95ED\uFF08\u70B9\u51FB\u5F00\u542F\uFF09"
-            }
-          )
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.animationEnabled ? " on" : ""), children: cfg.animationEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.animationEnabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.animationEnabled,
+                "aria-label": "\u5F00\u5173\u8FD0\u884C\u52A8\u753B",
+                title: cfg.animationEnabled ? "\u5173\u95ED\u8FD0\u884C\u52A8\u753B" : "\u5F00\u542F\u8FD0\u884C\u52A8\u753B",
+                onClick: () => patch({ animationEnabled: !cfg.animationEnabled })
+              }
+            )
+          ] })
         ] }),
         cfg.animationEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-modes", children: EFFECT_MODES.map((m) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
           "button",
@@ -2261,15 +2267,21 @@ function AnimationView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u5B8C\u6210\u901A\u77E5" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4E0E\u52A8\u753B\u4E92\u4E0D\u4F9D\u8D56\uFF0C\u53EF\u5355\u72EC\u5F00\u542F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "button",
-            {
-              type: "button",
-              className: "dockm-switch" + (cfg.notifyEnabled ? " on" : ""),
-              onClick: () => patch({ notifyEnabled: !cfg.notifyEnabled }),
-              children: cfg.notifyEnabled ? "\u5DF2\u5F00\u542F\uFF08\u70B9\u51FB\u5173\u95ED\uFF09" : "\u5DF2\u5173\u95ED\uFF08\u70B9\u51FB\u5F00\u542F\uFF09"
-            }
-          )
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.notifyEnabled ? " on" : ""), children: cfg.notifyEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.notifyEnabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.notifyEnabled,
+                "aria-label": "\u5F00\u5173\u5B8C\u6210\u901A\u77E5",
+                title: cfg.notifyEnabled ? "\u5173\u95ED\u5B8C\u6210\u901A\u77E5" : "\u5F00\u542F\u5B8C\u6210\u901A\u77E5",
+                onClick: () => patch({ notifyEnabled: !cfg.notifyEnabled })
+              }
+            )
+          ] })
         ] }),
         cfg.notifyEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
@@ -2335,15 +2347,21 @@ function AnimationView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u9489\u9489\u63A8\u9001" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u9489\u9489\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "button",
-            {
-              type: "button",
-              className: "dockm-switch" + (cfg.dingtalkEnabled ? " on" : ""),
-              onClick: () => patch({ dingtalkEnabled: !cfg.dingtalkEnabled }),
-              children: cfg.dingtalkEnabled ? "\u5DF2\u5F00\u542F\uFF08\u70B9\u51FB\u5173\u95ED\uFF09" : "\u5DF2\u5173\u95ED\uFF08\u70B9\u51FB\u5F00\u542F\uFF09"
-            }
-          )
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.dingtalkEnabled ? " on" : ""), children: cfg.dingtalkEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.dingtalkEnabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.dingtalkEnabled,
+                "aria-label": "\u5F00\u5173\u9489\u9489\u63A8\u9001",
+                title: cfg.dingtalkEnabled ? "\u5173\u95ED\u9489\u9489\u63A8\u9001" : "\u5F00\u542F\u9489\u9489\u63A8\u9001",
+                onClick: () => patch({ dingtalkEnabled: !cfg.dingtalkEnabled })
+              }
+            )
+          ] })
         ] }),
         cfg.dingtalkEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row dkan-row-webhook", children: [
@@ -2456,6 +2474,9 @@ var css2 = [
   ".dkan-sec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
   ".dkan-sec-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:none;}",
   ".dkan-sec-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:1;min-width:120px;}",
+  ".dkan-sec-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
+  ".dkan-sec-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
+  ".dkan-sec-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
   ".dkan-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
   ".dkan-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
   // 模式选择卡（带缩微预览）
@@ -2710,9 +2731,22 @@ var SHELL_CSS = [
   ".dockh-card:hover,.dockh-card:focus-visible{border-color:var(--dsw-alias-accent,#4d9fff);outline:none;}",
   ".dockh-head{display:flex;align-items:center;gap:8px;}",
   ".dockh-name{font-weight:600;flex:none;}",
-  ".dockh-badge{margin-left:auto;flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
-  ".dockh-badge.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-  ".dockh-badge.off{border-style:dashed;}",
+  ".dockh-badge{flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
+  // 状态标识（非交互：圆点+文字，与可点的开关一眼区分）
+  ".dockh-status{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
+  ".dockh-sdot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dsw-alias-state-success-primary,#34d399);box-shadow:0 0 4px color-mix(in srgb,var(--dsw-alias-state-success-primary,#34d399) 55%,transparent);}",
+  ".dockh-status.off .dockh-sdot{background:transparent;border:1.5px solid var(--dsw-alias-label-tertiary);box-shadow:none;opacity:.75;}",
+  ".dockh-status.plan .dockh-sdot{background:transparent;border:1.5px dashed var(--dsw-alias-label-tertiary);box-shadow:none;}",
+  // iOS 风滑动开关（首页卡片 / 弹层页脚 / 设置页共用的启停控件）
+  ".dock-sw{flex:none;position:relative;width:34px;height:19px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);cursor:pointer;padding:0;transition:background .18s var(--ds-ease-in-out),border-color .18s var(--ds-ease-in-out);}",
+  '.dock-sw::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgb(0 0 0 / .35);transition:transform .18s var(--ds-ease-in-out);}',
+  ".dock-sw:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+  ".dock-sw.on{background:var(--dsw-alias-state-success-primary,#34d399);border-color:transparent;}",
+  ".dock-sw.on::after{transform:translateX(15px);}",
+  // 弹层页脚：文字标签 + 开关 成组
+  ".dockm-foot-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
+  ".dockm-foot-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
   ".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
   ".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
   ".dockh-foot{display:flex;align-items:center;gap:8px;}",
@@ -2946,23 +2980,40 @@ function DockModal() {
             "div",
             { className: "dockm-foot" },
             import_react8.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react8.default.createElement("button", {
-              type: "button",
-              className: "dockm-switch" + (st.enabled ? " on" : ""),
-              onClick: () => {
-                toggleFeature(mod.id);
-                force();
-              }
-            }, st.enabled ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09") : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react8.default.createElement("button", {
-              type: "button",
-              className: "dockm-switch" + (chipShown(mod.id) ? " on" : ""),
-              title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
-              onClick: () => {
-                setChipShown(mod.id, !chipShown(mod.id));
-                force();
-              }
-            }, chipShown(mod.id) ? "\u4F1A\u8BDD\u9875\u663E\u793A\u4E2D" : "\u4F1A\u8BDD\u9875\u5DF2\u9690\u85CF") : null
+            !isHome && mod && !mod.planned && st ? import_react8.default.createElement(
+              "span",
+              { className: "dockm-foot-sw" },
+              import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react8.default.createElement("button", {
+                type: "button",
+                className: "dock-sw" + (st.enabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": !!st.enabled,
+                "aria-label": (st.enabled ? "\u505C\u7528" : "\u542F\u7528") + mod.name,
+                title: st.enabled ? "\u505C\u7528\u300C" + mod.name + "\u300D" : "\u542F\u7528\u300C" + mod.name + "\u300D",
+                onClick: () => {
+                  toggleFeature(mod.id);
+                  force();
+                }
+              })
+            ) : null,
+            !isHome && mod && typeof mod.Chip === "function" ? import_react8.default.createElement(
+              "span",
+              { className: "dockm-foot-sw" },
+              import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react8.default.createElement("button", {
+                type: "button",
+                className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
+                role: "switch",
+                "aria-checked": chipShown(mod.id),
+                "aria-label": (chipShown(mod.id) ? "\u9690\u85CF" : "\u663E\u793A") + mod.name + "\u7684\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6",
+                title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
+                onClick: () => {
+                  setChipShown(mod.id, !chipShown(mod.id));
+                  force();
+                }
+              })
+            ) : null
           )
         )
       ),
@@ -3010,28 +3061,35 @@ function HomeView(props) {
           import_react8.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
           import_react8.default.createElement("span", { className: "dockh-name" }, m.name),
           m.external ? import_react8.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
           import_react8.default.createElement(
             "span",
-            { className: "dockh-badge" + (m.planned ? "" : enabled ? " on" : " off") },
-            m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"
-          )
-        ),
-        import_react8.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react8.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react8.default.createElement(
-          "div",
-          { className: "dockh-foot" },
-          import_react8.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192"),
+            { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
+            import_react8.default.createElement("span", { className: "dockh-sdot" }),
+            import_react8.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+          ),
+          // 启停开关（规划中的功能不显示）
           m.planned ? null : import_react8.default.createElement("button", {
             type: "button",
-            className: "dockm-switch" + (enabled ? " on" : ""),
+            className: "dock-sw" + (enabled ? " on" : ""),
+            role: "switch",
+            "aria-checked": enabled,
+            "aria-label": (enabled ? "\u505C\u7528" : "\u542F\u7528") + m.name,
+            title: enabled ? "\u505C\u7528\u300C" + m.name + "\u300D" : "\u542F\u7528\u300C" + m.name + "\u300D",
             onClick: (e) => {
               e.stopPropagation();
               toggleFeature(m.id);
               if (props && typeof props.onToggle === "function") props.onToggle();
               force();
             }
-          }, enabled ? "\u505C\u7528" : "\u542F\u7528")
+          })
+        ),
+        import_react8.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react8.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react8.default.createElement(
+          "div",
+          { className: "dockh-foot" },
+          import_react8.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -3076,17 +3134,31 @@ function DockPanel() {
           import_react8.default.createElement("span", { className: "dock-name" }, f.name),
           import_react8.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
           f.planned ? import_react8.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react8.default.createElement("button", {
-            className: "dock-switch" + (st.enabled ? " on" : ""),
+            type: "button",
+            className: "dock-sw" + (st.enabled ? " on" : ""),
+            role: "switch",
+            "aria-checked": st.enabled,
+            "aria-label": (st.enabled ? "\u505C\u7528" : "\u542F\u7528") + f.name,
+            title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
-          }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-          !f.planned && typeof f.Chip === "function" ? import_react8.default.createElement("button", {
-            className: "dock-switch" + (chipShown(f.id) ? " on" : ""),
-            title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
-            onClick: () => {
-              setChipShown(f.id, !chipShown(f.id));
-              force();
-            }
-          }, chipShown(f.id) ? "\u4F1A\u8BDD\u9875\u663E\u793A" : "\u4F1A\u8BDD\u9875\u9690\u85CF") : null
+          }),
+          !f.planned && typeof f.Chip === "function" ? import_react8.default.createElement(
+            "span",
+            { className: "dockm-foot-sw" },
+            import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react8.default.createElement("button", {
+              type: "button",
+              className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
+              role: "switch",
+              "aria-checked": chipShown(f.id),
+              "aria-label": (chipShown(f.id) ? "\u9690\u85CF" : "\u663E\u793A") + f.name + "\u7684\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6",
+              title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
+              onClick: () => {
+                setChipShown(f.id, !chipShown(f.id));
+                force();
+              }
+            })
+          ) : null
         ),
         f.planned ? import_react8.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react8.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
