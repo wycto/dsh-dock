@@ -1261,6 +1261,8 @@ const css = [
 	"@keyframes dkan-orbit{0%{top:0;left:0}25%{top:0;left:calc(100vw - 12px)}50%{top:calc(100vh - 12px);left:calc(100vw - 12px)}75%{top:calc(100vh - 12px);left:0}100%{top:0;left:0}}",
 	// ===== 氛围动效 =====
 	".dkan-amb{position:fixed;inset:0;z-index:9989;pointer-events:none;overflow:hidden;}",
+	// pointer-events 不继承：全屏装饰层的子粒子（星点/流星/极光/火花/彩带）必须各自透明于点击
+	".dkan-amb *,.dkan-fxwrap *{pointer-events:none;}",
 	// 代码雨：字符列缓落（提亮加大，速度随吞吐）
 	".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);text-shadow:0 0 6px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent);animation:dkan-fall linear infinite;will-change:transform;}",
 	"@keyframes dkan-fall{to{transform:translateY(125vh)}}",
