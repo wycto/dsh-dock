@@ -36,7 +36,7 @@ function rpcCall(method, args) {
 // ---------- 动画模式 ----------
 const EFFECT_MODES = [
 	{ id: "flow", name: "流光细线", desc: "顶部细线流光往返，速度随任务吞吐加快" },
-	{ id: "breathe", name: "呼吸光点", desc: "状态徽标圆点呼吸，越忙呼吸越快" },
+	{ id: "breathe", name: "呼吸光点", desc: "醒目呼吸光点带扩散光晕：颜色随任务阶段（思考蓝/输出绿/代码橙/查资料青），呼吸随吞吐加快" },
 	{ id: "ring", name: "轨道光环", desc: "细环绕圆点旋转，转速随任务速度" },
 	{ id: "orbit", name: "环屏巡航", desc: "一颗光点沿屏幕边缘巡航整圈，醒目不遮挡" },
 	{ id: "robot", name: "桌面伙伴", desc: "更具象的人物坐镇多屏工位：思考、输出、查资料随任务阶段切换；多任务时点亮多套键鼠屏幕、滑着滚椅轮流照看" },
@@ -49,6 +49,9 @@ const EFFECT_MODES = [
 // reasoning-delta=think、text-delta=write、tool 名分类=search/code）
 const PHASE_LABELS = { think: "思考中", write: "输出中", code: "编写代码", search: "查资料" };
 function phaseLabel(p) { return PHASE_LABELS[p] || "工作中"; }
+// 阶段配色（徽标呼吸点/光环随任务阶段变色，--dkan-phase 下发到 CSS）
+const PHASE_COLORS = { think: "#60a5fa", write: "#34d399", code: "#fbbf24", search: "#2dd4bf" };
+function phaseColor(p) { return PHASE_COLORS[p] || "#4d9fff"; }
 
 // ---------- 结束原因 ----------
 const END_LABELS = {
@@ -763,16 +766,18 @@ export function AnimationOverlay(props) {
 					}} />
 			</div>
 		) : null}
-		{/* 右下角状态徽标：dot 随模式变化（breathe/ring 装饰），点击进功能坞动画页 */}
+		{/* 右下角状态徽标：dot 随模式变化（breathe/ring 装饰），颜色随任务阶段、呼吸随吞吐；点击进功能坞动画页 */}
 		{ambientOn && mode !== "robot" ? (
-			<button type="button" className="dkan-badge" style={speedStyle}
-				title={active.length + " 个任务进行中 · 点击查看任务动画页"}
+			<button type="button" className={"dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : "")}
+				style={Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(phase) })}
+				title={active.length + " 个任务进行中 · " + phaseLabel(phase) + " · 点击查看任务动画页"}
 				onClick={() => openPanel("animation")}>
 				<span className="dkan-dotwrap">
 					<span className="dkan-dot" />
+					{mode === "breathe" ? <span className="dkan-halo" /> : null}
 					{mode === "ring" ? <span className="dkan-ring" /> : null}
 				</span>
-				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""}</span>
+				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {phaseLabel(phase)}</span>
 			</button>
 		) : null}
 		{/* 完成瞬间的一次性流光（成功绿 / 异常红），动画结束自动清场 */}
@@ -836,7 +841,7 @@ function ModePreview({ id }) {
 	}
 	return (
 		<span className="dkan-prev">
-			<span className="dkan-dotwrap dkan-breathe"><span className="dkan-dot" /></span>
+			<span className="dkan-dotwrap dkan-breathe"><span className="dkan-dot" /><span className="dkan-halo" /></span>
 		</span>
 	);
 }
@@ -1309,10 +1314,16 @@ const css = [
 	".dkan-badge .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
 	"@keyframes dkan-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}",
 	// 徽标圆点与两种动效（呼吸 / 轨道环）
-	".dkan-dotwrap{position:relative;width:16px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
-	".dkan-dot{width:9px;height:9px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);}",
-	".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.6s / var(--dkan-speed,1)) ease-in-out infinite;}",
-	"@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.6);opacity:1}}",
+	".dkan-dotwrap{position:relative;width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
+	".dkan-dot{width:12px;height:12px;border-radius:50%;background:var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));box-shadow:0 0 10px color-mix(in srgb,var(--dkan-phase,var(--dsw-alias-accent,#4d9fff)) 70%,transparent);transition:background .4s var(--ds-ease-in-out),box-shadow .4s var(--ds-ease-in-out);}",
+	".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+	"@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.7);opacity:1}}",
+	// 呼吸光晕：向外扩散的波纹环，与圆点同频（颜色随阶段）
+	".dkan-halo{position:absolute;inset:0;border-radius:50%;border:2px solid var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));animation:dkan-halo calc(2.2s / var(--dkan-speed,1)) ease-out infinite;}",
+	"@keyframes dkan-halo{0%{transform:scale(.5);opacity:.9}70%{transform:scale(1.5);opacity:.25}100%{transform:scale(1.7);opacity:0}}",
+	// breathe 模式徽标更醒目：阶段色描边 + 呼吸辉光
+	".dkan-badge-breathe{border-color:color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent);animation:dkan-rise .3s var(--ds-ease-in-out),dkan-badge-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+	"@keyframes dkan-badge-breathe{0%,100%{box-shadow:0 0 6px color-mix(in srgb,var(--dkan-phase,#4d9fff) 22%,transparent),0 6px 24px rgb(0 0 0 / .16)}50%{box-shadow:0 0 18px color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent),0 6px 24px rgb(0 0 0 / .16)}}",
 	".dkan-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 68%,var(--dsw-alias-accent,#4d9fff) 92%,#fff);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));animation:dkan-spin calc(2.2s / var(--dkan-speed,1)) linear infinite;opacity:.9;}",
 	"@keyframes dkan-spin{to{transform:rotate(360deg)}}",
 	// 通知卡片栈（右上角）
