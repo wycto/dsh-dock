@@ -11,7 +11,7 @@
 //   animationEnabled / effectMode / notifyEnabled / notifyOnComplete /
 //   notifyOnError / notifyStayMs / systemNotify
 // 动画与通知是两个独立开关，可只开其一；全部经 settings 持久化，重启后恢复。
-import { DOCK_NS, ANIMATION_MODES, sendJson, readBody } from '../../src/host-core.js'
+import { DOCK_NS, ANIMATION_MODES, SOUND_EFFECTS, sendJson, readBody } from '../../src/host-core.js'
 
 // 默认配置（schema 默认值一致；settings.get 未挂载时的兜底）
 function defaultConfig() {
@@ -24,6 +24,7 @@ function defaultConfig() {
     notifyStayMs: 8000,
     systemNotify: false,
     soundNotify: true,
+    soundEffect: 'chime',
     dingtalkEnabled: false,
     dingtalkWebhook: '',
   }
@@ -41,6 +42,7 @@ function readConfig(ctx) {
         if (a[key] !== undefined) cfg[key] = a[key]
       }
       if (!ANIMATION_MODES.includes(cfg.effectMode)) cfg.effectMode = 'flow'
+      if (!SOUND_EFFECTS.includes(cfg.soundEffect)) cfg.soundEffect = 'chime'
     }
   } catch { /* settings 未挂载，用默认 */ }
   return cfg
@@ -440,6 +442,7 @@ export const feature = {
               }
               if (typeof p.systemNotify === 'boolean') cfg.systemNotify = p.systemNotify
               if (typeof p.soundNotify === 'boolean') cfg.soundNotify = p.soundNotify
+              if (typeof p.soundEffect === 'string' && SOUND_EFFECTS.includes(p.soundEffect)) cfg.soundEffect = p.soundEffect
               if (typeof p.dingtalkEnabled === 'boolean') cfg.dingtalkEnabled = p.dingtalkEnabled
               if (typeof p.dingtalkWebhook === 'string') {
                 const hook = p.dingtalkWebhook.trim()

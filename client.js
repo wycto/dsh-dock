@@ -1883,6 +1883,14 @@ function RobotScene(props) {
     ] })
   ] });
 }
+var SOUND_LIBRARY = {
+  chime: { name: "\u6E05\u8106\u53CC\u97F3", notes: { done: [[659.25, 0, 0.14], [880, 0.13, 0.24]], err: [[220, 0, 0.16], [164.81, 0.15, 0.3]] } },
+  ding: { name: "\u53EE", notes: { done: [[987.77, 0, 0.35]], err: [[246.94, 0, 0.4]] } },
+  coin: { name: "\u91D1\u5E01", notes: { done: [[988, 0, 0.08], [1319, 0.08, 0.35], [988, 0, 0.08, "square"], [1319, 0.08, 0.3, "square"]], err: [[196, 0, 0.12], [147, 0.11, 0.35]] } },
+  bell: { name: "\u949F\u58F0", notes: { done: [[523.25, 0, 0.5], [659.25, 0.02, 0.45], [783.99, 0.04, 0.4]], err: [[174.61, 0, 0.5], [130.81, 0.05, 0.5]] } },
+  pulse: { name: "\u8109\u51B2", notes: { done: [[440, 0, 0.09], [440, 0.14, 0.09], [440, 0.28, 0.16]], err: [[174.61, 0, 0.1], [174.61, 0.14, 0.1], [174.61, 0.28, 0.18]] } },
+  arp: { name: "\u7436\u97F3", notes: { done: [[523.25, 0, 0.12], [659.25, 0.09, 0.12], [783.99, 0.18, 0.12], [1046.5, 0.27, 0.3]], err: [[392, 0, 0.12], [329.63, 0.1, 0.12], [261.63, 0.2, 0.12], [196, 0.3, 0.32]] } }
+};
 var soundCtx = null;
 function playTone(seq) {
   try {
@@ -1894,23 +1902,30 @@ function playTone(seq) {
       });
     }
     const t0 = soundCtx.currentTime;
-    for (const note of seq) {
+    for (const [f, at, dur, wave] of seq) {
       const osc = soundCtx.createOscillator();
       const gain = soundCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = note.f;
-      gain.gain.setValueAtTime(0, t0 + note.at);
-      gain.gain.linearRampToValueAtTime(0.18, t0 + note.at + 0.015);
-      gain.gain.exponentialRampToValueAtTime(1e-4, t0 + note.at + note.dur);
+      osc.type = wave || "sine";
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0, t0 + at);
+      gain.gain.linearRampToValueAtTime(0.18, t0 + at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(1e-4, t0 + at + dur);
       osc.connect(gain).connect(soundCtx.destination);
-      osc.start(t0 + note.at);
-      osc.stop(t0 + note.at + note.dur + 0.05);
+      osc.start(t0 + at);
+      osc.stop(t0 + at + dur + 0.05);
     }
   } catch {
   }
 }
-function playDoneSound(success) {
-  playTone(success ? [{ f: 659.25, at: 0, dur: 0.14 }, { f: 880, at: 0.13, dur: 0.22 }] : [{ f: 220, at: 0, dur: 0.16 }, { f: 164.81, at: 0.15, dur: 0.3 }]);
+function playDoneSound(success, effect) {
+  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+  playTone(success ? lib.notes.done : lib.notes.err);
+}
+function previewSound(effect) {
+  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+  playTone(lib.notes.done);
+  const delayed = lib.notes.err.map(([f, at, dur, wave]) => [f, at + 0.55, dur, wave]);
+  playTone(delayed);
 }
 function Toast(props) {
   const t = props.t;
@@ -2010,7 +2025,7 @@ function AnimationOverlay(props) {
       stayMs: typeof cfg2.notifyStayMs === "number" ? cfg2.notifyStayMs : 8e3
     };
     setToasts((prev) => prev.concat([toast]).slice(-4));
-    if (cfg2.soundNotify !== false) playDoneSound(success);
+    if (cfg2.soundNotify !== false) playDoneSound(success, cfg2.soundEffect);
     if (cfg2.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
       try {
         new Notification("dsh " + title, {
@@ -2425,9 +2440,44 @@ function AnimationView(props) {
                 children: cfg.soundNotify !== false ? "\u5F00" : "\u5173"
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-btn", onClick: () => playDoneSound(true), children: "\u8BD5\u542C" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u65F6\u64AD\u653E\uFF08\u5B8C\u6210\u4E0A\u884C\u53CC\u97F3 / \u5F02\u5E38\u4E0B\u884C\u4F4E\u97F3\uFF09" })
-          ] })
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u65F6\u64AD\u653E\uFF08\u8BD5\u542C\u4E3A\u5148\u64AD\u5B8C\u6210\u97F3\u3001\u540E\u64AD\u5F02\u5E38\u97F3\uFF09" })
+          ] }),
+          cfg.soundNotify !== false ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-sounds", children: Object.keys(SOUND_LIBRARY).map((key) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "button",
+            {
+              type: "button",
+              className: "dkan-sound" + (cfg.soundEffect === key ? " on" : ""),
+              onClick: () => patch({ soundEffect: key }),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sound-name", children: [
+                  SOUND_LIBRARY[key].name,
+                  cfg.soundEffect === key ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sound-cur", children: "\u2713" }) : null
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "span",
+                  {
+                    className: "dkan-sound-play",
+                    role: "button",
+                    tabIndex: 0,
+                    title: "\u8BD5\u542C " + SOUND_LIBRARY[key].name,
+                    onClick: (e) => {
+                      e.stopPropagation();
+                      previewSound(key);
+                    },
+                    onKeyDown: (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        previewSound(key);
+                      }
+                    },
+                    children: "\u25B6"
+                  }
+                )
+              ]
+            },
+            key
+          )) }) : null
         ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u901A\u77E5\u5DF2\u5173\u95ED\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u65F6\u65E2\u4E0D\u5F39\u5361\u7247\u4E5F\u4E0D\u63A8\u7CFB\u7EDF\u901A\u77E5\u3002" })
       ] }, "notify"),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
@@ -2672,6 +2722,15 @@ var css2 = [
   ".dkm-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
   ".dkm-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
   ".dkan-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
+  // 音效选择卡（名称 + 播放键；选中态描边）
+  ".dkan-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
+  ".dkan-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
+  ".dkan-sound:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+  ".dkan-sound.on{border-color:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 40%,transparent);}",
+  ".dkan-sound-name{font-size:12px;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:5px;}",
+  ".dkan-sound-cur{color:var(--dsw-alias-accent,#4d9fff);font-size:11px;}",
+  ".dkan-sound-play{flex:none;cursor:pointer;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:1;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l2);}",
+  ".dkan-sound-play:hover{color:var(--dsw-alias-label-primary);border-color:currentColor;}",
   ".dkan-input{flex:1;min-width:220px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;}",
   ".dkan-input:focus{outline:none;border-color:var(--dsw-alias-accent,#4d9fff);}",
   ".dkan-row-webhook{flex-wrap:nowrap;}",

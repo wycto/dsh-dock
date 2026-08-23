@@ -242,7 +242,17 @@ function RobotScene(props) {
 	);
 }
 
-// ---------- 提示音（WebAudio 合成：完成=上行双音 / 异常=下行低音；macOS/Windows 通用，无音频文件） ----------
+// ---------- 提示音（WebAudio 合成；macOS/Windows 通用，无音频文件） ----------
+// 音效库：每种含完成音（done）与异常音（err）两套音符序列。
+// 音符 [频率, 起始秒, 时长秒, 波形?]，波形缺省 sine。
+const SOUND_LIBRARY = {
+	chime:  { name: "清脆双音", notes: { done: [[659.25, 0, .14], [880, .13, .24]], err: [[220, 0, .16], [164.81, .15, .3]] } },
+	ding:   { name: "叮",       notes: { done: [[987.77, 0, .35]], err: [[246.94, 0, .4]] } },
+	coin:   { name: "金币",     notes: { done: [[988, 0, .08], [1319, .08, .35], [988, 0, .08, "square"], [1319, .08, .3, "square"]], err: [[196, 0, .12], [147, .11, .35]] } },
+	bell:   { name: "钟声",     notes: { done: [[523.25, 0, .5], [659.25, .02, .45], [783.99, .04, .4]], err: [[174.61, 0, .5], [130.81, .05, .5]] } },
+	pulse:  { name: "脉冲",     notes: { done: [[440, 0, .09], [440, .14, .09], [440, .28, .16]], err: [[174.61, 0, .1], [174.61, .14, .1], [174.61, .28, .18]] } },
+	arp:    { name: "琶音",     notes: { done: [[523.25, 0, .12], [659.25, .09, .12], [783.99, .18, .12], [1046.5, .27, .3]], err: [[392, 0, .12], [329.63, .1, .12], [261.63, .2, .12], [196, .3, .32]] } },
+};
 // AudioContext 按需创建（浏览器自动播放策略：首次用户交互后才能出声，静默失败不报错）
 let soundCtx = null;
 function playTone(seq) {
@@ -252,25 +262,31 @@ function playTone(seq) {
 		if (!soundCtx) soundCtx = new AC();
 		if (soundCtx.state === "suspended") { soundCtx.resume().catch(() => {}); }
 		const t0 = soundCtx.currentTime;
-		for (const note of seq) {
+		for (const [f, at, dur, wave] of seq) {
 			const osc = soundCtx.createOscillator();
 			const gain = soundCtx.createGain();
-			osc.type = "sine";
-			osc.frequency.value = note.f;
-			gain.gain.setValueAtTime(0, t0 + note.at);
-			gain.gain.linearRampToValueAtTime(0.18, t0 + note.at + 0.015);
-			gain.gain.exponentialRampToValueAtTime(0.0001, t0 + note.at + note.dur);
+			osc.type = wave || "sine";
+			osc.frequency.value = f;
+			gain.gain.setValueAtTime(0, t0 + at);
+			gain.gain.linearRampToValueAtTime(0.18, t0 + at + 0.015);
+			gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
 			osc.connect(gain).connect(soundCtx.destination);
-			osc.start(t0 + note.at);
-			osc.stop(t0 + note.at + note.dur + 0.05);
+			osc.start(t0 + at);
+			osc.stop(t0 + at + dur + 0.05);
 		}
 	} catch { /* 音频不可用静默 */ }
 }
-// 完成：E5→A5 上行双音（清亮收工感）；异常：低八度 A3→E3 下行（警示但不刺耳）
-function playDoneSound(success) {
-	playTone(success
-		? [{ f: 659.25, at: 0, dur: 0.14 }, { f: 880, at: 0.13, dur: 0.22 }]
-		: [{ f: 220, at: 0, dur: 0.16 }, { f: 164.81, at: 0.15, dur: 0.3 }]);
+// 按音效播放：完成音 / 异常音（未知音效回退 chime）
+function playDoneSound(success, effect) {
+	const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+	playTone(success ? lib.notes.done : lib.notes.err);
+}
+// 试听：完成音 + 异常音 连播（间隔 0.55s）
+function previewSound(effect) {
+	const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+	playTone(lib.notes.done);
+	const delayed = lib.notes.err.map(([f, at, dur, wave]) => [f, at + 0.55, dur, wave]);
+	playTone(delayed);
 }
 
 
@@ -387,8 +403,8 @@ export function AnimationOverlay(props) {
 			stayMs: typeof cfg.notifyStayMs === "number" ? cfg.notifyStayMs : 8000,
 		};
 		setToasts((prev) => prev.concat([toast]).slice(-4));
-		// 提示音：任务结束时播放（完成上行双音 / 异常下行低音）；与系统通知独立开关
-		if (cfg.soundNotify !== false) playDoneSound(success);
+		// 提示音：任务结束时播放（完成/异常配套音）；与系统通知独立开关
+		if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
 		// 系统通知：仅页面处于后台时推送，避免前台重复打扰
 		if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
 			&& typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -778,9 +794,26 @@ function AnimationView(props) {
 							onClick={() => patch({ soundNotify: cfg.soundNotify === false })}>
 							{cfg.soundNotify !== false ? "开" : "关"}
 						</button>
-						<button type="button" className="dkan-btn" onClick={() => playDoneSound(true)}>试听</button>
-						<span className="dkan-row-sub">任务结束时播放（完成上行双音 / 异常下行低音）</span>
+						<span className="dkan-row-sub">任务结束时播放（试听为先播完成音、后播异常音）</span>
 					</div>
+					{cfg.soundNotify !== false ? (
+						<div className="dkan-sounds">
+							{Object.keys(SOUND_LIBRARY).map((key) => (
+								<button type="button" key={key}
+									className={"dkan-sound" + (cfg.soundEffect === key ? " on" : "")}
+									onClick={() => patch({ soundEffect: key })}>
+									<span className="dkan-sound-name">
+										{SOUND_LIBRARY[key].name}
+										{cfg.soundEffect === key ? <span className="dkan-sound-cur">✓</span> : null}
+									</span>
+									<span className="dkan-sound-play" role="button" tabIndex={0}
+										title={"试听 " + SOUND_LIBRARY[key].name}
+										onClick={(e) => { e.stopPropagation(); previewSound(key); }}
+										onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); previewSound(key); } }}>▶</span>
+								</button>
+							))}
+						</div>
+					) : null}
 				</div> : <div className="dkan-note">通知已关闭——任务结束时既不弹卡片也不推系统通知。</div>}
 			</div>,
 			<div key="dingtalk" className="dkan-sec">
@@ -1016,7 +1049,16 @@ const css = [
 	".dkan-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
 	".dkm-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
 	".dkm-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-	".dkan-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
+		".dkan-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
+	// 音效选择卡（名称 + 播放键；选中态描边）
+	".dkan-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
+	".dkan-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
+	".dkan-sound:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+	".dkan-sound.on{border-color:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 40%,transparent);}",
+	".dkan-sound-name{font-size:12px;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:5px;}",
+	".dkan-sound-cur{color:var(--dsw-alias-accent,#4d9fff);font-size:11px;}",
+	".dkan-sound-play{flex:none;cursor:pointer;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:1;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l2);}",
+	".dkan-sound-play:hover{color:var(--dsw-alias-label-primary);border-color:currentColor;}",
 	".dkan-input{flex:1;min-width:220px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;}",
 	".dkan-input:focus{outline:none;border-color:var(--dsw-alias-accent,#4d9fff);}",
 	".dkan-row-webhook{flex-wrap:nowrap;}",
