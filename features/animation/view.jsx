@@ -669,10 +669,13 @@ function AnimationView(props) {
 				<div className="dkan-sec-head">
 					<span className="dkan-sec-title">运行动画</span>
 					<span className="dkan-sec-sub">任务进行中才出现；克制的动效，暗/亮色自适应</span>
-					<button type="button" className={"dockm-switch" + (cfg.animationEnabled ? " on" : "")}
-						onClick={() => patch({ animationEnabled: !cfg.animationEnabled })}>
-						{cfg.animationEnabled ? "已开启（点击关闭）" : "已关闭（点击开启）"}
-					</button>
+					<span className="dkan-sec-sw">
+						<span className={"dkan-sec-swlabel" + (cfg.animationEnabled ? " on" : "")}>{cfg.animationEnabled ? "已开启" : "已关闭"}</span>
+						<button type="button" className={"dock-sw" + (cfg.animationEnabled ? " on" : "")}
+							role="switch" aria-checked={cfg.animationEnabled} aria-label="开关运行动画"
+							title={cfg.animationEnabled ? "关闭运行动画" : "开启运行动画"}
+							onClick={() => patch({ animationEnabled: !cfg.animationEnabled })} />
+					</span>
 				</div>
 				{cfg.animationEnabled ? (
 					<div className="dkan-modes">
@@ -692,10 +695,13 @@ function AnimationView(props) {
 				<div className="dkan-sec-head">
 					<span className="dkan-sec-title">完成通知</span>
 					<span className="dkan-sec-sub">与动画互不依赖，可单独开启</span>
-					<button type="button" className={"dockm-switch" + (cfg.notifyEnabled ? " on" : "")}
-						onClick={() => patch({ notifyEnabled: !cfg.notifyEnabled })}>
-						{cfg.notifyEnabled ? "已开启（点击关闭）" : "已关闭（点击开启）"}
-					</button>
+					<span className="dkan-sec-sw">
+						<span className={"dkan-sec-swlabel" + (cfg.notifyEnabled ? " on" : "")}>{cfg.notifyEnabled ? "已开启" : "已关闭"}</span>
+						<button type="button" className={"dock-sw" + (cfg.notifyEnabled ? " on" : "")}
+							role="switch" aria-checked={cfg.notifyEnabled} aria-label="开关完成通知"
+							title={cfg.notifyEnabled ? "关闭完成通知" : "开启完成通知"}
+							onClick={() => patch({ notifyEnabled: !cfg.notifyEnabled })} />
+					</span>
 				</div>
 				{cfg.notifyEnabled ? <div className="dkan-rows-narrow">
 					<div className="dkan-row">
@@ -739,10 +745,13 @@ function AnimationView(props) {
 				<div className="dkan-sec-head">
 					<span className="dkan-sec-title">钉钉推送</span>
 					<span className="dkan-sec-sub">任务结束推送到钉钉群机器人（宿主直发，浏览器关着也能推；事件跟随上方完成/异常开关）</span>
-					<button type="button" className={"dockm-switch" + (cfg.dingtalkEnabled ? " on" : "")}
-						onClick={() => patch({ dingtalkEnabled: !cfg.dingtalkEnabled })}>
-						{cfg.dingtalkEnabled ? "已开启（点击关闭）" : "已关闭（点击开启）"}
-					</button>
+					<span className="dkan-sec-sw">
+						<span className={"dkan-sec-swlabel" + (cfg.dingtalkEnabled ? " on" : "")}>{cfg.dingtalkEnabled ? "已开启" : "已关闭"}</span>
+						<button type="button" className={"dock-sw" + (cfg.dingtalkEnabled ? " on" : "")}
+							role="switch" aria-checked={cfg.dingtalkEnabled} aria-label="开关钉钉推送"
+							title={cfg.dingtalkEnabled ? "关闭钉钉推送" : "开启钉钉推送"}
+							onClick={() => patch({ dingtalkEnabled: !cfg.dingtalkEnabled })} />
+					</span>
 				</div>
 				{cfg.dingtalkEnabled ? <div className="dkan-rows-narrow">
 					<div className="dkan-row dkan-row-webhook">
@@ -855,6 +864,9 @@ const css = [
 	".dkan-sec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
 	".dkan-sec-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:none;}",
 	".dkan-sec-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:1;min-width:120px;}",
+	".dkan-sec-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
+	".dkan-sec-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
+	".dkan-sec-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
 	".dkan-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
 	".dkan-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
 	// 模式选择卡（带缩微预览）
