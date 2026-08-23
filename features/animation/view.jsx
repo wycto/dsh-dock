@@ -856,15 +856,18 @@ function AnimationView(props) {
 	const [cfg, setCfg] = useState(null); // null = 尚未加载
 	const [saveErr, setSaveErr] = useState("");
 	const [testing, setTesting] = useState(false);
-	const [testState, setTestState] = useState(null); // { ok, msg } 钉钉测试结果
+	const [testState, setTestState] = useState(null); // { ok, msg } 机器人测试结果
+	const [feishuTestState, setFeishuTestState] = useState(null); // { ok, msg } 飞书测试结果
+	const [feishuTesting, setFeishuTesting] = useState(false);
 	const cfgRef = useRef(null);
 	const pendingSavesRef = useRef(0); // 进行中的保存（轮询回包不覆盖乐观值）
-	const editingWebhookRef = useRef(false); // Webhook 输入中（轮询不覆盖草稿）
+	const editingWebhookRef = useRef(false); // 钉钉 Webhook 输入中（轮询不覆盖草稿）
+	const editingFeishuRef = useRef(false); // 飞书 Webhook 输入中（轮询不覆盖草稿）
 	// 拉到新配置（含保存回包）后同步本地编辑态；保存中/输入中不覆盖
 	useEffect(() => {
 		const c = snap.status && snap.status.config;
 		if (!c) return;
-		if (pendingSavesRef.current > 0 || editingWebhookRef.current) return;
+		if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
 		if (c !== cfgRef.current) {
 			cfgRef.current = c;
 			setCfg(Object.assign({}, c));
@@ -901,6 +904,18 @@ function AnimationView(props) {
 			setCfg(Object.assign({}, c));
 		}
 	};
+	// 飞书 Webhook 草稿保存
+	const saveFeishuWebhook = async () => {
+		if (!editingFeishuRef.current) return;
+		const hook = String(cfg.feishuWebhook || "").trim();
+		await patch({ feishuWebhook: hook });
+		editingFeishuRef.current = false;
+		const c = animationStore.snap.status && animationStore.snap.status.config;
+		if (c && c !== cfgRef.current) {
+			cfgRef.current = c;
+			setCfg(Object.assign({}, c));
+		}
+	};
 	// 钉钉测试：草稿未保存先保存，再发测试消息
 	const runDingtalkTest = async () => {
 		setTesting(true);
@@ -923,6 +938,30 @@ function AnimationView(props) {
 			setTestState({ ok: false, msg: (e && e.message) || String(e) });
 		} finally {
 			setTesting(false);
+		}
+	};
+	// 飞书测试：草稿未保存先保存，再发测试消息
+	const runFeishuTest = async () => {
+		setFeishuTesting(true);
+		setFeishuTestState(null);
+		try {
+			if (editingFeishuRef.current) {
+				const hook = String(cfg.feishuWebhook || "").trim();
+				if (!hook) throw new Error("请先填写 Webhook 地址");
+				const d = await rpcCall("config", { feishuWebhook: hook });
+				animationStore.applyConfig(d && d.config);
+				editingFeishuRef.current = false;
+				cfgRef.current = (d && d.config) || cfgRef.current;
+				setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
+			}
+			const r = await rpcCall("test", { target: "feishu" });
+			setFeishuTestState(r && r.sent
+				? { ok: true, msg: "测试消息已发送，去群里看看" }
+				: { ok: false, msg: (r && r.error) || "发送失败" });
+		} catch (e) {
+			setFeishuTestState({ ok: false, msg: (e && e.message) || String(e) });
+		} finally {
+			setFeishuTesting(false);
 		}
 	};
 	const enableSystemNotify = async (next) => {
@@ -1115,6 +1154,46 @@ function AnimationView(props) {
 					<div className="dkan-note">机器人创建：钉钉群 → 设置 → 智能群助手 → 添加机器人 → 自定义（Webhook），
 						安全设置选「自定义关键词」填「任务」或「dsh」（推送标题含「任务」即可命中）。</div>
 				</div> : <div className="dkan-note">未开启——任务结束不推送钉钉。</div>}
+			</div>,
+			<div key="feishu" className="dkan-sec">
+				<div className="dkan-sec-head">
+					<span className="dkan-sec-title">飞书推送</span>
+					<span className="dkan-sec-sub">任务结束推送到飞书群机器人（宿主直发，浏览器关着也能推；事件跟随上方完成/异常开关）</span>
+					<span className="dkan-sec-sw">
+						<span className={"dkan-sec-swlabel" + (cfg.feishuEnabled ? " on" : "")}>{cfg.feishuEnabled ? "已开启" : "已关闭"}</span>
+						<button type="button" className={"dock-sw" + (cfg.feishuEnabled ? " on" : "")}
+							role="switch" aria-checked={cfg.feishuEnabled} aria-label="开关飞书推送"
+							title={cfg.feishuEnabled ? "关闭飞书推送" : "开启飞书推送"}
+							onClick={() => patch({ feishuEnabled: !cfg.feishuEnabled })} />
+					</span>
+				</div>
+				{cfg.feishuEnabled ? <div className="dkan-rows-narrow">
+					<div className="dkan-row dkan-row-webhook">
+						<span className="dkan-row-label">Webhook</span>
+						<input type="text" className="dkan-input" spellCheck={false}
+							value={cfg.feishuWebhook || ""}
+							placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…"
+							onChange={(e) => {
+								editingFeishuRef.current = true;
+								setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
+							}} />
+						<button type="button" className="dkan-btn" disabled={!editingFeishuRef.current}
+							onClick={saveFeishuWebhook}>
+							{editingFeishuRef.current ? "保存" : "已保存"}
+						</button>
+					</div>
+					<div className="dkan-row">
+						<span className="dkan-row-label">连通测试</span>
+						<button type="button" className="dkan-btn" disabled={feishuTesting} onClick={runFeishuTest}>
+							{feishuTesting ? "发送中…" : "发送测试消息"}
+						</button>
+						{feishuTestState ? <span className={"dkan-row-sub" + (feishuTestState.ok ? " dkan-ok" : " dkan-err")}>
+							{feishuTestState.ok ? "✓ " : "✗ "}{feishuTestState.msg}
+						</span> : <span className="dkan-row-sub">用当前保存的 Webhook 发一条测试消息</span>}
+					</div>
+					<div className="dkan-note">机器人创建：飞书群 → 设置 → 群机器人 → 添加机器人 → 自定义机器人（获取 Webhook 地址）；
+						安全设置如选「自定义关键词」填「任务」或「dsh」（推送标题含「任务」即可命中）。</div>
+				</div> : <div className="dkan-note">未开启——任务结束不推送飞书。</div>}
 			</div>
 		);
 	}
