@@ -41,7 +41,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react7 = __toESM(require("react"), 1);
+var import_react8 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -70,9 +70,29 @@ var stateListeners = /* @__PURE__ */ new Set();
 function notifyState() {
   for (const fn of stateListeners) fn();
 }
+var FEATURE_STORE_KEY = "dsh-dock/features/v1";
+var featurePersist = { map: {} };
+try {
+  if (typeof localStorage !== "undefined") {
+    const raw = localStorage.getItem(FEATURE_STORE_KEY);
+    const obj = raw ? JSON.parse(raw) : null;
+    if (obj && typeof obj === "object") featurePersist.map = obj;
+  }
+} catch {
+}
+function persistFeatureEnabled() {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(FEATURE_STORE_KEY, JSON.stringify(featurePersist.map));
+  } catch {
+  }
+}
 function initFeatureState(defs) {
   for (const f of defs) {
-    if (!featureState.has(f.id)) featureState.set(f.id, { enabled: !f.planned && f.defaultEnabled !== false, error: null });
+    if (featureState.has(f.id)) continue;
+    let enabled = !f.planned && f.defaultEnabled !== false;
+    const saved = featurePersist.map[f.id];
+    if (typeof saved === "boolean") enabled = saved;
+    featureState.set(f.id, { enabled, error: null });
   }
 }
 function stateOf(id) {
@@ -86,6 +106,8 @@ function stateOf(id) {
 function toggleFeature(id) {
   const st = stateOf(id);
   st.enabled = !st.enabled;
+  featurePersist.map[id] = st.enabled;
+  persistFeatureEnabled();
   notifyState();
 }
 function subscribeFeatureState(fn) {
@@ -1602,15 +1624,985 @@ var feature5 = {
   Chip: BalanceChip
 };
 
-// src/client.jsx
-var DOCK_VERSION = "0.4.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5];
-var PLANNED_FEATURES = [
-  { id: "animation", name: "\u4EFB\u52A1\u52A8\u753B", order: 130, accent: "#f472b6", planned: true, description: "\u63A5\u5165\u8DEF\u7EBF\u56FE 0.5.0\uFF1A\u4EFB\u52A1\u8FDB\u5EA6\u52A8\u753B\u4E0E\u901A\u77E5" }
+// features/animation/view.jsx
+var import_react7 = require("react");
+var import_jsx_runtime2 = require("react/jsx-runtime");
+function rpcCall2(method, args) {
+  return fetch("/dsh-dock/animation/" + method, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(args === void 0 ? {} : args)
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data && data.ok === true) return data.data;
+    if (res.status === 405 || res.status === 404) {
+      throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u662F\u65E7\u7248\u672C\uFF08\u6CA1\u6709\u4EFB\u52A1\u52A8\u753B\u8DEF\u7531\uFF09\uFF0C\u91CD\u542F dsh web \u540E\u91CD\u8BD5");
+    }
+    if (data && data.ok === false) throw new Error(data.error && data.error.message || "HTTP " + res.status);
+    throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
+  });
+}
+var EFFECT_MODES = [
+  { id: "flow", name: "\u6D41\u5149\u7EC6\u7EBF", desc: "\u9876\u90E8\u7EC6\u7EBF\u6D41\u5149\u5F80\u8FD4\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\u52A0\u5FEB" },
+  { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u72B6\u6001\u5FBD\u6807\u5706\u70B9\u547C\u5438\uFF0C\u8D8A\u5FD9\u547C\u5438\u8D8A\u5FEB" },
+  { id: "ring", name: "\u8F68\u9053\u5149\u73AF", desc: "\u7EC6\u73AF\u7ED5\u5706\u70B9\u65CB\u8F6C\uFF0C\u8F6C\u901F\u968F\u4EFB\u52A1\u901F\u5EA6" },
+  { id: "orbit", name: "\u73AF\u5C4F\u5DE1\u822A", desc: "\u4E00\u9897\u5149\u70B9\u6CBF\u5C4F\u5E55\u8FB9\u7F18\u5DE1\u822A\u6574\u5708\uFF0C\u9192\u76EE\u4E0D\u906E\u6321" },
+  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u5C0F\u673A\u5668\u4EBA\u5750\u9547\u4E09\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003/\u6572\u4EE3\u7801/\u67E5\u8D44\u6599\u5B9E\u65F6\u540C\u6B65\u4EFB\u52A1\u9636\u6BB5" }
 ];
-var PLANNED_NOTES = {
-  animation: "\u5F85\u63A5\u5165\uFF08\u8DEF\u7EBF\u56FE 0.5.0\uFF09\uFF1A\u4EFB\u52A1\u8FDB\u5EA6\u52A8\u753B\u4E0E\u5B8C\u6210\u901A\u77E5\u3002"
+var PHASE_LABELS = { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" };
+function phaseLabel(p) {
+  return PHASE_LABELS[p] || "\u5DE5\u4F5C\u4E2D";
+}
+var END_LABELS = {
+  completed: { label: "\u5B8C\u6210", cls: "ok" },
+  error: { label: "\u51FA\u9519", cls: "err" },
+  aborted: { label: "\u5DF2\u4E2D\u6B62", cls: "warn" },
+  blocked: { label: "\u53D7\u963B", cls: "warn" },
+  "max-tokens": { label: "\u8FBE\u8F93\u51FA\u4E0A\u9650", cls: "warn" },
+  interrupted: { label: "\u4E2D\u65AD", cls: "warn" }
 };
+function endInfo(reason) {
+  return END_LABELS[reason] || END_LABELS.completed;
+}
+function isSuccessReason(reason) {
+  return !reason || reason === "completed";
+}
+function fmtNum2(n) {
+  return (Number(n) || 0).toLocaleString("en-US");
+}
+function fmtCompact2(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(Math.round(n));
+}
+function fmtDur(ms) {
+  const s = Math.max(0, Math.round((ms || 0) / 1e3));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  if (h > 0) return h + "\u5C0F\u65F6" + m + "\u5206" + sec + "\u79D2";
+  if (m > 0) return m + "\u5206" + sec + "\u79D2";
+  return sec + "\u79D2";
+}
+function fmtClock(ms) {
+  const s = Math.max(0, Math.floor((ms || 0) / 1e3));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  const p = (x) => String(x).padStart(2, "0");
+  return h > 0 ? h + ":" + p(m) + ":" + p(sec) : p(m) + ":" + p(sec);
+}
+function fmtTime2(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const p = (x) => String(x).padStart(2, "0");
+  return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+function truncate(str, max) {
+  if (!str) return "";
+  return String(str).length > max ? String(str).slice(0, max) + "\u2026" : str;
+}
+var animationStore = {
+  snap: { status: null, loading: false, error: null },
+  listeners: /* @__PURE__ */ new Set(),
+  subscribe(fn) {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  },
+  emit() {
+    for (const fn of this.listeners) fn();
+  },
+  applyConfig(cfg) {
+    if (this.snap.status) {
+      this.snap = Object.assign({}, this.snap, { status: Object.assign({}, this.snap.status, { config: cfg }) });
+      this.emit();
+    }
+  },
+  refresh() {
+    if (this.snap.loading) return Promise.resolve();
+    this.snap = Object.assign({}, this.snap, { loading: true });
+    this.emit();
+    return rpcCall2("status").then((data) => {
+      this.snap = { status: data, loading: false, error: null };
+      this.emit();
+    }).catch((e) => {
+      this.snap = Object.assign({}, this.snap, { loading: false, error: e && e.message || String(e) });
+      this.emit();
+    });
+  }
+};
+function useAnimation() {
+  const [snap, setSnap] = (0, import_react7.useState)(animationStore.snap);
+  (0, import_react7.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
+  return snap;
+}
+function useTicker(ctx, active) {
+  const [, bump] = (0, import_react7.useState)(0);
+  (0, import_react7.useEffect)(() => {
+    if (!active) return;
+    if (ctx && typeof ctx.interval === "function") return ctx.interval(bump, 1e3);
+    const t = setInterval(bump, 1e3);
+    return () => clearInterval(t);
+  }, [active]);
+}
+function Box3(props) {
+  const w = props.w, h = props.h, d = props.d;
+  const faces = [
+    [w, h, "translate(-50%,-50%) translateZ(" + d / 2 + "px)"],
+    [w, h, "translate(-50%,-50%) rotateY(180deg) translateZ(" + d / 2 + "px)"],
+    [d, h, "translate(-50%,-50%) rotateY(90deg) translateZ(" + w / 2 + "px)"],
+    [d, h, "translate(-50%,-50%) rotateY(-90deg) translateZ(" + w / 2 + "px)"],
+    [w, d, "translate(-50%,-50%) rotateX(90deg) translateZ(" + h / 2 + "px)"],
+    [w, d, "translate(-50%,-50%) rotateX(-90deg) translateZ(" + h / 2 + "px)"]
+  ];
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    "span",
+    {
+      className: "dk3-box " + (props.cls || ""),
+      style: Object.assign(
+        { width: w, height: h, left: props.x - w / 2, top: props.y - h / 2 },
+        props.z ? { transform: "translateZ(" + props.z + "px)" } : null,
+        props.style
+      ),
+      children: [
+        faces.map((f, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-face", style: { width: f[0], height: f[1], transform: f[2] } }, i)),
+        props.children
+      ]
+    }
+  );
+}
+function Monitor3(props) {
+  const w = props.w, h = props.h;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    "span",
+    {
+      className: "dk3-mon3 " + (props.cls || ""),
+      style: { left: props.x - w / 2, top: props.y - h / 2, width: w, height: h, transform: "translateZ(-3px) rotateY(" + (props.ry || 0) + "deg)" },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w, h, d: 5, cls: "dk3-frame", x: w / 2, y: h / 2 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-screen", style: { width: w - 4, height: h - 4, transform: "translate(-50%,-50%) translateZ(3.1px)" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+        ] })
+      ]
+    }
+  );
+}
+function RobotScene(props) {
+  const phase = props && props.phase ? props.phase : "code";
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-bot-scene", "data-phase": phase, "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-world", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 200, h: 7, d: 40, cls: "dk3-desk", x: 110, y: 78 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 18, y: 94 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 202, y: 94 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 36, h: 25, x: 128, y: 60, ry: 20, cls: "left" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 44, h: 32, x: 166, y: 56, ry: 0, cls: "center" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 30, h: 22, x: 196, y: 62, ry: -20, cls: "right" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 126, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-person", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 30, d: 22, cls: "dk3-chairback", x: 2, y: 42 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 20, h: 4, d: 22, cls: "dk3-chairseat", x: 12, y: 58 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 16, d: 3, cls: "dk3-metal", x: 12, y: 68 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 5, d: 9, cls: "dk3-pants", x: 20, y: 54 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-pants", x: 25, y: 62 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 22, d: 12, cls: "dk3-hood dk3-torso", x: 12, y: 34 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-head3", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 13, cls: "dk3-hair", x: 2, y: 9 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 8, d: 14, cls: "dk3-hair", x: 8, y: 4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 12, d: 12, cls: "dk3-skin dk3-headbox", x: 8.5, y: 9, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-eyes", style: { width: 11, height: 8, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+          ] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 5, d: 4, cls: "dk3-skin", x: 9, y: 17 })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 13.5, y: 2 })
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3 dk3-far", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 13.5, y: 2 })
+          ] })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-bubble", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] })
+  ] });
+}
+function Toast(props) {
+  const t = props.t;
+  const [closing, setClosing] = (0, import_react7.useState)(false);
+  const close = (0, import_react7.useCallback)(() => {
+    if (!closing) setClosing(true);
+  }, [closing]);
+  (0, import_react7.useEffect)(() => {
+    if (!t.stayMs) return;
+    const timer = setTimeout(close, t.stayMs);
+    return () => clearTimeout(timer);
+  }, []);
+  (0, import_react7.useEffect)(() => {
+    if (!closing) return;
+    const timer = setTimeout(() => props.onClose(t.id), 240);
+    return () => clearTimeout(timer);
+  }, [closing]);
+  const markColor = t.kind === "success" ? "var(--dsw-alias-state-success-primary,#34d399)" : t.kind === "error" ? "var(--dsw-alias-state-error-primary,#f87171)" : "var(--dsw-alias-state-warning-primary,#fbbf24)";
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-toast" + (closing ? " out" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-toast-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-toast-mark", style: { background: markColor } }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-toast-title", title: t.title, children: t.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
+    ] }),
+    t.body ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toast-body", children: t.body }) : null
+  ] });
+}
+function AnimationOverlay(props) {
+  const ctx = props && props.ctx;
+  const snap = useAnimation();
+  const [toasts, setToasts] = (0, import_react7.useState)([]);
+  const [flourish, setFlourish] = (0, import_react7.useState)(null);
+  const prevActiveRef = (0, import_react7.useRef)(null);
+  (0, import_react7.useEffect)(() => {
+    let stopped = false;
+    let timer = null;
+    const loop = async () => {
+      await animationStore.refresh();
+      if (stopped) return;
+      const s = animationStore.snap;
+      timer = setTimeout(loop, s.error ? 15e3 : s.status && s.status.active && s.status.active.length > 0 ? 2e3 : 6e3);
+    };
+    loop();
+    const onVisible = () => {
+      if (!stopped && typeof document !== "undefined" && document.visibilityState === "visible") animationStore.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+  (0, import_react7.useEffect)(() => {
+    const st2 = snap.status;
+    if (!st2 || !st2.active) return;
+    const prev = prevActiveRef.current;
+    if (prev) {
+      const currIds = new Set(st2.active.map((x) => x.sessionId));
+      for (const task of prev) {
+        if (currIds.has(task.sessionId)) continue;
+        const record = (st2.recent || []).find((r) => r.sessionId === task.sessionId) || null;
+        handleTaskEnd(task, record, st2.config || {});
+      }
+    }
+    prevActiveRef.current = st2.active.slice();
+  }, [snap.status]);
+  const handleTaskEnd = (task, record, cfg2) => {
+    const reason = record && record.endReason || "";
+    const success = isSuccessReason(reason);
+    const info = endInfo(reason);
+    if (cfg2.animationEnabled) {
+      setFlourish({ key: Date.now(), err: !success });
+    }
+    if (!cfg2.notifyEnabled) return;
+    const wanted = success ? cfg2.notifyOnComplete : cfg2.notifyOnError;
+    if (!wanted) return;
+    const models = record && record.models && record.models.length ? record.models.join(", ") : task.models && task.models.length ? task.models.join(", ") : "\u672A\u77E5\u6A21\u578B";
+    const provider = record && record.provider || task.provider || "";
+    const startTs = record && record.startTime || task.startTime;
+    const endTs = record && record.endTime || Date.now();
+    const lines = [
+      "\u4EFB\u52A1\uFF1A" + (record && record.title || task.title || "(\u65E0\u6807\u9898)"),
+      "\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""),
+      "\u8017\u65F6\uFF1A" + fmtDur(record && record.duration || endTs - startTs) + "\uFF08" + fmtTime2(startTs) + " \u2192 " + fmtTime2(endTs) + "\uFF09",
+      "\u56DE\u5408 " + (record && record.turns || task.turns || 0) + " \xB7 \u6B65\u9AA4 " + (record && record.steps || task.steps || 0) + (record && record.toolCalls || task.toolCalls ? " \xB7 \u5DE5\u5177 " + (record && record.toolCalls || task.toolCalls) + " \u6B21" : ""),
+      "Token\uFF1A\u8F93\u5165 " + fmtNum2(record && record.inputTokens || task.inputTokens) + " / \u8F93\u51FA " + fmtNum2(record && record.outputTokens || task.outputTokens)
+    ];
+    if (record && record.lastText) lines.push("\u6458\u8981\uFF1A" + truncate(record.lastText, 140));
+    if (!success && record && record.errorMessage) lines.push("\u9519\u8BEF\uFF1A" + truncate(record.errorMessage, 120));
+    const title = success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1" + info.label;
+    const toast = {
+      id: Date.now() + Math.random(),
+      kind: success ? "success" : info.cls === "err" ? "error" : "warn",
+      title,
+      body: lines.join("\n"),
+      stayMs: typeof cfg2.notifyStayMs === "number" ? cfg2.notifyStayMs : 8e3
+    };
+    setToasts((prev) => prev.concat([toast]).slice(-4));
+    if (cfg2.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        new Notification("dsh " + title, {
+          body: (record && record.title || task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + fmtDur(record && record.duration || endTs - startTs),
+          tag: "dsh-dock-animation-" + task.sessionId
+        });
+      } catch {
+      }
+    }
+  };
+  const st = snap.status;
+  const cfg = st && st.config;
+  const active = st && st.active ? st.active : [];
+  const animOn = !!(cfg && cfg.animationEnabled && active.length > 0);
+  const mode = cfg && cfg.effectMode ? cfg.effectMode : "flow";
+  useTicker(ctx, animOn);
+  const now = Date.now();
+  const elapsed = active.length > 0 ? fmtClock(now - Math.min(...active.map((x) => x.startTime || now))) : "";
+  const [panelOpen, setPanelOpen2] = (0, import_react7.useState)(false);
+  (0, import_react7.useEffect)(() => {
+    setPanelOpen2(panelNav.open);
+    return subscribePanel(() => setPanelOpen2(panelNav.open));
+  }, []);
+  const [speed, setSpeed] = (0, import_react7.useState)(1);
+  const speedRef = (0, import_react7.useRef)({ tokens: -1, at: 0 });
+  (0, import_react7.useEffect)(() => {
+    if (!st || active.length === 0) {
+      speedRef.current = { tokens: -1, at: 0 };
+      return;
+    }
+    const total = active.reduce((a, x) => a + (x.totalTokens || 0), 0);
+    const t = Date.now();
+    const prev = speedRef.current;
+    if (prev.tokens < 0 || t - prev.at < 500) {
+      speedRef.current = { tokens: total, at: t };
+      return;
+    }
+    const rate = Math.max(0, (total - prev.tokens) / ((t - prev.at) / 1e3));
+    setSpeed(Math.max(0.7, Math.min(3, 0.7 + rate / 45)));
+    speedRef.current = { tokens: total, at: t };
+  }, [snap.status]);
+  const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
+  const ambientOn = animOn && !panelOpen;
+  const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
+  const [botPos, setBotPos] = (0, import_react7.useState)(null);
+  const botPosRef = (0, import_react7.useRef)(null);
+  const botDragRef = (0, import_react7.useRef)(null);
+  const botClickBlockRef = (0, import_react7.useRef)(false);
+  (0, import_react7.useEffect)(() => {
+    try {
+      if (typeof localStorage === "undefined") return;
+      const raw = localStorage.getItem("dsh-dock/anim/robot-pos/v1");
+      const p = raw ? JSON.parse(raw) : null;
+      if (p && typeof p.x === "number" && typeof p.y === "number" && typeof window !== "undefined") {
+        const card = document.querySelector(".dkan-botcard");
+        const w = card ? card.offsetWidth : 200, h = card ? card.offsetHeight : 160;
+        const x = Math.min(Math.max(8, p.x), Math.max(8, window.innerWidth - w - 8));
+        const y = Math.min(Math.max(8, p.y), Math.max(8, window.innerHeight - h - 8));
+        botPosRef.current = { x, y };
+        setBotPos({ x, y });
+      }
+    } catch {
+    }
+  }, []);
+  const onBotPointerDown = (e) => {
+    if (e.button !== 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    botDragRef.current = { sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top, moved: false };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+    }
+  };
+  const onBotPointerMove = (e) => {
+    const d = botDragRef.current;
+    if (!d || typeof window === "undefined") return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (!d.moved && Math.hypot(dx, dy) < 4) return;
+    d.moved = true;
+    const el = e.currentTarget;
+    const w = el.offsetWidth || 200, h = el.offsetHeight || 160;
+    const x = Math.min(Math.max(8, d.ox + dx), window.innerWidth - w - 8);
+    const y = Math.min(Math.max(8, d.oy + dy), window.innerHeight - h - 8);
+    botPosRef.current = { x, y };
+    setBotPos({ x, y });
+  };
+  const onBotPointerUp = () => {
+    const d = botDragRef.current;
+    botDragRef.current = null;
+    if (d && d.moved) {
+      try {
+        if (typeof localStorage !== "undefined") localStorage.setItem("dsh-dock/anim/robot-pos/v1", JSON.stringify(botPosRef.current));
+      } catch {
+      }
+      botClickBlockRef.current = true;
+      setTimeout(() => {
+        botClickBlockRef.current = false;
+      }, 0);
+    }
+  };
+  const onBotClick = () => {
+    if (botClickBlockRef.current) return;
+    openPanel("animation");
+  };
+  const botCardStyle = botPos ? Object.assign({}, speedStyle, { left: botPos.x, top: botPos.y, right: "auto", bottom: "auto" }) : speedStyle;
+  if (!st) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+    ambientOn && mode === "flow" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-line", style: speedStyle, "aria-hidden": "true" }) : null,
+    ambientOn && mode === "orbit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-orbit", style: speedStyle, "aria-hidden": "true" }) : null,
+    ambientOn && mode === "robot" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+      "button",
+      {
+        type: "button",
+        className: "dkan-botcard",
+        style: botCardStyle,
+        title: active.length + " \u4E2A\u4EFB\u52A1 \xB7 " + phaseLabel(phase) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875 \xB7 \u53EF\u62D6\u52A8\u5230\u4EFB\u610F\u4F4D\u7F6E",
+        onPointerDown: onBotPointerDown,
+        onPointerMove: onBotPointerMove,
+        onPointerUp: onBotPointerUp,
+        onPointerCancel: onBotPointerUp,
+        onClick: onBotClick,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-bot-cap", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "n", children: active.length }),
+            " \u4E2A\u4EFB\u52A1",
+            elapsed ? " \xB7 " + elapsed : "",
+            " \xB7 ",
+            phaseLabel(phase)
+          ] })
+        ]
+      }
+    ) : null,
+    ambientOn && mode !== "robot" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+      "button",
+      {
+        type: "button",
+        className: "dkan-badge",
+        style: speedStyle,
+        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
+        onClick: () => openPanel("animation"),
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }),
+            mode === "ring" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-ring" }) : null
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-badge-txt", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "n", children: active.length }),
+            " \u4E2A\u4EFB\u52A1",
+            elapsed ? " \xB7 " + elapsed : ""
+          ] })
+        ]
+      }
+    ) : null,
+    flourish ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "div",
+      {
+        className: "dkan-done" + (flourish.err ? " err" : ""),
+        onAnimationEnd: () => setFlourish(null),
+        "aria-hidden": "true"
+      },
+      flourish.key
+    ) : null,
+    toasts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toasts", children: toasts.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Toast, { t, onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id)) }, t.id)) }) : null
+  ] });
+}
+function ModePreview({ id }) {
+  if (id === "flow") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev-flow" }) });
+  if (id === "ring") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-ring" })
+    ] }) });
+  }
+  if (id === "orbit") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-box", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev-orbit" }) });
+  }
+  if (id === "robot") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-bot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase: "code" }) });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dotwrap dkan-breathe", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }) }) });
+}
+function TaskRow(props) {
+  const t = props.t;
+  const info = endInfo(t.endReason);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-task", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-task-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-task-title", title: t.title, children: t.title || "(\u65E0\u6807\u9898)" }),
+      props.done ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-tag " + info.cls, children: info.label }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-tag on", children: phaseLabel(t.phase) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-task-meta", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: (t.models && t.models.length ? t.models.join(", ") : "\u672A\u77E5") + (t.provider ? "\uFF08" + t.provider + "\uFF09" : "") }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: props.done ? fmtDur(t.duration) : fmtClock(t.elapsed) }),
+      "turns" in t ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u56DE\u5408 " + (t.turns || 0) + " \xB7 \u6B65\u9AA4 " + (t.steps || 0) + (t.toolCalls ? " \xB7 \u5DE5\u5177 " + t.toolCalls : "") }) : null,
+      t.totalTokens ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u21A7" + fmtCompact2(t.inputTokens) + " \u21A5" + fmtCompact2(t.outputTokens) }) : null,
+      props.done && t.endTime ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: fmtTime2(t.endTime) }) : null
+    ] }),
+    props.done && t.errorMessage ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-task-err", children: truncate(t.errorMessage, 120) }) : null
+  ] });
+}
+function AnimationView(props) {
+  const ctx = props && props.ctx;
+  const snap = useAnimation(ctx);
+  const [cfg, setCfg] = (0, import_react7.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react7.useState)("");
+  const [testing, setTesting] = (0, import_react7.useState)(false);
+  const [testState, setTestState] = (0, import_react7.useState)(null);
+  const cfgRef = (0, import_react7.useRef)(null);
+  const pendingSavesRef = (0, import_react7.useRef)(0);
+  const editingWebhookRef = (0, import_react7.useRef)(false);
+  (0, import_react7.useEffect)(() => {
+    const c = snap.status && snap.status.config;
+    if (!c) return;
+    if (pendingSavesRef.current > 0 || editingWebhookRef.current) return;
+    if (c !== cfgRef.current) {
+      cfgRef.current = c;
+      setCfg(Object.assign({}, c));
+    }
+  }, [snap.status]);
+  (0, import_react7.useEffect)(() => {
+    if (!animationStore.snap.status) animationStore.refresh();
+  }, []);
+  const patch = (p) => {
+    setSaveErr("");
+    setCfg(Object.assign({}, cfg, p));
+    pendingSavesRef.current++;
+    return rpcCall2("config", p).then((d) => {
+      pendingSavesRef.current--;
+      animationStore.applyConfig(d && d.config);
+    }).catch((e) => {
+      pendingSavesRef.current--;
+      setSaveErr("\u4FDD\u5B58\u5931\u8D25\uFF1A" + (e && e.message || String(e)));
+    });
+  };
+  const saveWebhook = async () => {
+    if (!editingWebhookRef.current) return;
+    const hook = String(cfg.dingtalkWebhook || "").trim();
+    await patch({ dingtalkWebhook: hook });
+    editingWebhookRef.current = false;
+    const c = animationStore.snap.status && animationStore.snap.status.config;
+    if (c && c !== cfgRef.current) {
+      cfgRef.current = c;
+      setCfg(Object.assign({}, c));
+    }
+  };
+  const runDingtalkTest = async () => {
+    setTesting(true);
+    setTestState(null);
+    try {
+      if (editingWebhookRef.current) {
+        const hook = String(cfg.dingtalkWebhook || "").trim();
+        if (!hook) throw new Error("\u8BF7\u5148\u586B\u5199 Webhook \u5730\u5740");
+        const d = await rpcCall2("config", { dingtalkWebhook: hook });
+        animationStore.applyConfig(d && d.config);
+        editingWebhookRef.current = false;
+        cfgRef.current = d && d.config || cfgRef.current;
+        setCfg(Object.assign({}, cfg, { dingtalkWebhook: hook }));
+      }
+      const r = await rpcCall2("test");
+      setTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
+    } catch (e) {
+      setTestState({ ok: false, msg: e && e.message || String(e) });
+    } finally {
+      setTesting(false);
+    }
+  };
+  const enableSystemNotify = async (next) => {
+    if (next && typeof Notification !== "undefined" && Notification.permission !== "granted") {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") {
+          setSaveErr("\u6D4F\u89C8\u5668\u672A\u6388\u6743\u7CFB\u7EDF\u901A\u77E5\uFF08\u53EF\u5728\u5730\u5740\u680F\u6743\u9650\u8BBE\u7F6E\u91CC\u91CD\u65B0\u5141\u8BB8\uFF09");
+          return;
+        }
+      } catch {
+        setSaveErr("\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u7CFB\u7EDF\u901A\u77E5");
+        return;
+      }
+    }
+    patch({ systemNotify: next });
+  };
+  const st = snap.status;
+  const active = st && st.active ? st.active : [];
+  const recent = st && st.recent ? st.recent.slice(0, 6) : [];
+  const permNote = typeof Notification === "undefined" ? "\u5F53\u524D\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u7CFB\u7EDF\u901A\u77E5" : Notification.permission === "granted" ? "\u5DF2\u6388\u6743 \xB7 \u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001" : Notification.permission === "denied" ? "\u5DF2\u88AB\u6D4F\u89C8\u5668\u62D2\u7EDD\uFF08\u9700\u5728\u6D4F\u89C8\u5668\u6743\u9650\u8BBE\u7F6E\u91CC\u91CD\u65B0\u5141\u8BB8\uFF09" : "\u672A\u6388\u6743 \xB7 \u5F00\u542F\u65F6\u4F1A\u8BF7\u6C42\u6388\u6743\uFF0C\u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001";
+  const rows = [];
+  if (!cfg) {
+    rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: snap.error ? "\u72B6\u6001\u4E0D\u53EF\u7528\uFF1A" + snap.error : snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" : "\u7B49\u5F85\u4EFB\u52A1\u72B6\u6001" }, "load"));
+  } else {
+    rows.push(
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u8FD0\u884C\u52A8\u753B" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u8FDB\u884C\u4E2D\u624D\u51FA\u73B0\uFF1B\u514B\u5236\u7684\u52A8\u6548\uFF0C\u6697/\u4EAE\u8272\u81EA\u9002\u5E94" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dockm-switch" + (cfg.animationEnabled ? " on" : ""),
+              onClick: () => patch({ animationEnabled: !cfg.animationEnabled }),
+              children: cfg.animationEnabled ? "\u5DF2\u5F00\u542F\uFF08\u70B9\u51FB\u5173\u95ED\uFF09" : "\u5DF2\u5173\u95ED\uFF08\u70B9\u51FB\u5F00\u542F\uFF09"
+            }
+          )
+        ] }),
+        cfg.animationEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-modes", children: EFFECT_MODES.map((m) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "dkan-mode" + (cfg.effectMode === m.id ? " on" : ""),
+            onClick: () => patch({ effectMode: m.id }),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-mode-name", children: m.name }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ModePreview, { id: m.id }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-mode-desc", children: m.desc })
+            ]
+          },
+          m.id
+        )) }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u52A8\u753B\u5DF2\u5173\u95ED\u2014\u2014\u53EA\u4FDD\u7559\u901A\u77E5\uFF08\u6216\u5168\u90E8\u5173\u95ED\uFF09\u65F6\uFF0C\u9875\u9762\u4E0D\u4F1A\u6709\u4EFB\u4F55\u52A8\u6548\u3002" })
+      ] }, "anim"),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u5B8C\u6210\u901A\u77E5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4E0E\u52A8\u753B\u4E92\u4E0D\u4F9D\u8D56\uFF0C\u53EF\u5355\u72EC\u5F00\u542F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dockm-switch" + (cfg.notifyEnabled ? " on" : ""),
+              onClick: () => patch({ notifyEnabled: !cfg.notifyEnabled }),
+              children: cfg.notifyEnabled ? "\u5DF2\u5F00\u542F\uFF08\u70B9\u51FB\u5173\u95ED\uFF09" : "\u5DF2\u5173\u95ED\uFF08\u70B9\u51FB\u5F00\u542F\uFF09"
+            }
+          )
+        ] }),
+        cfg.notifyEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u5B8C\u6210\u901A\u77E5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkm-miniswitch" + (cfg.notifyOnComplete ? " on" : ""),
+                onClick: () => patch({ notifyOnComplete: !cfg.notifyOnComplete }),
+                children: cfg.notifyOnComplete ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u6B63\u5E38\u5B8C\u6210\u65F6\u901A\u77E5" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u5F02\u5E38\u901A\u77E5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkm-miniswitch" + (cfg.notifyOnError ? " on" : ""),
+                onClick: () => patch({ notifyOnError: !cfg.notifyOnError }),
+                children: cfg.notifyOnError ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u51FA\u9519 / \u4E2D\u6B62 / \u8FBE\u8F93\u51FA\u4E0A\u9650\u65F6\u901A\u77E5" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u505C\u7559\u65F6\u957F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "select",
+              {
+                className: "dkan-select",
+                value: String(cfg.notifyStayMs),
+                onChange: (e) => patch({ notifyStayMs: Number(e.target.value) }),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "4000", children: "4 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "8000", children: "8 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "15000", children: "15 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "30000", children: "30 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "0", children: "\u5E38\u9A7B\uFF08\u624B\u52A8\u5173\u95ED\uFF09" })
+                ]
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkm-miniswitch" + (cfg.systemNotify ? " on" : ""),
+                onClick: () => enableSystemNotify(!cfg.systemNotify),
+                children: cfg.systemNotify ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: permNote })
+          ] })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u901A\u77E5\u5DF2\u5173\u95ED\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u65F6\u65E2\u4E0D\u5F39\u5361\u7247\u4E5F\u4E0D\u63A8\u7CFB\u7EDF\u901A\u77E5\u3002" })
+      ] }, "notify"),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u9489\u9489\u63A8\u9001" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u9489\u9489\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dockm-switch" + (cfg.dingtalkEnabled ? " on" : ""),
+              onClick: () => patch({ dingtalkEnabled: !cfg.dingtalkEnabled }),
+              children: cfg.dingtalkEnabled ? "\u5DF2\u5F00\u542F\uFF08\u70B9\u51FB\u5173\u95ED\uFF09" : "\u5DF2\u5173\u95ED\uFF08\u70B9\u51FB\u5F00\u542F\uFF09"
+            }
+          )
+        ] }),
+        cfg.dingtalkEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row dkan-row-webhook", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "Webhook" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                type: "text",
+                className: "dkan-input",
+                spellCheck: false,
+                value: cfg.dingtalkWebhook || "",
+                placeholder: "https://oapi.dingtalk.com/robot/send?access_token=\u2026",
+                onChange: (e) => {
+                  editingWebhookRef.current = true;
+                  setCfg(Object.assign({}, cfg, { dingtalkWebhook: e.target.value }));
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkan-btn",
+                disabled: !editingWebhookRef.current,
+                onClick: saveWebhook,
+                children: editingWebhookRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-btn", disabled: testing, onClick: runDingtalkTest, children: testing ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
+            testState ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-row-sub" + (testState.ok ? " dkan-ok" : " dkan-err"), children: [
+              testState.ok ? "\u2713 " : "\u2717 ",
+              testState.msg
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u9489\u9489\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u667A\u80FD\u7FA4\u52A9\u624B \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\uFF08Webhook\uFF09\uFF0C \u5B89\u5168\u8BBE\u7F6E\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u9489\u9489\u3002" })
+      ] }, "dingtalk")
+    );
+  }
+  if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note dkan-err", children: saveErr }, "err"));
+  rows.push(
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u8FD0\u884C\u72B6\u6001" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: snap.error ? "\u72B6\u6001\u62C9\u53D6\u5931\u8D25\uFF1A" + snap.error : active.length > 0 ? active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : recent.length > 0 ? "\u7A7A\u95F2 \xB7 \u663E\u793A\u6700\u8FD1\u5B8C\u6210" : "\u7A7A\u95F2 \xB7 \u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-refresh", onClick: () => animationStore.refresh(), children: snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u5237\u65B0" })
+      ] }),
+      active.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-tasks", children: active.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TaskRow, { t }, t.sessionId)) }) : null,
+      active.length === 0 && recent.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u53D1\u8D77\u65B0\u4F1A\u8BDD\u4EFB\u52A1\u540E\uFF0C\u8FD9\u91CC\u4F1A\u663E\u793A\u8FDB\u884C\u4E2D\u4E0E\u6700\u8FD1\u5B8C\u6210\u7684\u4EFB\u52A1\uFF1B\u52A8\u753B\u4E0E\u901A\u77E5\u540C\u65F6\u5728\u9875\u9762\u751F\u6548\u3002" }) : null,
+      recent.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-tasks dkan-tasks-done", children: recent.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TaskRow, { t, done: true }, t.sessionId + ":" + t.endTime)) }) : null
+    ] }, "state")
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-root", children: rows });
+}
+function AnimationStat(props) {
+  const snap = useAnimation(props && props.ctx);
+  const st = snap.status;
+  if (snap.error) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-err", children: "\u4EFB\u52A1\u72B6\u6001\u4E0D\u53EF\u7528\uFF08\u5BBF\u4E3B\u9700\u91CD\u542F\u52A0\u8F7D\u52A8\u753B\u8DEF\u7531\uFF09" });
+  if (!st) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u7B49\u5F85\u4EFB\u52A1\u72B6\u6001\u2026" });
+  if (st.active && st.active.length > 0) {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: st.active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + fmtDur(Math.max(...st.active.map((x) => x.elapsed || 0))) });
+  }
+  const last = st.recent && st.recent[0];
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: last ? "\u7A7A\u95F2 \xB7 \u6700\u8FD1\u5B8C\u6210 " + truncate(last.title, 24) : "\u7A7A\u95F2 \xB7 \u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55" });
+}
+var css2 = [
+  // 顶部流光细线（3px，比首版更醒目）
+  ".dkan-line{position:fixed;top:0;left:0;right:0;height:3px;z-index:9990;pointer-events:none;background:color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 30%,transparent);}",
+  '.dkan-line::after{content:"";position:absolute;top:0;bottom:0;left:-42%;width:42%;background:linear-gradient(90deg,transparent,var(--dsw-alias-accent,#4d9fff) 60%,#fff);box-shadow:0 0 10px 1px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 70%,transparent);animation:dkan-flow calc(1.9s / var(--dkan-speed,1)) linear infinite;}',
+  "@keyframes dkan-flow{to{left:100%}}",
+  // 完成瞬间的一次性流光（成功绿 / 异常红），动画结束自动清场
+  ".dkan-done{position:fixed;top:0;left:0;right:0;height:3px;z-index:9991;pointer-events:none;background:linear-gradient(90deg,transparent,var(--dsw-alias-state-success-primary,#34d399) 50%,#fff);background-size:50% 100%;background-repeat:no-repeat;animation:dkan-done 1.1s var(--ds-ease-in-out) forwards;}",
+  ".dkan-done.err{background-image:linear-gradient(90deg,transparent,var(--dsw-alias-state-error-primary,#f87171) 50%,#fff);}",
+  "@keyframes dkan-done{0%{background-position:-60% 0;opacity:0}25%{opacity:1}100%{background-position:160% 0;opacity:0}}",
+  // 环屏巡航：光点沿屏幕边缘转一整圈
+  ".dkan-orbit{position:fixed;top:0;left:0;width:12px;height:12px;z-index:9990;pointer-events:none;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 14px 4px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent),0 0 30px 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 25%,transparent);animation:dkan-orbit calc(14s / var(--dkan-speed,1)) linear infinite;}",
+  "@keyframes dkan-orbit{0%{top:0;left:0}25%{top:0;left:calc(100vw - 12px)}50%{top:calc(100vh - 12px);left:calc(100vw - 12px)}75%{top:calc(100vh - 12px);left:0}100%{top:0;left:0}}",
+  // 右下角状态徽标（玻璃拟态，可点击）；抬到 dsh 输入卡上方避免重叠错位
+  ".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:pointer;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
+  ".dkan-badge:hover{color:var(--dsw-alias-label-primary);}",
+  ".dkan-badge .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
+  "@keyframes dkan-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}",
+  // 徽标圆点与两种动效（呼吸 / 轨道环）
+  ".dkan-dotwrap{position:relative;width:16px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
+  ".dkan-dot{width:9px;height:9px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);}",
+  ".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.6s / var(--dkan-speed,1)) ease-in-out infinite;}",
+  "@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.6);opacity:1}}",
+  ".dkan-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 68%,var(--dsw-alias-accent,#4d9fff) 92%,#fff);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));animation:dkan-spin calc(2.2s / var(--dkan-speed,1)) linear infinite;opacity:.9;}",
+  "@keyframes dkan-spin{to{transform:rotate(360deg)}}",
+  // 通知卡片栈（右上角）
+  ".dkan-toasts{position:fixed;top:16px;right:16px;z-index:9995;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));}",
+  ".dkan-toast{border-radius:12px;padding:12px 14px;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 10px 36px rgb(0 0 0 / .22);animation:dkan-toast-in .32s var(--ds-ease-in-out);}",
+  ".dkan-toast.out{animation:dkan-toast-out .24s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-toast-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}",
+  "@keyframes dkan-toast-out{to{opacity:0;transform:translateX(10px)}}",
+  ".dkan-toast-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}",
+  ".dkan-toast-mark{width:8px;height:8px;border-radius:50%;flex:none;}",
+  ".dkan-toast-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+  ".dkan-toast-close{cursor:pointer;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:6px;width:22px;height:22px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;}",
+  ".dkan-toast-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  ".dkan-toast-body{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.7;white-space:pre-line;word-break:break-word;}",
+  // 面板页布局
+  ".dkan-root{display:flex;flex-direction:column;gap:10px;}",
+  ".dkan-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
+  ".dkan-err{color:var(--dsw-alias-state-error-primary);}",
+  ".dkan-sec{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}",
+  ".dkan-sec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+  ".dkan-sec-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:none;}",
+  ".dkan-sec-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:1;min-width:120px;}",
+  ".dkan-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
+  ".dkan-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+  // 模式选择卡（带缩微预览）
+  ".dkan-modes{display:flex;gap:8px;flex-wrap:wrap;}",
+  ".dkan-mode{flex:1;min-width:150px;display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;text-align:left;transition:border-color .15s var(--ds-ease-in-out);}",
+  ".dkan-mode:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+  ".dkan-mode.on{border-color:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 40%,transparent);}",
+  ".dkan-mode-name{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:6px;}",
+  '.dkan-mode.on .dkan-mode-name::after{content:"\u2713";color:var(--dsw-alias-accent,#4d9fff);}',
+  ".dkan-mode-desc{font-size:11px;color:var(--dsw-alias-label-tertiary);line-height:1.5;}",
+  ".dkan-prev{height:30px;border-radius:6px;background:var(--dsw-alias-bg-layer-1);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}",
+  ".dkan-prev-flow{position:absolute;top:0;left:0;right:0;height:3px;background:color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 30%,transparent);}",
+  '.dkan-prev-flow::after{content:"";position:absolute;top:0;bottom:0;left:-40%;width:40%;background:linear-gradient(90deg,transparent,var(--dsw-alias-accent,#4d9fff));animation:dkan-flow 1.9s linear infinite;}',
+  ".dkan-prev-box{--dkan-speed:1;}",
+  ".dkan-prev-orbit{position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 7px 2px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);animation:dkan-prev-orbit 3s linear infinite;}",
+  "@keyframes dkan-prev-orbit{0%{top:3px;left:3px}25%{top:3px;left:calc(100% - 10px)}50%{top:calc(100% - 10px);left:calc(100% - 10px)}75%{top:calc(100% - 10px);left:3px}100%{top:3px;left:3px}}",
+  ".dkan-prev-bot{height:92px;justify-content:center;}",
+  ".dkan-prev-bot .dkan-bot-scene{transform:scale(.56);transform-origin:center;}",
+  // ===== 桌面伙伴：机器人卡片 + 背侧视角三屏工位（纯 CSS 美术，整卡可拖拽） =====
+  // 卡片：玻璃拟态；默认停泊右下（dsh 输入卡上方），拖动后位置持久化、可放屏幕任意处
+  ".dkan-botcard{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;cursor:grab;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 28px rgb(0 0 0 / .18);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;pointer-events:auto;touch-action:none;user-select:none;animation:dkan-rise .3s var(--ds-ease-in-out);}",
+  ".dkan-botcard:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+  ".dkan-botcard.dkan-dragging{cursor:grabbing;animation:none;}",
+  ".dkan-botcard .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
+  ".dkan-bot-cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
+  // ===== 3D 场景（CSS 长方体拼装：世界层统一 3/4 视角——俯视 + 侧身面向镜头） =====
+  ".dkan-bot-scene{position:relative;width:220px;height:132px;perspective:620px;perspective-origin:55% 18%;--dk3-side:#7c8ba0;--dk3-side-hi:#a9b8ca;--dk3-side-dk:#4c5870;--dk3-screen:#0d1526;--dkan-code-a:#4ade80;--dkan-code-b:#60a5fa;--dkan-code-c:#fbbf24;}",
+  ".dk3-world{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(-15deg) rotateY(-30deg);}",
+  ".dk3-box{position:absolute;transform-style:preserve-3d;}",
+  ".dk3-face{position:absolute;left:50%;top:50%;display:block;background:var(--dk3-side);backface-visibility:hidden;border-radius:1px;}",
+  // 金属件着色：顶面亮、底面暗，正/侧面中调（3D 光感）
+  ".dk3-metal .dk3-face{background:linear-gradient(180deg,#93a5ba,#71809a);}",
+  ".dk3-metal .dk3-face:nth-child(5){background:linear-gradient(180deg,var(--dk3-side-hi),#9dadc2);}",
+  ".dk3-metal .dk3-face:nth-child(6){background:var(--dk3-side-dk);}",
+  // 书桌与桌腿
+  ".dk3-desk .dk3-face{background:linear-gradient(180deg,#9db0c6,#7f92aa);}",
+  ".dk3-desk .dk3-face:nth-child(5){background:#c3d2e2;}",
+  // 显示器（薄盒 + 贴在前面的屏幕；组内扇形微转，整组后撤出桌沿）
+  ".dk3-mon3{position:absolute;transform-style:preserve-3d;}",
+  ".dk3-frame .dk3-face{background:#3a465b;}",
+  ".dk3-frame .dk3-face:nth-child(5){background:#55647d;}",
+  ".dk3-screen{position:absolute;left:50%;top:50%;background:var(--dk3-screen);border-radius:2px;overflow:hidden;transition:opacity .4s var(--ds-ease-in-out),box-shadow .4s var(--ds-ease-in-out);}",
+  ".dk3-screen i{display:block;height:3px;border-radius:1.5px;margin:3px 3px 0;background:var(--dkan-code-b);opacity:.5;}",
+  ".dk3-screen i:nth-child(1){width:58%;background:var(--dkan-code-a);}",
+  ".dk3-screen i:nth-child(2){width:82%;}",
+  ".dk3-screen i:nth-child(3){width:46%;background:var(--dkan-code-c);}",
+  ".dk3-screen i:nth-child(4){width:72%;}",
+  ".dk3-screen i:nth-child(5){width:54%;background:var(--dkan-code-a);}",
+  // 人物组（坐在桌子中间近镜头侧 z=30，侧身面朝 +X 三屏；不会被桌体遮挡）
+  ".dk3-person{position:absolute;left:96px;top:14px;width:44px;height:64px;transform-style:preserve-3d;transform:translateZ(30px);}",
+  // 动漫人物配色：皮肤/头发/卫衣/裤子
+  ".dk3-skin .dk3-face{background:linear-gradient(180deg,#ffd9b8,#f3b98d);}",
+  ".dk3-skin .dk3-face:nth-child(5){background:#ffe3c9;}",
+  ".dk3-hair .dk3-face{background:linear-gradient(180deg,#5b4632,#3f3021);}",
+  ".dk3-hair .dk3-face:nth-child(5){background:#6b543c;}",
+  ".dk3-hood .dk3-face{background:linear-gradient(180deg,#7c8ba0,#5b6a80);}",
+  ".dk3-hood .dk3-face:nth-child(5){background:#93a5ba;}",
+  ".dk3-pants .dk3-face{background:linear-gradient(180deg,#3d4a5c,#2c3646);}",
+  ".dk3-pants .dk3-face:nth-child(5){background:#4a5a70;}",
+  // 椅子
+  ".dk3-chairback .dk3-face{background:linear-gradient(180deg,#3f4c60,#2c3648);}",
+  ".dk3-chairseat .dk3-face{background:#33415a;}",
+  // 头组（俯仰=rotateZ，左右看=rotateY）；眼睛贴在 +X 面板上
+  ".dk3-head3{position:absolute;left:14px;top:2px;width:17px;height:20px;transform-style:preserve-3d;transform-origin:50% 85%;transition:transform .25s var(--ds-ease-in-out);}",
+  ".dk3-eyes{position:absolute;left:50%;top:50%;display:flex;gap:3px;align-items:center;justify-content:center;}",
+  ".dk3-eyes i{width:3px;height:4px;border-radius:50%;background:#2b3442;animation:dkan-blink3 4.6s infinite;}",
+  "@keyframes dkan-blink3{0%,91%,100%{transform:scaleY(1)}94%{transform:scaleY(.15)}}",
+  // 手臂：肩组挂躯干前上，肘组在其下端（前臂+手伸向键盘）；write/code 时肘部高频敲击
+  ".dk3-arm3{position:absolute;left:20px;top:30px;width:16px;height:16px;transform-style:preserve-3d;}",
+  ".dk3-elbow{position:absolute;left:0;top:10px;width:15px;height:5px;transform-style:preserve-3d;transform-origin:2px 2px;}",
+  ".dk3-far{transform:translateZ(-8px);filter:brightness(.62);}",
+  // 思考泡泡（贴镜头 2D 层，think 阶段显示）
+  ".dkan-bubble{position:absolute;left:80px;top:4px;display:none;gap:3px;padding:4px 6px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);box-shadow:0 2px 6px rgb(0 0 0 / .15);z-index:3;}",
+  ".dkan-bubble i{width:4px;height:4px;border-radius:50%;background:var(--dsw-alias-label-tertiary);animation:dkan-bubdot 1.2s ease-in-out infinite;}",
+  ".dkan-bubble i:nth-child(2){animation-delay:.2s;}",
+  ".dkan-bubble i:nth-child(3){animation-delay:.4s;}",
+  "@keyframes dkan-bubdot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}",
+  // ===== 阶段驱动（data-phase 四态，host 由 chunk 流实时同步） =====
+  // think：屏幕调暗 + 仰头苦想 + 泡泡浮现
+  ".dkan-bot-scene[data-phase=think] .dk3-screen{opacity:.32;}",
+  ".dkan-bot-scene[data-phase=think] .dkan-bubble{display:inline-flex;}",
+  ".dkan-bot-scene[data-phase=think] .dk3-head3{transform:rotateZ(-10deg) translateY(-1px);}",
+  // write/code：中屏高亮代码滚动 + 肘部高频敲击 + 低头专注
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 45%,transparent);}",
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i{animation:dkan-code calc(1.1s / var(--dkan-speed,1)) ease-in-out infinite;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(2),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(2){animation-delay:.15s;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(3),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(3){animation-delay:.3s;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(4),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(4){animation-delay:.45s;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(5),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(5){animation-delay:.6s;}",
+  "@keyframes dkan-code{0%,100%{opacity:.3}50%{opacity:1}}",
+  ".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type3 calc(.22s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far .dk3-elbow{animation-delay:.11s;}",
+  "@keyframes dkan-type3{from{transform:rotate(6deg)}to{transform:rotate(-7deg)}}",
+  ".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{transform:rotateZ(5deg);}",
+  // search：侧屏高亮滚动 + 头部左右扫视（一会忙这个一会看那个）
+  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-a,#4ade80) 40%,transparent);}",
+  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen i{animation:dkan-code 1.3s ease-in-out infinite;}",
+  ".dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen i{animation:dkan-code 1.3s ease-in-out infinite .35s;}",
+  ".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-scan3 3.4s ease-in-out infinite;}",
+  "@keyframes dkan-scan3{0%,16%{transform:rotateZ(3deg) rotateY(-38deg)}30%,48%{transform:rotateZ(3deg) rotateY(6deg)}62%,80%{transform:rotateZ(3deg) rotateY(38deg)}100%{transform:rotateZ(3deg) rotateY(-38deg)}}",
+  // 通知子选项行
+  ".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
+  ".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
+  ".dkan-row-label{flex:none;min-width:60px;color:var(--dsw-alias-label-primary);}",
+  ".dkan-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dkm-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
+  ".dkm-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+  ".dkan-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
+  ".dkan-input{flex:1;min-width:220px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;}",
+  ".dkan-input:focus{outline:none;border-color:var(--dsw-alias-accent,#4d9fff);}",
+  ".dkan-row-webhook{flex-wrap:nowrap;}",
+  ".dkan-row-webhook .dkan-input{min-width:0;}",
+  ".dkan-btn{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 12px;font-family:inherit;font-size:12px;}",
+  ".dkan-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+  ".dkan-btn[disabled]{opacity:.5;cursor:default;}",
+  ".dkan-ok{color:var(--dsw-alias-state-success-primary);}",
+  // 任务列表
+  ".dkan-tasks{display:flex;flex-direction:column;gap:6px;}",
+  ".dkan-tasks-done{border-top:1px dashed var(--dsw-alias-border-l2);padding-top:6px;}",
+  ".dkan-task{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px;}",
+  ".dkan-task-head{display:flex;align-items:center;gap:8px;min-width:0;}",
+  ".dkan-task-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+  ".dkan-task-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dkan-task-err{font-size:11px;color:var(--dsw-alias-state-error-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+  ".dkan-tag{flex:none;font-size:10px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
+  ".dkan-tag.on{color:var(--dsw-alias-accent,#4d9fff);border-color:currentColor;}",
+  ".dkan-tag.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+  ".dkan-tag.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
+  ".dkan-tag.warn{color:var(--dsw-alias-state-warning-primary);border-color:currentColor;}"
+].join("\n");
+var feature6 = {
+  id: "animation",
+  name: "\u4EFB\u52A1\u52A8\u753B",
+  order: 130,
+  accent: "#f472b6",
+  description: "\u4EFB\u52A1\u8FD0\u884C\u52A8\u753B\uFF08\u6D41\u5149\u7EC6\u7EBF/\u547C\u5438\u5149\u70B9/\u8F68\u9053\u5149\u73AF\uFF09\u4E0E\u5B8C\u6210\u901A\u77E5\uFF0C\u4E24\u7EC4\u5F00\u5173\u72EC\u7ACB\u3001\u914D\u7F6E\u6301\u4E45\u5316",
+  css: css2,
+  View: AnimationView,
+  HomeStat: AnimationStat,
+  Overlay: AnimationOverlay
+};
+
+// src/client.jsx
+var DOCK_VERSION = "0.4.2";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6];
+var PLANNED_FEATURES = [];
+var PLANNED_NOTES = {};
 var externalDefs = [];
 var externalListeners = /* @__PURE__ */ new Set();
 function notifyExternal() {
@@ -1633,6 +2625,7 @@ var dockBridge = {
       css: typeof def.css === "string" ? def.css : "",
       View: def.View,
       HomeStat: typeof def.HomeStat === "function" ? def.HomeStat : null,
+      Overlay: typeof def.Overlay === "function" ? def.Overlay : null,
       external: true,
       package: typeof def.package === "string" ? def.package : ""
     };
@@ -1756,8 +2749,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react7.default.useReducer((n) => n + 1, 0);
-  import_react7.default.useEffect(() => {
+  const [, bump] = import_react8.default.useReducer((n) => n + 1, 0);
+  import_react8.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -1766,20 +2759,20 @@ function useExternalVersion() {
 }
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon() {
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "svg",
     { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react7.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react7.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react7.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react7.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react8.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react8.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react8.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react8.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react7.default.useState(panelNav.open);
-  import_react7.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react7.default.createElement("button", {
+  const [open, setOpen] = import_react8.default.useState(panelNav.open);
+  import_react8.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react8.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : ""),
     style: wide ? { marginLeft: "auto", transform: "translateY(46px)", zIndex: 1, height: 42, lineHeight: "42px", padding: "0 12px" } : { transform: "translateY(44px)", zIndex: 1, width: 36, height: 36, justifyContent: "center", padding: 0 },
@@ -1787,20 +2780,20 @@ function DockEntry(props) {
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react7.default.createElement(DockIcon, null), wide ? import_react7.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react8.default.createElement(DockIcon, null), wide ? import_react8.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react7.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react7.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react8.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react8.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react7.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react7.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react7.default.useRef(null);
-  import_react7.default.useEffect(() => {
+  const [win, setWin] = import_react8.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react8.default.useRef(null);
+  import_react8.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
   function beginDrag(e, type) {
@@ -1838,13 +2831,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react7.default.createElement(
+  const viewNode = mod && View ? import_react8.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react7.default.createElement(
-      mod.external ? FeatureBoundary : import_react7.default.Fragment,
+    import_react8.default.createElement(
+      mod.external ? FeatureBoundary : import_react8.default.Fragment,
       null,
-      import_react7.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react8.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -1858,10 +2851,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react7.default.createElement(
+    import_react8.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -1869,41 +2862,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react7.default.createElement(
+      import_react8.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react7.default.createElement(DockIcon, null),
-        import_react7.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react7.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react7.default.createElement(
+        import_react8.default.createElement(DockIcon, null),
+        import_react8.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react8.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react8.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react7.default.createElement("button", {
+          import_react8.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react7.default.createElement("button", {
+          import_react8.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react7.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react8.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react7.default.createElement(
+      import_react8.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react7.default.createElement(
+        import_react8.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react7.default.createElement(
+          import_react8.default.createElement(
             "button",
             {
               type: "button",
@@ -1911,10 +2904,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react7.default.createElement("span", { className: "dockm-navhome" }, import_react7.default.createElement(DockIcon, null)),
-            import_react7.default.createElement("span", null, "\u9996\u9875")
+            import_react8.default.createElement("span", { className: "dockm-navhome" }, import_react8.default.createElement(DockIcon, null)),
+            import_react8.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react7.default.createElement(
+          MODULES.map((m) => import_react8.default.createElement(
             "button",
             {
               type: "button",
@@ -1922,38 +2915,38 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react7.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react7.default.createElement("span", null, m.name),
-            m.planned ? import_react7.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react7.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react8.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react8.default.createElement("span", null, m.name),
+            m.planned ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react7.default.createElement(
+        import_react8.default.createElement(
           "div",
           { className: "dockm-content" },
-          import_react7.default.createElement(
+          import_react8.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react7.default.createElement(
+            import_react8.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react7.default.createElement("span", { className: "dockm-navhome" }, import_react7.default.createElement(DockIcon, null)) : import_react7.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react8.default.createElement("span", { className: "dockm-navhome" }, import_react8.default.createElement(DockIcon, null)) : import_react8.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react7.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react7.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react7.default.createElement(
+            import_react8.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react7.default.createElement("div", { className: "dockm-view" }, import_react7.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react7.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react7.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react7.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u8BB0\u5FC6\u6001\u968F\u9875\u9762\u751F\u547D\u5468\u671F\uFF0C0.5.0 \u8D77\u6301\u4E45\u5316\uFF09"),
-          import_react7.default.createElement(
+          isHome ? import_react8.default.createElement("div", { className: "dockm-view" }, import_react8.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react8.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react8.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react8.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react8.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react7.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react7.default.createElement("button", {
+            import_react8.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react8.default.createElement("button", {
               type: "button",
               className: "dockm-switch" + (st.enabled ? " on" : ""),
               onClick: () => {
@@ -1961,7 +2954,7 @@ function DockModal() {
                 force();
               }
             }, st.enabled ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09") : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react7.default.createElement("button", {
+            !isHome && mod && typeof mod.Chip === "function" ? import_react8.default.createElement("button", {
               type: "button",
               className: "dockm-switch" + (chipShown(mod.id) ? " on" : ""),
               title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
@@ -1973,30 +2966,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react7.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react8.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react7.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react7.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react7.default.createElement(
-        m.external ? FeatureBoundary : import_react7.default.Fragment,
+      const statNode = m.planned ? import_react8.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react8.default.createElement(
+        m.external ? FeatureBoundary : import_react8.default.Fragment,
         null,
-        import_react7.default.createElement(Stat, { ctx })
-      ) : import_react7.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react7.default.createElement(
+        import_react8.default.createElement(Stat, { ctx })
+      ) : import_react8.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react8.default.createElement(
         "div",
         {
           key: m.id,
@@ -2011,25 +3004,25 @@ function HomeView(props) {
             }
           }
         },
-        import_react7.default.createElement(
+        import_react8.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react7.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react7.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react7.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
-          import_react7.default.createElement(
+          import_react8.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react8.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react8.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react8.default.createElement(
             "span",
             { className: "dockh-badge" + (m.planned ? "" : enabled ? " on" : " off") },
             m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"
           )
         ),
-        import_react7.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react7.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react7.default.createElement(
+        import_react8.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react8.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react8.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react7.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192"),
-          m.planned ? null : import_react7.default.createElement("button", {
+          import_react8.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192"),
+          m.planned ? null : import_react8.default.createElement("button", {
             type: "button",
             className: "dockm-switch" + (enabled ? " on" : ""),
             onClick: (e) => {
@@ -2046,16 +3039,16 @@ function HomeView(props) {
 }
 function DockPanel() {
   const ctx = ctxRef.current;
-  const [, force] = import_react7.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react7.default.createElement(
+    import_react8.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -2064,29 +3057,29 @@ function DockPanel() {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react7.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react8.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react7.default.createElement(
-          f.external ? FeatureBoundary : import_react7.default.Fragment,
+        import_react8.default.createElement(
+          f.external ? FeatureBoundary : import_react8.default.Fragment,
           null,
-          import_react7.default.createElement(View, { ctx, feature: f })
+          import_react8.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
-      return import_react7.default.createElement(
+      return import_react8.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react7.default.createElement(
+        import_react8.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react7.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react7.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react7.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react7.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react7.default.createElement("button", {
+          import_react8.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react8.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react8.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react8.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react8.default.createElement("button", {
             className: "dock-switch" + (st.enabled ? " on" : ""),
             onClick: () => toggle(f.id)
           }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-          !f.planned && typeof f.Chip === "function" ? import_react7.default.createElement("button", {
+          !f.planned && typeof f.Chip === "function" ? import_react8.default.createElement("button", {
             className: "dock-switch" + (chipShown(f.id) ? " on" : ""),
             title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
             onClick: () => {
@@ -2095,19 +3088,19 @@ function DockPanel() {
             }
           }, chipShown(f.id) ? "\u4F1A\u8BDD\u9875\u663E\u793A" : "\u4F1A\u8BDD\u9875\u9690\u85CF") : null
         ),
-        f.planned ? import_react7.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react7.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react8.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react8.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react7.default.useReducer((n) => n + 1, 0);
-  import_react7.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  import_react8.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react7.default.createElement(f.Chip, {
+    items.push(import_react8.default.createElement(f.Chip, {
       key: f.id,
       ctx: props.ctx,
       feature: f,
@@ -2117,7 +3110,23 @@ function DockChips(props) {
     }));
   }
   if (items.length === 0) return null;
-  return import_react7.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react8.default.createElement("div", { className: "dockchip-row" }, items);
+}
+function FeatureOverlays() {
+  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  useExternalVersion();
+  import_react8.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const items = [];
+  for (const f of allModules()) {
+    if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
+    items.push(import_react8.default.createElement(
+      FeatureBoundary,
+      { key: f.id },
+      import_react8.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+    ));
+  }
+  if (items.length === 0) return null;
+  return import_react8.default.createElement(import_react8.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -2128,19 +3137,23 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react7.default.createElement(DockEntry, props)
+    (props) => import_react8.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react7.default.createElement(DockModal, null)
+    () => import_react8.default.createElement(DockModal, null)
+  ));
+  slots.inject("shell.overlay", () => slots.register(
+    { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
+    () => import_react8.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react7.default.createElement(DockPanel, null)
+    () => import_react8.default.createElement(DockPanel, null)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react7.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react8.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];
