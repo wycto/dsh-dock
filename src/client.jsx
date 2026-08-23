@@ -23,19 +23,16 @@ import { feature as fModelconfig } from "../features/modelconfig/view.js";
 import { feature as fHeartbeat } from "../features/heartbeat/view.js";
 import { feature as fTheme } from "../features/theme/view.js";
 import { feature as fBalance } from "../features/balance/view.js";
+import { feature as fAnimation } from "../features/animation/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.4.0";
+const DOCK_VERSION = "0.4.2";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
-const PLANNED_FEATURES = [
-	{ id: "animation", name: "任务动画", order: 130, accent: "#f472b6", planned: true, description: "接入路线图 0.5.0：任务进度动画与通知" },
-];
-const PLANNED_NOTES = {
-	animation: "待接入（路线图 0.5.0）：任务进度动画与完成通知。",
-};
+const PLANNED_FEATURES = [];
+const PLANNED_NOTES = {};
 
 // ---- 外部功能注册表（dockBridge 回装通道） ----
 const externalDefs = [];
@@ -45,7 +42,7 @@ function notifyExternal() {
 }
 /**
  * 外部功能桥：独立功能包经 require("dsh-dock").dockBridge 注册视图。
- * def: { id, name, order?, accent?, description?, css?, View, HomeStat?, package? }
+ * def: { id, name, order?, accent?, description?, css?, View, HomeStat?, Overlay?, package? }
  * 返回注销函数。重复 id 视为更新（HMR/重注册场景）。
  */
 const dockBridge = {
@@ -64,6 +61,7 @@ const dockBridge = {
 			css: typeof def.css === "string" ? def.css : "",
 			View: def.View,
 			HomeStat: typeof def.HomeStat === "function" ? def.HomeStat : null,
+			Overlay: typeof def.Overlay === "function" ? def.Overlay : null,
 			external: true,
 			package: typeof def.package === "string" ? def.package : "",
 		};
@@ -379,9 +377,9 @@ function DockModal() {
 							? react.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "待接入：见 README 路线图")
 							: st && st.enabled && viewNode
 								? viewNode
-								: st && st.error
-									? react.createElement("div", { className: "dockm-note dockm-err" }, "功能出错：" + st.error)
-									: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（记忆态随页面生命周期，0.5.0 起持久化）"),
+						: st && st.error
+							? react.createElement("div", { className: "dockm-note dockm-err" }, "功能出错：" + st.error)
+							: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（开关已持久化，重启后保持）"),
 					react.createElement("div", { className: "dockm-foot" },
 						react.createElement("span", null, isHome
 							? "功能坞 v" + DOCK_VERSION + " · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
@@ -519,6 +517,23 @@ function DockChips(props) {
 	return react.createElement("div", { className: "dockchip-row" }, items);
 }
 
+// ---- 功能全局浮层：模块可在描述符上挂 Overlay 组件（props: { ctx, feature }） ----
+// 与 Chip（会话输入区小控件）不同，Overlay 是常驻整页挂载的全局 UI（如任务动画的动效与通知栈），
+// 只要所属功能启用就渲染（功能停用即卸载，浮层自身负责按数据状态决定显示什么）。
+function FeatureOverlays() {
+	const [, force] = react.useReducer((n) => n + 1, 0);
+	useExternalVersion();
+	react.useEffect(() => subscribeFeatureState(() => force()), []);
+	const items = [];
+	for (const f of allModules()) {
+		if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
+		items.push(react.createElement(FeatureBoundary, { key: f.id },
+			react.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })));
+	}
+	if (items.length === 0) return null;
+	return react.createElement(react.Fragment, null, items);
+}
+
 // ---- 插件应用：注册四处 UI（入口按钮 / 弹层 / 设置页 / 会话区 chips），注入样式 ----
 // ctx 以 ref 供视图组件使用（timer/theme 等服务按需自取；重装/HMR 时更新）
 const ctxRef = { current: null };
@@ -536,6 +551,10 @@ export function apply(ctx) {
 	slots.inject("shell.overlay", () => slots.register(
 		{ name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "功能坞面板" },
 		() => react.createElement(DockModal, null)));
+	// 功能全局浮层（任务动画的动效与通知等）：已启用功能的 Overlay 常驻挂载
+	slots.inject("shell.overlay", () => slots.register(
+		{ name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "功能坞全局浮层" },
+		() => react.createElement(FeatureOverlays, null)));
 	slots.inject("settings.section", () => slots.register(
 		{ name: "settings.section", id: "dsh-dock", order: 90, label: "功能坞" },
 		() => react.createElement(DockPanel, null)));
