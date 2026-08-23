@@ -1815,20 +1815,18 @@ function Box3(props) {
 }
 function Monitor3(props) {
   const w = props.w, h = props.h;
+  const lines = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     "span",
     {
       className: "dk3-mon3 " + (props.cls || ""),
-      style: { left: props.x - w / 2, top: props.y - h / 2, width: w, height: h, transform: "translateZ(-3px) rotateY(" + (props.ry || 0) + "deg)" },
+      style: { left: props.x - w / 2, top: props.y - h / 2, width: w, height: h, transform: "translateZ(" + (props.z || -3) + "px) rotateY(" + (props.ry || 0) + "deg)" },
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w, h, d: 5, cls: "dk3-frame", x: w / 2, y: h / 2 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-screen", style: { width: w - 4, height: h - 4, transform: "translate(-50%,-50%) translateZ(3.1px)" }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
-        ] })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-screen", style: { width: w - 4, height: h - 4, transform: "translate(-50%,-50%) translateZ(3.1px)" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-code", children: [
+          lines.map((n, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-cur" })
+        ] }) })
       ]
     }
   );
@@ -1837,41 +1835,49 @@ function RobotScene(props) {
   const phase = props && props.phase ? props.phase : "code";
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-bot-scene", "data-phase": phase, "aria-hidden": "true", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-world", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 200, h: 7, d: 40, cls: "dk3-desk", x: 110, y: 78 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 18, y: 94 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 202, y: 94 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 36, h: 25, x: 128, y: 60, ry: 20, cls: "left" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 44, h: 32, x: 166, y: 56, ry: 0, cls: "center" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 30, h: 22, x: 196, y: 62, ry: -20, cls: "right" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 150, h: 7, d: 40, cls: "dk3-desk", x: 115, y: 78 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 48, y: 94 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 182, y: 94 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 34, h: 24, x: 140, y: 60, ry: 24, cls: "left" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 40, h: 30, x: 168, y: 58, ry: 0, cls: "center" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 28, h: 21, x: 188, y: 62, ry: -24, cls: "right" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 30, h: 20, x: 168, y: 28, ry: 0, cls: "top" }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 126, y: 73, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 5, d: 4, cls: "dk3-mug", x: 140, y: 71, z: 14 }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-person", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 30, d: 22, cls: "dk3-chairback", x: 2, y: 42 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 20, h: 4, d: 22, cls: "dk3-chairseat", x: 12, y: 58 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 16, d: 3, cls: "dk3-metal", x: 12, y: 68 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 5, d: 9, cls: "dk3-pants", x: 20, y: 54 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-pants", x: 25, y: 62 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 22, d: 12, cls: "dk3-hood dk3-torso", x: 12, y: 34 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 12, d: 3, cls: "dk3-metal", x: 12, y: 68 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 2, d: 14, cls: "dk3-metal", x: 12, y: 74 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 13, h: 5, d: 9, cls: "dk3-pants", x: 20, y: 54 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-pants", x: 26, y: 62 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 6, h: 3, d: 5, cls: "dk3-shoe", x: 28, y: 73 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 15, h: 20, d: 11, cls: "dk3-hood dk3-torso", x: 12, y: 36 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 8, d: 9, cls: "dk3-hood dk3-hoodbump", x: 5, y: 30 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 3, d: 4, cls: "dk3-skin", x: 14, y: 25 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-head3", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 13, cls: "dk3-hair", x: 2, y: 9 }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 8, d: 14, cls: "dk3-hair", x: 8, y: 4 }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 12, d: 12, cls: "dk3-skin dk3-headbox", x: 8.5, y: 9, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-eyes", style: { width: 11, height: 8, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
-          ] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 5, d: 4, cls: "dk3-skin", x: 9, y: 17 })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box3, { w: 13, h: 12, d: 12, cls: "dk3-skin dk3-headbox", x: 8, y: 10, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-eyes", style: { width: 10, height: 7, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-mouth", style: { transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" } })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 6, d: 13, cls: "dk3-hair", x: 8, y: 4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 13, cls: "dk3-hair", x: 2, y: 9 })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 13.5, y: 2 })
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 11, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 12.5, y: 2 })
           ] })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3 dk3-far", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 13.5, y: 2 })
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 11, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 12.5, y: 2 })
           ] })
         ] })
       ] })
@@ -2656,12 +2662,16 @@ var css2 = [
   ".dk3-frame .dk3-face{background:#3a465b;}",
   ".dk3-frame .dk3-face:nth-child(5){background:#55647d;}",
   ".dk3-screen{position:absolute;left:50%;top:50%;background:var(--dk3-screen);border-radius:2px;overflow:hidden;transition:opacity .4s var(--ds-ease-in-out),box-shadow .4s var(--ds-ease-in-out);}",
-  ".dk3-screen i{display:block;height:3px;border-radius:1.5px;margin:3px 3px 0;background:var(--dkan-code-b);opacity:.5;}",
-  ".dk3-screen i:nth-child(1){width:58%;background:var(--dkan-code-a);}",
-  ".dk3-screen i:nth-child(2){width:82%;}",
-  ".dk3-screen i:nth-child(3){width:46%;background:var(--dkan-code-c);}",
-  ".dk3-screen i:nth-child(4){width:72%;}",
-  ".dk3-screen i:nth-child(5){width:54%;background:var(--dkan-code-a);}",
+  // 屏幕内容：代码块整体向上滚动（10 行=5 行×2 循环，滚半程无缝接回）+ 闪烁光标，速度随 --dkan-speed
+  ".dk3-code{position:absolute;left:0;top:0;right:0;display:block;animation:dk3-scroll calc(5s / var(--dkan-speed,1)) linear infinite;}",
+  ".dk3-code i{display:block;height:2px;border-radius:1px;margin:2px 3px 0;background:var(--dkan-code-b);opacity:.55;}",
+  ".dk3-code i:nth-child(5n+1){width:58%;background:var(--dkan-code-a);}",
+  ".dk3-code i:nth-child(5n+2){width:82%;}",
+  ".dk3-code i:nth-child(5n+3){width:46%;background:var(--dkan-code-c);}",
+  ".dk3-code i:nth-child(5n+4){width:72%;}",
+  ".dk3-code i:nth-child(5n){width:54%;background:var(--dkan-code-a);}",
+  ".dk3-cur{position:absolute;left:3px;bottom:2px;width:4px;height:2px;background:var(--dkan-code-b);animation:dkan-blink3 1s steps(1) infinite;}",
+  "@keyframes dk3-scroll{to{transform:translateY(-50%)}}",
   // 人物组（坐在桌子中间近镜头侧 z=30，侧身面朝 +X 三屏；不会被桌体遮挡）
   ".dk3-person{position:absolute;left:96px;top:14px;width:44px;height:64px;transform-style:preserve-3d;transform:translateZ(30px);}",
   // 动漫人物配色：皮肤/头发/卫衣/裤子
@@ -2673,6 +2683,14 @@ var css2 = [
   ".dk3-hood .dk3-face:nth-child(5){background:#93a5ba;}",
   ".dk3-pants .dk3-face{background:linear-gradient(180deg,#3d4a5c,#2c3646);}",
   ".dk3-pants .dk3-face:nth-child(5){background:#4a5a70;}",
+  // 人物细节：圆角 + 鞋 + 咖啡杯 + 嘴
+  ".dk3-headbox .dk3-face{border-radius:3px;}",
+  ".dk3-torso .dk3-face{border-radius:3px;}",
+  ".dk3-hair .dk3-face{border-radius:2px;}",
+  ".dk3-shoe .dk3-face{background:#20262f;border-radius:2px;}",
+  ".dk3-mug .dk3-face{background:#c2703d;border-radius:1px;}",
+  ".dk3-mug .dk3-face:nth-child(5){background:#e08a52;}",
+  ".dk3-mouth{position:absolute;left:50%;top:76%;width:4px;height:1.5px;border-radius:1px;background:#b5766a;}",
   // 椅子
   ".dk3-chairback .dk3-face{background:linear-gradient(180deg,#3f4c60,#2c3648);}",
   ".dk3-chairseat .dk3-face{background:#33415a;}",
@@ -2698,20 +2716,14 @@ var css2 = [
   ".dkan-bot-scene[data-phase=think] .dk3-head3{transform:rotateZ(-10deg) translateY(-1px);}",
   // write/code：中屏高亮代码滚动 + 肘部高频敲击 + 低头专注
   ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 45%,transparent);}",
-  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i{animation:dkan-code calc(1.1s / var(--dkan-speed,1)) ease-in-out infinite;}",
-  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(2),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(2){animation-delay:.15s;}",
-  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(3),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(3){animation-delay:.3s;}",
-  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(4),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(4){animation-delay:.45s;}",
-  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen i:nth-child(5),.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen i:nth-child(5){animation-delay:.6s;}",
-  "@keyframes dkan-code{0%,100%{opacity:.3}50%{opacity:1}}",
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-code,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-code{animation-duration:calc(2.2s / var(--dkan-speed,1));}",
   ".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type3 calc(.22s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
   ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far .dk3-elbow{animation-delay:.11s;}",
   "@keyframes dkan-type3{from{transform:rotate(6deg)}to{transform:rotate(-7deg)}}",
   ".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{transform:rotateZ(5deg);}",
-  // search：侧屏高亮滚动 + 头部左右扫视（一会忙这个一会看那个）
+  // search：侧屏高亮 + 滚动加速 + 头部左右扫视（一会忙这个一会看那个）
   ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-a,#4ade80) 40%,transparent);}",
-  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen i{animation:dkan-code 1.3s ease-in-out infinite;}",
-  ".dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen i{animation:dkan-code 1.3s ease-in-out infinite .35s;}",
+  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-code{animation-duration:calc(1.6s / var(--dkan-speed,1));}",
   ".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-scan3 3.4s ease-in-out infinite;}",
   "@keyframes dkan-scan3{0%,16%{transform:rotateZ(3deg) rotateY(-38deg)}30%,48%{transform:rotateZ(3deg) rotateY(6deg)}62%,80%{transform:rotateZ(3deg) rotateY(38deg)}100%{transform:rotateZ(3deg) rotateY(-38deg)}}",
   // 通知子选项行
