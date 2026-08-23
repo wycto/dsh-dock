@@ -242,7 +242,38 @@ function RobotScene(props) {
 	);
 }
 
-// ---------- 通知卡片 ----------
+// ---------- 提示音（WebAudio 合成：完成=上行双音 / 异常=下行低音；macOS/Windows 通用，无音频文件） ----------
+// AudioContext 按需创建（浏览器自动播放策略：首次用户交互后才能出声，静默失败不报错）
+let soundCtx = null;
+function playTone(seq) {
+	try {
+		if (typeof window === "undefined" || !window.AudioContext && !window.webkitAudioContext) return;
+		const AC = window.AudioContext || window.webkitAudioContext;
+		if (!soundCtx) soundCtx = new AC();
+		if (soundCtx.state === "suspended") { soundCtx.resume().catch(() => {}); }
+		const t0 = soundCtx.currentTime;
+		for (const note of seq) {
+			const osc = soundCtx.createOscillator();
+			const gain = soundCtx.createGain();
+			osc.type = "sine";
+			osc.frequency.value = note.f;
+			gain.gain.setValueAtTime(0, t0 + note.at);
+			gain.gain.linearRampToValueAtTime(0.18, t0 + note.at + 0.015);
+			gain.gain.exponentialRampToValueAtTime(0.0001, t0 + note.at + note.dur);
+			osc.connect(gain).connect(soundCtx.destination);
+			osc.start(t0 + note.at);
+			osc.stop(t0 + note.at + note.dur + 0.05);
+		}
+	} catch { /* 音频不可用静默 */ }
+}
+// 完成：E5→A5 上行双音（清亮收工感）；异常：低八度 A3→E3 下行（警示但不刺耳）
+function playDoneSound(success) {
+	playTone(success
+		? [{ f: 659.25, at: 0, dur: 0.14 }, { f: 880, at: 0.13, dur: 0.22 }]
+		: [{ f: 220, at: 0, dur: 0.16 }, { f: 164.81, at: 0.15, dur: 0.3 }]);
+}
+
+
 function Toast(props) {
 	const t = props.t;
 	const [closing, setClosing] = useState(false);
@@ -356,6 +387,8 @@ export function AnimationOverlay(props) {
 			stayMs: typeof cfg.notifyStayMs === "number" ? cfg.notifyStayMs : 8000,
 		};
 		setToasts((prev) => prev.concat([toast]).slice(-4));
+		// 提示音：任务结束时播放（完成上行双音 / 异常下行低音）；与系统通知独立开关
+		if (cfg.soundNotify !== false) playDoneSound(success);
 		// 系统通知：仅页面处于后台时推送，避免前台重复打扰
 		if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
 			&& typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -738,6 +771,15 @@ function AnimationView(props) {
 							{cfg.systemNotify ? "开" : "关"}
 						</button>
 						<span className="dkan-row-sub">{permNote}</span>
+					</div>
+					<div className="dkan-row">
+						<span className="dkan-row-label">提示音</span>
+						<button type="button" className={"dkm-miniswitch" + (cfg.soundNotify !== false ? " on" : "")}
+							onClick={() => patch({ soundNotify: cfg.soundNotify === false })}>
+							{cfg.soundNotify !== false ? "开" : "关"}
+						</button>
+						<button type="button" className="dkan-btn" onClick={() => playDoneSound(true)}>试听</button>
+						<span className="dkan-row-sub">任务结束时播放（完成上行双音 / 异常下行低音）</span>
 					</div>
 				</div> : <div className="dkan-note">通知已关闭——任务结束时既不弹卡片也不推系统通知。</div>}
 			</div>,
