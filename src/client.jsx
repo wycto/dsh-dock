@@ -153,9 +153,22 @@ const SHELL_CSS = [
 	".dockh-card:hover,.dockh-card:focus-visible{border-color:var(--dsw-alias-accent,#4d9fff);outline:none;}",
 	".dockh-head{display:flex;align-items:center;gap:8px;}",
 	".dockh-name{font-weight:600;flex:none;}",
-	".dockh-badge{margin-left:auto;flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
-	".dockh-badge.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-	".dockh-badge.off{border-style:dashed;}",
+	".dockh-badge{flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
+	// 状态标识（非交互：圆点+文字，与可点的开关一眼区分）
+	".dockh-status{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
+	".dockh-sdot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dsw-alias-state-success-primary,#34d399);box-shadow:0 0 4px color-mix(in srgb,var(--dsw-alias-state-success-primary,#34d399) 55%,transparent);}",
+	".dockh-status.off .dockh-sdot{background:transparent;border:1.5px solid var(--dsw-alias-label-tertiary);box-shadow:none;opacity:.75;}",
+	".dockh-status.plan .dockh-sdot{background:transparent;border:1.5px dashed var(--dsw-alias-label-tertiary);box-shadow:none;}",
+	// iOS 风滑动开关（首页卡片 / 弹层页脚 / 设置页共用的启停控件）
+	".dock-sw{flex:none;position:relative;width:34px;height:19px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);cursor:pointer;padding:0;transition:background .18s var(--ds-ease-in-out),border-color .18s var(--ds-ease-in-out);}",
+	".dock-sw::after{content:\"\";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgb(0 0 0 / .35);transition:transform .18s var(--ds-ease-in-out);}",
+	".dock-sw:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+	".dock-sw.on{background:var(--dsw-alias-state-success-primary,#34d399);border-color:transparent;}",
+	".dock-sw.on::after{transform:translateX(15px);}",
+	// 弹层页脚：文字标签 + 开关 成组
+	".dockm-foot-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
+	".dockm-foot-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+	".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
 	".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
 	".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 	".dockh-foot{display:flex;align-items:center;gap:8px;}",
@@ -384,27 +397,39 @@ function DockModal() {
 						react.createElement("span", null, isHome
 							? "功能坞 v" + DOCK_VERSION + " · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
 							: "功能坞 v" + DOCK_VERSION + " · 新功能按路线图追加"),
-					!isHome && mod && !mod.planned && st
-						? react.createElement("button", {
-							type: "button",
-							className: "dockm-switch" + (st.enabled ? " on" : ""),
-							onClick: () => { toggleFeature(mod.id); force(); }
-						}, st.enabled ? "已启用（点击停用）" : "已停用（点击启用）")
-						: null,
-					!isHome && mod && typeof mod.Chip === "function"
-						? react.createElement("button", {
-							type: "button",
-							className: "dockm-switch" + (chipShown(mod.id) ? " on" : ""),
-							title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
-							onClick: () => { setChipShown(mod.id, !chipShown(mod.id)); force(); }
-						}, chipShown(mod.id) ? "会话页显示中" : "会话页已隐藏")
-						: null))),
+						!isHome && mod && !mod.planned && st
+							? react.createElement("span", { className: "dockm-foot-sw" },
+								react.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "已启用" : "已停用"),
+								react.createElement("button", {
+									type: "button",
+									className: "dock-sw" + (st.enabled ? " on" : ""),
+									role: "switch",
+									"aria-checked": !!st.enabled,
+									"aria-label": (st.enabled ? "停用" : "启用") + mod.name,
+									title: st.enabled ? "停用「" + mod.name + "」" : "启用「" + mod.name + "」",
+									onClick: () => { toggleFeature(mod.id); force(); }
+								}))
+							: null,
+						!isHome && mod && typeof mod.Chip === "function"
+							? react.createElement("span", { className: "dockm-foot-sw" },
+								react.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "会话页小控件"),
+								react.createElement("button", {
+									type: "button",
+									className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
+									role: "switch",
+									"aria-checked": chipShown(mod.id),
+									"aria-label": (chipShown(mod.id) ? "隐藏" : "显示") + mod.name + "的会话页小控件",
+									title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
+									onClick: () => { setChipShown(mod.id, !chipShown(mod.id)); force(); }
+								}))
+							: null))),
 			win.mode === "normal"
 				? react.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") })
 				: null));
 }
 
-// ---- 首页总揽：每个功能模块一张卡片（状态徽章 + 运行概要 + 快捷开关），点击进入对应功能 ----
+// ---- 首页总揽：每个功能模块一张卡片（状态标识 + 运行概要 + 启停开关），点卡片进对应功能 ----
+// 交互约定：状态是「圆点+文字」纯标识（不可点）；启停是 iOS 滑动开关（明显可点）；点卡片其余区域跳详情页。
 function HomeView(props) {
 	const ctx = props && props.ctx;
 	const [, force] = react.useReducer((n) => n + 1, 0);
@@ -433,15 +458,18 @@ function HomeView(props) {
 					react.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
 					react.createElement("span", { className: "dockh-name" }, m.name),
 					m.external ? react.createElement("span", { className: "dockh-badge", title: m.package || undefined }, "外部") : null,
-					react.createElement("span", { className: "dockh-badge" + (m.planned ? "" : enabled ? " on" : " off") },
-						m.planned ? "规划中" : enabled ? "已启用" : "已停用")),
-				react.createElement("div", { className: "dockh-desc" }, m.description),
-				react.createElement("div", { className: "dockh-stat" }, statNode),
-				react.createElement("div", { className: "dockh-foot" },
-					react.createElement("span", { className: "dockh-go" }, "查看详情 →"),
+					// 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
+					react.createElement("span", { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
+						react.createElement("span", { className: "dockh-sdot" }),
+						react.createElement("span", null, m.planned ? "规划中" : enabled ? "运行中" : "已停用")),
+					// 启停开关（规划中的功能不显示）
 					m.planned ? null : react.createElement("button", {
 						type: "button",
-						className: "dockm-switch" + (enabled ? " on" : ""),
+						className: "dock-sw" + (enabled ? " on" : ""),
+						role: "switch",
+						"aria-checked": enabled,
+						"aria-label": (enabled ? "停用" : "启用") + m.name,
+						title: enabled ? "停用「" + m.name + "」" : "启用「" + m.name + "」",
 						onClick: (e) => {
 							e.stopPropagation();
 							toggleFeature(m.id);
@@ -449,7 +477,11 @@ function HomeView(props) {
 							if (props && typeof props.onToggle === "function") props.onToggle();
 							force();
 						}
-					}, enabled ? "停用" : "启用")));
+					})),
+				react.createElement("div", { className: "dockh-desc" }, m.description),
+				react.createElement("div", { className: "dockh-stat" }, statNode),
+				react.createElement("div", { className: "dockh-foot" },
+					react.createElement("span", { className: "dockh-go" }, "查看详情 →")));
 		}));
 }
 
@@ -482,16 +514,27 @@ function DockPanel() {
 				f.planned
 					? react.createElement("span", { className: "dock-badge" }, "规划中")
 					: react.createElement("button", {
-						className: "dock-switch" + (st.enabled ? " on" : ""),
+						type: "button",
+						className: "dock-sw" + (st.enabled ? " on" : ""),
+						role: "switch",
+						"aria-checked": st.enabled,
+						"aria-label": (st.enabled ? "停用" : "启用") + f.name,
+						title: st.enabled ? "停用「" + f.name + "」" : "启用「" + f.name + "」",
 						onClick: () => toggle(f.id)
-					}, st.enabled ? "已启用" : "已停用"),
-				!f.planned && typeof f.Chip === "function"
-					? react.createElement("button", {
-						className: "dock-switch" + (chipShown(f.id) ? " on" : ""),
-						title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
-						onClick: () => { setChipShown(f.id, !chipShown(f.id)); force(); }
-					}, chipShown(f.id) ? "会话页显示" : "会话页隐藏")
-					: null),
+					}),
+					!f.planned && typeof f.Chip === "function"
+						? react.createElement("span", { className: "dockm-foot-sw" },
+							react.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "会话页小控件"),
+							react.createElement("button", {
+								type: "button",
+								className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
+								role: "switch",
+								"aria-checked": chipShown(f.id),
+								"aria-label": (chipShown(f.id) ? "隐藏" : "显示") + f.name + "的会话页小控件",
+								title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
+								onClick: () => { setChipShown(f.id, !chipShown(f.id)); force(); }
+							}))
+						: null),
 				f.planned
 					? react.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "待接入：见 README 路线图")
 					: st.error ? react.createElement("div", { className: "dock-body dockm-err" }, "功能出错：" + st.error) : null,
