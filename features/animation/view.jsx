@@ -39,7 +39,7 @@ const EFFECT_MODES = [
 	{ id: "breathe", name: "呼吸光点", desc: "状态徽标圆点呼吸，越忙呼吸越快" },
 	{ id: "ring", name: "轨道光环", desc: "细环绕圆点旋转，转速随任务速度" },
 	{ id: "orbit", name: "环屏巡航", desc: "一颗光点沿屏幕边缘巡航整圈，醒目不遮挡" },
-	{ id: "robot", name: "桌面伙伴", desc: "更具象的人物坐镇四屏工位：思考、输出、查资料随任务阶段切换" },
+	{ id: "robot", name: "桌面伙伴", desc: "更具象的人物坐镇多屏工位：思考、输出、查资料随任务阶段切换；多任务时点亮多套键鼠屏幕、滑着滚椅轮流照看" },
 	{ id: "matrix", name: "代码雨", desc: "字符沿屏幕缓落如数据流，速度随任务吞吐，克制的低透明度" },
 	{ id: "stars", name: "星野", desc: "细碎星点缓慢飘移闪烁，安静耐看的背景氛围" },
 	{ id: "aurora", name: "极光", desc: "屏幕顶部柔光带缓慢呼吸流动，像极光拂过" },
@@ -189,30 +189,43 @@ function Monitor3(props) {
 }
 
 // 3D 动漫人物：更拟人的比例与细节（圆角头/ volumetric 头发/五官/脖颈/弯肘/腿脚鞋），侧身面向三屏
+// tasks 传入活跃任务列表时进入「多任务工位」模式：桌面常驻 3 套键盘/鼠标/显示器，
+// 有几个任务就点亮几套（上限 3）；超过 1 个任务时人物坐滚轮椅沿桌左右滑动轮流照看。
 function RobotScene(props) {
 	const phase = props && props.phase ? props.phase : "code";
+	const tasks = Array.isArray(props && props.tasks) ? props.tasks : null;
+	const n = tasks ? Math.max(1, Math.min(3, tasks.length)) : 1;
+	const multi = tasks && tasks.length > 1;
 	return (
-		<div className="dkan-bot-scene" data-phase={phase} aria-hidden="true">
+		<div className="dkan-bot-scene" data-phase={phase} data-tasks={tasks ? String(n) : undefined} aria-hidden="true">
 			<div className="dk3-world">
-				{/* 书桌（缩短：150 宽，人物居中） */}
-				<Box3 w={150} h={7} d={40} cls="dk3-desk" x={115} y={78} />
-				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={48} y={94} />
-				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={182} y={94} />
-				{/* 四屏：三台扇形 + 中屏上叠一台竖屏 */}
-				<Monitor3 w={34} h={24} x={140} y={60} ry={24} cls="left" />
-				<Monitor3 w={40} h={30} x={168} y={58} ry={0} cls="center" />
-				<Monitor3 w={28} h={21} x={188} y={62} ry={-24} cls="right" />
-				<Monitor3 w={30} h={20} x={168} y={28} ry={0} cls="top" />
-				{/* 键盘 + 咖啡杯（人物手边） */}
-				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={126} y={73} z={14} />
-				<Box3 w={4} h={5} d={4} cls="dk3-mug" x={140} y={71} z={14} />
-				{/* 人物组：坐在桌子中间近镜头侧（z=30） */}
-				<div className="dk3-person">
+				{/* 书桌（加长：170 宽，容纳三套外设工位） */}
+				<Box3 w={170} h={7} d={40} cls="dk3-desk" x={115} y={78} />
+				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={33} y={94} />
+				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={197} y={94} />
+				{/* 三屏：三台扇形 + 中屏上叠一台竖屏（左/中/右各对应一个工位） */}
+				<Monitor3 w={34} h={24} x={136} y={60} ry={24} cls="left" />
+				<Monitor3 w={40} h={30} x={166} y={58} ry={0} cls="center" />
+				<Monitor3 w={28} h={21} x={190} y={62} ry={-24} cls="right" />
+				<Monitor3 w={30} h={20} x={166} y={28} ry={0} cls="top" />
+				{/* 三套键盘 + 鼠标（左/中/右工位，z=14 近镜头侧）+ 中位咖啡杯 */}
+				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={118} y={73} z={14} />
+				<Box3 w={4} h={2.5} d={6} cls="dk3-metal dk3-mouse3" x={129} y={73} z={14} />
+				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={148} y={73} z={14} />
+				<Box3 w={4} h={2.5} d={6} cls="dk3-metal dk3-mouse3" x={159} y={73} z={14} />
+				<Box3 w={4} h={5} d={4} cls="dk3-mug" x={142} y={71} z={14} />
+				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={178} y={73} z={14} />
+				<Box3 w={4} h={2.5} d={6} cls="dk3-metal dk3-mouse3" x={189} y={73} z={14} />
+				{/* 人物组：坐在桌子中间近镜头侧（z=30）；多任务时加 dk3-slide 沿桌左右滑 */}
+				<div className={"dk3-person" + (multi ? " dk3-slide" : "")}>
 					{/* 椅子：靠背/坐垫/支柱/底盘 */}
 					<Box3 w={4} h={30} d={22} cls="dk3-chairback" x={2} y={42} />
 					<Box3 w={20} h={4} d={22} cls="dk3-chairseat" x={12} y={58} />
 					<Box3 w={3} h={12} d={3} cls="dk3-metal" x={12} y={68} />
 					<Box3 w={14} h={2} d={14} cls="dk3-metal" x={12} y={74} />
+					{/* 椅子滚轮（左右各一，滑动时可见） */}
+					<Box3 w={3} h={3} d={3} cls="dk3-wheel" x={6} y={77} />
+					<Box3 w={3} h={3} d={3} cls="dk3-wheel" x={18} y={77} />
 					{/* 腿：大腿/小腿/鞋 */}
 					<Box3 w={13} h={5} d={9} cls="dk3-pants" x={20} y={54} />
 					<Box3 w={4} h={12} d={4} cls="dk3-pants" x={26} y={62} />
@@ -731,7 +744,7 @@ export function AnimationOverlay(props) {
 				onPointerCancel={onBotPointerUp}
 				onClick={onBotClick}
 				onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onBotClick(); } }}>
-				<RobotScene phase={phase} />
+				<RobotScene phase={phase} tasks={active} />
 				<span className="dkan-bot-cap">
 					<span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {phaseLabel(phase)}
 				</span>
@@ -1449,6 +1462,17 @@ const css = [
 	".dkan-bubble i:nth-child(2){animation-delay:.2s;}",
 	".dkan-bubble i:nth-child(3){animation-delay:.4s;}",
 	"@keyframes dkan-bubdot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}",
+	// ===== 多任务工位（data-tasks=活跃任务数，上限 3） =====
+	// 椅子滚轮
+	".dk3-wheel .dk3-face{background:#1c232e;border-radius:50%;}",
+	// 未被任务占用的工位屏幕调暗（中位是第 1 个任务的主工位，恒亮）
+	".dkan-bot-scene[data-tasks] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks] .dk3-mon3.right .dk3-screen{opacity:.3;}",
+	// 2 个任务：左工位点亮；3 个任务：左右都点亮（各自带辉光、代码滚动加速）
+	".dkan-bot-scene[data-tasks=\"2\"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 42%,transparent);}",
+	".dkan-bot-scene[data-tasks=\"2\"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.right .dk3-code{animation-duration:calc(2.6s / var(--dkan-speed,1));}",
+	// 多任务：人物坐滚椅沿桌左右滑动，轮流照看各工位（alternate 来回，中段各停留数秒）
+	".dk3-person.dk3-slide{animation:dkan-slide3 12s ease-in-out infinite alternate;}",
+	"@keyframes dkan-slide3{0%,26%{transform:translateZ(30px) translateX(0) rotateY(0deg)}40%,58%{transform:translateZ(30px) translateX(32px) rotateY(-4deg)}72%,100%{transform:translateZ(30px) translateX(64px) rotateY(0deg)}}",
 	// ===== 阶段驱动（data-phase 四态，host 由 chunk 流实时同步） =====
 	// think：屏幕调暗 + 仰头苦想 + 泡泡浮现
 	".dkan-bot-scene[data-phase=think] .dk3-screen{opacity:.32;}",
