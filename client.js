@@ -1049,6 +1049,11 @@ function ModelsView() {
       ),
       import_react3.default.createElement(
         "div",
+        { className: "dkm-note dkm-warn" },
+        "\u26A0 \u672C\u529F\u80FD\u4F1A\u8C03\u7528\u89C6\u89C9\u6A21\u578B\u8BC6\u522B\u56FE\u7247\uFF0C\u6D88\u8017 token\uFF08\u6BCF\u6B21\u8BC6\u56FE\u6309\u89C6\u89C9\u6A21\u578B\u8BA1\u8D39\uFF09\u3002\u9ED8\u8BA4\u5173\u95ED\uFF1B\u4E0D\u5F00\u542F\u5219\u63D2\u4EF6\u5176\u4F59\u529F\u80FD\u5747\u4E0D\u6D88\u8017\u4EFB\u4F55 token\u3002"
+      ),
+      import_react3.default.createElement(
+        "div",
         { className: "dkm-checks" },
         import_react3.default.createElement(
           "label",
@@ -1204,6 +1209,7 @@ var feature2 = {
   description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u76EE\u5F55\uFF1A\u8F93\u5165\u7C7B\u578B\uFF08\u6587\u672C/\u56FE\u7247 + \u6807\u6CE8\uFF09\u4E0E\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF1B\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF0C\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009",
   css: [
     ".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+    ".dkm-warn{color:var(--dsw-alias-state-warning-primary);}",
     ".dkm-error{color:var(--dsw-alias-state-error-primary);font-size:12px;}",
     ".dkm-chips{display:flex;flex-wrap:wrap;gap:6px;}",
     ".dkm-chip{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 12px;font-family:inherit;font-size:12px;}",
