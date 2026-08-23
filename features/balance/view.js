@@ -90,8 +90,11 @@ function BalanceView(props) {
 	} else if (providers.length === 0) {
 		body.push(react.createElement("div", { key: "empty", className: "dkb-note" }, "没有找到已配置的模型 Provider"));
 	} else {
+		// Provider 分组：可查余额的排前面（不可查/需登录的往后）
+		const rank = (p) => (p.balance && p.balance.status === "ok" ? 0 : p.balance && p.balance.status === "login-required" ? 1 : 2);
+		const sorted = providers.slice().sort((a, b) => rank(a) - rank(b));
 		body.push(react.createElement("div", { key: "rows", className: "dkb-rows" },
-			providers.map((p) => {
+			sorted.map((p) => {
 				const accent = accentOf(p.id);
 				const b = p.balance;
 				let badge = ["未知", ""];
@@ -102,51 +105,57 @@ function BalanceView(props) {
 					else if (b.status === "login-required") badge = ["需登录", "warn"];
 					else badge = ["查询失败", "err"];
 				}
-				const sub = ["ID: " + p.id, p.api ? "api: " + p.api : null, p.baseURL ? p.baseURL : null].filter(Boolean).join(" · ");
-				const cells = [];
+				// 主体内容按状态分三型：余额（数字大卡）/ 登录跳转 / 说明
 				let balBody = null;
 				if (b && b.status === "ok" && b.kind === "quota") {
-					cells.push(react.createElement("div", { key: "q", className: "dkb-bal" },
-						react.createElement("span", { className: "dkb-cur", style: { color: accent } }, "总额度"),
-						react.createElement("span", { className: "dkb-total", style: { color: C_TOTAL } }, "剩余 " + fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
-						react.createElement("span", { className: "dkb-part" }, "已用 " + fmt(b.used) + " / 总 " + fmt(b.limit)),
-						b.resetTime
-							? react.createElement("span", { className: "dkb-part" }, "重置 " + String(b.resetTime).slice(0, 16))
-							: null));
-					(Array.isArray(b.dims) ? b.dims : []).forEach((d, i) => {
-						cells.push(react.createElement("div", { key: "d" + i, className: "dkb-bal" },
-							react.createElement("span", { className: "dkb-cur", style: { color: accent } }, d.window === "weekly" ? "周额度" : "小时额度"),
-							react.createElement("span", { className: "dkb-total", style: { color: C_TOTAL } }, "剩余 " + fmt(d.remaining)),
-							react.createElement("span", { className: "dkb-part" }, "已用 " + fmt(d.used) + " / " + fmt(d.limit)),
-							d.resetTime
-								? react.createElement("span", { className: "dkb-part" }, "重置 " + String(d.resetTime).slice(0, 16))
-								: null));
-					});
+					const dims = Array.isArray(b.dims) ? b.dims : [];
+					balBody = react.createElement(react.Fragment, null,
+						react.createElement("div", { className: "dkb-main" },
+							react.createElement("span", { className: "dkb-main-label" }, "剩余额度"),
+							react.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
+							react.createElement("span", { className: "dkb-main-part" }, "已用 " + fmt(b.used) + " / 总 " + fmt(b.limit),
+								b.resetTime ? react.createElement("span", null, " · 重置 " + String(b.resetTime).slice(0, 10)) : null)),
+						dims.map((d, i) => react.createElement("div", { key: "d" + i, className: "dkb-dim" },
+							react.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "周额度" : "小时额度"),
+							react.createElement("span", { className: "dkb-dim-bar" },
+								react.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round((d.remaining / d.limit) * 100)) : 0) + "%" } })),
+							react.createElement("span", { className: "dkb-dim-text" }, "剩 " + fmt(d.remaining) + " / " + fmt(d.limit)))));
 				} else if (b && b.status === "ok") {
 					const infos = Array.isArray(b.infos) ? b.infos : [];
-					cells.push(infos.map((i, idx) =>
-						react.createElement("div", { key: idx, className: "dkb-bal" },
-							react.createElement("span", { className: "dkb-cur", style: { color: accent } }, i.currency),
-							react.createElement("span", { className: "dkb-total", style: { color: C_TOTAL } }, "总额 " + fmt(i.totalBalance)),
-							i.grantedBalance != null
-								? react.createElement("span", { className: "dkb-part", style: { color: C_GRANTED } }, "赠送 " + fmt(i.grantedBalance))
-								: null,
-							i.toppedUpBalance != null
-								? react.createElement("span", { className: "dkb-part", style: { color: C_TOPUP } }, "充值 " + fmt(i.toppedUpBalance))
-								: null)));
+					balBody = react.createElement("div", { className: "dkb-mains" },
+						infos.map((i, idx) => react.createElement("div", { key: idx, className: "dkb-main" },
+							react.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+							react.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+							react.createElement("span", { className: "dkb-main-parts" },
+								i.grantedBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "赠送 " + fmt(i.grantedBalance)) : null,
+								i.toppedUpBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "充值 " + fmt(i.toppedUpBalance)) : null))));
 				} else if (b && b.status === "login-required" && b.consoleUrl) {
-					balBody = react.createElement("div", { className: "dkb-bal" },
+					balBody = react.createElement("div", { className: "dkb-main" },
 						react.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "去控制台查看余额 →"));
 				} else {
-					balBody = react.createElement("div", { className: "dkb-note" }, (b && b.message) || "未知状态");
+					balBody = b && b.message
+						? react.createElement("div", { className: "dkb-note" }, b.message)
+						: react.createElement("div", { className: "dkb-note" }, "该 Provider 没有已知的余额查询接口");
 				}
-				if (cells.length > 0) balBody = react.createElement("div", { className: "dkb-rows" }, cells);
+				// 长连接信息弱化成单行小字（ID · api · baseURL），模型 chips 收敛到折叠区
+				const sub = ["ID " + p.id, p.api, p.baseURL ? p.baseURL.replace(/^https?:\/\//, "") : null].filter(Boolean).join(" · ");
 				return react.createElement("div", { key: p.id, className: "dkb-row", "data-dock-provider": p.id },
 					react.createElement("div", { className: "dkb-row-head" },
 						react.createElement("span", { className: "dkb-dot", style: { background: accent } }),
 						react.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
 						def === p.id ? react.createElement("span", { className: "dkb-default" }, "默认") : null,
-						react.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0])),
+						react.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
+						// 模型数折叠提示（点开展开 chips）
+						p.models && p.models.length > 0
+							? react.createElement("button", {
+								type: "button", className: "dkb-models-toggle",
+								title: p.models.join(", "),
+								onClick: (e) => {
+									const row = e.currentTarget.closest(".dkb-row");
+									if (row) row.classList.toggle("dkb-models-open");
+								}
+							}, p.models.length + " 个模型 ▾")
+							: null),
 					sub ? react.createElement("div", { className: "dkb-sub" }, sub) : null,
 					p.apiKeyEnv
 						? react.createElement("div", { className: "dkb-sub" }, "密钥: " + p.apiKeyEnv + (p.credentialConfigured ? " ✓" : " ✗"))
@@ -165,7 +174,7 @@ function BalanceView(props) {
 	return react.createElement("div", { className: "dkb-rows" },
 		react.createElement("div", { className: "dkb-note" },
 			data && !snap.error && providers.length > 0
-				? okCount + "/" + providers.length + " 个 Provider 可查余额"
+				? okCount + "/" + providers.length + " 个 Provider 可查余额（可查的排前面）"
 				: "模型余额 · Host 半部实时拉取"),
 		body,
 		react.createElement("div", { className: "dkb-foot" },
@@ -271,8 +280,9 @@ export const feature = {
 	css: [
 		".dkb-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
 		".dkb-error{color:var(--dsw-alias-state-error-primary);}",
-		".dkb-rows{display:flex;flex-direction:column;gap:8px;}",
-		".dkb-row{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;}",
+		".dkb-rows{display:flex;flex-direction:column;gap:10px;}",
+		// Provider 卡片：行距收窄、留白分层
+		".dkb-row{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 14px 12px;display:flex;flex-direction:column;gap:6px;}",
 		".dkb-row-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
 		".dkb-dot{width:8px;height:8px;border-radius:50%;flex:none;}",
 		".dkb-name{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);}",
@@ -281,13 +291,28 @@ export const feature = {
 		".dkb-badge.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
 		".dkb-badge.warn{color:var(--dsw-alias-state-warning-primary);border-color:currentColor;}",
 		".dkb-badge.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
+		// 模型数折叠开关（点行头右侧"N 个模型 ▾"展开/收起 chips）
+		".dkb-models-toggle{margin-left:auto;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);font-family:inherit;font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap;}",
+		".dkb-models-toggle:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+		".dkb-row:not(.dkb-models-open) .dkb-chips{display:none;}",
+		".dkb-row.dkb-models-open .dkb-models-toggle::after{content:\"\";}",
+		// 连接信息弱化单行（省略 URL 协议头、超出省略号）
 		".dkb-sub{color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-		".dkb-chips{display:flex;flex-wrap:wrap;gap:4px;}",
+		".dkb-chips{display:flex;flex-wrap:wrap;gap:4px;padding:2px 0 4px;}",
 		".dkb-chip{font-size:10px;border-radius:6px;padding:1px 6px;}",
-		".dkb-bal{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--dsw-alias-label-primary);align-items:baseline;}",
-		".dkb-cur{font-weight:600;min-width:48px;}",
-		".dkb-total{font-weight:600;}",
-		".dkb-part{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+		// 余额主数字卡（大号数字 + 小字辅助信息；多币种横排多卡）
+		".dkb-mains{display:flex;gap:12px;flex-wrap:wrap;}",
+		".dkb-main{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);min-width:150px;}",
+		".dkb-main-label{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+		".dkb-main-value{font-size:20px;font-weight:700;color:var(--dsw-alias-state-success-primary);font-variant-numeric:tabular-nums;line-height:1.2;}",
+		".dkb-main-parts{display:flex;gap:10px;flex-wrap:wrap;}",
+		".dkb-main-part{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+		// 配额维度条（周/小时额度：进度条 + 剩余/总量）
+		".dkb-dim{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--dsw-alias-label-secondary);}",
+		".dkb-dim-label{flex:none;min-width:44px;color:var(--dsw-alias-label-tertiary);}",
+		".dkb-dim-bar{flex:1;max-width:220px;height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);overflow:hidden;}",
+		".dkb-dim-fill{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--dsw-alias-state-success-primary),color-mix(in srgb,var(--dsw-alias-state-success-primary) 60%,#fff));}",
+		".dkb-dim-text{flex:none;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;}",
 		".dkb-link{font-size:12px;text-decoration:none;}",
 		".dkb-link:hover{text-decoration:underline;}",
 		".dkb-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;}",
