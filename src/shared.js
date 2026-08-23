@@ -23,16 +23,35 @@ export class FeatureBoundary extends react.Component {
 	}
 }
 
-// ---- 功能开关状态（外壳面板与会话区 chips 共用；浏览器内存态，随页面生命周期） ----
+// ---- 功能开关状态（外壳面板与会话区 chips 共用；每功能开关 localStorage 持久化，重启后保持） ----
 const featureState = new Map();
 const stateListeners = new Set();
 function notifyState() {
 	for (const fn of stateListeners) fn();
 }
-/** 外壳 apply 时初始化内置功能的默认开关。 */
+// 开关持久化（dsh-dock/features/v1）：id -> boolean；未记录过的功能用模块默认值
+const FEATURE_STORE_KEY = "dsh-dock/features/v1";
+const featurePersist = { map: {} };
+try {
+	if (typeof localStorage !== "undefined") {
+		const raw = localStorage.getItem(FEATURE_STORE_KEY);
+		const obj = raw ? JSON.parse(raw) : null;
+		if (obj && typeof obj === "object") featurePersist.map = obj;
+	}
+} catch { /* localStorage 不可用时用默认值 */ }
+function persistFeatureEnabled() {
+	try {
+		if (typeof localStorage !== "undefined") localStorage.setItem(FEATURE_STORE_KEY, JSON.stringify(featurePersist.map));
+	} catch { /* 持久化失败静默 */ }
+}
+/** 外壳 apply 时初始化内置功能的默认开关（持久化过的值优先于模块默认）。 */
 export function initFeatureState(defs) {
 	for (const f of defs) {
-		if (!featureState.has(f.id)) featureState.set(f.id, { enabled: !f.planned && f.defaultEnabled !== false, error: null });
+		if (featureState.has(f.id)) continue;
+		let enabled = !f.planned && f.defaultEnabled !== false;
+		const saved = featurePersist.map[f.id];
+		if (typeof saved === "boolean") enabled = saved;
+		featureState.set(f.id, { enabled, error: null });
 	}
 }
 /** 取功能开关（外部功能默认启用；未登记的 id 惰性建项）。 */
@@ -44,6 +63,8 @@ export function stateOf(id) {
 export function toggleFeature(id) {
 	const st = stateOf(id);
 	st.enabled = !st.enabled;
+	featurePersist.map[id] = st.enabled;
+	persistFeatureEnabled();
 	notifyState();
 }
 export function subscribeFeatureState(fn) {
