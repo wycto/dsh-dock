@@ -16,6 +16,8 @@ export const DockConfig = z.object({
     // 动画与通知两个独立开关（可只开其一）
     animationEnabled: z.boolean().default(true),
     effectMode: z.string().default('flow'),
+    // 桌面伙伴场景缩放（0.85~2.2；浮层右下角也可直接拖动缩放）
+    robotScale: z.number().default(1.35),
     notifyEnabled: z.boolean().default(true),
     notifyOnComplete: z.boolean().default(true),
     notifyOnError: z.boolean().default(true),

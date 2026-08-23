@@ -18,6 +18,7 @@ function defaultConfig() {
   return {
     animationEnabled: true,
     effectMode: 'flow',
+    robotScale: 1.35,
     notifyEnabled: true,
     notifyOnComplete: true,
     notifyOnError: true,
@@ -434,6 +435,9 @@ export const feature = {
               const p = payload || {}
               if (typeof p.animationEnabled === 'boolean') cfg.animationEnabled = p.animationEnabled
               if (typeof p.effectMode === 'string' && ANIMATION_MODES.includes(p.effectMode)) cfg.effectMode = p.effectMode
+              if (typeof p.robotScale === 'number' && Number.isFinite(p.robotScale)) {
+                cfg.robotScale = Math.max(0.85, Math.min(2.2, Math.round(p.robotScale * 100) / 100))
+              }
               if (typeof p.notifyEnabled === 'boolean') cfg.notifyEnabled = p.notifyEnabled
               if (typeof p.notifyOnComplete === 'boolean') cfg.notifyOnComplete = p.notifyOnComplete
               if (typeof p.notifyOnError === 'boolean') cfg.notifyOnError = p.notifyOnError
