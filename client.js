@@ -1690,7 +1690,10 @@ var EFFECT_MODES = [
   { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u72B6\u6001\u5FBD\u6807\u5706\u70B9\u547C\u5438\uFF0C\u8D8A\u5FD9\u547C\u5438\u8D8A\u5FEB" },
   { id: "ring", name: "\u8F68\u9053\u5149\u73AF", desc: "\u7EC6\u73AF\u7ED5\u5706\u70B9\u65CB\u8F6C\uFF0C\u8F6C\u901F\u968F\u4EFB\u52A1\u901F\u5EA6" },
   { id: "orbit", name: "\u73AF\u5C4F\u5DE1\u822A", desc: "\u4E00\u9897\u5149\u70B9\u6CBF\u5C4F\u5E55\u8FB9\u7F18\u5DE1\u822A\u6574\u5708\uFF0C\u9192\u76EE\u4E0D\u906E\u6321" },
-  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u5C0F\u673A\u5668\u4EBA\u5750\u9547\u4E09\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003/\u6572\u4EE3\u7801/\u67E5\u8D44\u6599\u5B9E\u65F6\u540C\u6B65\u4EFB\u52A1\u9636\u6BB5" }
+  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "3D \u52A8\u6F2B\u4EBA\u7269\u5750\u9547\u56DB\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003/\u6572\u4EE3\u7801/\u67E5\u8D44\u6599\u5B9E\u65F6\u540C\u6B65\u4EFB\u52A1\u9636\u6BB5" },
+  { id: "matrix", name: "\u4EE3\u7801\u96E8", desc: "\u5B57\u7B26\u6CBF\u5C4F\u5E55\u7F13\u843D\u5982\u6570\u636E\u6D41\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\uFF0C\u514B\u5236\u7684\u4F4E\u900F\u660E\u5EA6" },
+  { id: "stars", name: "\u661F\u91CE", desc: "\u7EC6\u788E\u661F\u70B9\u7F13\u6162\u98D8\u79FB\u95EA\u70C1\uFF0C\u5B89\u9759\u8010\u770B\u7684\u80CC\u666F\u6C1B\u56F4" },
+  { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" }
 ];
 var PHASE_LABELS = { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" };
 function phaseLabel(p) {
@@ -1959,12 +1962,112 @@ function Toast(props) {
     t.body ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toast-body", children: t.body }) : null
   ] });
 }
+function makeBits(n, fn) {
+  const arr = [];
+  for (let i = 0; i < n; i++) arr.push(fn(i));
+  return arr;
+}
+function BurstLayer(props) {
+  const bursts = props.bursts || [];
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-fxwrap", "aria-hidden": "true", children: bursts.map((b) => {
+    if (b.type === "plane") {
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-plane", style: { left: b.x, top: b.y }, children: "\u27A4" }, b.id);
+    }
+    if (b.type === "spark") {
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-spark", style: { left: b.x, top: b.y }, children: b.bits.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { "--dx": p.dx + "px", "--dy": p.dy + "px", background: p.c } }, i)) }, b.id);
+    }
+    if (b.type === "streak") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-streak" }, b.id);
+    if (b.type === "flash") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-flash" }, b.id);
+    if (b.type === "surge") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-surge" }, b.id);
+    if (b.type === "confetti") {
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-confetti", children: b.bits.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", "--dx": p.dx + "px", "--r": p.r + "deg", background: p.c, animationDelay: p.d + "s" } }, i)) }, b.id);
+    }
+    return null;
+  }) });
+}
+var MATRIX_CHARS = "01</>;{}=+*#";
+function AmbientLayer(props) {
+  const mode = props.mode;
+  const speed = props.speed;
+  const matrix = (0, import_react7.useMemo)(() => makeBits(26, () => ({
+    l: Math.random() * 100,
+    d: 4 + Math.random() * 6,
+    delay: -Math.random() * 8,
+    o: 0.1 + Math.random() * 0.2,
+    s: 9 + Math.round(Math.random() * 3),
+    c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
+  })), []);
+  const stars = (0, import_react7.useMemo)(() => makeBits(60, () => ({
+    l: Math.random() * 100,
+    t: Math.random() * 100,
+    sz: 1 + Math.random() * 1.6,
+    d: 2 + Math.random() * 4,
+    delay: -Math.random() * 6,
+    dx: (Math.random() - 0.5) * 40,
+    dy: (Math.random() - 0.5) * 24
+  })), []);
+  if (mode === "matrix") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-matrix", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: matrix.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { left: p.l + "%", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", opacity: p.o, fontSize: p.s }, children: p.c }, i)) });
+  }
+  if (mode === "stars") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-stars", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: stars.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" } }, i)) });
+  }
+  if (mode === "aurora") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-aurora", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] });
+  }
+  return null;
+}
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation();
   const [toasts, setToasts] = (0, import_react7.useState)([]);
   const [flourish, setFlourish] = (0, import_react7.useState)(null);
+  const [bursts, setBursts] = (0, import_react7.useState)([]);
   const prevActiveRef = (0, import_react7.useRef)(null);
+  const burstIdRef = (0, import_react7.useRef)(0);
+  const pushBurst = (0, import_react7.useCallback)((type, x, y, bits) => {
+    const id = ++burstIdRef.current;
+    setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
+    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
+  }, []);
+  (0, import_react7.useEffect)(() => {
+    if (typeof document === "undefined") return;
+    const onClick = (e) => {
+      const t = e.target;
+      if (!t || !t.closest) return;
+      const sendBtn = t.closest('button[aria-label="Send message"], button[aria-label*="\u53D1\u9001"]');
+      const newSession = t.closest('button[aria-label*="New session"], button[aria-label*="\u65B0\u4F1A\u8BDD"], button[aria-label*="New Session"]');
+      const workspace = t.closest('button[aria-label*="Choose workspace"], button[aria-label*="\u5DE5\u4F5C\u76EE\u5F55"], button[aria-label*="workspace"]');
+      const sessionItem = t.closest('[role="treeitem"]');
+      if (sendBtn) {
+        pushBurst("plane", e.clientX, e.clientY);
+      } else if (newSession) {
+        pushBurst("spark", e.clientX, e.clientY, makeBits(10, () => ({
+          dx: (Math.random() - 0.5) * 70,
+          dy: (Math.random() - 0.5) * 70,
+          c: ["#4d9fff", "#34d399", "#fbbf24", "#f472b6"][Math.floor(Math.random() * 4)]
+        })));
+      } else if (workspace) {
+        pushBurst("flash");
+      } else if (sessionItem) {
+        pushBurst("streak");
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [pushBurst]);
+  const taskCountRef = (0, import_react7.useRef)(0);
+  (0, import_react7.useEffect)(() => {
+    const st2 = snap.status;
+    if (!st2 || !st2.active) return;
+    const n = st2.active.length;
+    if (n > taskCountRef.current) pushBurst("surge");
+    taskCountRef.current = n;
+  }, [snap.status, pushBurst]);
   (0, import_react7.useEffect)(() => {
     let stopped = false;
     let timer = null;
@@ -2005,6 +2108,15 @@ function AnimationOverlay(props) {
     const info = endInfo(reason);
     if (cfg2.animationEnabled) {
       setFlourish({ key: Date.now(), err: !success });
+      if (success) {
+        pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
+          l: 4 + i / 18 * 92 + Math.random() * 3,
+          dx: (Math.random() - 0.5) * 60,
+          r: Math.random() * 720 - 360,
+          d: Math.random() * 0.35,
+          c: ["#4d9fff", "#34d399", "#fbbf24", "#f472b6", "#a78bfa"][i % 5]
+        })));
+      }
     }
     if (!cfg2.notifyEnabled) return;
     const wanted = success ? cfg2.notifyOnComplete : cfg2.notifyOnError;
@@ -2140,7 +2252,9 @@ function AnimationOverlay(props) {
   if (!st) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     ambientOn && mode === "flow" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-line", style: speedStyle, "aria-hidden": "true" }) : null,
+    ambientOn && (mode === "matrix" || mode === "stars" || mode === "aurora") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AmbientLayer, { mode, speed: Number(speed).toFixed(2) }) : null,
     ambientOn && mode === "orbit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-orbit", style: speedStyle, "aria-hidden": "true" }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(BurstLayer, { bursts }),
     ambientOn && mode === "robot" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
       "button",
       {
@@ -2208,6 +2322,31 @@ function ModePreview({ id }) {
   }
   if (id === "orbit") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-box", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev-orbit" }) });
+  }
+  if (id === "matrix") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-prev dkan-prev-matrix", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] });
+  }
+  if (id === "stars") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-prev dkan-prev-stars", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] });
+  }
+  if (id === "aurora") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-prev dkan-prev-aurora", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] });
   }
   if (id === "robot") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-bot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase: "code" }) });
@@ -2585,6 +2724,42 @@ var css2 = [
   // 环屏巡航：光点沿屏幕边缘转一整圈
   ".dkan-orbit{position:fixed;top:0;left:0;width:12px;height:12px;z-index:9990;pointer-events:none;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 14px 4px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent),0 0 30px 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 25%,transparent);animation:dkan-orbit calc(14s / var(--dkan-speed,1)) linear infinite;}",
   "@keyframes dkan-orbit{0%{top:0;left:0}25%{top:0;left:calc(100vw - 12px)}50%{top:calc(100vh - 12px);left:calc(100vw - 12px)}75%{top:calc(100vh - 12px);left:0}100%{top:0;left:0}}",
+  // ===== 氛围动效 =====
+  ".dkan-amb{position:fixed;inset:0;z-index:9989;pointer-events:none;overflow:hidden;}",
+  // 代码雨：字符列缓落（低透明度，速度随吞吐）
+  ".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);animation:dkan-fall linear infinite;will-change:transform;}",
+  "@keyframes dkan-fall{to{transform:translateY(125vh)}}",
+  // 星野：细碎星点缓慢飘移 + 闪烁
+  ".dkan-stars i{position:absolute;border-radius:50%;background:var(--dsw-alias-label-secondary);animation:dkan-star ease-in-out infinite alternate;}",
+  "@keyframes dkan-star{0%{opacity:.15;transform:translate(0,0)}50%{opacity:.7}100%{opacity:.2;transform:translate(var(--dx),var(--dy))}}",
+  // 极光：顶部柔光带呼吸流动
+  ".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(60px);opacity:.16;animation:dkan-aurora ease-in-out infinite alternate;}",
+  ".dkan-aurora i:nth-child(1){background:#4d9fff;}",
+  ".dkan-aurora i:nth-child(2){background:#34d399;left:20%;animation-delay:-2s;}",
+  ".dkan-aurora i:nth-child(3){background:#a78bfa;left:55%;animation-delay:-4s;}",
+  "@keyframes dkan-aurora{0%{transform:translateX(-8%) scaleY(1)}100%{transform:translateX(10%) scaleY(1.25)}}",
+  // ===== 交互反馈层 =====
+  ".dkan-fxwrap{position:fixed;inset:0;z-index:9992;pointer-events:none;overflow:hidden;}",
+  ".dkan-fx{position:absolute;}",
+  // 纸飞机：从点击处向右上飞出淡出
+  ".dkan-fx-plane{color:var(--dsw-alias-accent,#4d9fff);font-size:16px;animation:dkan-plane 1.1s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-plane{0%{opacity:0;transform:translate(0,0) rotate(-20deg)}15%{opacity:1}100%{opacity:0;transform:translate(180px,-120px) rotate(-20deg)}}",
+  // 火花：粒子四散
+  ".dkan-fx-spark i{position:absolute;width:5px;height:5px;border-radius:50%;animation:dkan-spark .8s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-spark{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(var(--dx),var(--dy))}}",
+  // 流光：横向扫过（切会话）
+  ".dkan-fx-streak{top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--dsw-alias-accent,#4d9fff) 50%,transparent);background-size:40% 100%;background-repeat:no-repeat;animation:dkan-streak .9s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-streak{0%{background-position:-50% 0;opacity:0}20%{opacity:1}100%{background-position:150% 0;opacity:0}}",
+  // 微光：全屏柔光一闪（切工作目录）
+  ".dkan-fx-flash{inset:0;background:radial-gradient(ellipse at center,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 14%,transparent),transparent 70%);animation:dkan-flash .7s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-flash{0%{opacity:0}30%{opacity:1}100%{opacity:0}}",
+  // 光涌：底部向上涌起（任务开始）
+  ".dkan-fx-surge{left:0;right:0;bottom:0;height:30%;background:linear-gradient(0deg,color-mix(in srgb,var(--dsw-alias-state-success-primary,#34d399) 22%,transparent),transparent);animation:dkan-surge 1s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-surge{0%{opacity:0;transform:translateY(40%)}30%{opacity:1}100%{opacity:0;transform:translateY(-30%)}}",
+  // 彩带：顶部飘落（任务完成庆祝）
+  ".dkan-fx-confetti{inset:0;}",
+  ".dkan-fx-confetti i{position:absolute;top:-12px;width:6px;height:10px;border-radius:2px;animation:dkan-confetti 1.8s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-confetti{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(70vh) translateX(var(--dx)) rotate(var(--r))}}",
   // 右下角状态徽标（玻璃拟态，可点击）；抬到 dsh 输入卡上方避免重叠错位
   ".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:pointer;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
   ".dkan-badge:hover{color:var(--dsw-alias-label-primary);}",
@@ -2636,6 +2811,29 @@ var css2 = [
   ".dkan-prev-box{--dkan-speed:1;}",
   ".dkan-prev-orbit{position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 7px 2px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);animation:dkan-prev-orbit 3s linear infinite;}",
   "@keyframes dkan-prev-orbit{0%{top:3px;left:3px}25%{top:3px;left:calc(100% - 10px)}50%{top:calc(100% - 10px);left:calc(100% - 10px)}75%{top:calc(100% - 10px);left:3px}100%{top:3px;left:3px}}",
+  // 预览：代码雨（字符列下落）
+  ".dkan-prev-matrix i{position:absolute;top:-100%;writing-mode:vertical-rl;font-size:8px;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);opacity:.5;animation:dkan-prev-fall 2.2s linear infinite;}",
+  ".dkan-prev-matrix i:nth-child(1){left:12%;}",
+  ".dkan-prev-matrix i:nth-child(2){left:32%;animation-delay:-.6s;}",
+  ".dkan-prev-matrix i:nth-child(3){left:52%;animation-delay:-1.2s;}",
+  ".dkan-prev-matrix i:nth-child(4){left:72%;animation-delay:-.3s;}",
+  ".dkan-prev-matrix i:nth-child(5){left:88%;animation-delay:-1.6s;}",
+  '.dkan-prev-matrix i::after{content:"01</>";}',
+  "@keyframes dkan-prev-fall{to{transform:translateY(300%)}}",
+  // 预览：星野（星点闪烁）
+  ".dkan-prev-stars i{position:absolute;width:2px;height:2px;border-radius:50%;background:var(--dsw-alias-label-secondary);animation:dkan-prev-star 1.6s ease-in-out infinite alternate;}",
+  ".dkan-prev-stars i:nth-child(1){left:15%;top:25%;}",
+  ".dkan-prev-stars i:nth-child(2){left:40%;top:60%;animation-delay:-.4s;}",
+  ".dkan-prev-stars i:nth-child(3){left:60%;top:30%;animation-delay:-.8s;}",
+  ".dkan-prev-stars i:nth-child(4){left:80%;top:55%;animation-delay:-1.2s;}",
+  ".dkan-prev-stars i:nth-child(5){left:28%;top:70%;animation-delay:-.6s;}",
+  ".dkan-prev-stars i:nth-child(6){left:70%;top:75%;animation-delay:-1s;}",
+  "@keyframes dkan-prev-star{0%{opacity:.2}100%{opacity:.9}}",
+  // 预览：极光（柔光带呼吸）
+  ".dkan-prev-aurora i{position:absolute;top:-30%;width:60%;height:120%;border-radius:50%;filter:blur(8px);opacity:.35;animation:dkan-prev-aurora 2.4s ease-in-out infinite alternate;}",
+  ".dkan-prev-aurora i:nth-child(1){left:5%;background:#4d9fff;}",
+  ".dkan-prev-aurora i:nth-child(2){left:45%;background:#34d399;animation-delay:-1.2s;}",
+  "@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
   ".dkan-prev-bot{height:92px;justify-content:center;}",
   ".dkan-prev-bot .dkan-bot-scene{transform:scale(.56);transform-origin:center;}",
   // ===== 桌面伙伴：机器人卡片 + 背侧视角三屏工位（纯 CSS 美术，整卡可拖拽） =====
