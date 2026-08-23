@@ -11,7 +11,7 @@
 // 动画与通知是两个独立开关（可只开其一）；配置全部经 Host settings 持久化，重启后恢复。
 //
 // Host 通信：fetch('/dsh-dock/animation/<method>')（见 features/animation/host.js）。
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { openPanel, panelNav, subscribePanel } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
@@ -39,7 +39,10 @@ const EFFECT_MODES = [
 	{ id: "breathe", name: "呼吸光点", desc: "状态徽标圆点呼吸，越忙呼吸越快" },
 	{ id: "ring", name: "轨道光环", desc: "细环绕圆点旋转，转速随任务速度" },
 	{ id: "orbit", name: "环屏巡航", desc: "一颗光点沿屏幕边缘巡航整圈，醒目不遮挡" },
-	{ id: "robot", name: "桌面伙伴", desc: "小机器人坐镇三屏工位：思考/敲代码/查资料实时同步任务阶段" },
+	{ id: "robot", name: "桌面伙伴", desc: "3D 动漫人物坐镇四屏工位：思考/敲代码/查资料实时同步任务阶段" },
+	{ id: "matrix", name: "代码雨", desc: "字符沿屏幕缓落如数据流，速度随任务吞吐，克制的低透明度" },
+	{ id: "stars", name: "星野", desc: "细碎星点缓慢飘移闪烁，安静耐看的背景氛围" },
+	{ id: "aurora", name: "极光", desc: "屏幕顶部柔光带缓慢呼吸流动，像极光拂过" },
 ];
 
 // 任务阶段 → 机器人行为/文案（host 按 chunk/事件实时推导：
@@ -334,13 +337,138 @@ function Toast(props) {
 	);
 }
 
+// ---------- 交互反馈层：对用户操作即时回应（纸飞机/火花/流光/微光/光涌/彩带） ----------
+// 事件来源：document 点击监听（发送/新会话/切会话/切工作目录）+ 任务状态变化（开始/完成）。
+// 每个 burst = { id, type, x, y, bits }，bits 为预生成的随机粒子参数（内联样式驱动 CSS 动画）。
+function makeBits(n, fn) {
+	const arr = [];
+	for (let i = 0; i < n; i++) arr.push(fn(i));
+	return arr;
+}
+function BurstLayer(props) {
+	const bursts = props.bursts || [];
+	return (
+		<div className="dkan-fxwrap" aria-hidden="true">
+			{bursts.map((b) => {
+				if (b.type === "plane") {
+					return <span key={b.id} className="dkan-fx dkan-fx-plane" style={{ left: b.x, top: b.y }}>➤</span>;
+				}
+				if (b.type === "spark") {
+					return (
+						<span key={b.id} className="dkan-fx dkan-fx-spark" style={{ left: b.x, top: b.y }}>
+							{b.bits.map((p, i) => <i key={i} style={{ "--dx": p.dx + "px", "--dy": p.dy + "px", background: p.c }} />)}
+						</span>
+					);
+				}
+				if (b.type === "streak") return <span key={b.id} className="dkan-fx dkan-fx-streak" />;
+				if (b.type === "flash") return <span key={b.id} className="dkan-fx dkan-fx-flash" />;
+				if (b.type === "surge") return <span key={b.id} className="dkan-fx dkan-fx-surge" />;
+				if (b.type === "confetti") {
+					return (
+						<span key={b.id} className="dkan-fx dkan-fx-confetti">
+							{b.bits.map((p, i) => <i key={i} style={{ left: p.l + "%", "--dx": p.dx + "px", "--r": p.r + "deg", background: p.c, animationDelay: p.d + "s" }} />)}
+						</span>
+					);
+				}
+				return null;
+			})}
+		</div>
+	);
+}
+
+// ---------- 氛围动效：代码雨 / 星野 / 极光（粒子配置 useMemo 稳定，避免重渲染抖动） ----------
+const MATRIX_CHARS = "01</>;{}=+*#";
+function AmbientLayer(props) {
+	const mode = props.mode;
+	const speed = props.speed;
+	const matrix = useMemo(() => makeBits(26, () => ({
+		l: Math.random() * 100, d: 4 + Math.random() * 6, delay: -Math.random() * 8, o: 0.1 + Math.random() * 0.2, s: 9 + Math.round(Math.random() * 3),
+		c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)],
+	})), []);
+	const stars = useMemo(() => makeBits(60, () => ({
+		l: Math.random() * 100, t: Math.random() * 100, sz: 1 + Math.random() * 1.6, d: 2 + Math.random() * 4, delay: -Math.random() * 6, dx: (Math.random() - 0.5) * 40, dy: (Math.random() - 0.5) * 24,
+	})), []);
+	if (mode === "matrix") {
+		return (
+			<div className="dkan-amb dkan-matrix" style={{ "--dkan-speed": speed }} aria-hidden="true">
+				{matrix.map((p, i) => (
+					<span key={i} style={{ left: p.l + "%", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", opacity: p.o, fontSize: p.s }}>{p.c}</span>
+				))}
+			</div>
+		);
+	}
+	if (mode === "stars") {
+		return (
+			<div className="dkan-amb dkan-stars" style={{ "--dkan-speed": speed }} aria-hidden="true">
+				{stars.map((p, i) => (
+					<i key={i} style={{ left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" }} />
+				))}
+			</div>
+		);
+	}
+	if (mode === "aurora") {
+		return (
+			<div className="dkan-amb dkan-aurora" style={{ "--dkan-speed": speed }} aria-hidden="true">
+				<i /><i /><i />
+			</div>
+		);
+	}
+	return null;
+}
+
 // ---------- 全局浮层：轮询 + 动效 + 通知（功能启用即常驻） ----------
 export function AnimationOverlay(props) {
 	const ctx = props && props.ctx;
 	const snap = useAnimation();
 	const [toasts, setToasts] = useState([]);
 	const [flourish, setFlourish] = useState(null); // { key, err } 完成瞬间的一次性流光
+	const [bursts, setBursts] = useState([]); // 交互反馈动画队列
 	const prevActiveRef = useRef(null);
+	const burstIdRef = useRef(0);
+
+	// 触发一个交互反馈动画（自动清理）
+	const pushBurst = useCallback((type, x, y, bits) => {
+		const id = ++burstIdRef.current;
+		setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
+		setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
+	}, []);
+
+	// 点击监听：识别用户操作 → 即时反馈（发送/新会话/切会话/切工作目录）
+	useEffect(() => {
+		if (typeof document === "undefined") return;
+		const onClick = (e) => {
+			const t = e.target;
+			if (!t || !t.closest) return;
+			const sendBtn = t.closest('button[aria-label="Send message"], button[aria-label*="发送"]');
+			const newSession = t.closest('button[aria-label*="New session"], button[aria-label*="新会话"], button[aria-label*="New Session"]');
+			const workspace = t.closest('button[aria-label*="Choose workspace"], button[aria-label*="工作目录"], button[aria-label*="workspace"]');
+			const sessionItem = t.closest('[role="treeitem"]');
+			if (sendBtn) {
+				pushBurst("plane", e.clientX, e.clientY);
+			} else if (newSession) {
+				pushBurst("spark", e.clientX, e.clientY, makeBits(10, () => ({
+					dx: (Math.random() - 0.5) * 70, dy: (Math.random() - 0.5) * 70,
+					c: ["#4d9fff", "#34d399", "#fbbf24", "#f472b6"][Math.floor(Math.random() * 4)],
+				})));
+			} else if (workspace) {
+				pushBurst("flash");
+			} else if (sessionItem) {
+				pushBurst("streak");
+			}
+		};
+		document.addEventListener("click", onClick, true);
+		return () => document.removeEventListener("click", onClick, true);
+	}, [pushBurst]);
+
+	// 任务状态变化 → 开始光涌 / 完成彩带
+	const taskCountRef = useRef(0);
+	useEffect(() => {
+		const st = snap.status;
+		if (!st || !st.active) return;
+		const n = st.active.length;
+		if (n > taskCountRef.current) pushBurst("surge");
+		taskCountRef.current = n;
+	}, [snap.status, pushBurst]);
 
 	// 轮询：有任务 2s / 空闲 6s / 出错 15s；页面从后台切回立即刷新
 	useEffect(() => {
@@ -380,9 +508,18 @@ export function AnimationOverlay(props) {
 		const reason = (record && record.endReason) || "";
 		const success = isSuccessReason(reason);
 		const info = endInfo(reason);
-		// 动画侧：完成瞬间一缕流光掠过（动画关时不渲染）
+		// 动画侧：完成瞬间一缕流光掠过 + 成功时顶部彩带庆祝（动画关时不渲染）
 		if (cfg.animationEnabled) {
 			setFlourish({ key: Date.now(), err: !success });
+			if (success) {
+				pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
+					l: 4 + (i / 18) * 92 + Math.random() * 3,
+					dx: (Math.random() - 0.5) * 60,
+					r: Math.random() * 720 - 360,
+					d: Math.random() * 0.35,
+					c: ["#4d9fff", "#34d399", "#fbbf24", "#f472b6", "#a78bfa"][i % 5],
+				})));
+			}
 		}
 		// 通知侧：与动画开关完全独立
 		if (!cfg.notifyEnabled) return;
@@ -526,8 +663,13 @@ export function AnimationOverlay(props) {
 	return (<>
 		{/* 顶部流光细线（flow 模式 / 任务进行中） */}
 		{ambientOn && mode === "flow" ? <div className="dkan-line" style={speedStyle} aria-hidden="true" /> : null}
+		{/* 氛围动效（代码雨/星野/极光，任务进行中渲染，速度随吞吐） */}
+		{ambientOn && (mode === "matrix" || mode === "stars" || mode === "aurora")
+			? <AmbientLayer mode={mode} speed={Number(speed).toFixed(2)} /> : null}
 		{/* 环屏巡航：一颗光点沿屏幕边缘转圈（orbit 模式） */}
 		{ambientOn && mode === "orbit" ? <div className="dkan-orbit" style={speedStyle} aria-hidden="true" /> : null}
+		{/* 交互反馈层：纸飞机/火花/流光/微光/光涌/彩带（与动画开关独立，只要功能启用即回应操作） */}
+		<BurstLayer bursts={bursts} />
 		{/* 桌面伙伴：背侧视角三屏工位机器人，阶段与任务同步；整卡可拖到任意位置（robot 模式） */}
 		{ambientOn && mode === "robot" ? (
 			<button type="button" className="dkan-botcard" style={botCardStyle}
@@ -583,6 +725,27 @@ function ModePreview({ id }) {
 		return (
 			<span className="dkan-prev dkan-prev-box">
 				<span className="dkan-prev-orbit" />
+			</span>
+		);
+	}
+	if (id === "matrix") {
+		return (
+			<span className="dkan-prev dkan-prev-matrix">
+				<i /><i /><i /><i /><i />
+			</span>
+		);
+	}
+	if (id === "stars") {
+		return (
+			<span className="dkan-prev dkan-prev-stars">
+				<i /><i /><i /><i /><i /><i />
+			</span>
+		);
+	}
+	if (id === "aurora") {
+		return (
+			<span className="dkan-prev dkan-prev-aurora">
+				<i /><i />
 			</span>
 		);
 	}
@@ -919,6 +1082,42 @@ const css = [
 	// 环屏巡航：光点沿屏幕边缘转一整圈
 	".dkan-orbit{position:fixed;top:0;left:0;width:12px;height:12px;z-index:9990;pointer-events:none;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 14px 4px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent),0 0 30px 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 25%,transparent);animation:dkan-orbit calc(14s / var(--dkan-speed,1)) linear infinite;}",
 	"@keyframes dkan-orbit{0%{top:0;left:0}25%{top:0;left:calc(100vw - 12px)}50%{top:calc(100vh - 12px);left:calc(100vw - 12px)}75%{top:calc(100vh - 12px);left:0}100%{top:0;left:0}}",
+	// ===== 氛围动效 =====
+	".dkan-amb{position:fixed;inset:0;z-index:9989;pointer-events:none;overflow:hidden;}",
+	// 代码雨：字符列缓落（低透明度，速度随吞吐）
+	".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);animation:dkan-fall linear infinite;will-change:transform;}",
+	"@keyframes dkan-fall{to{transform:translateY(125vh)}}",
+	// 星野：细碎星点缓慢飘移 + 闪烁
+	".dkan-stars i{position:absolute;border-radius:50%;background:var(--dsw-alias-label-secondary);animation:dkan-star ease-in-out infinite alternate;}",
+	"@keyframes dkan-star{0%{opacity:.15;transform:translate(0,0)}50%{opacity:.7}100%{opacity:.2;transform:translate(var(--dx),var(--dy))}}",
+	// 极光：顶部柔光带呼吸流动
+	".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(60px);opacity:.16;animation:dkan-aurora ease-in-out infinite alternate;}",
+	".dkan-aurora i:nth-child(1){background:#4d9fff;}",
+	".dkan-aurora i:nth-child(2){background:#34d399;left:20%;animation-delay:-2s;}",
+	".dkan-aurora i:nth-child(3){background:#a78bfa;left:55%;animation-delay:-4s;}",
+	"@keyframes dkan-aurora{0%{transform:translateX(-8%) scaleY(1)}100%{transform:translateX(10%) scaleY(1.25)}}",
+	// ===== 交互反馈层 =====
+	".dkan-fxwrap{position:fixed;inset:0;z-index:9992;pointer-events:none;overflow:hidden;}",
+	".dkan-fx{position:absolute;}",
+	// 纸飞机：从点击处向右上飞出淡出
+	".dkan-fx-plane{color:var(--dsw-alias-accent,#4d9fff);font-size:16px;animation:dkan-plane 1.1s var(--ds-ease-in-out) forwards;}",
+	"@keyframes dkan-plane{0%{opacity:0;transform:translate(0,0) rotate(-20deg)}15%{opacity:1}100%{opacity:0;transform:translate(180px,-120px) rotate(-20deg)}}",
+	// 火花：粒子四散
+	".dkan-fx-spark i{position:absolute;width:5px;height:5px;border-radius:50%;animation:dkan-spark .8s var(--ds-ease-in-out) forwards;}",
+	"@keyframes dkan-spark{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(var(--dx),var(--dy))}}",
+	// 流光：横向扫过（切会话）
+	".dkan-fx-streak{top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--dsw-alias-accent,#4d9fff) 50%,transparent);background-size:40% 100%;background-repeat:no-repeat;animation:dkan-streak .9s var(--ds-ease-in-out) forwards;}",
+	"@keyframes dkan-streak{0%{background-position:-50% 0;opacity:0}20%{opacity:1}100%{background-position:150% 0;opacity:0}}",
+	// 微光：全屏柔光一闪（切工作目录）
+	".dkan-fx-flash{inset:0;background:radial-gradient(ellipse at center,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 14%,transparent),transparent 70%);animation:dkan-flash .7s var(--ds-ease-in-out) forwards;}",
+	"@keyframes dkan-flash{0%{opacity:0}30%{opacity:1}100%{opacity:0}}",
+	// 光涌：底部向上涌起（任务开始）
+	".dkan-fx-surge{left:0;right:0;bottom:0;height:30%;background:linear-gradient(0deg,color-mix(in srgb,var(--dsw-alias-state-success-primary,#34d399) 22%,transparent),transparent);animation:dkan-surge 1s var(--ds-ease-in-out) forwards;}",
+	"@keyframes dkan-surge{0%{opacity:0;transform:translateY(40%)}30%{opacity:1}100%{opacity:0;transform:translateY(-30%)}}",
+	// 彩带：顶部飘落（任务完成庆祝）
+	".dkan-fx-confetti{inset:0;}",
+	".dkan-fx-confetti i{position:absolute;top:-12px;width:6px;height:10px;border-radius:2px;animation:dkan-confetti 1.8s var(--ds-ease-in-out) forwards;}",
+	"@keyframes dkan-confetti{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(70vh) translateX(var(--dx)) rotate(var(--r))}}",
 	// 右下角状态徽标（玻璃拟态，可点击）；抬到 dsh 输入卡上方避免重叠错位
 	".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:pointer;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
 	".dkan-badge:hover{color:var(--dsw-alias-label-primary);}",
@@ -970,6 +1169,29 @@ const css = [
 	".dkan-prev-box{--dkan-speed:1;}",
 	".dkan-prev-orbit{position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 7px 2px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);animation:dkan-prev-orbit 3s linear infinite;}",
 	"@keyframes dkan-prev-orbit{0%{top:3px;left:3px}25%{top:3px;left:calc(100% - 10px)}50%{top:calc(100% - 10px);left:calc(100% - 10px)}75%{top:calc(100% - 10px);left:3px}100%{top:3px;left:3px}}",
+	// 预览：代码雨（字符列下落）
+	".dkan-prev-matrix i{position:absolute;top:-100%;writing-mode:vertical-rl;font-size:8px;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);opacity:.5;animation:dkan-prev-fall 2.2s linear infinite;}",
+	".dkan-prev-matrix i:nth-child(1){left:12%;}",
+	".dkan-prev-matrix i:nth-child(2){left:32%;animation-delay:-.6s;}",
+	".dkan-prev-matrix i:nth-child(3){left:52%;animation-delay:-1.2s;}",
+	".dkan-prev-matrix i:nth-child(4){left:72%;animation-delay:-.3s;}",
+	".dkan-prev-matrix i:nth-child(5){left:88%;animation-delay:-1.6s;}",
+	".dkan-prev-matrix i::after{content:\"01</>\";}",
+	"@keyframes dkan-prev-fall{to{transform:translateY(300%)}}",
+	// 预览：星野（星点闪烁）
+	".dkan-prev-stars i{position:absolute;width:2px;height:2px;border-radius:50%;background:var(--dsw-alias-label-secondary);animation:dkan-prev-star 1.6s ease-in-out infinite alternate;}",
+	".dkan-prev-stars i:nth-child(1){left:15%;top:25%;}",
+	".dkan-prev-stars i:nth-child(2){left:40%;top:60%;animation-delay:-.4s;}",
+	".dkan-prev-stars i:nth-child(3){left:60%;top:30%;animation-delay:-.8s;}",
+	".dkan-prev-stars i:nth-child(4){left:80%;top:55%;animation-delay:-1.2s;}",
+	".dkan-prev-stars i:nth-child(5){left:28%;top:70%;animation-delay:-.6s;}",
+	".dkan-prev-stars i:nth-child(6){left:70%;top:75%;animation-delay:-1s;}",
+	"@keyframes dkan-prev-star{0%{opacity:.2}100%{opacity:.9}}",
+	// 预览：极光（柔光带呼吸）
+	".dkan-prev-aurora i{position:absolute;top:-30%;width:60%;height:120%;border-radius:50%;filter:blur(8px);opacity:.35;animation:dkan-prev-aurora 2.4s ease-in-out infinite alternate;}",
+	".dkan-prev-aurora i:nth-child(1){left:5%;background:#4d9fff;}",
+	".dkan-prev-aurora i:nth-child(2){left:45%;background:#34d399;animation-delay:-1.2s;}",
+	"@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
 	".dkan-prev-bot{height:92px;justify-content:center;}",
 	".dkan-prev-bot .dkan-bot-scene{transform:scale(.56);transform-origin:center;}",
 	// ===== 桌面伙伴：机器人卡片 + 背侧视角三屏工位（纯 CSS 美术，整卡可拖拽） =====
