@@ -1974,13 +1974,13 @@ function BurstLayer(props) {
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-plane", style: { left: b.x, top: b.y }, children: "\u27A4" }, b.id);
     }
     if (b.type === "spark") {
-      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-spark", style: { left: b.x, top: b.y }, children: b.bits.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { "--dx": p.dx + "px", "--dy": p.dy + "px", background: p.c } }, i)) }, b.id);
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-spark", style: { left: b.x, top: b.y }, children: b.bits.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { "--dx": p.dx + "px", "--dy": p.dy + "px", background: p.c, boxShadow: "0 0 6px " + p.c } }, i)) }, b.id);
     }
     if (b.type === "streak") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-streak" }, b.id);
     if (b.type === "flash") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-flash" }, b.id);
     if (b.type === "surge") return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-surge" }, b.id);
     if (b.type === "confetti") {
-      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-confetti", children: b.bits.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", "--dx": p.dx + "px", "--r": p.r + "deg", background: p.c, animationDelay: p.d + "s" } }, i)) }, b.id);
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-fx dkan-fx-confetti", children: b.bits.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", "--dx": p.dx + "px", "--r": p.r + "deg", background: p.c, boxShadow: "0 0 4px " + p.c, animationDelay: p.d + "s" } }, i)) }, b.id);
     }
     return null;
   }) });
@@ -1989,18 +1989,18 @@ var MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
   const mode = props.mode;
   const speed = props.speed;
-  const matrix = (0, import_react7.useMemo)(() => makeBits(26, () => ({
+  const matrix = (0, import_react7.useMemo)(() => makeBits(34, () => ({
     l: Math.random() * 100,
     d: 4 + Math.random() * 6,
     delay: -Math.random() * 8,
-    o: 0.1 + Math.random() * 0.2,
-    s: 9 + Math.round(Math.random() * 3),
+    o: 0.28 + Math.random() * 0.34,
+    s: 11 + Math.round(Math.random() * 4),
     c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
   })), []);
-  const stars = (0, import_react7.useMemo)(() => makeBits(60, () => ({
+  const stars = (0, import_react7.useMemo)(() => makeBits(80, () => ({
     l: Math.random() * 100,
     t: Math.random() * 100,
-    sz: 1 + Math.random() * 1.6,
+    sz: 1.5 + Math.random() * 2,
     d: 2 + Math.random() * 4,
     delay: -Math.random() * 6,
     dx: (Math.random() - 0.5) * 40,
@@ -2726,40 +2726,40 @@ var css2 = [
   "@keyframes dkan-orbit{0%{top:0;left:0}25%{top:0;left:calc(100vw - 12px)}50%{top:calc(100vh - 12px);left:calc(100vw - 12px)}75%{top:calc(100vh - 12px);left:0}100%{top:0;left:0}}",
   // ===== 氛围动效 =====
   ".dkan-amb{position:fixed;inset:0;z-index:9989;pointer-events:none;overflow:hidden;}",
-  // 代码雨：字符列缓落（低透明度，速度随吞吐）
-  ".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);animation:dkan-fall linear infinite;will-change:transform;}",
+  // 代码雨：字符列缓落（提亮加大，速度随吞吐）
+  ".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);text-shadow:0 0 6px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent);animation:dkan-fall linear infinite;will-change:transform;}",
   "@keyframes dkan-fall{to{transform:translateY(125vh)}}",
-  // 星野：细碎星点缓慢飘移 + 闪烁
-  ".dkan-stars i{position:absolute;border-radius:50%;background:var(--dsw-alias-label-secondary);animation:dkan-star ease-in-out infinite alternate;}",
-  "@keyframes dkan-star{0%{opacity:.15;transform:translate(0,0)}50%{opacity:.7}100%{opacity:.2;transform:translate(var(--dx),var(--dy))}}",
-  // 极光：顶部柔光带呼吸流动
-  ".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(60px);opacity:.16;animation:dkan-aurora ease-in-out infinite alternate;}",
+  // 星野：星点缓慢飘移 + 闪烁（加亮加发光）
+  ".dkan-stars i{position:absolute;border-radius:50%;background:#cfe3ff;box-shadow:0 0 4px 1px color-mix(in srgb,#8ab6ff 55%,transparent);animation:dkan-star ease-in-out infinite alternate;}",
+  "@keyframes dkan-star{0%{opacity:.3;transform:translate(0,0)}50%{opacity:1}100%{opacity:.45;transform:translate(var(--dx),var(--dy))}}",
+  // 极光：顶部柔光带呼吸流动（加浓）
+  ".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(50px);opacity:.32;animation:dkan-aurora ease-in-out infinite alternate;}",
   ".dkan-aurora i:nth-child(1){background:#4d9fff;}",
   ".dkan-aurora i:nth-child(2){background:#34d399;left:20%;animation-delay:-2s;}",
   ".dkan-aurora i:nth-child(3){background:#a78bfa;left:55%;animation-delay:-4s;}",
-  "@keyframes dkan-aurora{0%{transform:translateX(-8%) scaleY(1)}100%{transform:translateX(10%) scaleY(1.25)}}",
+  "@keyframes dkan-aurora{0%{transform:translateX(-8%) scaleY(1)}100%{transform:translateX(10%) scaleY(1.3)}}",
   // ===== 交互反馈层 =====
   ".dkan-fxwrap{position:fixed;inset:0;z-index:9992;pointer-events:none;overflow:hidden;}",
   ".dkan-fx{position:absolute;}",
-  // 纸飞机：从点击处向右上飞出淡出
-  ".dkan-fx-plane{color:var(--dsw-alias-accent,#4d9fff);font-size:16px;animation:dkan-plane 1.1s var(--ds-ease-in-out) forwards;}",
-  "@keyframes dkan-plane{0%{opacity:0;transform:translate(0,0) rotate(-20deg)}15%{opacity:1}100%{opacity:0;transform:translate(180px,-120px) rotate(-20deg)}}",
-  // 火花：粒子四散
-  ".dkan-fx-spark i{position:absolute;width:5px;height:5px;border-radius:50%;animation:dkan-spark .8s var(--ds-ease-in-out) forwards;}",
-  "@keyframes dkan-spark{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(var(--dx),var(--dy))}}",
-  // 流光：横向扫过（切会话）
-  ".dkan-fx-streak{top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--dsw-alias-accent,#4d9fff) 50%,transparent);background-size:40% 100%;background-repeat:no-repeat;animation:dkan-streak .9s var(--ds-ease-in-out) forwards;}",
+  // 纸飞机：从点击处向右上飞出淡出（加大加亮）
+  ".dkan-fx-plane{color:var(--dsw-alias-accent,#4d9fff);font-size:24px;text-shadow:0 0 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 70%,transparent);animation:dkan-plane 1.2s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-plane{0%{opacity:0;transform:translate(0,0) rotate(-20deg) scale(.6)}15%{opacity:1;transform:translate(20px,-14px) rotate(-20deg) scale(1.1)}100%{opacity:0;transform:translate(240px,-160px) rotate(-20deg) scale(1)}}",
+  // 火花：粒子四散（加大加多散得更开）
+  ".dkan-fx-spark i{position:absolute;width:7px;height:7px;border-radius:50%;box-shadow:0 0 6px currentColor;animation:dkan-spark .9s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-spark{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.4)}}",
+  // 流光：横向扫过（切会话，加高加亮）
+  ".dkan-fx-streak{top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--dsw-alias-accent,#4d9fff) 50%,#fff);background-size:45% 100%;background-repeat:no-repeat;box-shadow:0 0 12px 2px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 50%,transparent);animation:dkan-streak 1s var(--ds-ease-in-out) forwards;}",
   "@keyframes dkan-streak{0%{background-position:-50% 0;opacity:0}20%{opacity:1}100%{background-position:150% 0;opacity:0}}",
-  // 微光：全屏柔光一闪（切工作目录）
-  ".dkan-fx-flash{inset:0;background:radial-gradient(ellipse at center,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 14%,transparent),transparent 70%);animation:dkan-flash .7s var(--ds-ease-in-out) forwards;}",
+  // 微光：全屏柔光一闪（切工作目录，加浓）
+  ".dkan-fx-flash{inset:0;background:radial-gradient(ellipse at center,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 26%,transparent),transparent 75%);animation:dkan-flash .8s var(--ds-ease-in-out) forwards;}",
   "@keyframes dkan-flash{0%{opacity:0}30%{opacity:1}100%{opacity:0}}",
-  // 光涌：底部向上涌起（任务开始）
-  ".dkan-fx-surge{left:0;right:0;bottom:0;height:30%;background:linear-gradient(0deg,color-mix(in srgb,var(--dsw-alias-state-success-primary,#34d399) 22%,transparent),transparent);animation:dkan-surge 1s var(--ds-ease-in-out) forwards;}",
-  "@keyframes dkan-surge{0%{opacity:0;transform:translateY(40%)}30%{opacity:1}100%{opacity:0;transform:translateY(-30%)}}",
-  // 彩带：顶部飘落（任务完成庆祝）
+  // 光涌：底部向上涌起（任务开始，加高加浓）
+  ".dkan-fx-surge{left:0;right:0;bottom:0;height:42%;background:linear-gradient(0deg,color-mix(in srgb,var(--dsw-alias-state-success-primary,#34d399) 38%,transparent),transparent);animation:dkan-surge 1.2s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-surge{0%{opacity:0;transform:translateY(45%)}30%{opacity:1}100%{opacity:0;transform:translateY(-35%)}}",
+  // 彩带：顶部飘落（任务完成庆祝，加大加多）
   ".dkan-fx-confetti{inset:0;}",
-  ".dkan-fx-confetti i{position:absolute;top:-12px;width:6px;height:10px;border-radius:2px;animation:dkan-confetti 1.8s var(--ds-ease-in-out) forwards;}",
-  "@keyframes dkan-confetti{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(70vh) translateX(var(--dx)) rotate(var(--r))}}",
+  ".dkan-fx-confetti i{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;box-shadow:0 0 4px currentColor;animation:dkan-confetti 2s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dkan-confetti{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(75vh) translateX(var(--dx)) rotate(var(--r))}}",
   // 右下角状态徽标（玻璃拟态，可点击）；抬到 dsh 输入卡上方避免重叠错位
   ".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:pointer;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
   ".dkan-badge:hover{color:var(--dsw-alias-label-primary);}",
