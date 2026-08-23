@@ -1883,6 +1883,35 @@ function RobotScene(props) {
     ] })
   ] });
 }
+var soundCtx = null;
+function playTone(seq) {
+  try {
+    if (typeof window === "undefined" || !window.AudioContext && !window.webkitAudioContext) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!soundCtx) soundCtx = new AC();
+    if (soundCtx.state === "suspended") {
+      soundCtx.resume().catch(() => {
+      });
+    }
+    const t0 = soundCtx.currentTime;
+    for (const note of seq) {
+      const osc = soundCtx.createOscillator();
+      const gain = soundCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = note.f;
+      gain.gain.setValueAtTime(0, t0 + note.at);
+      gain.gain.linearRampToValueAtTime(0.18, t0 + note.at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(1e-4, t0 + note.at + note.dur);
+      osc.connect(gain).connect(soundCtx.destination);
+      osc.start(t0 + note.at);
+      osc.stop(t0 + note.at + note.dur + 0.05);
+    }
+  } catch {
+  }
+}
+function playDoneSound(success) {
+  playTone(success ? [{ f: 659.25, at: 0, dur: 0.14 }, { f: 880, at: 0.13, dur: 0.22 }] : [{ f: 220, at: 0, dur: 0.16 }, { f: 164.81, at: 0.15, dur: 0.3 }]);
+}
 function Toast(props) {
   const t = props.t;
   const [closing, setClosing] = (0, import_react7.useState)(false);
@@ -1981,6 +2010,7 @@ function AnimationOverlay(props) {
       stayMs: typeof cfg2.notifyStayMs === "number" ? cfg2.notifyStayMs : 8e3
     };
     setToasts((prev) => prev.concat([toast]).slice(-4));
+    if (cfg2.soundNotify !== false) playDoneSound(success);
     if (cfg2.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
       try {
         new Notification("dsh " + title, {
@@ -2383,6 +2413,20 @@ function AnimationView(props) {
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: permNote })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u63D0\u793A\u97F3" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkm-miniswitch" + (cfg.soundNotify !== false ? " on" : ""),
+                onClick: () => patch({ soundNotify: cfg.soundNotify === false }),
+                children: cfg.soundNotify !== false ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-btn", onClick: () => playDoneSound(true), children: "\u8BD5\u542C" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u65F6\u64AD\u653E\uFF08\u5B8C\u6210\u4E0A\u884C\u53CC\u97F3 / \u5F02\u5E38\u4E0B\u884C\u4F4E\u97F3\uFF09" })
           ] })
         ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u901A\u77E5\u5DF2\u5173\u95ED\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u65F6\u65E2\u4E0D\u5F39\u5361\u7247\u4E5F\u4E0D\u63A8\u7CFB\u7EDF\u901A\u77E5\u3002" })
       ] }, "notify"),
