@@ -401,8 +401,12 @@ function AmbientLayer(props) {
 		return (
 			<div className="dkan-amb dkan-stars" style={{ "--dkan-speed": speed }} aria-hidden="true">
 				{stars.map((p, i) => (
-					<i key={i} style={{ left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" }} />
+					<i key={i} className="dkan-star" style={{ left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" }} />
 				))}
+				<span className="dkan-moon" />
+				<i className="dkan-meteor" style={{ top: "12%", left: "72%", animationDelay: "0s" }} />
+				<i className="dkan-meteor" style={{ top: "28%", left: "88%", animationDelay: "2.8s" }} />
+				<i className="dkan-meteor" style={{ top: "6%", left: "42%", animationDelay: "5.6s" }} />
 			</div>
 		);
 	}
@@ -1087,9 +1091,15 @@ const css = [
 	// 代码雨：字符列缓落（提亮加大，速度随吞吐）
 	".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);text-shadow:0 0 6px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent);animation:dkan-fall linear infinite;will-change:transform;}",
 	"@keyframes dkan-fall{to{transform:translateY(125vh)}}",
-	// 星野：星点缓慢飘移 + 闪烁（加亮加发光）
-	".dkan-stars i{position:absolute;border-radius:50%;background:#cfe3ff;box-shadow:0 0 4px 1px color-mix(in srgb,#8ab6ff 55%,transparent);animation:dkan-star ease-in-out infinite alternate;}",
+	// 星野：星点缓慢飘移 + 闪烁（加亮加发光）+ 月亮 + 流星
+	".dkan-stars .dkan-star{position:absolute;border-radius:50%;background:#cfe3ff;box-shadow:0 0 4px 1px color-mix(in srgb,#8ab6ff 55%,transparent);animation:dkan-star ease-in-out infinite alternate;}",
 	"@keyframes dkan-star{0%{opacity:.3;transform:translate(0,0)}50%{opacity:1}100%{opacity:.45;transform:translate(var(--dx),var(--dy))}}",
+	// 月亮：右上弯月（radial-gradient 咬出月牙，透明区不遮挡背景；外圈柔光晕）
+	".dkan-moon{position:absolute;top:9%;right:10%;width:36px;height:36px;border-radius:50%;background:radial-gradient(circle at 66% 34%,transparent 0 44%,#fdf6d8 46%,#e8d9a0 78%,#d8c78a);box-shadow:0 0 18px 4px color-mix(in srgb,#fdf6d8 35%,transparent),0 0 44px 12px color-mix(in srgb,#fdf6d8 15%,transparent);}",
+	// 流星：斜向划过的光带（亮头 + 渐隐尾），周期出现
+	".dkan-meteor{position:absolute;width:110px;height:2px;border-radius:2px;background:linear-gradient(90deg,#fff,color-mix(in srgb,#8ab6ff 60%,transparent) 40%,transparent);transform:rotate(35deg);transform-origin:left center;opacity:0;animation:dkan-meteor 8.4s linear infinite;}",
+	".dkan-meteor::before{content:\"\";position:absolute;left:-2px;top:-2px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px color-mix(in srgb,#cfe3ff 70%,transparent);}",
+	"@keyframes dkan-meteor{0%{opacity:0;transform:rotate(35deg) translateX(0)}3%{opacity:1}10%{opacity:0;transform:rotate(35deg) translateX(46vh)}100%{opacity:0;transform:rotate(35deg) translateX(46vh)}}",
 	// 极光：顶部柔光带呼吸流动（加浓）
 	".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(50px);opacity:.32;animation:dkan-aurora ease-in-out infinite alternate;}",
 	".dkan-aurora i:nth-child(1){background:#4d9fff;}",
