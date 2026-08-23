@@ -25,6 +25,8 @@ export const DockConfig = z.object({
     systemNotify: z.boolean().default(false),
     // 任务结束提示音（WebAudio 合成，macOS/Windows 通用，无音频文件依赖）
     soundNotify: z.boolean().default(true),
+    // 提示音音效（完成场景音名；异常音由音效包内配套）
+    soundEffect: z.string().default('chime'),
     // 钉钉群机器人推送（宿主侧直发，浏览器关着也能推；事件跟随 notifyOnComplete/notifyOnError）
     dingtalkEnabled: z.boolean().default(false),
     dingtalkWebhook: z.string().default(''),
@@ -33,6 +35,9 @@ export const DockConfig = z.object({
 
 /** 任务动画 effectMode 合法值（客户端动画模式）。 */
 export const ANIMATION_MODES = ['flow', 'breathe', 'ring', 'orbit', 'robot']
+
+/** 提示音 soundEffect 合法值（客户端音效库键名）。 */
+export const SOUND_EFFECTS = ['chime', 'ding', 'coin', 'bell', 'pulse', 'arp']
 
 /** 沿 settingsPath 走一层对象（user/base/value 都可用）。 */
 export function walkPath(node, path) {
