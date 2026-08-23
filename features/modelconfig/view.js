@@ -280,10 +280,12 @@ function ModelsView() {
 		const vpKey = vpDraft.provider + "/" + vpDraft.model;
 		const vpKnown = vpCandidates.some((c) => c.key === vpKey);
 		body.push(react.createElement("div", { key: "visionproxy", className: "dkm-prov" },
-			react.createElement("div", { className: "dkm-prov-head" },
-				react.createElement("span", { className: "dkm-name" }, "图片理解代理"),
-				react.createElement("span", { className: "dkm-badge" }, vpDraft.enabled ? "已启用" : "已停用"),
-				react.createElement("span", { className: "dkm-sub" }, "纯文本模型收到图片时自动调用所选视觉模型识别，识别文本替换图片；多模态模型原样自识别")),
+				react.createElement("div", { className: "dkm-prov-head" },
+					react.createElement("span", { className: "dkm-name" }, "图片理解代理"),
+					react.createElement("span", { className: "dkm-badge" }, vpDraft.enabled ? "已启用" : "已停用"),
+					react.createElement("span", { className: "dkm-sub" }, "纯文本模型收到图片时自动调用所选视觉模型识别，识别文本替换图片；多模态模型原样自识别")),
+				react.createElement("div", { className: "dkm-note dkm-warn" },
+					"⚠ 本功能会调用视觉模型识别图片，消耗 token（每次识图按视觉模型计费）。默认关闭；不开启则插件其余功能均不消耗任何 token。"),
 			react.createElement("div", { className: "dkm-checks" },
 				react.createElement("label", { className: "dkm-check" },
 					react.createElement("input", {
@@ -401,6 +403,7 @@ export const feature = {
 	description: "编辑各 Provider 模型目录：输入类型（文本/图片 + 标注）与思考强度档位；写回官方配置热生效，会话模型选择器即时可选",
 	css: [
 		".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+		".dkm-warn{color:var(--dsw-alias-state-warning-primary);}",
 		".dkm-error{color:var(--dsw-alias-state-error-primary);font-size:12px;}",
 		".dkm-chips{display:flex;flex-wrap:wrap;gap:6px;}",
 		".dkm-chip{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 12px;font-family:inherit;font-size:12px;}",
