@@ -23,6 +23,7 @@ function defaultConfig() {
     notifyOnError: true,
     notifyStayMs: 8000,
     systemNotify: false,
+    soundNotify: true,
     dingtalkEnabled: false,
     dingtalkWebhook: '',
   }
@@ -438,6 +439,7 @@ export const feature = {
                 cfg.notifyStayMs = Math.max(0, Math.min(600000, Math.round(p.notifyStayMs)))
               }
               if (typeof p.systemNotify === 'boolean') cfg.systemNotify = p.systemNotify
+              if (typeof p.soundNotify === 'boolean') cfg.soundNotify = p.soundNotify
               if (typeof p.dingtalkEnabled === 'boolean') cfg.dingtalkEnabled = p.dingtalkEnabled
               if (typeof p.dingtalkWebhook === 'string') {
                 const hook = p.dingtalkWebhook.trim()

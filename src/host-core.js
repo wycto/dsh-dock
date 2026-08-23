@@ -23,6 +23,8 @@ export const DockConfig = z.object({
     notifyStayMs: z.number().default(8000),
     // 浏览器系统通知（页面后台时推送）
     systemNotify: z.boolean().default(false),
+    // 任务结束提示音（WebAudio 合成，macOS/Windows 通用，无音频文件依赖）
+    soundNotify: z.boolean().default(true),
     // 钉钉群机器人推送（宿主侧直发，浏览器关着也能推；事件跟随 notifyOnComplete/notifyOnError）
     dingtalkEnabled: z.boolean().default(false),
     dingtalkWebhook: z.string().default(''),
