@@ -1696,7 +1696,7 @@ var EFFECT_MODES = [
   { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u72B6\u6001\u5FBD\u6807\u5706\u70B9\u547C\u5438\uFF0C\u8D8A\u5FD9\u547C\u5438\u8D8A\u5FEB" },
   { id: "ring", name: "\u8F68\u9053\u5149\u73AF", desc: "\u7EC6\u73AF\u7ED5\u5706\u70B9\u65CB\u8F6C\uFF0C\u8F6C\u901F\u968F\u4EFB\u52A1\u901F\u5EA6" },
   { id: "orbit", name: "\u73AF\u5C4F\u5DE1\u822A", desc: "\u4E00\u9897\u5149\u70B9\u6CBF\u5C4F\u5E55\u8FB9\u7F18\u5DE1\u822A\u6574\u5708\uFF0C\u9192\u76EE\u4E0D\u906E\u6321" },
-  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "3D \u52A8\u6F2B\u4EBA\u7269\u5750\u9547\u56DB\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003/\u6572\u4EE3\u7801/\u67E5\u8D44\u6599\u5B9E\u65F6\u540C\u6B65\u4EFB\u52A1\u9636\u6BB5" },
+  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u66F4\u5177\u8C61\u7684\u4EBA\u7269\u5750\u9547\u56DB\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003\u3001\u8F93\u51FA\u3001\u67E5\u8D44\u6599\u968F\u4EFB\u52A1\u9636\u6BB5\u5207\u6362" },
   { id: "matrix", name: "\u4EE3\u7801\u96E8", desc: "\u5B57\u7B26\u6CBF\u5C4F\u5E55\u7F13\u843D\u5982\u6570\u636E\u6D41\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\uFF0C\u514B\u5236\u7684\u4F4E\u900F\u660E\u5EA6" },
   { id: "stars", name: "\u661F\u91CE", desc: "\u7EC6\u788E\u661F\u70B9\u7F13\u6162\u98D8\u79FB\u95EA\u70C1\uFF0C\u5B89\u9759\u8010\u770B\u7684\u80CC\u666F\u6C1B\u56F4" },
   { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" }
@@ -1866,14 +1866,20 @@ function RobotScene(props) {
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 3, d: 4, cls: "dk3-skin", x: 14, y: 25 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-head3", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box3, { w: 13, h: 12, d: 12, cls: "dk3-skin dk3-headbox", x: 8, y: 10, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-brows", style: { width: 10, height: 4, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.3px)" }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+            ] }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-eyes", style: { width: 10, height: 7, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
             ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-nose", style: { transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.8px)" } }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-mouth", style: { transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" } })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 6, d: 13, cls: "dk3-hair", x: 8, y: 4 }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 13, cls: "dk3-hair", x: 2, y: 9 })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 13, cls: "dk3-hair", x: 2, y: 9 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-ear" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
@@ -2199,10 +2205,17 @@ function AnimationOverlay(props) {
   }, [snap.status]);
   const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
   const ambientOn = animOn && !panelOpen;
+  const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
+  const saveRobotScale = (0, import_react7.useCallback)((robotScale) => {
+    rpcCall2("config", { robotScale }).then((d) => animationStore.applyConfig(d && d.config)).catch(() => {
+    });
+  }, []);
   const [botPos, setBotPos] = (0, import_react7.useState)(null);
   const botPosRef = (0, import_react7.useRef)(null);
   const botDragRef = (0, import_react7.useRef)(null);
+  const botResizeRef = (0, import_react7.useRef)(null);
+  const [botScaleDraft, setBotScaleDraft] = (0, import_react7.useState)(null);
   const botClickBlockRef = (0, import_react7.useRef)(false);
   (0, import_react7.useEffect)(() => {
     try {
@@ -2256,11 +2269,51 @@ function AnimationOverlay(props) {
       }, 0);
     }
   };
+  const onBotResizePointerDown = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    botResizeRef.current = { sx: e.clientX, sy: e.clientY, scale: botScaleDraft == null ? robotScaleFromConfig : botScaleDraft };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+    }
+  };
+  const onBotResizePointerMove = (e) => {
+    const d = botResizeRef.current;
+    if (!d) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = (e.clientX - d.sx + (e.clientY - d.sy)) / 2;
+    const next = Math.max(0.85, Math.min(2.2, Math.round((d.scale + delta / 220) * 100) / 100));
+    setBotScaleDraft(next);
+    if (botPosRef.current && typeof window !== "undefined") {
+      const w = 220 * next + 24, h = 132 * next + 46;
+      const x = Math.min(Math.max(8, botPosRef.current.x), Math.max(8, window.innerWidth - w - 8));
+      const y = Math.min(Math.max(8, botPosRef.current.y), Math.max(8, window.innerHeight - h - 8));
+      botPosRef.current = { x, y };
+      setBotPos({ x, y });
+    }
+  };
+  const onBotResizePointerUp = (e) => {
+    if (!botResizeRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = botScaleDraft == null ? robotScaleFromConfig : botScaleDraft;
+    botResizeRef.current = null;
+    saveRobotScale(next);
+    try {
+      if (botPosRef.current && typeof localStorage !== "undefined") localStorage.setItem("dsh-dock/anim/robot-pos/v1", JSON.stringify(botPosRef.current));
+    } catch {
+    }
+    setBotScaleDraft(null);
+  };
   const onBotClick = () => {
     if (botClickBlockRef.current) return;
     openPanel("animation");
   };
-  const botCardStyle = botPos ? Object.assign({}, speedStyle, { left: botPos.x, top: botPos.y, right: "auto", bottom: "auto" }) : speedStyle;
+  const displayRobotScale = botScaleDraft == null ? robotScaleFromConfig : botScaleDraft;
+  const botCardStyle = botPos ? Object.assign({}, speedStyle, { "--dkan-bot-scale": displayRobotScale, left: botPos.x, top: botPos.y, right: "auto", bottom: "auto" }) : Object.assign({}, speedStyle, { "--dkan-bot-scale": displayRobotScale });
   if (!st) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     ambientOn && mode === "flow" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-line", style: speedStyle, "aria-hidden": "true" }) : null,
@@ -2268,10 +2321,11 @@ function AnimationOverlay(props) {
     ambientOn && mode === "orbit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-orbit", style: speedStyle, "aria-hidden": "true" }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(BurstLayer, { bursts }),
     ambientOn && mode === "robot" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-      "button",
+      "div",
       {
-        type: "button",
         className: "dkan-botcard",
+        role: "button",
+        tabIndex: 0,
         style: botCardStyle,
         title: active.length + " \u4E2A\u4EFB\u52A1 \xB7 " + phaseLabel(phase) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875 \xB7 \u53EF\u62D6\u52A8\u5230\u4EFB\u610F\u4F4D\u7F6E",
         onPointerDown: onBotPointerDown,
@@ -2279,6 +2333,12 @@ function AnimationOverlay(props) {
         onPointerUp: onBotPointerUp,
         onPointerCancel: onBotPointerUp,
         onClick: onBotClick,
+        onKeyDown: (e) => {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            onBotClick();
+          }
+        },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-bot-cap", children: [
@@ -2287,7 +2347,28 @@ function AnimationOverlay(props) {
             elapsed ? " \xB7 " + elapsed : "",
             " \xB7 ",
             phaseLabel(phase)
-          ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dkan-bot-resize",
+              "aria-label": "\u8C03\u6574\u684C\u9762\u4F19\u4F34\u5927\u5C0F",
+              title: "\u62D6\u52A8\u8C03\u6574\u684C\u9762\u4F19\u4F34\u5927\u5C0F",
+              onPointerDown: onBotResizePointerDown,
+              onPointerMove: onBotResizePointerMove,
+              onPointerUp: onBotResizePointerUp,
+              onPointerCancel: onBotResizePointerUp,
+              onClick: (e) => e.stopPropagation(),
+              onKeyDown: (e) => {
+                if (e.key !== "ArrowUp" && e.key !== "ArrowRight" && e.key !== "ArrowDown" && e.key !== "ArrowLeft") return;
+                e.preventDefault();
+                e.stopPropagation();
+                const d = e.key === "ArrowUp" || e.key === "ArrowRight" ? 0.05 : -0.05;
+                saveRobotScale(Math.max(0.85, Math.min(2.2, Math.round((displayRobotScale + d) * 100) / 100)));
+              }
+            }
+          )
         ]
       }
     ) : null,
@@ -2493,20 +2574,56 @@ function AnimationView(props) {
             )
           ] })
         ] }),
-        cfg.animationEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-modes", children: EFFECT_MODES.map((m) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "dkan-mode" + (cfg.effectMode === m.id ? " on" : ""),
-            onClick: () => patch({ effectMode: m.id }),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-mode-name", children: m.name }),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ModePreview, { id: m.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-mode-desc", children: m.desc })
-            ]
-          },
-          m.id
-        )) }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u52A8\u753B\u5DF2\u5173\u95ED\u2014\u2014\u53EA\u4FDD\u7559\u901A\u77E5\uFF08\u6216\u5168\u90E8\u5173\u95ED\uFF09\u65F6\uFF0C\u9875\u9762\u4E0D\u4F1A\u6709\u4EFB\u4F55\u52A8\u6548\u3002" })
+        cfg.animationEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-modes", children: EFFECT_MODES.map((m) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "button",
+            {
+              type: "button",
+              className: "dkan-mode" + (cfg.effectMode === m.id ? " on" : ""),
+              onClick: () => patch({ effectMode: m.id }),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-mode-name", children: m.name }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ModePreview, { id: m.id }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-mode-desc", children: m.desc })
+              ]
+            },
+            m.id
+          )) }),
+          cfg.effectMode === "robot" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-robot-controls", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-robot-controls-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u684C\u9762\u4F19\u4F34\u5927\u5C0F" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("strong", { children: [
+                Math.round((Number(cfg.robotScale) || 1.35) * 100),
+                "%"
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-robot-size-options", role: "group", "aria-label": "\u684C\u9762\u4F19\u4F34\u5927\u5C0F\u9884\u8BBE", children: [[1, "\u7D27\u51D1"], [1.35, "\u9ED8\u8BA4"], [1.7, "\u52A0\u5927"], [2.1, "\u7279\u5927"]].map(([scale, label]) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: Math.abs((Number(cfg.robotScale) || 1.35) - scale) < 0.03 ? "on" : "",
+                onClick: () => patch({ robotScale: scale }),
+                children: label
+              },
+              scale
+            )) }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-robot-slider-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "input",
+                {
+                  type: "range",
+                  min: "0.85",
+                  max: "2.2",
+                  step: "0.05",
+                  value: Number(cfg.robotScale) || 1.35,
+                  "aria-label": "\u684C\u9762\u4F19\u4F34\u5927\u5C0F\u767E\u5206\u6BD4",
+                  onChange: (e) => patch({ robotScale: Number(e.target.value) })
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u6D6E\u5C42\u53F3\u4E0B\u89D2\u4E5F\u53EF\u76F4\u63A5\u62D6\u52A8\u7F29\u653E\uFF0C\u5927\u5C0F\u4F1A\u81EA\u52A8\u4FDD\u5B58\u3002" })
+            ] })
+          ] }) : null
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u52A8\u753B\u5DF2\u5173\u95ED\u2014\u2014\u53EA\u4FDD\u7559\u901A\u77E5\uFF08\u6216\u5168\u90E8\u5173\u95ED\uFF09\u65F6\uFF0C\u9875\u9762\u4E0D\u4F1A\u6709\u4EFB\u4F55\u52A8\u6548\u3002" })
       ] }, "anim"),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
@@ -2823,6 +2940,14 @@ var css2 = [
   ".dkan-mode-name{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:6px;}",
   '.dkan-mode.on .dkan-mode-name::after{content:"\u2713";color:var(--dsw-alias-accent,#4d9fff);}',
   ".dkan-mode-desc{font-size:11px;color:var(--dsw-alias-label-tertiary);line-height:1.5;}",
+  ".dkan-robot-controls{display:flex;flex-direction:column;gap:8px;padding:9px 10px;border:1px solid color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 28%,var(--dsw-alias-border-l1));border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 5%,var(--dsw-alias-bg-layer-2));}",
+  ".dkan-robot-controls-head{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--dsw-alias-label-primary);}",
+  ".dkan-robot-controls-head strong{font-variant-numeric:tabular-nums;color:var(--dsw-alias-accent,#4d9fff);}",
+  ".dkan-robot-size-options{display:flex;gap:6px;flex-wrap:wrap;}",
+  ".dkan-robot-size-options button{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;padding:3px 10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;}",
+  ".dkan-robot-size-options button:hover,.dkan-robot-size-options button.on{border-color:var(--dsw-alias-accent,#4d9fff);color:var(--dsw-alias-label-primary);}",
+  ".dkan-robot-slider-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dkan-robot-slider-row input{accent-color:var(--dsw-alias-accent,#4d9fff);width:min(240px,100%);}",
   ".dkan-prev{height:30px;border-radius:6px;background:var(--dsw-alias-bg-layer-1);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}",
   ".dkan-prev-flow{position:absolute;top:0;left:0;right:0;height:3px;background:color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 30%,transparent);}",
   '.dkan-prev-flow::after{content:"";position:absolute;top:0;bottom:0;left:-40%;width:40%;background:linear-gradient(90deg,transparent,var(--dsw-alias-accent,#4d9fff));animation:dkan-flow 1.9s linear infinite;}',
@@ -2853,17 +2978,19 @@ var css2 = [
   ".dkan-prev-aurora i:nth-child(2){left:45%;background:#34d399;animation-delay:-1.2s;}",
   "@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
   ".dkan-prev-bot{height:92px;justify-content:center;}",
-  ".dkan-prev-bot .dkan-bot-scene{transform:scale(.56);transform-origin:center;}",
-  // ===== 桌面伙伴：机器人卡片 + 背侧视角三屏工位（纯 CSS 美术，整卡可拖拽） =====
+  ".dkan-prev-bot .dkan-bot-scene{--dkan-bot-scale:1;transform:scale(.56);transform-origin:center;}",
+  // ===== 桌面伙伴：具象人物 + 四屏工位（尺寸可调，整卡可拖拽） =====
   // 卡片：玻璃拟态；默认停泊右下（dsh 输入卡上方），拖动后位置持久化、可放屏幕任意处
-  ".dkan-botcard{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;cursor:grab;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 28px rgb(0 0 0 / .18);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;pointer-events:auto;touch-action:none;user-select:none;animation:dkan-rise .3s var(--ds-ease-in-out);}",
-  ".dkan-botcard:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+  ".dkan-botcard{--dkan-bot-scale:1.35;position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:16px;cursor:grab;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 86%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 12px 36px rgb(0 0 0 / .22);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;pointer-events:auto;touch-action:none;user-select:none;animation:dkan-rise .3s var(--ds-ease-in-out);}",
+  ".dkan-botcard:hover,.dkan-botcard:focus-visible{border-color:var(--dsw-alias-accent,#4d9fff);outline:none;}",
   ".dkan-botcard.dkan-dragging{cursor:grabbing;animation:none;}",
   ".dkan-botcard .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
-  ".dkan-bot-cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
+  ".dkan-bot-cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:18px;}",
+  ".dkan-bot-resize{position:absolute;right:7px;bottom:7px;width:15px;height:15px;padding:0;border:0;border-radius:4px;background:linear-gradient(135deg,transparent 0 42%,var(--dsw-alias-label-tertiary) 44% 51%,transparent 53% 62%,var(--dsw-alias-label-tertiary) 64% 71%,transparent 73%);cursor:nwse-resize;touch-action:none;opacity:.72;}",
+  ".dkan-bot-resize:hover,.dkan-bot-resize:focus-visible{opacity:1;outline:1px solid var(--dsw-alias-accent,#4d9fff);outline-offset:1px;}",
   // ===== 3D 场景（CSS 长方体拼装：世界层统一 3/4 视角——俯视 + 侧身面向镜头） =====
-  ".dkan-bot-scene{position:relative;width:220px;height:132px;perspective:620px;perspective-origin:55% 18%;--dk3-side:#7c8ba0;--dk3-side-hi:#a9b8ca;--dk3-side-dk:#4c5870;--dk3-screen:#0d1526;--dkan-code-a:#4ade80;--dkan-code-b:#60a5fa;--dkan-code-c:#fbbf24;}",
-  ".dk3-world{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(-15deg) rotateY(-30deg);}",
+  ".dkan-bot-scene{position:relative;width:calc(220px * var(--dkan-bot-scale,1));height:calc(132px * var(--dkan-bot-scale,1));perspective:calc(620px * var(--dkan-bot-scale,1));perspective-origin:55% 18%;--dk3-side:#7c8ba0;--dk3-side-hi:#a9b8ca;--dk3-side-dk:#4c5870;--dk3-screen:#0d1526;--dkan-code-a:#4ade80;--dkan-code-b:#60a5fa;--dkan-code-c:#fbbf24;}",
+  ".dk3-world{position:absolute;left:0;top:0;width:220px;height:132px;transform-style:preserve-3d;transform-origin:top left;transform:scale(var(--dkan-bot-scale,1)) rotateX(-15deg) rotateY(-30deg);}",
   ".dk3-box{position:absolute;transform-style:preserve-3d;}",
   ".dk3-face{position:absolute;left:50%;top:50%;display:block;background:var(--dk3-side);backface-visibility:hidden;border-radius:1px;}",
   // 金属件着色：顶面亮、底面暗，正/侧面中调（3D 光感）
@@ -2906,14 +3033,18 @@ var css2 = [
   ".dk3-shoe .dk3-face{background:#20262f;border-radius:2px;}",
   ".dk3-mug .dk3-face{background:#c2703d;border-radius:1px;}",
   ".dk3-mug .dk3-face:nth-child(5){background:#e08a52;}",
-  ".dk3-mouth{position:absolute;left:50%;top:76%;width:4px;height:1.5px;border-radius:1px;background:#b5766a;}",
+  ".dk3-mouth{position:absolute;left:50%;top:78%;width:5px;height:1.5px;border-radius:1px;background:#b5766a;}",
   // 椅子
   ".dk3-chairback .dk3-face{background:linear-gradient(180deg,#3f4c60,#2c3648);}",
   ".dk3-chairseat .dk3-face{background:#33415a;}",
   // 头组（俯仰=rotateZ，左右看=rotateY）；眼睛贴在 +X 面板上
   ".dk3-head3{position:absolute;left:14px;top:2px;width:17px;height:20px;transform-style:preserve-3d;transform-origin:50% 85%;transition:transform .25s var(--ds-ease-in-out);}",
-  ".dk3-eyes{position:absolute;left:50%;top:50%;display:flex;gap:3px;align-items:center;justify-content:center;}",
-  ".dk3-eyes i{width:3px;height:4px;border-radius:50%;background:#2b3442;animation:dkan-blink3 4.6s infinite;}",
+  ".dk3-brows{position:absolute;left:50%;top:30%;display:flex;gap:3px;align-items:center;justify-content:center;}",
+  ".dk3-brows i{width:3px;height:1px;border-radius:2px;background:#4a3428;}",
+  ".dk3-eyes{position:absolute;left:50%;top:52%;display:flex;gap:3px;align-items:center;justify-content:center;}",
+  ".dk3-eyes i{width:3px;height:4px;border-radius:50%;background:radial-gradient(circle at 60% 35%,#fff 0 .5px,#2b3442 .8px);animation:dkan-blink3 4.6s infinite;}",
+  ".dk3-nose{position:absolute;left:50%;top:64%;width:2px;height:2px;border-radius:50%;background:#d99277;}",
+  ".dk3-ear{position:absolute;left:-1px;top:11px;width:3px;height:5px;border-radius:50%;background:#f3b98d;transform:translateZ(2px);}",
   "@keyframes dkan-blink3{0%,91%,100%{transform:scaleY(1)}94%{transform:scaleY(.15)}}",
   // 手臂：肩组挂躯干前上，肘组在其下端（前臂+手伸向键盘）；write/code 时肘部高频敲击
   ".dk3-arm3{position:absolute;left:20px;top:30px;width:16px;height:16px;transform-style:preserve-3d;}",
@@ -2929,19 +3060,30 @@ var css2 = [
   // think：屏幕调暗 + 仰头苦想 + 泡泡浮现
   ".dkan-bot-scene[data-phase=think] .dk3-screen{opacity:.32;}",
   ".dkan-bot-scene[data-phase=think] .dkan-bubble{display:inline-flex;}",
-  ".dkan-bot-scene[data-phase=think] .dk3-head3{transform:rotateZ(-10deg) translateY(-1px);}",
+  ".dkan-bot-scene[data-phase=think] .dk3-head3{animation:dkan-think-head 1.8s ease-in-out infinite alternate;}",
+  ".dkan-bot-scene[data-phase=think] .dk3-arm3:not(.dk3-far){animation:dkan-think-arm 1.8s ease-in-out infinite alternate;}",
+  ".dkan-bot-scene[data-phase=think] .dk3-arm3.dk3-far{animation:dkan-think-arm-far 1.8s ease-in-out infinite alternate;}",
+  "@keyframes dkan-think-head{from{transform:rotateZ(-12deg) translateY(-1px)}to{transform:rotateZ(-22deg) translate(3px,-4px)}}",
+  "@keyframes dkan-think-arm{from{transform:rotateZ(-4deg)}to{transform:rotateZ(-34deg) translate(1px,-8px)}}",
+  "@keyframes dkan-think-arm-far{from{transform:translateZ(-8px) rotateZ(-2deg)}to{transform:translateZ(-8px) rotateZ(-24deg) translate(1px,-7px)}}",
   // write/code：中屏高亮代码滚动 + 肘部高频敲击 + 低头专注
   ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 45%,transparent);}",
   ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-code,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-code{animation-duration:calc(2.2s / var(--dkan-speed,1));}",
+  ".dkan-bot-scene[data-phase=write] .dk3-arm3:not(.dk3-far),.dkan-bot-scene[data-phase=code] .dk3-arm3:not(.dk3-far){animation:dkan-output-arm calc(.46s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far{animation:dkan-output-arm-far calc(.46s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
   ".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type3 calc(.22s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
   ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far .dk3-elbow{animation-delay:.11s;}",
-  "@keyframes dkan-type3{from{transform:rotate(6deg)}to{transform:rotate(-7deg)}}",
-  ".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{transform:rotateZ(5deg);}",
+  "@keyframes dkan-type3{from{transform:rotate(12deg) translateY(-1px)}to{transform:rotate(-14deg) translateY(2px)}}",
+  "@keyframes dkan-output-arm{from{transform:rotateZ(7deg) translateY(0)}to{transform:rotateZ(-13deg) translateY(4px)}}",
+  "@keyframes dkan-output-arm-far{from{transform:translateZ(-8px) rotateZ(5deg)}to{transform:translateZ(-8px) rotateZ(-11deg) translateY(4px)}}",
+  ".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{animation:dkan-output-head calc(.8s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
+  "@keyframes dkan-output-head{from{transform:rotateZ(4deg) translateY(0)}to{transform:rotateZ(10deg) translate(2px,2px)}}",
   // search：侧屏高亮 + 滚动加速 + 头部左右扫视（一会忙这个一会看那个）
   ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-a,#4ade80) 40%,transparent);}",
   ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-code{animation-duration:calc(1.6s / var(--dkan-speed,1));}",
   ".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-scan3 3.4s ease-in-out infinite;}",
   "@keyframes dkan-scan3{0%,16%{transform:rotateZ(3deg) rotateY(-38deg)}30%,48%{transform:rotateZ(3deg) rotateY(6deg)}62%,80%{transform:rotateZ(3deg) rotateY(38deg)}100%{transform:rotateZ(3deg) rotateY(-38deg)}}",
+  "@media (prefers-reduced-motion:reduce){.dkan-botcard *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}}",
   // 通知子选项行
   ".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
   ".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
