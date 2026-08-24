@@ -41,7 +41,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react8 = __toESM(require("react"), 1);
+var import_react9 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -722,7 +722,7 @@ function TokenLogChip(props) {
   }, [sid]);
   if (!sid) return null;
   const t = snap.totals;
-  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCost(t.cost) : "") : "\u26C1 \u2026";
+  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 $" + t.cost.toFixed(2) : "") : "\u26C1 \u2026";
   const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCost(t.cost) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "button",
@@ -768,8 +768,8 @@ var modelsStore = {
   },
   load() {
     if (this.snap.loading) return;
-    this.set({ loading: true });
-    fetch("/dsh-dock/models", { signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+    this.set({ loading: true, error: null });
+    fetch("/dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
   }
 };
 function useModels() {
@@ -826,6 +826,14 @@ function ModelsView() {
   const [vpDirty, setVpDirty] = import_react3.default.useState(false);
   const [vpSaving, setVpSaving] = import_react3.default.useState(false);
   const [vpMsg, setVpMsg] = import_react3.default.useState(null);
+  const [vpDirectExpanded, setVpDirectExpanded] = import_react3.default.useState(false);
+  import_react3.default.useEffect(() => {
+    modelsStore.load();
+  }, []);
+  const refreshModels = () => {
+    setBuiltKey(null);
+    modelsStore.load();
+  };
   const cur = providers.length > 0 ? providers.find((p) => p.id === selId) || providers[0] : null;
   const wantKey = cur ? cur.id + ":" + String(data && data.generatedAt || 0) : null;
   if (cur && builtKey !== wantKey) {
@@ -944,7 +952,7 @@ function ModelsView() {
         {
           key: v,
           className: "dkm-check",
-          title: v === "image" ? "\u52FE\u9009=\u7AEF\u70B9\u539F\u751F\u652F\u6301\u56FE\u7247\uFF08\u539F\u56FE\u76F4\u53D1\uFF0C\u56FE\u7247\u7406\u89E3\u4EE3\u7406\u8DF3\u8FC7\uFF09\uFF1B\u7EAF\u6587\u672C\u6A21\u578B\u52FF\u52FE\u2014\u2014\u6536\u56FE\u4F1A\u81EA\u52A8\u4EA4\u7ED9\u56FE\u7247\u7406\u89E3\u4EE3\u7406\u8BC6\u522B" : null
+          title: v === "image" ? "\u7531\u4F60\u58F0\u660E\u8BE5\u7AEF\u70B9\u652F\u6301\u56FE\u7247\uFF1A\u4FDD\u5B58\u540E\u539F\u56FE\u76F4\u53D1\uFF0C\u5E76\u53EF\u4F5C\u4E3A\u89C6\u89C9\u6A21\u578B\u5019\u9009\u3002\u7CFB\u7EDF\u4E0D\u4F1A\u66FF\u4F60\u731C\u6D4B\uFF1B\u7AEF\u70B9\u5B9E\u9645\u4E0D\u652F\u6301\u65F6\u53D6\u6D88\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406" : null
         },
         import_react3.default.createElement("input", {
           type: "checkbox",
@@ -1007,6 +1015,14 @@ function ModelsView() {
     )
   );
   const body = [];
+  if (data) {
+    body.push(import_react3.default.createElement(
+      "div",
+      { key: "refresh", className: "dkm-topbar" },
+      import_react3.default.createElement("span", { className: "dkm-sub" }, "\u5DF2\u8F7D\u5165 " + providers.length + " \u4E2A Provider\uFF1B\u5728 DSH \u539F\u751F\u6A21\u578B\u8BBE\u7F6E\u4E2D\u65B0\u589E\u540E\uFF0C\u8FD4\u56DE\u672C\u9875\u4F1A\u81EA\u52A8\u66F4\u65B0"),
+      import_react3.default.createElement("button", { type: "button", className: "dkb-refresh", disabled: snap.loading || saving, onClick: refreshModels }, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u5237\u65B0\u6A21\u578B\u76EE\u5F55")
+    ));
+  }
   if (snap.error) {
     body.push(import_react3.default.createElement(
       "div",
@@ -1025,13 +1041,23 @@ function ModelsView() {
     ));
   }
   if (data && data.visionProxy !== void 0 && vpDraft) {
-    const effInput = (m) => (m.runtimeInput && m.runtimeInput.length > 0 ? m.runtimeInput : m.input) || [];
+    const runtimeImage = (m) => Array.isArray(m.runtimeInput) && m.runtimeInput.indexOf("image") >= 0;
+    const declaredImage = (m) => Array.isArray(m.input) && m.input.indexOf("image") >= 0;
     const vpDirect = [];
     const vpProxied = [];
     for (const p of providers) {
       for (const m of p.models || []) {
-        const item = { key: p.id + "/" + m.id, label: (p.displayName || p.id) + " / " + (m.name || m.id), model: m.name || m.id };
-        (effInput(m).indexOf("image") >= 0 ? vpDirect : vpProxied).push(item);
+        const declared = declaredImage(m);
+        const runtime = runtimeImage(m);
+        const source = declared ? "\u4F60\u5DF2\u6807\u8BB0\u56FE\u7247" : runtime ? "\u8FD0\u884C\u65F6\u8BC6\u522B" : "\u672A\u6807\u8BB0\u56FE\u7247";
+        const item = {
+          key: p.id + "/" + m.id,
+          label: (p.displayName || p.id) + " / " + (m.name || m.id) + "\uFF08" + source + "\uFF09",
+          model: m.name || m.id,
+          source,
+          declared
+        };
+        (declared || runtime ? vpDirect : vpProxied).push(item);
       }
     }
     const vpCandidates = vpDirect.slice();
@@ -1086,23 +1112,37 @@ function ModelsView() {
           !vpKnown && vpDraft.provider ? import_react3.default.createElement("option", { value: vpKey }, vpDraft.provider + " / " + vpDraft.model + "\uFF08\u5F53\u524D\uFF09") : null,
           vpCandidates.map((c) => import_react3.default.createElement("option", { key: c.key, value: c.key }, c.label))
         ),
-        vpCandidates.length === 0 ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u76EE\u5F55\u91CC\u6682\u65E0\u591A\u6A21\u6001\u6A21\u578B\u2014\u2014\u5148\u5728\u4E0B\u65B9\u7ED9\u771F\xB7\u591A\u6A21\u6001\u6A21\u578B\u52FE\u9009\u300C\u56FE\u7247\u300D\u8F93\u5165\u7C7B\u578B") : null
+        vpCandidates.length === 0 ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u8FD8\u6CA1\u6709\u6807\u8BB0\u56FE\u7247\u80FD\u529B\u7684\u6A21\u578B\u2014\u2014\u5728\u4E0B\u65B9\u7ED9\u4F60\u786E\u8BA4\u652F\u6301\u56FE\u7247\u7684\u6A21\u578B\u52FE\u9009\u300C\u56FE\u7247\u300D\u5E76\u4FDD\u5B58") : null
       ),
       import_react3.default.createElement(
         "div",
         { className: "dkm-sub" },
-        "\u5224\u5B9A\u4E0E\u5B98\u65B9\u8FD0\u884C\u65F6\u540C\u6E90\uFF1A\u300C\u56FE\u7247\u300D\u52FE\u9009\uFF08\u6216\u76EE\u5F55\u9ED8\u8BA4\uFF09= \u7AEF\u70B9\u539F\u751F\u652F\u6301\u3001\u539F\u56FE\u76F4\u53D1\uFF1B\u5176\u4F59\u6A21\u578B\u6536\u56FE\u81EA\u52A8\u8D70\u89C6\u89C9\u6A21\u578B\u3002\u6CE8\u610F\uFF1A\u82E5\u7AEF\u70B9\u5B9E\u9645\u4E0D\u8BA4\u56FE\u5374\u52FE\u4E86\u300C\u56FE\u7247\u300D\uFF0C\u6A21\u578B\u4F1A\u770B\u4E0D\u89C1\u56FE\u7247\u3001\u8F6C\u800C\u7528\u5DE5\u5177\u778E\u6298\u817E\u2014\u2014\u4E0D\u786E\u5B9A\u5C31\u4E0D\u8981\u52FE\uFF0C\u4EA4\u7ED9\u4EE3\u7406\u3002"
+        "\u4EE5\u4F60\u5728\u4E0B\u65B9\u52FE\u9009\u7684\u300C\u56FE\u7247\u300D\u4E3A\u51C6\uFF1B\u8FD0\u884C\u65F6\u8BC6\u522B\u53EA\u662F\u8F85\u52A9\u63D0\u793A\u3002\u5B83\u4E0D\u4EE3\u8868\u5DF2\u8054\u7F51\u5B9E\u6D4B\u53EF\u8C03\u7528\uFF0C\u5B9E\u9645\u53EF\u7528\u6027\u4ECD\u53D6\u51B3\u4E8E Provider \u51ED\u636E\u3001\u989D\u5EA6\u4E0E\u4E0A\u6E38\u670D\u52A1\u3002\u82E5\u7AEF\u70B9\u5B9E\u9645\u4E0D\u8BA4\u56FE\uFF0C\u53D6\u6D88\u8BE5\u6A21\u578B\u7684\u300C\u56FE\u7247\u300D\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406\u3002"
       ),
       vpDirect.length > 0 ? import_react3.default.createElement(
         "div",
-        { className: "dkm-checks" },
-        import_react3.default.createElement("span", { className: "dkm-label" }, "\u539F\u56FE\u76F4\u53D1\uFF08\u591A\u6A21\u6001\uFF0C" + vpDirect.length + "\uFF09\uFF1A"),
-        vpDirect.map((c) => import_react3.default.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model))
+        { className: "dkm-capabilities" },
+        import_react3.default.createElement(
+          "div",
+          { className: "dkm-checks" },
+          import_react3.default.createElement("span", { className: "dkm-label" }, "\u539F\u56FE\u76F4\u53D1\u5019\u9009\uFF08\u4F60\u7684\u6807\u8BB0\u4F18\u5148\uFF0C" + vpDirect.length + "\uFF09\uFF1A"),
+          import_react3.default.createElement("button", {
+            type: "button",
+            className: "dkm-mini",
+            "aria-expanded": vpDirectExpanded,
+            onClick: () => setVpDirectExpanded(!vpDirectExpanded)
+          }, vpDirectExpanded ? "\u6536\u8D77\u5217\u8868" : "\u5C55\u5F00\u5217\u8868")
+        ),
+        vpDirectExpanded ? import_react3.default.createElement(
+          "div",
+          { className: "dkm-checks dkm-capability-list" },
+          vpDirect.map((c) => import_react3.default.createElement("span", { key: c.key, className: "dkm-chip", title: c.key + " \xB7 " + c.source }, c.model))
+        ) : null
       ) : null,
       vpProxied.length > 0 ? import_react3.default.createElement(
         "div",
         { className: "dkm-checks" },
-        import_react3.default.createElement("span", { className: "dkm-label" }, "\u8D70\u89C6\u89C9\u4EE3\u7406\uFF08\u7EAF\u6587\u672C\uFF0C" + vpProxied.length + "\uFF09\uFF1A"),
+        import_react3.default.createElement("span", { className: "dkm-label" }, "\u8D70\u89C6\u89C9\u4EE3\u7406\uFF08\u672A\u6807\u8BB0\u56FE\u7247\uFF0C" + vpProxied.length + "\uFF09\uFF1A"),
         import_react3.default.createElement("span", { className: "dkm-sub" }, vpProxied.map((c) => c.model).join("\u3001"))
       ) : null,
       import_react3.default.createElement(
@@ -1182,10 +1222,7 @@ function ModelsView() {
         { className: "dkm-savebar" },
         import_react3.default.createElement("span", { className: "dkm-msg" }, dirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : "\u65E0\u672A\u4FDD\u5B58\u4FEE\u6539"),
         import_react3.default.createElement("button", { type: "button", className: "dkm-save", disabled: !dirty || saving, onClick: save }, saving ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u5199\u56DE\u5B98\u65B9\u914D\u7F6E"),
-        import_react3.default.createElement("button", { type: "button", className: "dkb-refresh", disabled: saving, onClick: () => {
-          setBuiltKey(null);
-          modelsStore.load();
-        } }, "\u91CD\u65B0\u62C9\u53D6"),
+        import_react3.default.createElement("button", { type: "button", className: "dkb-refresh", disabled: saving || snap.loading, onClick: refreshModels }, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u91CD\u65B0\u62C9\u53D6"),
         msg ? import_react3.default.createElement("span", { className: "dkm-msg " + (msg.ok ? "ok" : "err") }, msg.text) : null
       )
     ));
@@ -1244,6 +1281,9 @@ var feature2 = {
     ".dkm-msg.ok{color:var(--dsw-alias-state-success-primary);}",
     ".dkm-msg.err{color:var(--dsw-alias-state-error-primary);}",
     ".dkm-list{display:flex;flex-direction:column;gap:8px;}",
+    ".dkm-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}",
+    ".dkm-capabilities{display:flex;flex-direction:column;gap:6px;}",
+    ".dkm-capability-list{max-height:168px;overflow:auto;padding:2px 0 2px 2px;}",
     ".dkm-ro{color:var(--dsw-alias-label-secondary);font-size:12px;}",
     ".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
     ".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
@@ -1286,40 +1326,64 @@ var feature3 = {
 
 // features/theme/view.js
 var import_react5 = __toESM(require("react"), 1);
-function readThemeLabel(ctx) {
+var import_react6 = require("react");
+var PREFERENCE_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272", system: "\u8DDF\u968F\u7CFB\u7EDF" };
+var THEME_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272" };
+function readThemeInfo(ctx) {
   const theme = ctx && ctx.get ? ctx.get("theme") : void 0;
-  if (theme === void 0) return { err: "theme \u670D\u52A1\u4E0D\u53EF\u7528" };
+  if (!theme || typeof theme.getTheme !== "function") return { err: "theme \u670D\u52A1\u4E0D\u53EF\u7528" };
   let snap = null;
   try {
     snap = theme.getTheme();
   } catch (err) {
     return { err: "\u8BFB\u53D6\u5931\u8D25\uFF1A" + String(err && err.message || err) };
   }
-  const label = snap && typeof snap.id === "string" ? snap.id : snap && typeof snap.name === "string" ? snap.name : "\u672A\u77E5";
+  const preference = snap && typeof snap.preference === "string" ? snap.preference : "";
+  const activeId = snap && snap.active && typeof snap.active.id === "string" ? snap.active.id : "";
+  const label = (PREFERENCE_LABELS[preference] || preference || "\u672A\u77E5") + (activeId && activeId !== preference && THEME_LABELS[activeId] ? "\uFF08\u5B9E\u9645" + THEME_LABELS[activeId] + "\uFF09" : "");
   return { label };
 }
+function useThemeInfo(ctx) {
+  const [info, setInfo] = (0, import_react6.useState)(() => readThemeInfo(ctx));
+  (0, import_react6.useEffect)(() => {
+    let off = null;
+    try {
+      if (ctx && typeof ctx.on === "function") {
+        off = ctx.on("theme/change", () => setInfo(readThemeInfo(ctx)));
+      }
+    } catch {
+    }
+    return () => {
+      try {
+        if (typeof off === "function") off();
+      } catch {
+      }
+    };
+  }, [ctx]);
+  return info;
+}
 function ThemeView(props) {
-  const r = readThemeLabel(props && props.ctx);
+  const r = useThemeInfo(props && props.ctx);
   if (r.err) return import_react5.default.createElement("div", null, r.err);
   return import_react5.default.createElement("div", null, "\u5F53\u524D\u4E3B\u9898\uFF1A" + r.label);
 }
 function ThemeStat(props) {
-  const r = readThemeLabel(props && props.ctx);
+  const r = useThemeInfo(props && props.ctx);
   if (r.err) return import_react5.default.createElement("span", null, r.err);
-  return import_react5.default.createElement("span", null, "\u5F53\u524D\u4E3B\u9898\uFF1A" + r.label);
+  return import_react5.default.createElement("span", null, "\u4E3B\u9898\uFF1A" + r.label);
 }
 var feature4 = {
   id: "theme",
   name: "\u4E3B\u9898\u4FE1\u606F",
   order: 150,
   accent: "#a78bfa",
-  description: "\u793A\u4F8B\u529F\u80FD\uFF1A\u8BFB\u53D6\u5F53\u524D\u4E3B\u9898\u5FEB\u7167\uFF08\u7EAF Client\uFF09",
+  description: "\u8BFB\u53D6\u5F53\u524D\u4E3B\u9898\u5FEB\u7167\uFF1A\u504F\u597D\u4E0E\u5B9E\u9645\u751F\u6548\u4E3B\u9898\uFF08\u7EAF Client\uFF0C\u4E3B\u9898\u5207\u6362\u5B9E\u65F6\u5237\u65B0\uFF09",
   View: ThemeView,
   HomeStat: ThemeStat
 };
 
 // features/balance/view.js
-var import_react6 = __toESM(require("react"), 1);
+var import_react7 = __toESM(require("react"), 1);
 var ACCENT_PALETTE = ["#4d9fff", "#34d399", "#fbbf24", "#a78bfa", "#f472b6", "#38bdf8", "#fb923c", "#4ade80", "#e879f9", "#22d3ee"];
 var CURATED_ACCENTS = {
   "deepseek-official": "#4d9fff",
@@ -1361,8 +1425,8 @@ var balanceStore = {
   }
 };
 function useBalance(ctx) {
-  const [snap, setSnap] = import_react6.default.useState(balanceStore.snap);
-  import_react6.default.useEffect(() => {
+  const [snap, setSnap] = import_react7.default.useState(balanceStore.snap);
+  import_react7.default.useEffect(() => {
     const off = balanceStore.subscribe(() => setSnap(balanceStore.snap));
     if (!balanceStore.snap.data && !balanceStore.snap.loading) balanceStore.load();
     const disposer = ctx && typeof ctx.interval === "function" ? ctx.interval(() => balanceStore.load(), 5 * 60 * 1e3) : null;
@@ -1376,7 +1440,7 @@ function useBalance(ctx) {
 function BalanceView(props) {
   const snap = useBalance(props && props.ctx);
   const load = () => balanceStore.load();
-  import_react6.default.useEffect(() => {
+  import_react7.default.useEffect(() => {
     const pid = props && props.params && props.params.provider;
     if (!pid || typeof document === "undefined") return;
     const t = setTimeout(() => {
@@ -1399,15 +1463,15 @@ function BalanceView(props) {
   const def = data && data.default ? data.default.provider : null;
   const body = [];
   if (snap.error) {
-    body.push(import_react6.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
+    body.push(import_react7.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
   } else if (!data) {
-    body.push(import_react6.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
+    body.push(import_react7.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
   } else if (providers.length === 0) {
-    body.push(import_react6.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
+    body.push(import_react7.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
   } else {
     const rank = (p) => p.balance && p.balance.status === "ok" ? 0 : p.balance && p.balance.status === "login-required" ? 1 : 2;
     const sorted = providers.slice().sort((a, b) => rank(a) - rank(b));
-    body.push(import_react6.default.createElement(
+    body.push(import_react7.default.createElement(
       "div",
       { key: "rows", className: "dkb-rows" },
       sorted.map((p) => {
@@ -1424,73 +1488,73 @@ function BalanceView(props) {
         let balBody = null;
         if (b && b.status === "ok" && b.kind === "quota") {
           const dims = Array.isArray(b.dims) ? b.dims : [];
-          balBody = import_react6.default.createElement(
-            import_react6.default.Fragment,
+          balBody = import_react7.default.createElement(
+            import_react7.default.Fragment,
             null,
-            import_react6.default.createElement(
+            import_react7.default.createElement(
               "div",
               { className: "dkb-main" },
-              import_react6.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
-              import_react6.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
-              import_react6.default.createElement(
+              import_react7.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
+              import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
+              import_react7.default.createElement(
                 "span",
                 { className: "dkb-main-part" },
                 "\u5DF2\u7528 " + fmt(b.used) + " / \u603B " + fmt(b.limit),
-                b.resetTime ? import_react6.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
+                b.resetTime ? import_react7.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
               )
             ),
-            dims.map((d, i) => import_react6.default.createElement(
+            dims.map((d, i) => import_react7.default.createElement(
               "div",
               { key: "d" + i, className: "dkb-dim" },
-              import_react6.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
-              import_react6.default.createElement(
+              import_react7.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
+              import_react7.default.createElement(
                 "span",
                 { className: "dkb-dim-bar" },
-                import_react6.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
+                import_react7.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
               ),
-              import_react6.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
+              import_react7.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
             ))
           );
         } else if (b && b.status === "ok") {
           const infos = Array.isArray(b.infos) ? b.infos : [];
-          balBody = import_react6.default.createElement(
+          balBody = import_react7.default.createElement(
             "div",
             { className: "dkb-mains" },
-            infos.map((i, idx) => import_react6.default.createElement(
+            infos.map((i, idx) => import_react7.default.createElement(
               "div",
               { key: idx, className: "dkb-main" },
-              import_react6.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
-              import_react6.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
-              import_react6.default.createElement(
+              import_react7.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+              import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+              import_react7.default.createElement(
                 "span",
                 { className: "dkb-main-parts" },
-                i.grantedBalance != null ? import_react6.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
-                i.toppedUpBalance != null ? import_react6.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
+                i.grantedBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
+                i.toppedUpBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
               )
             ))
           );
         } else if (b && b.status === "login-required" && b.consoleUrl) {
-          balBody = import_react6.default.createElement(
+          balBody = import_react7.default.createElement(
             "div",
             { className: "dkb-main" },
-            import_react6.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
+            import_react7.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
           );
         } else {
-          balBody = b && b.message ? import_react6.default.createElement("div", { className: "dkb-note" }, b.message) : import_react6.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
+          balBody = b && b.message ? import_react7.default.createElement("div", { className: "dkb-note" }, b.message) : import_react7.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
         }
         const sub = ["ID " + p.id, p.api, p.baseURL ? p.baseURL.replace(/^https?:\/\//, "") : null].filter(Boolean).join(" \xB7 ");
-        return import_react6.default.createElement(
+        return import_react7.default.createElement(
           "div",
           { key: p.id, className: "dkb-row", "data-dock-provider": p.id },
-          import_react6.default.createElement(
+          import_react7.default.createElement(
             "div",
             { className: "dkb-row-head" },
-            import_react6.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
-            import_react6.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
-            def === p.id ? import_react6.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
-            import_react6.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
+            import_react7.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
+            import_react7.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
+            def === p.id ? import_react7.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
+            import_react7.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
             // 模型数折叠提示（点开展开 chips）
-            p.models && p.models.length > 0 ? import_react6.default.createElement("button", {
+            p.models && p.models.length > 0 ? import_react7.default.createElement("button", {
               type: "button",
               className: "dkb-models-toggle",
               title: p.models.join(", "),
@@ -1500,13 +1564,13 @@ function BalanceView(props) {
               }
             }, p.models.length + " \u4E2A\u6A21\u578B \u25BE") : null
           ),
-          sub ? import_react6.default.createElement("div", { className: "dkb-sub" }, sub) : null,
-          p.apiKeyEnv ? import_react6.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
-          p.models && p.models.length > 0 ? import_react6.default.createElement(
+          sub ? import_react7.default.createElement("div", { className: "dkb-sub" }, sub) : null,
+          p.apiKeyEnv ? import_react7.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
+          p.models && p.models.length > 0 ? import_react7.default.createElement(
             "div",
             { className: "dkb-chips" },
-            p.models.slice(0, 8).map((m) => import_react6.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
-            p.models.length > 8 ? import_react6.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
+            p.models.slice(0, 8).map((m) => import_react7.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
+            p.models.length > 8 ? import_react7.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
           ) : null,
           balBody
         );
@@ -1514,20 +1578,20 @@ function BalanceView(props) {
     ));
   }
   const now = new Date(data && data.generatedAt ? data.generatedAt : Date.now());
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "div",
     { className: "dkb-rows" },
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: "dkb-note" },
       data && !snap.error && providers.length > 0 ? okCount + "/" + providers.length + " \u4E2A Provider \u53EF\u67E5\u4F59\u989D\uFF08\u53EF\u67E5\u7684\u6392\u524D\u9762\uFF09" : "\u6A21\u578B\u4F59\u989D \xB7 Host \u534A\u90E8\u5B9E\u65F6\u62C9\u53D6"
     ),
     body,
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: "dkb-foot" },
-      import_react6.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
-      import_react6.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
+      import_react7.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
+      import_react7.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
     )
   );
 }
@@ -1535,14 +1599,14 @@ function BalanceStat(props) {
   const snap = useBalance(props && props.ctx);
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
-  if (snap.error) return import_react6.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
-  if (!data) return import_react6.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
+  if (snap.error) return import_react7.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
+  if (!data) return import_react7.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
   const ok = providers.filter((p) => p.balance && p.balance.status === "ok").length;
-  return import_react6.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
+  return import_react7.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
 }
 function useCurrentProvider(ctx, sessionId) {
-  const [cur, setCur] = import_react6.default.useState(null);
-  import_react6.default.useEffect(() => {
+  const [cur, setCur] = import_react7.default.useState(null);
+  import_react7.default.useEffect(() => {
     let alive = true, off = null;
     try {
       const models = ctx && ctx.get ? ctx.get("modelDirectories") : void 0;
@@ -1604,7 +1668,7 @@ function BalanceChip(props) {
   const text = snap.error ? "\u4F59\u989D\xB7\u5931\u8D25" : !data ? snap.loading ? "\u4F59\u989D \u2026" : "\u4F59\u989D \u2014" : cur ? chipBalanceText(cur) : "\u4F59\u989D \u2014";
   const selModel = sel && (sel.model || sel.selected && sel.selected.model) || null;
   const title = cur ? (cur.displayName || cur.id) + (selModel ? " \xB7 \u5F53\u524D\u6A21\u578B " + selModel : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "button",
     {
       type: "button",
@@ -1613,8 +1677,8 @@ function BalanceChip(props) {
       "aria-label": "\u6A21\u578B\u4F59\u989D",
       onClick: () => openPanel("balance", def ? { provider: def } : null)
     },
-    import_react6.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
-    import_react6.default.createElement("span", null, text)
+    import_react7.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
+    import_react7.default.createElement("span", null, text)
   );
 }
 var feature5 = {
@@ -1674,7 +1738,7 @@ var feature5 = {
 };
 
 // features/animation/view.jsx
-var import_react7 = require("react");
+var import_react8 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 function rpcCall2(method, args) {
   return fetch("/dsh-dock/animation/" + method, {
@@ -1693,10 +1757,10 @@ function rpcCall2(method, args) {
 }
 var EFFECT_MODES = [
   { id: "flow", name: "\u6D41\u5149\u7EC6\u7EBF", desc: "\u9876\u90E8\u7EC6\u7EBF\u6D41\u5149\u5F80\u8FD4\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\u52A0\u5FEB" },
-  { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u72B6\u6001\u5FBD\u6807\u5706\u70B9\u547C\u5438\uFF0C\u8D8A\u5FD9\u547C\u5438\u8D8A\u5FEB" },
+  { id: "breathe", name: "\u547C\u5438\u5149\u70B9", desc: "\u9192\u76EE\u547C\u5438\u5149\u70B9\u5E26\u6269\u6563\u5149\u6655\uFF1A\u989C\u8272\u968F\u4EFB\u52A1\u9636\u6BB5\uFF08\u601D\u8003\u84DD/\u8F93\u51FA\u7EFF/\u4EE3\u7801\u6A59/\u67E5\u8D44\u6599\u9752\uFF09\uFF0C\u547C\u5438\u968F\u541E\u5410\u52A0\u5FEB" },
   { id: "ring", name: "\u8F68\u9053\u5149\u73AF", desc: "\u7EC6\u73AF\u7ED5\u5706\u70B9\u65CB\u8F6C\uFF0C\u8F6C\u901F\u968F\u4EFB\u52A1\u901F\u5EA6" },
   { id: "orbit", name: "\u73AF\u5C4F\u5DE1\u822A", desc: "\u4E00\u9897\u5149\u70B9\u6CBF\u5C4F\u5E55\u8FB9\u7F18\u5DE1\u822A\u6574\u5708\uFF0C\u9192\u76EE\u4E0D\u906E\u6321" },
-  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u66F4\u5177\u8C61\u7684\u4EBA\u7269\u5750\u9547\u56DB\u5C4F\u5DE5\u4F4D\uFF1A\u601D\u8003\u3001\u8F93\u51FA\u3001\u67E5\u8D44\u6599\u968F\u4EFB\u52A1\u9636\u6BB5\u5207\u6362" },
+  { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u771F\u4EBA\u5316\u53CC\u5DE5\u4F4D\uFF1A\u67E5\u8D44\u6599\u770B\u5DE6\u5C4F\u3001\u5199\u5165/\u6539\u4EE3\u7801\u79FB\u5230\u53F3\u5C4F\uFF1B\u5EA7\u6905\u548C\u8F6C\u5934\u968F\u5B9E\u65F6\u4EFB\u52A1\u8282\u594F\u52A0\u901F" },
   { id: "matrix", name: "\u4EE3\u7801\u96E8", desc: "\u5B57\u7B26\u6CBF\u5C4F\u5E55\u7F13\u843D\u5982\u6570\u636E\u6D41\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\uFF0C\u514B\u5236\u7684\u4F4E\u900F\u660E\u5EA6" },
   { id: "stars", name: "\u661F\u91CE", desc: "\u7EC6\u788E\u661F\u70B9\u7F13\u6162\u98D8\u79FB\u95EA\u70C1\uFF0C\u5B89\u9759\u8010\u770B\u7684\u80CC\u666F\u6C1B\u56F4" },
   { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" }
@@ -1704,6 +1768,10 @@ var EFFECT_MODES = [
 var PHASE_LABELS = { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" };
 function phaseLabel(p) {
   return PHASE_LABELS[p] || "\u5DE5\u4F5C\u4E2D";
+}
+var PHASE_COLORS = { think: "#60a5fa", write: "#34d399", code: "#fbbf24", search: "#2dd4bf" };
+function phaseColor(p) {
+  return PHASE_COLORS[p] || "#4d9fff";
 }
 var END_LABELS = {
   completed: { label: "\u5B8C\u6210", cls: "ok" },
@@ -1783,13 +1851,13 @@ var animationStore = {
   }
 };
 function useAnimation() {
-  const [snap, setSnap] = (0, import_react7.useState)(animationStore.snap);
-  (0, import_react7.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
+  const [snap, setSnap] = (0, import_react8.useState)(animationStore.snap);
+  (0, import_react8.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
   return snap;
 }
 function useTicker(ctx, active) {
-  const [, bump] = (0, import_react7.useState)(0);
-  (0, import_react7.useEffect)(() => {
+  const [, bump] = (0, import_react8.useState)(0);
+  (0, import_react8.useEffect)(() => {
     if (!active) return;
     if (ctx && typeof ctx.interval === "function") return ctx.interval(bump, 1e3);
     const t = setInterval(bump, 1e3);
@@ -1824,6 +1892,7 @@ function Box3(props) {
 }
 function Monitor3(props) {
   const w = props.w, h = props.h;
+  const searchScreen = props.mode === "search";
   const lines = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     "span",
@@ -1832,7 +1901,10 @@ function Monitor3(props) {
       style: { left: props.x - w / 2, top: props.y - h / 2, width: w, height: h, transform: "translateZ(" + (props.z || -3) + "px) rotateY(" + (props.ry || 0) + "deg)" },
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w, h, d: 5, cls: "dk3-frame", x: w / 2, y: h / 2 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-screen", style: { width: w - 4, height: h - 4, transform: "translate(-50%,-50%) translateZ(3.1px)" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-code", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-screen", style: { width: w - 4, height: h - 4, transform: "translate(-50%,-50%) translateZ(3.1px)" }, children: searchScreen ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-search-ui", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-search-box", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", {}) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-search-results", children: lines.slice(0, 6).map((n, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-code", children: [
           lines.map((n, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-cur" })
         ] }) })
@@ -1842,57 +1914,86 @@ function Monitor3(props) {
 }
 function RobotScene(props) {
   const phase = props && props.phase ? props.phase : "code";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-bot-scene", "data-phase": phase, "aria-hidden": "true", children: [
+  const tasks = Array.isArray(props && props.tasks) ? props.tasks : null;
+  const n = tasks ? Math.max(1, Math.min(3, tasks.length)) : 1;
+  const station = phase === "search" ? "left" : phase === "write" || phase === "code" ? "right" : "center";
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-bot-scene", "data-phase": phase, "data-station": station, "data-tasks": tasks ? String(n) : void 0, "aria-hidden": "true", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-world", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 150, h: 7, d: 40, cls: "dk3-desk", x: 115, y: 78 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 48, y: 94 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 26, d: 32, cls: "dk3-metal dk3-leg", x: 182, y: 94 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 34, h: 24, x: 140, y: 60, ry: 24, cls: "left" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 40, h: 30, x: 168, y: 58, ry: 0, cls: "center" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 28, h: 21, x: 188, y: 62, ry: -24, cls: "right" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 30, h: 20, x: 168, y: 28, ry: 0, cls: "top" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 126, y: 73, z: 14 }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 5, d: 4, cls: "dk3-mug", x: 140, y: 71, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 134, h: 7, d: 38, cls: "dk3-desk", x: 145, y: 76 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 24, d: 30, cls: "dk3-metal dk3-leg", x: 84, y: 89 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 24, d: 30, cls: "dk3-metal dk3-leg", x: 206, y: 89 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 34, h: 24, x: 140, y: 59, ry: 20, cls: "left", mode: "search" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 42, h: 30, x: 180, y: 57, ry: -16, cls: "right" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Monitor3, { w: 28, h: 18, x: 160, y: 31, ry: 0, cls: "top" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 130, y: 71, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 2.5, d: 6, cls: "dk3-metal dk3-mouse3", x: 141, y: 71, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 5, d: 4, cls: "dk3-mug", x: 154, y: 69, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 16, h: 2.5, d: 9, cls: "dk3-metal dk3-kb3", x: 170, y: 71, z: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 2.5, d: 6, cls: "dk3-metal dk3-mouse3", x: 181, y: 71, z: 14 }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-person", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 30, d: 22, cls: "dk3-chairback", x: 2, y: 42 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 20, h: 4, d: 22, cls: "dk3-chairseat", x: 12, y: 58 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 12, d: 3, cls: "dk3-metal", x: 12, y: 68 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 2, d: 14, cls: "dk3-metal", x: 12, y: 74 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 13, h: 5, d: 9, cls: "dk3-pants", x: 20, y: 54 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 12, d: 4, cls: "dk3-pants", x: 26, y: 62 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 6, h: 3, d: 5, cls: "dk3-shoe", x: 28, y: 73 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 15, h: 20, d: 11, cls: "dk3-hood dk3-torso", x: 12, y: 36 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 8, d: 9, cls: "dk3-hood dk3-hoodbump", x: 5, y: 30 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 3, d: 4, cls: "dk3-skin", x: 14, y: 25 }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-head3", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box3, { w: 13, h: 12, d: 12, cls: "dk3-skin dk3-headbox", x: 8, y: 10, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-brows", style: { width: 10, height: 4, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.3px)" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 20, d: 20, cls: "dk3-chairback", x: 2, y: 47 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 18, h: 4, d: 20, cls: "dk3-chairseat", x: 12, y: 59 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 9, d: 3, cls: "dk3-metal", x: 12, y: 66 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 13, h: 2, d: 13, cls: "dk3-metal", x: 12, y: 71 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 3, d: 3, cls: "dk3-wheel", x: 6, y: 74 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3, h: 3, d: 3, cls: "dk3-wheel", x: 18, y: 74 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 5, d: 9, cls: "dk3-pants", x: 20, y: 54 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 10, d: 4, cls: "dk3-pants", x: 26, y: 62 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 6, h: 3, d: 5, cls: "dk3-shoe", x: 28, y: 70 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-upper3", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 18, h: 5, d: 12, cls: "dk3-hood dk3-shoulders3", x: 13, y: 30 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 15, h: 14, d: 11, cls: "dk3-hood dk3-torso dk3-chest3", x: 12, y: 38 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 7, d: 10, cls: "dk3-hood dk3-torso dk3-waist3", x: 12, y: 47 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 8, d: 9, cls: "dk3-hood dk3-hoodbump", x: 5, y: 32 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 5, h: 7, d: 5, cls: "dk3-skin dk3-neck3", x: 14, y: 24 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 8, h: 3, d: 8, cls: "dk3-collar3", x: 14, y: 28 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-head3", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box3, { w: 12, h: 11, d: 11, cls: "dk3-skin dk3-cranium", x: 8, y: 8, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-brows", style: { width: 9, height: 4, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(5.8px)" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-eyes", style: { width: 9, height: 6, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(5.7px)" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-nose", style: { transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.1px)" } })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 9, h: 7, d: 9, cls: "dk3-skin dk3-jaw3", x: 8.5, y: 14, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-mouth", style: { transform: "translate(-50%,-50%) rotateY(90deg) translateZ(4.7px)" } }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 12, h: 5, d: 12, cls: "dk3-hair dk3-hair-crown", x: 8, y: 3.5 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 8, d: 11, cls: "dk3-hair dk3-hair-back", x: 3, y: 7.5 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-fringe3", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-eyes", style: { width: 10, height: 7, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-nose", style: { transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.8px)" } }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-mouth", style: { transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" } })
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-ear" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 14, h: 6, d: 13, cls: "dk3-hair", x: 8, y: 4 }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 13, cls: "dk3-hair", x: 2, y: 9 }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dk3-ear" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 11, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 12.5, y: 2 })
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3 dk3-far", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 11, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 6, y: 2 }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 12.5, y: 2 })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3 dk3-near", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 10, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 5.5, y: 2 }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-wrist3", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 2, y: 2 }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-fingers3", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+                ] })
+              ] })
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-arm3 dk3-far", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 4, h: 11, d: 4, cls: "dk3-hood dk3-uarm", x: 2, y: 6 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-elbow", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 10, h: 3.5, d: 3.5, cls: "dk3-hood dk3-farm", x: 5.5, y: 2 }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dk3-wrist3", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box3, { w: 3.5, h: 3, d: 3, cls: "dk3-skin dk3-hand", x: 2, y: 2 }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dk3-fingers3", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+                ] })
+              ] })
+            ] })
           ] })
         ] })
       ] })
@@ -1950,16 +2051,16 @@ function previewSound(effect) {
 }
 function Toast(props) {
   const t = props.t;
-  const [closing, setClosing] = (0, import_react7.useState)(false);
-  const close = (0, import_react7.useCallback)(() => {
+  const [closing, setClosing] = (0, import_react8.useState)(false);
+  const close = (0, import_react8.useCallback)(() => {
     if (!closing) setClosing(true);
   }, [closing]);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (!t.stayMs) return;
     const timer = setTimeout(close, t.stayMs);
     return () => clearTimeout(timer);
   }, []);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (!closing) return;
     const timer = setTimeout(() => props.onClose(t.id), 240);
     return () => clearTimeout(timer);
@@ -2001,7 +2102,7 @@ var MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
   const mode = props.mode;
   const speed = props.speed;
-  const matrix = (0, import_react7.useMemo)(() => makeBits(34, () => ({
+  const matrix = (0, import_react8.useMemo)(() => makeBits(34, () => ({
     l: Math.random() * 100,
     d: 4 + Math.random() * 6,
     delay: -Math.random() * 8,
@@ -2009,7 +2110,7 @@ function AmbientLayer(props) {
     s: 11 + Math.round(Math.random() * 4),
     c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
   })), []);
-  const stars = (0, import_react7.useMemo)(() => makeBits(80, () => ({
+  const stars = (0, import_react8.useMemo)(() => makeBits(80, () => ({
     l: Math.random() * 100,
     t: Math.random() * 100,
     sz: 1.5 + Math.random() * 2,
@@ -2042,17 +2143,17 @@ function AmbientLayer(props) {
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation();
-  const [toasts, setToasts] = (0, import_react7.useState)([]);
-  const [flourish, setFlourish] = (0, import_react7.useState)(null);
-  const [bursts, setBursts] = (0, import_react7.useState)([]);
-  const prevActiveRef = (0, import_react7.useRef)(null);
-  const burstIdRef = (0, import_react7.useRef)(0);
-  const pushBurst = (0, import_react7.useCallback)((type, x, y, bits) => {
+  const [toasts, setToasts] = (0, import_react8.useState)([]);
+  const [flourish, setFlourish] = (0, import_react8.useState)(null);
+  const [bursts, setBursts] = (0, import_react8.useState)([]);
+  const prevActiveRef = (0, import_react8.useRef)(null);
+  const burstIdRef = (0, import_react8.useRef)(0);
+  const pushBurst = (0, import_react8.useCallback)((type, x, y, bits) => {
     const id = ++burstIdRef.current;
     setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
     setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
   }, []);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (typeof document === "undefined") return;
     const onClick = (e) => {
       const t = e.target;
@@ -2078,22 +2179,22 @@ function AnimationOverlay(props) {
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [pushBurst]);
-  const taskCountRef = (0, import_react7.useRef)(0);
-  (0, import_react7.useEffect)(() => {
+  const taskCountRef = (0, import_react8.useRef)(0);
+  (0, import_react8.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const n = st2.active.length;
     if (n > taskCountRef.current) pushBurst("surge");
     taskCountRef.current = n;
   }, [snap.status, pushBurst]);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
       await animationStore.refresh();
       if (stopped) return;
       const s = animationStore.snap;
-      timer = setTimeout(loop, s.error ? 15e3 : s.status && s.status.active && s.status.active.length > 0 ? 2e3 : 6e3);
+      timer = setTimeout(loop, s.error ? 15e3 : s.status && s.status.active && s.status.active.length > 0 ? 850 : 6e3);
     };
     loop();
     const onVisible = () => {
@@ -2106,7 +2207,7 @@ function AnimationOverlay(props) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const prev = prevActiveRef.current;
@@ -2177,47 +2278,50 @@ function AnimationOverlay(props) {
   const active = st && st.active ? st.active : [];
   const animOn = !!(cfg && cfg.animationEnabled && active.length > 0);
   const mode = cfg && cfg.effectMode ? cfg.effectMode : "flow";
+  const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
   useTicker(ctx, animOn);
   const now = Date.now();
   const elapsed = active.length > 0 ? fmtClock(now - Math.min(...active.map((x) => x.startTime || now))) : "";
-  const [panelOpen, setPanelOpen2] = (0, import_react7.useState)(false);
-  (0, import_react7.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react8.useState)(false);
+  (0, import_react8.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
-  const [speed, setSpeed] = (0, import_react7.useState)(1);
-  const speedRef = (0, import_react7.useRef)({ tokens: -1, at: 0 });
-  (0, import_react7.useEffect)(() => {
+  const [speed, setSpeed] = (0, import_react8.useState)(1);
+  const speedRef = (0, import_react8.useRef)({ ticks: -1, at: 0 });
+  (0, import_react8.useEffect)(() => {
     if (!st || active.length === 0) {
-      speedRef.current = { tokens: -1, at: 0 };
+      speedRef.current = { ticks: -1, at: 0 };
+      setSpeed(1);
       return;
     }
-    const total = active.reduce((a, x) => a + (x.totalTokens || 0), 0);
+    const ticks = active.reduce((a, x) => a + (x.motionTicks || 0), 0);
     const t = Date.now();
     const prev = speedRef.current;
-    if (prev.tokens < 0 || t - prev.at < 500) {
-      speedRef.current = { tokens: total, at: t };
+    if (prev.ticks < 0 || t - prev.at < 300) {
+      speedRef.current = { ticks, at: t };
       return;
     }
-    const rate = Math.max(0, (total - prev.tokens) / ((t - prev.at) / 1e3));
-    setSpeed(Math.max(0.7, Math.min(3, 0.7 + rate / 45)));
-    speedRef.current = { tokens: total, at: t };
+    const rate = Math.max(0, (ticks - prev.ticks) / ((t - prev.at) / 1e3));
+    const phaseBoost = phase === "write" || phase === "code" ? 0.28 : phase === "search" ? 0.18 : 0;
+    const next = Math.max(0.9, Math.min(4, Number((0.9 + rate / 14 + phaseBoost).toFixed(2))));
+    setSpeed((current) => Math.abs(current - next) < 0.03 ? current : next);
+    speedRef.current = { ticks, at: t };
   }, [snap.status]);
-  const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
   const ambientOn = animOn && !panelOpen;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
-  const saveRobotScale = (0, import_react7.useCallback)((robotScale) => {
+  const saveRobotScale = (0, import_react8.useCallback)((robotScale) => {
     rpcCall2("config", { robotScale }).then((d) => animationStore.applyConfig(d && d.config)).catch(() => {
     });
   }, []);
-  const [botPos, setBotPos] = (0, import_react7.useState)(null);
-  const botPosRef = (0, import_react7.useRef)(null);
-  const botDragRef = (0, import_react7.useRef)(null);
-  const botResizeRef = (0, import_react7.useRef)(null);
-  const [botScaleDraft, setBotScaleDraft] = (0, import_react7.useState)(null);
-  const botClickBlockRef = (0, import_react7.useRef)(false);
-  (0, import_react7.useEffect)(() => {
+  const [botPos, setBotPos] = (0, import_react8.useState)(null);
+  const botPosRef = (0, import_react8.useRef)(null);
+  const botDragRef = (0, import_react8.useRef)(null);
+  const botResizeRef = (0, import_react8.useRef)(null);
+  const [botScaleDraft, setBotScaleDraft] = (0, import_react8.useState)(null);
+  const botClickBlockRef = (0, import_react8.useRef)(false);
+  (0, import_react8.useEffect)(() => {
     try {
       if (typeof localStorage === "undefined") return;
       const raw = localStorage.getItem("dsh-dock/anim/robot-pos/v1");
@@ -2340,7 +2444,7 @@ function AnimationOverlay(props) {
           }
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase, tasks: active }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-bot-cap", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "n", children: active.length }),
             " \u4E2A\u4EFB\u52A1",
@@ -2376,19 +2480,22 @@ function AnimationOverlay(props) {
       "button",
       {
         type: "button",
-        className: "dkan-badge",
-        style: speedStyle,
-        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
+        className: "dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : ""),
+        style: Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(phase) }),
+        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + phaseLabel(phase) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
         onClick: () => openPanel("animation"),
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }),
+            mode === "breathe" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-halo" }) : null,
             mode === "ring" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-ring" }) : null
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-badge-txt", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "n", children: active.length }),
             " \u4E2A\u4EFB\u52A1",
-            elapsed ? " \xB7 " + elapsed : ""
+            elapsed ? " \xB7 " + elapsed : "",
+            " \xB7 ",
+            phaseLabel(phase)
           ] })
         ]
       }
@@ -2444,7 +2551,10 @@ function ModePreview({ id }) {
   if (id === "robot") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-bot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase: "code" }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dotwrap dkan-breathe", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap dkan-breathe", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-halo" })
+  ] }) });
 }
 function TaskRow(props) {
   const t = props.t;
@@ -2467,23 +2577,26 @@ function TaskRow(props) {
 function AnimationView(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation(ctx);
-  const [cfg, setCfg] = (0, import_react7.useState)(null);
-  const [saveErr, setSaveErr] = (0, import_react7.useState)("");
-  const [testing, setTesting] = (0, import_react7.useState)(false);
-  const [testState, setTestState] = (0, import_react7.useState)(null);
-  const cfgRef = (0, import_react7.useRef)(null);
-  const pendingSavesRef = (0, import_react7.useRef)(0);
-  const editingWebhookRef = (0, import_react7.useRef)(false);
-  (0, import_react7.useEffect)(() => {
+  const [cfg, setCfg] = (0, import_react8.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react8.useState)("");
+  const [testing, setTesting] = (0, import_react8.useState)(false);
+  const [testState, setTestState] = (0, import_react8.useState)(null);
+  const [feishuTestState, setFeishuTestState] = (0, import_react8.useState)(null);
+  const [feishuTesting, setFeishuTesting] = (0, import_react8.useState)(false);
+  const cfgRef = (0, import_react8.useRef)(null);
+  const pendingSavesRef = (0, import_react8.useRef)(0);
+  const editingWebhookRef = (0, import_react8.useRef)(false);
+  const editingFeishuRef = (0, import_react8.useRef)(false);
+  (0, import_react8.useEffect)(() => {
     const c = snap.status && snap.status.config;
     if (!c) return;
-    if (pendingSavesRef.current > 0 || editingWebhookRef.current) return;
+    if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
     if (c !== cfgRef.current) {
       cfgRef.current = c;
       setCfg(Object.assign({}, c));
     }
   }, [snap.status]);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (!animationStore.snap.status) animationStore.refresh();
   }, []);
   const patch = (p) => {
@@ -2509,6 +2622,17 @@ function AnimationView(props) {
       setCfg(Object.assign({}, c));
     }
   };
+  const saveFeishuWebhook = async () => {
+    if (!editingFeishuRef.current) return;
+    const hook = String(cfg.feishuWebhook || "").trim();
+    await patch({ feishuWebhook: hook });
+    editingFeishuRef.current = false;
+    const c = animationStore.snap.status && animationStore.snap.status.config;
+    if (c && c !== cfgRef.current) {
+      cfgRef.current = c;
+      setCfg(Object.assign({}, c));
+    }
+  };
   const runDingtalkTest = async () => {
     setTesting(true);
     setTestState(null);
@@ -2528,6 +2652,27 @@ function AnimationView(props) {
       setTestState({ ok: false, msg: e && e.message || String(e) });
     } finally {
       setTesting(false);
+    }
+  };
+  const runFeishuTest = async () => {
+    setFeishuTesting(true);
+    setFeishuTestState(null);
+    try {
+      if (editingFeishuRef.current) {
+        const hook = String(cfg.feishuWebhook || "").trim();
+        if (!hook) throw new Error("\u8BF7\u5148\u586B\u5199 Webhook \u5730\u5740");
+        const d = await rpcCall2("config", { feishuWebhook: hook });
+        animationStore.applyConfig(d && d.config);
+        editingFeishuRef.current = false;
+        cfgRef.current = d && d.config || cfgRef.current;
+        setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
+      }
+      const r = await rpcCall2("test", { target: "feishu" });
+      setFeishuTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
+    } catch (e) {
+      setFeishuTestState({ ok: false, msg: e && e.message || String(e) });
+    } finally {
+      setFeishuTesting(false);
     }
   };
   const enableSystemNotify = async (next) => {
@@ -2812,7 +2957,66 @@ function AnimationView(props) {
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u9489\u9489\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u667A\u80FD\u7FA4\u52A9\u624B \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\uFF08Webhook\uFF09\uFF0C \u5B89\u5168\u8BBE\u7F6E\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
         ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u9489\u9489\u3002" })
-      ] }, "dingtalk")
+      ] }, "dingtalk"),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u98DE\u4E66\u63A8\u9001" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.feishuEnabled ? " on" : ""), children: cfg.feishuEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.feishuEnabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.feishuEnabled,
+                "aria-label": "\u5F00\u5173\u98DE\u4E66\u63A8\u9001",
+                title: cfg.feishuEnabled ? "\u5173\u95ED\u98DE\u4E66\u63A8\u9001" : "\u5F00\u542F\u98DE\u4E66\u63A8\u9001",
+                onClick: () => patch({ feishuEnabled: !cfg.feishuEnabled })
+              }
+            )
+          ] })
+        ] }),
+        cfg.feishuEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row dkan-row-webhook", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "Webhook" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                type: "text",
+                className: "dkan-input",
+                spellCheck: false,
+                value: cfg.feishuWebhook || "",
+                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/\u2026",
+                onChange: (e) => {
+                  editingFeishuRef.current = true;
+                  setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkan-btn",
+                disabled: !editingFeishuRef.current,
+                onClick: saveFeishuWebhook,
+                children: editingFeishuRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-btn", disabled: feishuTesting, onClick: runFeishuTest, children: feishuTesting ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
+            feishuTestState ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-row-sub" + (feishuTestState.ok ? " dkan-ok" : " dkan-err"), children: [
+              feishuTestState.ok ? "\u2713 " : "\u2717 ",
+              feishuTestState.msg
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u98DE\u4E66\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u7FA4\u673A\u5668\u4EBA \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\u673A\u5668\u4EBA\uFF08\u83B7\u53D6 Webhook \u5730\u5740\uFF09\uFF1B \u5B89\u5168\u8BBE\u7F6E\u5982\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u98DE\u4E66\u3002" })
+      ] }, "feishu")
     );
   }
   if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note dkan-err", children: saveErr }, "err"));
@@ -2855,6 +3059,8 @@ var css2 = [
   "@keyframes dkan-orbit{0%{top:0;left:0}25%{top:0;left:calc(100vw - 12px)}50%{top:calc(100vh - 12px);left:calc(100vw - 12px)}75%{top:calc(100vh - 12px);left:0}100%{top:0;left:0}}",
   // ===== 氛围动效 =====
   ".dkan-amb{position:fixed;inset:0;z-index:9989;pointer-events:none;overflow:hidden;}",
+  // pointer-events 不继承：全屏装饰层的子粒子（星点/流星/极光/火花/彩带）必须各自透明于点击
+  ".dkan-amb *,.dkan-fxwrap *{pointer-events:none;}",
   // 代码雨：字符列缓落（提亮加大，速度随吞吐）
   ".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);text-shadow:0 0 6px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent);animation:dkan-fall linear infinite;will-change:transform;}",
   "@keyframes dkan-fall{to{transform:translateY(125vh)}}",
@@ -2901,10 +3107,16 @@ var css2 = [
   ".dkan-badge .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
   "@keyframes dkan-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}",
   // 徽标圆点与两种动效（呼吸 / 轨道环）
-  ".dkan-dotwrap{position:relative;width:16px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
-  ".dkan-dot{width:9px;height:9px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);}",
-  ".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.6s / var(--dkan-speed,1)) ease-in-out infinite;}",
-  "@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.6);opacity:1}}",
+  ".dkan-dotwrap{position:relative;width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
+  ".dkan-dot{width:12px;height:12px;border-radius:50%;background:var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));box-shadow:0 0 10px color-mix(in srgb,var(--dkan-phase,var(--dsw-alias-accent,#4d9fff)) 70%,transparent);transition:background .4s var(--ds-ease-in-out),box-shadow .4s var(--ds-ease-in-out);}",
+  ".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+  "@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.7);opacity:1}}",
+  // 呼吸光晕：向外扩散的波纹环，与圆点同频（颜色随阶段）
+  ".dkan-halo{position:absolute;inset:0;border-radius:50%;border:2px solid var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));animation:dkan-halo calc(2.2s / var(--dkan-speed,1)) ease-out infinite;}",
+  "@keyframes dkan-halo{0%{transform:scale(.5);opacity:.9}70%{transform:scale(1.5);opacity:.25}100%{transform:scale(1.7);opacity:0}}",
+  // breathe 模式徽标更醒目：阶段色描边 + 呼吸辉光
+  ".dkan-badge-breathe{border-color:color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent);animation:dkan-rise .3s var(--ds-ease-in-out),dkan-badge-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+  "@keyframes dkan-badge-breathe{0%,100%{box-shadow:0 0 6px color-mix(in srgb,var(--dkan-phase,#4d9fff) 22%,transparent),0 6px 24px rgb(0 0 0 / .16)}50%{box-shadow:0 0 18px color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent),0 6px 24px rgb(0 0 0 / .16)}}",
   ".dkan-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 68%,var(--dsw-alias-accent,#4d9fff) 92%,#fff);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));animation:dkan-spin calc(2.2s / var(--dkan-speed,1)) linear infinite;opacity:.9;}",
   "@keyframes dkan-spin{to{transform:rotate(360deg)}}",
   // 通知卡片栈（右上角）
@@ -2979,7 +3191,7 @@ var css2 = [
   "@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
   ".dkan-prev-bot{height:92px;justify-content:center;}",
   ".dkan-prev-bot .dkan-bot-scene{--dkan-bot-scale:1;transform:scale(.56);transform-origin:center;}",
-  // ===== 桌面伙伴：具象人物 + 四屏工位（尺寸可调，整卡可拖拽） =====
+  // ===== 桌面伙伴：具象人物 + 紧凑双工位（尺寸可调，整卡可拖拽） =====
   // 卡片：玻璃拟态；默认停泊右下（dsh 输入卡上方），拖动后位置持久化、可放屏幕任意处
   ".dkan-botcard{--dkan-bot-scale:1.35;position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:16px;cursor:grab;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 86%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 12px 36px rgb(0 0 0 / .22);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;pointer-events:auto;touch-action:none;user-select:none;animation:dkan-rise .3s var(--ds-ease-in-out);}",
   ".dkan-botcard:hover,.dkan-botcard:focus-visible{border-color:var(--dsw-alias-accent,#4d9fff);outline:none;}",
@@ -3014,9 +3226,24 @@ var css2 = [
   ".dk3-code i:nth-child(5n+4){width:72%;}",
   ".dk3-code i:nth-child(5n){width:54%;background:var(--dkan-code-a);}",
   ".dk3-cur{position:absolute;left:3px;bottom:2px;width:4px;height:2px;background:var(--dkan-code-b);animation:dkan-blink3 1s steps(1) infinite;}",
+  // 左屏检索视图：搜索框、放大镜与结果条，和右侧代码编辑器明确区分
+  ".dk3-search-ui{position:absolute;inset:3px;display:block;overflow:hidden;}",
+  ".dk3-search-box{display:block;height:5px;margin:0 1px 3px;border:1px solid color-mix(in srgb,var(--dkan-code-a) 72%,#d7fff4);border-radius:2px;box-sizing:border-box;}",
+  ".dk3-search-box b{display:block;width:2px;height:2px;margin:1px 0 0 2px;border:1px solid var(--dkan-code-a);border-radius:50%;position:relative;}",
+  ".dk3-search-box b:after{content:'';position:absolute;width:2px;height:1px;background:var(--dkan-code-a);right:-2px;bottom:-1px;transform:rotate(45deg);transform-origin:left center;}",
+  ".dk3-search-results{display:block;animation:dk3-search-scroll calc(2.1s / var(--dkan-speed,1)) linear infinite;}",
+  ".dk3-search-results i{display:block;height:2px;margin:2px 1px 0;border-radius:1px;background:var(--dkan-code-a);opacity:.72;}",
+  ".dk3-search-results i:nth-child(2n){width:74%;background:var(--dkan-code-b);}",
+  ".dk3-search-results i:nth-child(3n){width:48%;background:var(--dkan-code-c);}",
+  "@keyframes dk3-search-scroll{to{transform:translateY(-5px)}}",
   "@keyframes dk3-scroll{to{transform:translateY(-50%)}}",
-  // 人物组（坐在桌子中间近镜头侧 z=30，侧身面朝 +X 三屏；不会被桌体遮挡）
-  ".dk3-person{position:absolute;left:96px;top:14px;width:44px;height:64px;transform-style:preserve-3d;transform:translateZ(30px);}",
+  // 人物与椅子始终正对桌面：工位切换只横移，不再旋转整个人和座椅。
+  ".dk3-person{--dk3-seat-x:22px;position:absolute;left:98px;top:14px;width:44px;height:61px;transform-style:preserve-3d;transform:translateZ(30px) translateX(var(--dk3-seat-x));transition:transform max(.18s,calc(.38s / var(--dkan-speed,1))) cubic-bezier(.23,1,.32,1);will-change:transform;}",
+  ".dkan-bot-scene[data-station=left] .dk3-person{--dk3-seat-x:0px;}",
+  ".dkan-bot-scene[data-station=center] .dk3-person{--dk3-seat-x:22px;}",
+  ".dkan-bot-scene[data-station=right] .dk3-person{--dk3-seat-x:44px;}",
+  // 上身以髋部为旋转原点；只做前后倾，始终朝向桌面。
+  ".dk3-upper3{position:absolute;inset:0;transform-style:preserve-3d;transform-origin:12px 52px;transform:translateZ(0);transition:transform .24s cubic-bezier(.77,0,.175,1);will-change:transform;}",
   // 动漫人物配色：皮肤/头发/卫衣/裤子
   ".dk3-skin .dk3-face{background:linear-gradient(180deg,#ffd9b8,#f3b98d);}",
   ".dk3-skin .dk3-face:nth-child(5){background:#ffe3c9;}",
@@ -3026,64 +3253,106 @@ var css2 = [
   ".dk3-hood .dk3-face:nth-child(5){background:#93a5ba;}",
   ".dk3-pants .dk3-face{background:linear-gradient(180deg,#3d4a5c,#2c3646);}",
   ".dk3-pants .dk3-face:nth-child(5){background:#4a5a70;}",
-  // 人物细节：圆角 + 鞋 + 咖啡杯 + 嘴
-  ".dk3-headbox .dk3-face{border-radius:3px;}",
-  ".dk3-torso .dk3-face{border-radius:3px;}",
+  // 人物细节：收窄下颌、连续肩颈、短侧渐层发型
+  ".dk3-cranium .dk3-face{border-radius:42% 46% 38% 36%;}",
+  ".dk3-jaw3 .dk3-face{border-radius:30% 30% 48% 48%;}",
+  ".dk3-neck3 .dk3-face{border-radius:2px;}",
+  ".dk3-collar3 .dk3-face{background:linear-gradient(180deg,#516176,#374459);border-radius:3px;}",
+  ".dk3-shoulders3 .dk3-face{border-radius:4px;}",
+  ".dk3-chest3 .dk3-face{border-radius:4px;}",
+  ".dk3-waist3 .dk3-face{border-radius:3px;}",
   ".dk3-hair .dk3-face{border-radius:2px;}",
+  ".dk3-hair-crown .dk3-face{border-radius:48% 42% 28% 30%;}",
+  ".dk3-hair-back .dk3-face{background:linear-gradient(180deg,#493727,#2f241b);border-radius:46% 24% 38% 44%;}",
   ".dk3-shoe .dk3-face{background:#20262f;border-radius:2px;}",
   ".dk3-mug .dk3-face{background:#c2703d;border-radius:1px;}",
   ".dk3-mug .dk3-face:nth-child(5){background:#e08a52;}",
-  ".dk3-mouth{position:absolute;left:50%;top:78%;width:5px;height:1.5px;border-radius:1px;background:#b5766a;}",
+  ".dk3-mouth{position:absolute;left:50%;top:64%;width:3.5px;height:1px;border-radius:2px;background:#a9635c;}",
   // 椅子
   ".dk3-chairback .dk3-face{background:linear-gradient(180deg,#3f4c60,#2c3648);}",
   ".dk3-chairseat .dk3-face{background:#33415a;}",
-  // 头组（俯仰=rotateZ，左右看=rotateY）；眼睛贴在 +X 面板上
-  ".dk3-head3{position:absolute;left:14px;top:2px;width:17px;height:20px;transform-style:preserve-3d;transform-origin:50% 85%;transition:transform .25s var(--ds-ease-in-out);}",
-  ".dk3-brows{position:absolute;left:50%;top:30%;display:flex;gap:3px;align-items:center;justify-content:center;}",
-  ".dk3-brows i{width:3px;height:1px;border-radius:2px;background:#4a3428;}",
-  ".dk3-eyes{position:absolute;left:50%;top:52%;display:flex;gap:3px;align-items:center;justify-content:center;}",
-  ".dk3-eyes i{width:3px;height:4px;border-radius:50%;background:radial-gradient(circle at 60% 35%,#fff 0 .5px,#2b3442 .8px);animation:dkan-blink3 4.6s infinite;}",
-  ".dk3-nose{position:absolute;left:50%;top:64%;width:2px;height:2px;border-radius:50%;background:#d99277;}",
-  ".dk3-ear{position:absolute;left:-1px;top:11px;width:3px;height:5px;border-radius:50%;background:#f3b98d;transform:translateZ(2px);}",
+  // 头组与颈部中心均为 x=14；只让头部观察左右屏，身体和椅子不转向。
+  ".dk3-head3{--dk3-head-turn:rotateY(0deg);position:absolute;left:6px;top:3px;width:17px;height:21px;transform-style:preserve-3d;transform-origin:8px 18px;transform:var(--dk3-head-turn);transition:transform max(.18s,calc(.22s / var(--dkan-speed,1))) cubic-bezier(.23,1,.32,1);will-change:transform;}",
+  ".dkan-bot-scene[data-station=left] .dk3-head3{--dk3-head-turn:rotateY(-18deg);}",
+  ".dkan-bot-scene[data-station=center] .dk3-head3{--dk3-head-turn:rotateY(0deg);}",
+  ".dkan-bot-scene[data-station=right] .dk3-head3{--dk3-head-turn:rotateY(14deg);}",
+  ".dk3-brows{position:absolute;left:50%;top:29%;display:flex;gap:2.5px;align-items:center;justify-content:center;}",
+  ".dk3-brows i{width:3.5px;height:1px;border-radius:2px;background:#3a2a21;transform:rotate(-7deg);}",
+  ".dk3-brows i+ i{transform:rotate(7deg);}",
+  ".dk3-eyes{position:absolute;left:50%;top:51%;display:flex;gap:2.5px;align-items:center;justify-content:center;}",
+  ".dk3-eyes i{width:3.5px;height:2.5px;border-radius:50%;background:radial-gradient(circle at 62% 30%,#fff 0 .5px,#263141 .8px 1.7px,#111827 1.9px);animation:dkan-blink3 4.8s infinite;}",
+  ".dk3-nose{position:absolute;left:50%;top:66%;width:2px;height:3px;border-radius:60% 40% 55% 45%;background:linear-gradient(90deg,#e7a67e,#c77f67);}",
+  ".dk3-ear{position:absolute;left:1px;top:10px;width:3px;height:5px;border-radius:52% 44% 48% 52%;background:linear-gradient(90deg,#edaa82,#ffd2ad);transform:translateZ(2px);}",
+  ".dk3-fringe3{position:absolute;left:13px;top:4px;width:5px;height:7px;transform-style:preserve-3d;transform:rotateY(90deg) translateZ(5.8px);}",
+  ".dk3-fringe3 i{position:absolute;top:0;width:2px;height:6px;border-radius:70% 25% 60% 30%;background:linear-gradient(180deg,#6b5239,#392b20);transform-origin:top center;}",
+  ".dk3-fringe3 i:nth-child(1){left:0;transform:rotate(-18deg);height:5px;}",
+  ".dk3-fringe3 i:nth-child(2){left:1.8px;transform:rotate(-6deg);height:6px;}",
+  ".dk3-fringe3 i:nth-child(3){left:3.5px;transform:rotate(12deg);height:4px;}",
   "@keyframes dkan-blink3{0%,91%,100%{transform:scaleY(1)}94%{transform:scaleY(.15)}}",
-  // 手臂：肩组挂躯干前上，肘组在其下端（前臂+手伸向键盘）；write/code 时肘部高频敲击
-  ".dk3-arm3{position:absolute;left:20px;top:30px;width:16px;height:16px;transform-style:preserve-3d;}",
-  ".dk3-elbow{position:absolute;left:0;top:10px;width:15px;height:5px;transform-style:preserve-3d;transform-origin:2px 2px;}",
-  ".dk3-far{transform:translateZ(-8px);filter:brightness(.62);}",
+  // 手臂按肩→肘→腕分段，旋转原点位于真实关节连接处。
+  ".dk3-arm3{position:absolute;left:20px;top:30px;width:16px;height:16px;transform-style:preserve-3d;transform-origin:2px 2px;will-change:transform;}",
+  ".dk3-elbow{position:absolute;left:0;top:10px;width:15px;height:5px;transform-style:preserve-3d;transform-origin:1px 2px;will-change:transform;}",
+  ".dk3-wrist3{position:absolute;left:9.5px;top:0;width:6px;height:5px;transform-style:preserve-3d;transform-origin:1px 2px;will-change:transform;}",
+  ".dk3-fingers3{position:absolute;left:3px;top:1px;width:4px;height:3px;transform:translateZ(2px);}",
+  ".dk3-fingers3 i{position:absolute;left:0;width:4px;height:.8px;border-radius:2px;background:#f2b58d;}",
+  ".dk3-fingers3 i+ i{top:1.4px;width:3.5px;}",
+  ".dk3-far{transform:translateZ(-7px);filter:brightness(.72);}",
   // 思考泡泡（贴镜头 2D 层，think 阶段显示）
   ".dkan-bubble{position:absolute;left:80px;top:4px;display:none;gap:3px;padding:4px 6px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);box-shadow:0 2px 6px rgb(0 0 0 / .15);z-index:3;}",
   ".dkan-bubble i{width:4px;height:4px;border-radius:50%;background:var(--dsw-alias-label-tertiary);animation:dkan-bubdot 1.2s ease-in-out infinite;}",
   ".dkan-bubble i:nth-child(2){animation-delay:.2s;}",
   ".dkan-bubble i:nth-child(3){animation-delay:.4s;}",
   "@keyframes dkan-bubdot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}",
+  // ===== 多任务工位（data-tasks=活跃任务数，上限 3） =====
+  // 椅子滚轮
+  ".dk3-wheel .dk3-face{background:#1c232e;border-radius:50%;}",
+  // 有活跃任务时，未轮到的侧工位稍暗；多任务则两个工位均保持可见。
+  ".dkan-bot-scene[data-tasks] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks] .dk3-mon3.right .dk3-screen{opacity:.3;}",
+  // 2 个及以上任务：左右工位同时点亮（各自带辉光、代码滚动加速）。
+  '.dkan-bot-scene[data-tasks="2"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks="2"] .dk3-mon3.right .dk3-screen,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 42%,transparent);}',
+  '.dkan-bot-scene[data-tasks="2"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks="2"] .dk3-mon3.right .dk3-code,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks="3"] .dk3-mon3.right .dk3-code{animation-duration:calc(2.6s / var(--dkan-speed,1));}',
+  // 座椅移动期间滚轮跟随任务节奏转动；思考中停下，避免无意义的常驻运动。
+  ".dkan-bot-scene[data-station=left] .dk3-wheel,.dkan-bot-scene[data-station=right] .dk3-wheel{animation:dkan-wheel calc(.46s / var(--dkan-speed,1)) linear infinite;transform-origin:center;}",
+  "@keyframes dkan-wheel{to{transform:rotateZ(360deg)}}",
   // ===== 阶段驱动（data-phase 四态，host 由 chunk 流实时同步） =====
-  // think：屏幕调暗 + 仰头苦想 + 泡泡浮现
+  // think：上身轻靠、近侧手托下巴、远侧手留在桌面；动作有停顿而不是机械往返。
   ".dkan-bot-scene[data-phase=think] .dk3-screen{opacity:.32;}",
   ".dkan-bot-scene[data-phase=think] .dkan-bubble{display:inline-flex;}",
-  ".dkan-bot-scene[data-phase=think] .dk3-head3{animation:dkan-think-head 1.8s ease-in-out infinite alternate;}",
-  ".dkan-bot-scene[data-phase=think] .dk3-arm3:not(.dk3-far){animation:dkan-think-arm 1.8s ease-in-out infinite alternate;}",
-  ".dkan-bot-scene[data-phase=think] .dk3-arm3.dk3-far{animation:dkan-think-arm-far 1.8s ease-in-out infinite alternate;}",
-  "@keyframes dkan-think-head{from{transform:rotateZ(-12deg) translateY(-1px)}to{transform:rotateZ(-22deg) translate(3px,-4px)}}",
-  "@keyframes dkan-think-arm{from{transform:rotateZ(-4deg)}to{transform:rotateZ(-34deg) translate(1px,-8px)}}",
-  "@keyframes dkan-think-arm-far{from{transform:translateZ(-8px) rotateZ(-2deg)}to{transform:translateZ(-8px) rotateZ(-24deg) translate(1px,-7px)}}",
-  // write/code：中屏高亮代码滚动 + 肘部高频敲击 + 低头专注
-  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 45%,transparent);}",
-  ".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-code,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-code{animation-duration:calc(2.2s / var(--dkan-speed,1));}",
-  ".dkan-bot-scene[data-phase=write] .dk3-arm3:not(.dk3-far),.dkan-bot-scene[data-phase=code] .dk3-arm3:not(.dk3-far){animation:dkan-output-arm calc(.46s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-  ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far{animation:dkan-output-arm-far calc(.46s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-  ".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type3 calc(.22s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-  ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far .dk3-elbow{animation-delay:.11s;}",
-  "@keyframes dkan-type3{from{transform:rotate(12deg) translateY(-1px)}to{transform:rotate(-14deg) translateY(2px)}}",
-  "@keyframes dkan-output-arm{from{transform:rotateZ(7deg) translateY(0)}to{transform:rotateZ(-13deg) translateY(4px)}}",
-  "@keyframes dkan-output-arm-far{from{transform:translateZ(-8px) rotateZ(5deg)}to{transform:translateZ(-8px) rotateZ(-11deg) translateY(4px)}}",
-  ".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{animation:dkan-output-head calc(.8s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-  "@keyframes dkan-output-head{from{transform:rotateZ(4deg) translateY(0)}to{transform:rotateZ(10deg) translate(2px,2px)}}",
-  // search：侧屏高亮 + 滚动加速 + 头部左右扫视（一会忙这个一会看那个）
-  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-a,#4ade80) 40%,transparent);}",
-  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-code{animation-duration:calc(1.6s / var(--dkan-speed,1));}",
-  ".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-scan3 3.4s ease-in-out infinite;}",
-  "@keyframes dkan-scan3{0%,16%{transform:rotateZ(3deg) rotateY(-38deg)}30%,48%{transform:rotateZ(3deg) rotateY(6deg)}62%,80%{transform:rotateZ(3deg) rotateY(38deg)}100%{transform:rotateZ(3deg) rotateY(-38deg)}}",
-  "@media (prefers-reduced-motion:reduce){.dkan-botcard *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}}",
+  ".dkan-bot-scene[data-phase=think] .dk3-upper3{animation:dkan-think-upper max(1.8s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=think] .dk3-head3{animation:dkan-think-head max(1.8s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=think] .dk3-arm3.dk3-near{animation:dkan-think-near max(1.8s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=think] .dk3-arm3.dk3-far{transform:translateZ(-7px) rotateZ(3deg);}",
+  ".dkan-bot-scene[data-phase=think] .dk3-near .dk3-elbow{transform:rotateZ(-28deg) translateY(-1px);}",
+  ".dkan-bot-scene[data-phase=think] .dk3-near .dk3-wrist3{transform:rotateZ(-18deg) translateY(-1px);}",
+  "@keyframes dkan-think-upper{0%,44%{transform:rotateZ(-1deg) translateY(0)}62%,100%{transform:rotateZ(-1.8deg) translateY(-.5px)}}",
+  "@keyframes dkan-think-head{0%,44%{transform:var(--dk3-head-turn) rotateZ(-3deg)}62%,100%{transform:var(--dk3-head-turn) rotateZ(-6deg) translateY(-.5px)}}",
+  "@keyframes dkan-think-near{0%,44%{transform:rotateZ(-31deg) translate(-8px,-14.5px)}62%,100%{transform:rotateZ(-34deg) translate(-8.5px,-15px)}}",
+  // write/code：身体仍面向桌面，仅轻微前倾；主要由手腕和手指敲击。
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.right .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 11px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 52%,transparent);}",
+  ".dkan-bot-scene[data-phase=write] .dk3-mon3.right .dk3-code,.dkan-bot-scene[data-phase=code] .dk3-mon3.right .dk3-code{animation-duration:calc(1.35s / var(--dkan-speed,1));}",
+  ".dkan-bot-scene[data-phase=write] .dk3-upper3,.dkan-bot-scene[data-phase=code] .dk3-upper3{animation:dkan-code-upper max(1.2s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-near,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-near{transform:rotateZ(3deg);}",
+  ".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far{transform:translateZ(-7px) rotateZ(1deg);}",
+  ".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type-elbow max(.28s,calc(.58s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-wrist3,.dkan-bot-scene[data-phase=code] .dk3-wrist3{animation:dkan-type-wrist max(.18s,calc(.29s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=write] .dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-far .dk3-elbow{animation-delay:-.09s;animation-duration:max(.3s,calc(.63s / var(--dkan-speed,1)));}",
+  ".dkan-bot-scene[data-phase=write] .dk3-far .dk3-wrist3,.dkan-bot-scene[data-phase=code] .dk3-far .dk3-wrist3{animation-delay:-.09s;animation-duration:max(.2s,calc(.33s / var(--dkan-speed,1)));}",
+  ".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{animation:dkan-output-head max(1.2s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  "@keyframes dkan-code-upper{0%,38%{transform:rotateZ(2deg) translate(1px,0)}62%,100%{transform:rotateZ(3deg) translate(1px,1px)}}",
+  "@keyframes dkan-type-elbow{0%,38%{transform:rotateZ(-4deg)}62%,100%{transform:rotateZ(5deg) translateY(1px)}}",
+  "@keyframes dkan-type-wrist{0%,34%{transform:rotateZ(-2deg) translateY(0)}62%,100%{transform:rotateZ(3deg) translateY(1.5px)}}",
+  "@keyframes dkan-output-head{0%,46%,100%{transform:var(--dk3-head-turn) rotateZ(3deg)}58%{transform:var(--dk3-head-turn) rotateZ(5deg) translateY(1px)}}",
+  // search：身体正对桌面，头看左屏，近侧手腕小幅操作鼠标。
+  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-a,#4ade80) 52%,transparent);}",
+  ".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-search-results{animation-duration:calc(1.05s / var(--dkan-speed,1));}",
+  ".dkan-bot-scene[data-phase=search] .dk3-upper3{transform:rotateZ(2deg) translateY(1px);}",
+  ".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-search-head max(.72s,calc(1.15s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=search] .dk3-near .dk3-wrist3{animation:dkan-search-wrist max(.45s,calc(.72s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+  ".dkan-bot-scene[data-phase=search] .dk3-far{transform:translateZ(-7px) rotateZ(2deg);}",
+  "@keyframes dkan-search-head{0%,28%{transform:var(--dk3-head-turn) rotateZ(1deg)}48%,68%{transform:var(--dk3-head-turn) rotateZ(6deg) translate(1px,1px)}88%,100%{transform:var(--dk3-head-turn) rotateZ(2deg)}}",
+  "@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
+  // 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
+  "@media (prefers-reduced-motion:reduce){.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
   // 通知子选项行
   ".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
   ".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
@@ -3201,9 +3470,13 @@ var SHELL_CSS = [
   ".dock-badge{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 10px;font-size:12px;}",
   ".dock-body{border-top:1px solid var(--dsw-alias-border-l1);padding-top:8px;color:var(--dsw-alias-label-secondary);display:flex;flex-direction:column;gap:4px;}",
   // 侧栏入口按钮（docke2- 前缀）+ 功能坞弹出面板（dockm- 前缀，仿 dsh 设置的居中模态：遮罩 + 对话框，左导航 + 右内容）
-  ".docke2-btn{box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--dsw-alias-label-secondary);border-radius:10px;height:32px;font-family:inherit;font-size:13px;line-height:32px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
-  ".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  // 侧栏入口按钮（docke2- 前缀）：与 dsh 设置按钮（.VOzbGW_trigger）几何逐条对齐——
+  // 宽栏同为整宽左对齐行按钮（高 42、margin 4/-2、padding 0 10px 0 8px、圆角 12），窄栏同为 36 圆钮居中，
+  // 使两按钮上下成列、左右边缘完全对齐（此前右对齐/叠放都会错位）。
+  ".docke2-btn{box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;border:none;background:transparent;color:var(--dsw-alias-label-primary);border-radius:12px;width:calc(100% + 4px);height:42px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+  ".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
   ".docke2-btn.docke2-on{color:var(--dsw-alias-accent,#4d9fff);background:var(--dsw-alias-accent-soft,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 12%,transparent));}",
+  ".docke2-btn.docke2-rail{width:36px;height:36px;margin:8px 0 10px;padding:0;border-radius:50%;justify-content:center;gap:0;}",
   ".docke2-label{white-space:nowrap;overflow:hidden;}",
   ".dockm-backdrop{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 55%,transparent);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
   "@keyframes dockm-fade{from{opacity:0}to{opacity:1}}",
@@ -3268,8 +3541,15 @@ var SHELL_CSS = [
   ".dockh-foot{display:flex;align-items:center;gap:8px;}",
   ".dockh-go{color:var(--dsw-alias-label-tertiary);font-size:11px;}",
   // 会话输入区工具行 chips（dockchip- 前缀）：余额/用量随身小控件，挂在模型选择器左侧
-  ".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;}",
-  ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+  // 溢出兼容（两层防护，缺一不可）：
+  //  1) 宽度上限：宿主 .row 是 flex-wrap:wrap 且换行优先于收缩，chips 一长 tools 整行变宽，
+  //     右侧模型选择器/发送键被挤到第二行（左右错位）。宿主 .row 带 container-type:inline-size，
+  //     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定 280px。
+  //  2) 截断：超限部分用省略号截断（完整数值在 title 悬浮提示里），防 chips 凸出输入卡圆角（悬空）。
+  ".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:280px;}",
+  "@supports (width:1cqw){.dockchip-row{max-width:min(280px,36cqw);}}",
+  ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+  ".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
   ".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
   ".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
   ".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
@@ -3299,8 +3579,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react8.default.useReducer((n) => n + 1, 0);
-  import_react8.default.useEffect(() => {
+  const [, bump] = import_react9.default.useReducer((n) => n + 1, 0);
+  import_react9.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -3308,42 +3588,42 @@ function useExternalVersion() {
   }, []);
 }
 var lastGeom = { x: null, y: null, w: null, h: null };
-function DockIcon() {
-  return import_react8.default.createElement(
+function DockIcon(props) {
+  const size = props && props.size || 16;
+  return import_react9.default.createElement(
     "svg",
-    { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react8.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react8.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react8.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react8.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+    import_react9.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react9.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react9.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react9.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react8.default.useState(panelNav.open);
-  import_react8.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react8.default.createElement("button", {
+  const [open, setOpen] = import_react9.default.useState(panelNav.open);
+  import_react9.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react9.default.createElement("button", {
     type: "button",
-    className: "docke2-btn" + (open ? " docke2-on" : ""),
-    style: wide ? { marginLeft: "auto", transform: "translateY(46px)", zIndex: 1, height: 42, lineHeight: "42px", padding: "0 12px" } : { transform: "translateY(44px)", zIndex: 1, width: 36, height: 36, justifyContent: "center", padding: 0 },
+    className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
     title: "\u529F\u80FD\u575E",
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react8.default.createElement(DockIcon, null), wide ? import_react8.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react9.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react9.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react8.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react8.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react9.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react9.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react8.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react8.default.useRef(null);
-  import_react8.default.useEffect(() => {
+  const [win, setWin] = import_react9.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react9.default.useRef(null);
+  import_react9.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
   function beginDrag(e, type) {
@@ -3381,13 +3661,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react8.default.createElement(
+  const viewNode = mod && View ? import_react9.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react8.default.createElement(
-      mod.external ? FeatureBoundary : import_react8.default.Fragment,
+    import_react9.default.createElement(
+      mod.external ? FeatureBoundary : import_react9.default.Fragment,
       null,
-      import_react8.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react9.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -3401,10 +3681,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react8.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react8.default.createElement(
+    import_react9.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -3412,41 +3692,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react8.default.createElement(
+      import_react9.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react8.default.createElement(DockIcon, null),
-        import_react8.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react8.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react8.default.createElement(
+        import_react9.default.createElement(DockIcon, null),
+        import_react9.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react9.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react9.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react8.default.createElement("button", {
+          import_react9.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react8.default.createElement("button", {
+          import_react9.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react8.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react9.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react8.default.createElement(
+      import_react9.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react8.default.createElement(
+          import_react9.default.createElement(
             "button",
             {
               type: "button",
@@ -3454,10 +3734,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react8.default.createElement("span", { className: "dockm-navhome" }, import_react8.default.createElement(DockIcon, null)),
-            import_react8.default.createElement("span", null, "\u9996\u9875")
+            import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)),
+            import_react9.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react8.default.createElement(
+          MODULES.map((m) => import_react9.default.createElement(
             "button",
             {
               type: "button",
@@ -3465,42 +3745,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react8.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react8.default.createElement("span", null, m.name),
-            m.planned ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react9.default.createElement("span", null, m.name),
+            m.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "div",
           { className: "dockm-content" },
-          import_react8.default.createElement(
+          import_react9.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react8.default.createElement(
+            import_react9.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react8.default.createElement("span", { className: "dockm-navhome" }, import_react8.default.createElement(DockIcon, null)) : import_react8.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)) : import_react9.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react8.default.createElement(
+            import_react9.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react8.default.createElement("div", { className: "dockm-view" }, import_react8.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react8.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react8.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react8.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react8.default.createElement(
+          isHome ? import_react9.default.createElement("div", { className: "dockm-view" }, import_react9.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react9.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react9.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react9.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react9.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react8.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react8.default.createElement(
+            import_react9.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react9.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react8.default.createElement("button", {
+              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react9.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -3513,11 +3793,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react8.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react9.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react8.default.createElement("button", {
+              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react9.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -3533,30 +3813,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react8.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react9.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react8.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react8.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react8.default.createElement(
-        m.external ? FeatureBoundary : import_react8.default.Fragment,
+      const statNode = m.planned ? import_react9.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react9.default.createElement(
+        m.external ? FeatureBoundary : import_react9.default.Fragment,
         null,
-        import_react8.default.createElement(Stat, { ctx })
-      ) : import_react8.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react8.default.createElement(
+        import_react9.default.createElement(Stat, { ctx })
+      ) : import_react9.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react9.default.createElement(
         "div",
         {
           key: m.id,
@@ -3571,21 +3851,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react8.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react8.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react8.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react9.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react9.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react8.default.createElement(
+          import_react9.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react8.default.createElement("span", { className: "dockh-sdot" }),
-            import_react8.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react9.default.createElement("span", { className: "dockh-sdot" }),
+            import_react9.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react8.default.createElement("button", {
+          m.planned ? null : import_react9.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -3600,12 +3880,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react8.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react8.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react8.default.createElement(
+        import_react9.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react9.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react9.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react8.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react9.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -3613,16 +3893,16 @@ function HomeView(props) {
 }
 function DockPanel() {
   const ctx = ctxRef.current;
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react8.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react8.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -3631,25 +3911,25 @@ function DockPanel() {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react8.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react9.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react8.default.createElement(
-          f.external ? FeatureBoundary : import_react8.default.Fragment,
+        import_react9.default.createElement(
+          f.external ? FeatureBoundary : import_react9.default.Fragment,
           null,
-          import_react8.default.createElement(View, { ctx, feature: f })
+          import_react9.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
-      return import_react8.default.createElement(
+      return import_react9.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react8.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react8.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react8.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react8.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react8.default.createElement("button", {
+          import_react9.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react9.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react9.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react9.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react9.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -3658,11 +3938,11 @@ function DockPanel() {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react8.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react9.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react8.default.createElement("button", {
+            import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react9.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -3676,19 +3956,19 @@ function DockPanel() {
             })
           ) : null
         ),
-        f.planned ? import_react8.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react8.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react9.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react9.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
-  import_react8.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react8.default.createElement(f.Chip, {
+    items.push(import_react9.default.createElement(f.Chip, {
       key: f.id,
       ctx: props.ctx,
       feature: f,
@@ -3698,23 +3978,23 @@ function DockChips(props) {
     }));
   }
   if (items.length === 0) return null;
-  return import_react8.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react9.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react8.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react8.default.createElement(
+    items.push(import_react9.default.createElement(
       FeatureBoundary,
       { key: f.id },
-      import_react8.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react9.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react8.default.createElement(import_react8.default.Fragment, null, items);
+  return import_react9.default.createElement(import_react9.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -3725,23 +4005,23 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react8.default.createElement(DockEntry, props)
+    (props) => import_react9.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react8.default.createElement(DockModal, null)
+    () => import_react9.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react8.default.createElement(FeatureOverlays, null)
+    () => import_react9.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react8.default.createElement(DockPanel, null)
+    () => import_react9.default.createElement(DockPanel, null)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react8.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react9.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];

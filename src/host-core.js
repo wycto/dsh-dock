@@ -32,6 +32,9 @@ export const DockConfig = z.object({
     // 钉钉群机器人推送（宿主侧直发，浏览器关着也能推；事件跟随 notifyOnComplete/notifyOnError）
     dingtalkEnabled: z.boolean().default(false),
     dingtalkWebhook: z.string().default(''),
+    // 飞书群机器人推送（宿主侧直发，浏览器关着也能推；事件跟随 notifyOnComplete/notifyOnError）
+    feishuEnabled: z.boolean().default(false),
+    feishuWebhook: z.string().default(''),
   }).default({}),
 })
 

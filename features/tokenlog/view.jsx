@@ -540,9 +540,11 @@ export function TokenLogChip(props) {
 	}, [sid]);
 	if (!sid) return null;
 	const t = snap.totals;
+	// chip 文案用紧凑金额（2 位小数）：fmtCost 对小金额输出 6 位小数，chip 里太长会撑爆输入卡工具行；
+	// 完整金额在 title 悬浮提示里。
 	const label = snap.err && !t
 		? (snap.err.includes("重启") ? "用量·需重启宿主" : "用量·失败")
-		: (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · " + fmtCost(t.cost) : "") : "⛁ …");
+		: (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · $" + t.cost.toFixed(2) : "") : "⛁ …");
 	const title = t
 		? "本会话 " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCost(t.cost) + "（估算）\n点击在功能坞查看用量记录"
 		: (snap.err ? snap.err + "\n" : "") + "点击在功能坞查看用量记录";
