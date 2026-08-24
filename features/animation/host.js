@@ -135,6 +135,10 @@ export const feature = {
         phase: 'think',
         phaseAt: Date.now(),
         lastActivityAt: Date.now(),
+        // assistant/chunk 是实时流；用轻量活动计数给浏览器侧映射动作速度，
+        // 不等最终 usage 落盘，避免任务正在输出时机器人仍慢速。
+        motionTicks: 0,
+        lastMotionAt: Date.now(),
         ...extra,
       }
       activeSessions.set(sid, record)
@@ -350,6 +354,8 @@ export const feature = {
         s.phase = 'think' // 新步骤：模型正在推理下一步
         s.phaseAt = event.time || Date.now()
         s.lastActivityAt = s.phaseAt
+        s.motionTicks += 2
+        s.lastMotionAt = s.phaseAt
         if (event.data && event.data.turn !== undefined) {
           s.turns = Math.max(s.turns, num(event.data.turn) + 1)
         }
@@ -360,13 +366,22 @@ export const feature = {
       const now = event.time || Date.now()
       // 流级阶段：chunk 高频到达（每 token 一条），只做最廉价的阶段切换
       if (event.type === 'assistant/chunk') {
-        const ctype = event.data && event.data.chunk && event.data.chunk.type
+        const chunk = event.data && event.data.chunk
+        const ctype = chunk && chunk.type
         if (ctype === 'reasoning-delta') {
           s.phase = 'think'
           s.phaseAt = now
         } else if (ctype === 'text-delta') {
           s.phase = 'write'
           s.phaseAt = now
+        }
+        // 不同适配器的 delta 字段名并不完全一致。按可见文本量估算，
+        // 无文本时每个 chunk 也记一个脉冲，保证推理流同样有动作反馈。
+        if (ctype === 'reasoning-delta' || ctype === 'text-delta') {
+          const delta = chunk && (chunk.text || chunk.delta || chunk.content)
+          const units = typeof delta === 'string' ? Math.max(1, Math.ceil(delta.length / 24)) : 1
+          s.motionTicks += units
+          s.lastMotionAt = now
         }
         s.lastActivityAt = now
         return
@@ -382,6 +397,9 @@ export const feature = {
         s.toolCalls++
         s.phase = phaseOfToolName(event.data && event.data.name)
         s.phaseAt = now
+        // 工具启动是稀疏事件，给一个更明显的短促动作，检索/写文件也不会显得停住。
+        s.motionTicks += s.phase === 'search' ? 7 : 9
+        s.lastMotionAt = now
       } else if (event.type === 'user/message') {
         if (!s.firstPrompt && event.data && event.data.content) {
           const text = extractText(event.data.content)
@@ -486,6 +504,8 @@ export const feature = {
                   phase: s.phase,
                   phaseAt: s.phaseAt,
                   lastActivityAt: s.lastActivityAt,
+                  motionTicks: s.motionTicks,
+                  lastMotionAt: s.lastMotionAt,
                 })
               }
               return sendJson(res, 200, {
