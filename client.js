@@ -41,7 +41,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react8 = __toESM(require("react"), 1);
+var import_react9 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -1286,40 +1286,64 @@ var feature3 = {
 
 // features/theme/view.js
 var import_react5 = __toESM(require("react"), 1);
-function readThemeLabel(ctx) {
+var import_react6 = require("react");
+var PREFERENCE_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272", system: "\u8DDF\u968F\u7CFB\u7EDF" };
+var THEME_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272" };
+function readThemeInfo(ctx) {
   const theme = ctx && ctx.get ? ctx.get("theme") : void 0;
-  if (theme === void 0) return { err: "theme \u670D\u52A1\u4E0D\u53EF\u7528" };
+  if (!theme || typeof theme.getTheme !== "function") return { err: "theme \u670D\u52A1\u4E0D\u53EF\u7528" };
   let snap = null;
   try {
     snap = theme.getTheme();
   } catch (err) {
     return { err: "\u8BFB\u53D6\u5931\u8D25\uFF1A" + String(err && err.message || err) };
   }
-  const label = snap && typeof snap.id === "string" ? snap.id : snap && typeof snap.name === "string" ? snap.name : "\u672A\u77E5";
+  const preference = snap && typeof snap.preference === "string" ? snap.preference : "";
+  const activeId = snap && snap.active && typeof snap.active.id === "string" ? snap.active.id : "";
+  const label = (PREFERENCE_LABELS[preference] || preference || "\u672A\u77E5") + (activeId && activeId !== preference && THEME_LABELS[activeId] ? "\uFF08\u5B9E\u9645" + THEME_LABELS[activeId] + "\uFF09" : "");
   return { label };
 }
+function useThemeInfo(ctx) {
+  const [info, setInfo] = (0, import_react6.useState)(() => readThemeInfo(ctx));
+  (0, import_react6.useEffect)(() => {
+    let off = null;
+    try {
+      if (ctx && typeof ctx.on === "function") {
+        off = ctx.on("theme/change", () => setInfo(readThemeInfo(ctx)));
+      }
+    } catch {
+    }
+    return () => {
+      try {
+        if (typeof off === "function") off();
+      } catch {
+      }
+    };
+  }, [ctx]);
+  return info;
+}
 function ThemeView(props) {
-  const r = readThemeLabel(props && props.ctx);
+  const r = useThemeInfo(props && props.ctx);
   if (r.err) return import_react5.default.createElement("div", null, r.err);
   return import_react5.default.createElement("div", null, "\u5F53\u524D\u4E3B\u9898\uFF1A" + r.label);
 }
 function ThemeStat(props) {
-  const r = readThemeLabel(props && props.ctx);
+  const r = useThemeInfo(props && props.ctx);
   if (r.err) return import_react5.default.createElement("span", null, r.err);
-  return import_react5.default.createElement("span", null, "\u5F53\u524D\u4E3B\u9898\uFF1A" + r.label);
+  return import_react5.default.createElement("span", null, "\u4E3B\u9898\uFF1A" + r.label);
 }
 var feature4 = {
   id: "theme",
   name: "\u4E3B\u9898\u4FE1\u606F",
   order: 150,
   accent: "#a78bfa",
-  description: "\u793A\u4F8B\u529F\u80FD\uFF1A\u8BFB\u53D6\u5F53\u524D\u4E3B\u9898\u5FEB\u7167\uFF08\u7EAF Client\uFF09",
+  description: "\u8BFB\u53D6\u5F53\u524D\u4E3B\u9898\u5FEB\u7167\uFF1A\u504F\u597D\u4E0E\u5B9E\u9645\u751F\u6548\u4E3B\u9898\uFF08\u7EAF Client\uFF0C\u4E3B\u9898\u5207\u6362\u5B9E\u65F6\u5237\u65B0\uFF09",
   View: ThemeView,
   HomeStat: ThemeStat
 };
 
 // features/balance/view.js
-var import_react6 = __toESM(require("react"), 1);
+var import_react7 = __toESM(require("react"), 1);
 var ACCENT_PALETTE = ["#4d9fff", "#34d399", "#fbbf24", "#a78bfa", "#f472b6", "#38bdf8", "#fb923c", "#4ade80", "#e879f9", "#22d3ee"];
 var CURATED_ACCENTS = {
   "deepseek-official": "#4d9fff",
@@ -1361,8 +1385,8 @@ var balanceStore = {
   }
 };
 function useBalance(ctx) {
-  const [snap, setSnap] = import_react6.default.useState(balanceStore.snap);
-  import_react6.default.useEffect(() => {
+  const [snap, setSnap] = import_react7.default.useState(balanceStore.snap);
+  import_react7.default.useEffect(() => {
     const off = balanceStore.subscribe(() => setSnap(balanceStore.snap));
     if (!balanceStore.snap.data && !balanceStore.snap.loading) balanceStore.load();
     const disposer = ctx && typeof ctx.interval === "function" ? ctx.interval(() => balanceStore.load(), 5 * 60 * 1e3) : null;
@@ -1376,7 +1400,7 @@ function useBalance(ctx) {
 function BalanceView(props) {
   const snap = useBalance(props && props.ctx);
   const load = () => balanceStore.load();
-  import_react6.default.useEffect(() => {
+  import_react7.default.useEffect(() => {
     const pid = props && props.params && props.params.provider;
     if (!pid || typeof document === "undefined") return;
     const t = setTimeout(() => {
@@ -1399,15 +1423,15 @@ function BalanceView(props) {
   const def = data && data.default ? data.default.provider : null;
   const body = [];
   if (snap.error) {
-    body.push(import_react6.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
+    body.push(import_react7.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
   } else if (!data) {
-    body.push(import_react6.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
+    body.push(import_react7.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
   } else if (providers.length === 0) {
-    body.push(import_react6.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
+    body.push(import_react7.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
   } else {
     const rank = (p) => p.balance && p.balance.status === "ok" ? 0 : p.balance && p.balance.status === "login-required" ? 1 : 2;
     const sorted = providers.slice().sort((a, b) => rank(a) - rank(b));
-    body.push(import_react6.default.createElement(
+    body.push(import_react7.default.createElement(
       "div",
       { key: "rows", className: "dkb-rows" },
       sorted.map((p) => {
@@ -1424,73 +1448,73 @@ function BalanceView(props) {
         let balBody = null;
         if (b && b.status === "ok" && b.kind === "quota") {
           const dims = Array.isArray(b.dims) ? b.dims : [];
-          balBody = import_react6.default.createElement(
-            import_react6.default.Fragment,
+          balBody = import_react7.default.createElement(
+            import_react7.default.Fragment,
             null,
-            import_react6.default.createElement(
+            import_react7.default.createElement(
               "div",
               { className: "dkb-main" },
-              import_react6.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
-              import_react6.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
-              import_react6.default.createElement(
+              import_react7.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
+              import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
+              import_react7.default.createElement(
                 "span",
                 { className: "dkb-main-part" },
                 "\u5DF2\u7528 " + fmt(b.used) + " / \u603B " + fmt(b.limit),
-                b.resetTime ? import_react6.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
+                b.resetTime ? import_react7.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
               )
             ),
-            dims.map((d, i) => import_react6.default.createElement(
+            dims.map((d, i) => import_react7.default.createElement(
               "div",
               { key: "d" + i, className: "dkb-dim" },
-              import_react6.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
-              import_react6.default.createElement(
+              import_react7.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
+              import_react7.default.createElement(
                 "span",
                 { className: "dkb-dim-bar" },
-                import_react6.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
+                import_react7.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
               ),
-              import_react6.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
+              import_react7.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
             ))
           );
         } else if (b && b.status === "ok") {
           const infos = Array.isArray(b.infos) ? b.infos : [];
-          balBody = import_react6.default.createElement(
+          balBody = import_react7.default.createElement(
             "div",
             { className: "dkb-mains" },
-            infos.map((i, idx) => import_react6.default.createElement(
+            infos.map((i, idx) => import_react7.default.createElement(
               "div",
               { key: idx, className: "dkb-main" },
-              import_react6.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
-              import_react6.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
-              import_react6.default.createElement(
+              import_react7.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+              import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+              import_react7.default.createElement(
                 "span",
                 { className: "dkb-main-parts" },
-                i.grantedBalance != null ? import_react6.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
-                i.toppedUpBalance != null ? import_react6.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
+                i.grantedBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
+                i.toppedUpBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
               )
             ))
           );
         } else if (b && b.status === "login-required" && b.consoleUrl) {
-          balBody = import_react6.default.createElement(
+          balBody = import_react7.default.createElement(
             "div",
             { className: "dkb-main" },
-            import_react6.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
+            import_react7.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
           );
         } else {
-          balBody = b && b.message ? import_react6.default.createElement("div", { className: "dkb-note" }, b.message) : import_react6.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
+          balBody = b && b.message ? import_react7.default.createElement("div", { className: "dkb-note" }, b.message) : import_react7.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
         }
         const sub = ["ID " + p.id, p.api, p.baseURL ? p.baseURL.replace(/^https?:\/\//, "") : null].filter(Boolean).join(" \xB7 ");
-        return import_react6.default.createElement(
+        return import_react7.default.createElement(
           "div",
           { key: p.id, className: "dkb-row", "data-dock-provider": p.id },
-          import_react6.default.createElement(
+          import_react7.default.createElement(
             "div",
             { className: "dkb-row-head" },
-            import_react6.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
-            import_react6.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
-            def === p.id ? import_react6.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
-            import_react6.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
+            import_react7.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
+            import_react7.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
+            def === p.id ? import_react7.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
+            import_react7.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
             // 模型数折叠提示（点开展开 chips）
-            p.models && p.models.length > 0 ? import_react6.default.createElement("button", {
+            p.models && p.models.length > 0 ? import_react7.default.createElement("button", {
               type: "button",
               className: "dkb-models-toggle",
               title: p.models.join(", "),
@@ -1500,13 +1524,13 @@ function BalanceView(props) {
               }
             }, p.models.length + " \u4E2A\u6A21\u578B \u25BE") : null
           ),
-          sub ? import_react6.default.createElement("div", { className: "dkb-sub" }, sub) : null,
-          p.apiKeyEnv ? import_react6.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
-          p.models && p.models.length > 0 ? import_react6.default.createElement(
+          sub ? import_react7.default.createElement("div", { className: "dkb-sub" }, sub) : null,
+          p.apiKeyEnv ? import_react7.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
+          p.models && p.models.length > 0 ? import_react7.default.createElement(
             "div",
             { className: "dkb-chips" },
-            p.models.slice(0, 8).map((m) => import_react6.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
-            p.models.length > 8 ? import_react6.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
+            p.models.slice(0, 8).map((m) => import_react7.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
+            p.models.length > 8 ? import_react7.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
           ) : null,
           balBody
         );
@@ -1514,20 +1538,20 @@ function BalanceView(props) {
     ));
   }
   const now = new Date(data && data.generatedAt ? data.generatedAt : Date.now());
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "div",
     { className: "dkb-rows" },
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: "dkb-note" },
       data && !snap.error && providers.length > 0 ? okCount + "/" + providers.length + " \u4E2A Provider \u53EF\u67E5\u4F59\u989D\uFF08\u53EF\u67E5\u7684\u6392\u524D\u9762\uFF09" : "\u6A21\u578B\u4F59\u989D \xB7 Host \u534A\u90E8\u5B9E\u65F6\u62C9\u53D6"
     ),
     body,
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: "dkb-foot" },
-      import_react6.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
-      import_react6.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
+      import_react7.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
+      import_react7.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
     )
   );
 }
@@ -1535,14 +1559,14 @@ function BalanceStat(props) {
   const snap = useBalance(props && props.ctx);
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
-  if (snap.error) return import_react6.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
-  if (!data) return import_react6.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
+  if (snap.error) return import_react7.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
+  if (!data) return import_react7.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
   const ok = providers.filter((p) => p.balance && p.balance.status === "ok").length;
-  return import_react6.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
+  return import_react7.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
 }
 function useCurrentProvider(ctx, sessionId) {
-  const [cur, setCur] = import_react6.default.useState(null);
-  import_react6.default.useEffect(() => {
+  const [cur, setCur] = import_react7.default.useState(null);
+  import_react7.default.useEffect(() => {
     let alive = true, off = null;
     try {
       const models = ctx && ctx.get ? ctx.get("modelDirectories") : void 0;
@@ -1604,7 +1628,7 @@ function BalanceChip(props) {
   const text = snap.error ? "\u4F59\u989D\xB7\u5931\u8D25" : !data ? snap.loading ? "\u4F59\u989D \u2026" : "\u4F59\u989D \u2014" : cur ? chipBalanceText(cur) : "\u4F59\u989D \u2014";
   const selModel = sel && (sel.model || sel.selected && sel.selected.model) || null;
   const title = cur ? (cur.displayName || cur.id) + (selModel ? " \xB7 \u5F53\u524D\u6A21\u578B " + selModel : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "button",
     {
       type: "button",
@@ -1613,8 +1637,8 @@ function BalanceChip(props) {
       "aria-label": "\u6A21\u578B\u4F59\u989D",
       onClick: () => openPanel("balance", def ? { provider: def } : null)
     },
-    import_react6.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
-    import_react6.default.createElement("span", null, text)
+    import_react7.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
+    import_react7.default.createElement("span", null, text)
   );
 }
 var feature5 = {
@@ -1674,7 +1698,7 @@ var feature5 = {
 };
 
 // features/animation/view.jsx
-var import_react7 = require("react");
+var import_react8 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 function rpcCall2(method, args) {
   return fetch("/dsh-dock/animation/" + method, {
@@ -1787,13 +1811,13 @@ var animationStore = {
   }
 };
 function useAnimation() {
-  const [snap, setSnap] = (0, import_react7.useState)(animationStore.snap);
-  (0, import_react7.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
+  const [snap, setSnap] = (0, import_react8.useState)(animationStore.snap);
+  (0, import_react8.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
   return snap;
 }
 function useTicker(ctx, active) {
-  const [, bump] = (0, import_react7.useState)(0);
-  (0, import_react7.useEffect)(() => {
+  const [, bump] = (0, import_react8.useState)(0);
+  (0, import_react8.useEffect)(() => {
     if (!active) return;
     if (ctx && typeof ctx.interval === "function") return ctx.interval(bump, 1e3);
     const t = setInterval(bump, 1e3);
@@ -1964,16 +1988,16 @@ function previewSound(effect) {
 }
 function Toast(props) {
   const t = props.t;
-  const [closing, setClosing] = (0, import_react7.useState)(false);
-  const close = (0, import_react7.useCallback)(() => {
+  const [closing, setClosing] = (0, import_react8.useState)(false);
+  const close = (0, import_react8.useCallback)(() => {
     if (!closing) setClosing(true);
   }, [closing]);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (!t.stayMs) return;
     const timer = setTimeout(close, t.stayMs);
     return () => clearTimeout(timer);
   }, []);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (!closing) return;
     const timer = setTimeout(() => props.onClose(t.id), 240);
     return () => clearTimeout(timer);
@@ -2015,7 +2039,7 @@ var MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
   const mode = props.mode;
   const speed = props.speed;
-  const matrix = (0, import_react7.useMemo)(() => makeBits(34, () => ({
+  const matrix = (0, import_react8.useMemo)(() => makeBits(34, () => ({
     l: Math.random() * 100,
     d: 4 + Math.random() * 6,
     delay: -Math.random() * 8,
@@ -2023,7 +2047,7 @@ function AmbientLayer(props) {
     s: 11 + Math.round(Math.random() * 4),
     c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
   })), []);
-  const stars = (0, import_react7.useMemo)(() => makeBits(80, () => ({
+  const stars = (0, import_react8.useMemo)(() => makeBits(80, () => ({
     l: Math.random() * 100,
     t: Math.random() * 100,
     sz: 1.5 + Math.random() * 2,
@@ -2056,17 +2080,17 @@ function AmbientLayer(props) {
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation();
-  const [toasts, setToasts] = (0, import_react7.useState)([]);
-  const [flourish, setFlourish] = (0, import_react7.useState)(null);
-  const [bursts, setBursts] = (0, import_react7.useState)([]);
-  const prevActiveRef = (0, import_react7.useRef)(null);
-  const burstIdRef = (0, import_react7.useRef)(0);
-  const pushBurst = (0, import_react7.useCallback)((type, x, y, bits) => {
+  const [toasts, setToasts] = (0, import_react8.useState)([]);
+  const [flourish, setFlourish] = (0, import_react8.useState)(null);
+  const [bursts, setBursts] = (0, import_react8.useState)([]);
+  const prevActiveRef = (0, import_react8.useRef)(null);
+  const burstIdRef = (0, import_react8.useRef)(0);
+  const pushBurst = (0, import_react8.useCallback)((type, x, y, bits) => {
     const id = ++burstIdRef.current;
     setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
     setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
   }, []);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (typeof document === "undefined") return;
     const onClick = (e) => {
       const t = e.target;
@@ -2092,15 +2116,15 @@ function AnimationOverlay(props) {
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [pushBurst]);
-  const taskCountRef = (0, import_react7.useRef)(0);
-  (0, import_react7.useEffect)(() => {
+  const taskCountRef = (0, import_react8.useRef)(0);
+  (0, import_react8.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const n = st2.active.length;
     if (n > taskCountRef.current) pushBurst("surge");
     taskCountRef.current = n;
   }, [snap.status, pushBurst]);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
@@ -2120,7 +2144,7 @@ function AnimationOverlay(props) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const prev = prevActiveRef.current;
@@ -2194,14 +2218,14 @@ function AnimationOverlay(props) {
   useTicker(ctx, animOn);
   const now = Date.now();
   const elapsed = active.length > 0 ? fmtClock(now - Math.min(...active.map((x) => x.startTime || now))) : "";
-  const [panelOpen, setPanelOpen2] = (0, import_react7.useState)(false);
-  (0, import_react7.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react8.useState)(false);
+  (0, import_react8.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
-  const [speed, setSpeed] = (0, import_react7.useState)(1);
-  const speedRef = (0, import_react7.useRef)({ tokens: -1, at: 0 });
-  (0, import_react7.useEffect)(() => {
+  const [speed, setSpeed] = (0, import_react8.useState)(1);
+  const speedRef = (0, import_react8.useRef)({ tokens: -1, at: 0 });
+  (0, import_react8.useEffect)(() => {
     if (!st || active.length === 0) {
       speedRef.current = { tokens: -1, at: 0 };
       return;
@@ -2221,17 +2245,17 @@ function AnimationOverlay(props) {
   const ambientOn = animOn && !panelOpen;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
-  const saveRobotScale = (0, import_react7.useCallback)((robotScale) => {
+  const saveRobotScale = (0, import_react8.useCallback)((robotScale) => {
     rpcCall2("config", { robotScale }).then((d) => animationStore.applyConfig(d && d.config)).catch(() => {
     });
   }, []);
-  const [botPos, setBotPos] = (0, import_react7.useState)(null);
-  const botPosRef = (0, import_react7.useRef)(null);
-  const botDragRef = (0, import_react7.useRef)(null);
-  const botResizeRef = (0, import_react7.useRef)(null);
-  const [botScaleDraft, setBotScaleDraft] = (0, import_react7.useState)(null);
-  const botClickBlockRef = (0, import_react7.useRef)(false);
-  (0, import_react7.useEffect)(() => {
+  const [botPos, setBotPos] = (0, import_react8.useState)(null);
+  const botPosRef = (0, import_react8.useRef)(null);
+  const botDragRef = (0, import_react8.useRef)(null);
+  const botResizeRef = (0, import_react8.useRef)(null);
+  const [botScaleDraft, setBotScaleDraft] = (0, import_react8.useState)(null);
+  const botClickBlockRef = (0, import_react8.useRef)(false);
+  (0, import_react8.useEffect)(() => {
     try {
       if (typeof localStorage === "undefined") return;
       const raw = localStorage.getItem("dsh-dock/anim/robot-pos/v1");
@@ -2487,17 +2511,17 @@ function TaskRow(props) {
 function AnimationView(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation(ctx);
-  const [cfg, setCfg] = (0, import_react7.useState)(null);
-  const [saveErr, setSaveErr] = (0, import_react7.useState)("");
-  const [testing, setTesting] = (0, import_react7.useState)(false);
-  const [testState, setTestState] = (0, import_react7.useState)(null);
-  const [feishuTestState, setFeishuTestState] = (0, import_react7.useState)(null);
-  const [feishuTesting, setFeishuTesting] = (0, import_react7.useState)(false);
-  const cfgRef = (0, import_react7.useRef)(null);
-  const pendingSavesRef = (0, import_react7.useRef)(0);
-  const editingWebhookRef = (0, import_react7.useRef)(false);
-  const editingFeishuRef = (0, import_react7.useRef)(false);
-  (0, import_react7.useEffect)(() => {
+  const [cfg, setCfg] = (0, import_react8.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react8.useState)("");
+  const [testing, setTesting] = (0, import_react8.useState)(false);
+  const [testState, setTestState] = (0, import_react8.useState)(null);
+  const [feishuTestState, setFeishuTestState] = (0, import_react8.useState)(null);
+  const [feishuTesting, setFeishuTesting] = (0, import_react8.useState)(false);
+  const cfgRef = (0, import_react8.useRef)(null);
+  const pendingSavesRef = (0, import_react8.useRef)(0);
+  const editingWebhookRef = (0, import_react8.useRef)(false);
+  const editingFeishuRef = (0, import_react8.useRef)(false);
+  (0, import_react8.useEffect)(() => {
     const c = snap.status && snap.status.config;
     if (!c) return;
     if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
@@ -2506,7 +2530,7 @@ function AnimationView(props) {
       setCfg(Object.assign({}, c));
     }
   }, [snap.status]);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (!animationStore.snap.status) animationStore.refresh();
   }, []);
   const patch = (p) => {
@@ -3432,8 +3456,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react8.default.useReducer((n) => n + 1, 0);
-  import_react8.default.useEffect(() => {
+  const [, bump] = import_react9.default.useReducer((n) => n + 1, 0);
+  import_react9.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -3442,20 +3466,20 @@ function useExternalVersion() {
 }
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon() {
-  return import_react8.default.createElement(
+  return import_react9.default.createElement(
     "svg",
     { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react8.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react8.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react8.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react8.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react9.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react9.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react9.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react9.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react8.default.useState(panelNav.open);
-  import_react8.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react8.default.createElement("button", {
+  const [open, setOpen] = import_react9.default.useState(panelNav.open);
+  import_react9.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react9.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : ""),
     style: wide ? { marginLeft: "auto", transform: "translateY(46px)", zIndex: 1, height: 42, lineHeight: "42px", padding: "0 12px" } : { transform: "translateY(44px)", zIndex: 1, width: 36, height: 36, justifyContent: "center", padding: 0 },
@@ -3463,20 +3487,20 @@ function DockEntry(props) {
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react8.default.createElement(DockIcon, null), wide ? import_react8.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react9.default.createElement(DockIcon, null), wide ? import_react9.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react8.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react8.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react9.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react9.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react8.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react8.default.useRef(null);
-  import_react8.default.useEffect(() => {
+  const [win, setWin] = import_react9.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react9.default.useRef(null);
+  import_react9.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
   function beginDrag(e, type) {
@@ -3514,13 +3538,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react8.default.createElement(
+  const viewNode = mod && View ? import_react9.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react8.default.createElement(
-      mod.external ? FeatureBoundary : import_react8.default.Fragment,
+    import_react9.default.createElement(
+      mod.external ? FeatureBoundary : import_react9.default.Fragment,
       null,
-      import_react8.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react9.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -3534,10 +3558,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react8.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react8.default.createElement(
+    import_react9.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -3545,41 +3569,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react8.default.createElement(
+      import_react9.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react8.default.createElement(DockIcon, null),
-        import_react8.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react8.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react8.default.createElement(
+        import_react9.default.createElement(DockIcon, null),
+        import_react9.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react9.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react9.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react8.default.createElement("button", {
+          import_react9.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react8.default.createElement("button", {
+          import_react9.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react8.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react9.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react8.default.createElement(
+      import_react9.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react8.default.createElement(
+          import_react9.default.createElement(
             "button",
             {
               type: "button",
@@ -3587,10 +3611,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react8.default.createElement("span", { className: "dockm-navhome" }, import_react8.default.createElement(DockIcon, null)),
-            import_react8.default.createElement("span", null, "\u9996\u9875")
+            import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)),
+            import_react9.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react8.default.createElement(
+          MODULES.map((m) => import_react9.default.createElement(
             "button",
             {
               type: "button",
@@ -3598,42 +3622,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react8.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react8.default.createElement("span", null, m.name),
-            m.planned ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react9.default.createElement("span", null, m.name),
+            m.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "div",
           { className: "dockm-content" },
-          import_react8.default.createElement(
+          import_react9.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react8.default.createElement(
+            import_react9.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react8.default.createElement("span", { className: "dockm-navhome" }, import_react8.default.createElement(DockIcon, null)) : import_react8.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)) : import_react9.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react8.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react8.default.createElement(
+            import_react9.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react8.default.createElement("div", { className: "dockm-view" }, import_react8.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react8.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react8.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react8.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react8.default.createElement(
+          isHome ? import_react9.default.createElement("div", { className: "dockm-view" }, import_react9.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react9.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react9.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react9.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react9.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react8.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react8.default.createElement(
+            import_react9.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react9.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react8.default.createElement("button", {
+              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react9.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -3646,11 +3670,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react8.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react9.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react8.default.createElement("button", {
+              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react9.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -3666,30 +3690,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react8.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react9.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react8.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react8.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react8.default.createElement(
-        m.external ? FeatureBoundary : import_react8.default.Fragment,
+      const statNode = m.planned ? import_react9.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react9.default.createElement(
+        m.external ? FeatureBoundary : import_react9.default.Fragment,
         null,
-        import_react8.default.createElement(Stat, { ctx })
-      ) : import_react8.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react8.default.createElement(
+        import_react9.default.createElement(Stat, { ctx })
+      ) : import_react9.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react9.default.createElement(
         "div",
         {
           key: m.id,
@@ -3704,21 +3728,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react8.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react8.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react8.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react9.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react9.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react8.default.createElement(
+          import_react9.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react8.default.createElement("span", { className: "dockh-sdot" }),
-            import_react8.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react9.default.createElement("span", { className: "dockh-sdot" }),
+            import_react9.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react8.default.createElement("button", {
+          m.planned ? null : import_react9.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -3733,12 +3757,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react8.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react8.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react8.default.createElement(
+        import_react9.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react9.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react9.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react8.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react9.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -3746,16 +3770,16 @@ function HomeView(props) {
 }
 function DockPanel() {
   const ctx = ctxRef.current;
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react8.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react8.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -3764,25 +3788,25 @@ function DockPanel() {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react8.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react9.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react8.default.createElement(
-          f.external ? FeatureBoundary : import_react8.default.Fragment,
+        import_react9.default.createElement(
+          f.external ? FeatureBoundary : import_react9.default.Fragment,
           null,
-          import_react8.default.createElement(View, { ctx, feature: f })
+          import_react9.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
-      return import_react8.default.createElement(
+      return import_react9.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react8.default.createElement(
+        import_react9.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react8.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react8.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react8.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react8.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react8.default.createElement("button", {
+          import_react9.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react9.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react9.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react9.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react9.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -3791,11 +3815,11 @@ function DockPanel() {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react8.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react9.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react8.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react8.default.createElement("button", {
+            import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react9.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -3809,19 +3833,19 @@ function DockPanel() {
             })
           ) : null
         ),
-        f.planned ? import_react8.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react8.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react9.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react9.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
-  import_react8.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react8.default.createElement(f.Chip, {
+    items.push(import_react9.default.createElement(f.Chip, {
       key: f.id,
       ctx: props.ctx,
       feature: f,
@@ -3831,23 +3855,23 @@ function DockChips(props) {
     }));
   }
   if (items.length === 0) return null;
-  return import_react8.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react9.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react8.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react8.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react8.default.createElement(
+    items.push(import_react9.default.createElement(
       FeatureBoundary,
       { key: f.id },
-      import_react8.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react9.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react8.default.createElement(import_react8.default.Fragment, null, items);
+  return import_react9.default.createElement(import_react9.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -3858,23 +3882,23 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react8.default.createElement(DockEntry, props)
+    (props) => import_react9.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react8.default.createElement(DockModal, null)
+    () => import_react9.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react8.default.createElement(FeatureOverlays, null)
+    () => import_react9.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react8.default.createElement(DockPanel, null)
+    () => import_react9.default.createElement(DockPanel, null)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react8.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react9.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];
