@@ -210,7 +210,7 @@ function ModelsView() {
 			DKM_MODALITIES.map(([v, label]) => react.createElement("label", {
 				key: v,
 				className: "dkm-check",
-				title: v === "image" ? "勾选=端点原生支持图片（原图直发，图片理解代理跳过）；纯文本模型勿勾——收图会自动交给图片理解代理识别" : null
+				title: v === "image" ? "由你声明该端点支持图片：保存后原图直发，并可作为视觉模型候选。系统不会替你猜测；端点实际不支持时取消勾选即可恢复走图片理解代理" : null
 			},
 				react.createElement("input", {
 					type: "checkbox",
@@ -282,16 +282,26 @@ function ModelsView() {
 			"图片理解代理需要新版宿主进程：当前 dsh web 较旧，重启后此面板可用。"));
 	}
 	if (data && data.visionProxy !== undefined && vpDraft) {
-		// 候选必须由运行时成功解析并明确声明图片能力；不再用本地条目 input
-		// 回退猜测，避免把“手动勾选图片”或无法解析的模型展示成可用视觉模型。
-		// 这仍不等同于联网实测：凭据、配额和上游服务状态只能在真实调用时确认。
+		// 用户在模型设置里勾选「图片」即可决定原图直发和视觉候选；
+		// 运行时目录仅作自动提示，不能排除用户明确声明的模型。
+		// 无论哪种来源都不等同于联网实测，凭据、额度和上游状态仍以真实调用为准。
 		const runtimeImage = (m) => Array.isArray(m.runtimeInput) && m.runtimeInput.indexOf("image") >= 0;
+		const declaredImage = (m) => Array.isArray(m.input) && m.input.indexOf("image") >= 0;
 		const vpDirect = [];
 		const vpProxied = [];
 		for (const p of providers) {
 			for (const m of (p.models || [])) {
-				const item = { key: p.id + "/" + m.id, label: (p.displayName || p.id) + " / " + (m.name || m.id), model: m.name || m.id };
-				(runtimeImage(m) ? vpDirect : vpProxied).push(item);
+				const declared = declaredImage(m);
+				const runtime = runtimeImage(m);
+				const source = declared ? "你已标记图片" : (runtime ? "运行时识别" : "未标记图片");
+				const item = {
+					key: p.id + "/" + m.id,
+					label: (p.displayName || p.id) + " / " + (m.name || m.id) + "（" + source + "）",
+					model: m.name || m.id,
+					source: source,
+					declared: declared,
+				};
+				((declared || runtime) ? vpDirect : vpProxied).push(item);
 			}
 		}
 		const vpCandidates = vpDirect.slice();
@@ -327,14 +337,14 @@ function ModelsView() {
 					!vpKnown && vpDraft.provider ? react.createElement("option", { value: vpKey }, vpDraft.provider + " / " + vpDraft.model + "（当前）") : null,
 					vpCandidates.map((c) => react.createElement("option", { key: c.key, value: c.key }, c.label))),
 				vpCandidates.length === 0
-					? react.createElement("span", { className: "dkm-sub" }, "目录里暂无多模态模型——先在下方给真·多模态模型勾选「图片」输入类型")
+					? react.createElement("span", { className: "dkm-sub" }, "还没有标记图片能力的模型——在下方给你确认支持图片的模型勾选「图片」并保存")
 					: null),
 			react.createElement("div", { className: "dkm-sub" },
-				"候选仅来自本次运行时成功解析且声明支持图片的模型；它不代表已联网实测可调用，实际可用性仍取决于 Provider 凭据、额度与上游服务。若端点实际不认图却声明支持图片，模型会看不见图片、转而用工具瞎折腾——不确定就不要勾，交给代理。"),
+				"以你在下方勾选的「图片」为准；运行时识别只是辅助提示。它不代表已联网实测可调用，实际可用性仍取决于 Provider 凭据、额度与上游服务。若端点实际不认图，取消该模型的「图片」勾选即可恢复走图片理解代理。"),
 			vpDirect.length > 0
 				? react.createElement("div", { className: "dkm-capabilities" },
 					react.createElement("div", { className: "dkm-checks" },
-						react.createElement("span", { className: "dkm-label" }, "原图直发候选（运行时已声明图片能力，" + vpDirect.length + "）："),
+						react.createElement("span", { className: "dkm-label" }, "原图直发候选（你的标记优先，" + vpDirect.length + "）："),
 						react.createElement("button", {
 							type: "button",
 							className: "dkm-mini",
@@ -343,12 +353,12 @@ function ModelsView() {
 						}, vpDirectExpanded ? "收起列表" : "展开列表")),
 					vpDirectExpanded
 						? react.createElement("div", { className: "dkm-checks dkm-capability-list" },
-							vpDirect.map((c) => react.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model)))
+							vpDirect.map((c) => react.createElement("span", { key: c.key, className: "dkm-chip", title: c.key + " · " + c.source }, c.model)))
 						: null)
 				: null,
 			vpProxied.length > 0
 				? react.createElement("div", { className: "dkm-checks" },
-					react.createElement("span", { className: "dkm-label" }, "走视觉代理（纯文本，" + vpProxied.length + "）："),
+						react.createElement("span", { className: "dkm-label" }, "走视觉代理（未标记图片，" + vpProxied.length + "）："),
 					react.createElement("span", { className: "dkm-sub" }, vpProxied.map((c) => c.model).join("、")))
 				: null,
 			react.createElement("div", { className: "dkm-savebar" },
