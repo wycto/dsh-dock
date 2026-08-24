@@ -20,6 +20,17 @@ function contentHasImageDeep(content) {
   return false
 }
 
+/**
+ * 用户在 dsh-dock 模型设置里勾选「图片」后的声明。
+ * 这不是联网探测结果，而是明确让用户决定端点能力：声明后原图直发，
+ * 未声明时才继续参考运行时目录或走图片理解代理。
+ */
+function hasUserDeclaredImage(directory, provider, model) {
+  const p = (directory.providers || []).find((x) => x && x.id === provider)
+  const m = p && Array.isArray(p.models) ? p.models.find((x) => x && x.id === model) : undefined
+  return !!(m && Array.isArray(m.input) && m.input.includes('image'))
+}
+
 /** 让视觉模型描述一张图片，返回识别文本（失败抛错）。 */
 async function describeImage(deps, cfg, block, signal) {
   const prompt = '请用中文详细描述这张图片的内容：主体、文字（若有则逐字转写）、数据/图表要点、与编码任务相关的细节。控制在 300 字以内，直接输出描述，不要客套。'
@@ -127,22 +138,25 @@ async function transformForVisionProxy(deps, options) {
     if (!options.messages.some((m) => m && contentHasImageDeep(m.content))) return options
     log(`带图请求 ${options.provider}/${options.model}`)
 
-    // 目标模型是否支持图片：优先问运行时（llm.resolveModelInfo，与官方投影同源：
-    // entry.input → 内置目录 → 路由默认），避免插件目录误判"靠内置目录继承多模态"的
-    // 模型（如 kimi-k2.7，条目未写 input 但目录里是 [text,image]）；
-    // 旧宿主无此方法或单次解析失败时，退回插件目录视图兜底。
+    // 图片能力判定的优先级：用户在模型设置里勾选「图片」优先。
+    // 运行时目录只是自动提示，无法识别或识别错误时不能覆盖用户的明确决定。
+    // 这让 kimi-k2.7-code 等端点可由用户声明多模态并原图直发；若端点实际不支持，
+    // 上游会返回错误，用户取消勾选即可恢复走图片理解代理。
+    const directory = deps.directory()
+    if (hasUserDeclaredImage(directory, options.provider, options.model)) {
+      log(`跳过 ${options.provider}/${options.model}：用户已声明图片能力（原图直发）`)
+      return options
+    }
+
+    // 未声明时再问运行时（llm.resolveModelInfo，与官方投影同源：
+    // entry.input → 内置目录 → 路由默认）；旧宿主无此方法或单次解析失败时，
+    // 保守走图片理解代理，避免猜错端点能力。
     let imageCapable
     try {
       const info = deps.resolveModelInfo ? await deps.resolveModelInfo(options.provider, options.model) : undefined
       if (info && Array.isArray(info.inputModalities)) imageCapable = info.inputModalities.includes('image')
     } catch {
       // 落到目录回退
-    }
-    if (imageCapable === undefined) {
-      const dir = deps.directory()
-      const p = (dir.providers || []).find((x) => x.id === options.provider)
-      const m = p && Array.isArray(p.models) ? p.models.find((x) => x.id === options.model) : undefined
-      imageCapable = !!(m && Array.isArray(m.input) && m.input.includes('image'))
     }
     if (imageCapable) {
       log(`跳过 ${options.provider}/${options.model}：运行时判定多模态（原图直发）`)
