@@ -28,6 +28,8 @@ function defaultConfig() {
     soundEffect: 'chime',
     dingtalkEnabled: false,
     dingtalkWebhook: '',
+    feishuEnabled: false,
+    feishuWebhook: '',
   }
 }
 
@@ -133,6 +135,10 @@ export const feature = {
         phase: 'think',
         phaseAt: Date.now(),
         lastActivityAt: Date.now(),
+        // assistant/chunk 是实时流；用轻量活动计数给浏览器侧映射动作速度，
+        // 不等最终 usage 落盘，避免任务正在输出时机器人仍慢速。
+        motionTicks: 0,
+        lastMotionAt: Date.now(),
         ...extra,
       }
       activeSessions.set(sid, record)
@@ -177,8 +183,9 @@ export const feature = {
       }
       completedSessions.unshift(record)
       if (completedSessions.length > MAX_COMPLETED) completedSessions.pop()
-      // 钉钉群机器人推送（宿主侧直发，异步不阻塞；事件筛选跟随 notifyOnComplete/notifyOnError）
+      // 钉钉/飞书群机器人推送（宿主侧直发，异步不阻塞；事件筛选跟随 notifyOnComplete/notifyOnError）
       pushDingtalkIfNeeded(record)
+      pushFeishuIfNeeded(record)
     }
 
     // ===== 钉钉群机器人推送（参照 @wycto/dsh-task-pulse 同款 markdown 消息） =====
@@ -208,13 +215,13 @@ export const feature = {
       return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${fmtClockOf(ts)}`
     }
 
-    function buildDingtalkMessage(t) {
+    // 钉钉与飞书共用的消息正文（各端再按各自 markdown 方言拼接）
+    function buildMessageLines(t) {
       const success = !t.endReason || t.endReason === 'completed'
       const reasonLabel = END_REASON_LABELS[t.endReason] || '✅ 完成'
       const models = t.models.length > 0 ? t.models.join(', ') : '未知'
       const lines = []
       lines.push(`### ${success ? '✅' : '📢'} dsh 任务${success ? '完成' : '结束'}`)
-      lines.push('')
       lines.push(`**任务**: ${t.title}`)
       lines.push(`**模型**: ${models}${t.provider ? `（${t.provider}）` : ''}`)
       lines.push(`**耗时**: ${fmtDurCn(t.duration)}（${fmtClockOf(t.startTime)} → ${fmtClockOf(t.endTime)}）`)
@@ -222,15 +229,67 @@ export const feature = {
       lines.push(`**Token**: 输入 ${t.inputTokens.toLocaleString()} / 输出 ${t.outputTokens.toLocaleString()} / 总计 ${t.totalTokens.toLocaleString()}`)
       lines.push(`**结果**: ${reasonLabel}${t.errorMessage ? `：${truncate(t.errorMessage, 120)}` : ''}`)
       if (t.lastText) {
-        lines.push('')
         lines.push(`> ${truncate(t.lastText, 200)}`)
       }
-      lines.push('')
       lines.push('---')
       lines.push(`*由 dsh-dock 任务动画发送 · ${fmtDateClockOf(t.endTime)}*`)
       return {
         title: `dsh 任务${success ? '完成' : '结束'}：${truncate(t.title, 40)}`,
-        text: lines.join('\n'),
+        success,
+        lines,
+      }
+    }
+
+    function buildDingtalkMessage(t) {
+      const { title, lines } = buildMessageLines(t)
+      return {
+        title,
+        // 钉钉 markdown 不渲染单个 \n，行之间必须用空行分隔才能换行
+        text: lines.join('\n\n'),
+      }
+    }
+
+    // 飞书 interactive 卡片：标题进 header，正文走 lark_md（支持 **加粗** 与 \n 换行，不支持 ### 标题）
+    function buildFeishuMessage(t) {
+      const { title, success, lines } = buildMessageLines(t)
+      const body = lines.filter((l) => !l.startsWith('### ')).join('\n')
+      return {
+        title,
+        card: {
+          config: { wide_screen_mode: true },
+          header: {
+            template: success ? 'green' : 'orange',
+            title: { tag: 'plain_text', content: title },
+          },
+          elements: [
+            { tag: 'div', text: { tag: 'lark_md', content: body } },
+          ],
+        },
+      }
+    }
+
+    // 发送飞书 interactive 卡片；成功 = HTTP 200 且业务码 code/StatusCode === 0
+    async function sendFeishu(webhook, title, card) {
+      try {
+        const res = await fetch(webhook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ msg_type: 'interactive', card }),
+        })
+        const raw = await res.text()
+        let data = null
+        try { data = JSON.parse(raw) } catch { /* 非 JSON 响应体 */ }
+        if (!res.ok) return { ok: false, error: `HTTP ${res.status} ${truncate(raw, 120)}` }
+        // 新版返回 { code, msg }，旧版返回 { StatusCode, StatusMessage }
+        const code = data && typeof data === 'object'
+          ? (typeof data.code === 'number' ? data.code : data.StatusCode)
+          : undefined
+        if (typeof code === 'number' && code !== 0) {
+          return { ok: false, error: `飞书 code ${code}：${data.msg || data.StatusMessage || ''}` }
+        }
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: (e && e.message) || String(e) }
       }
     }
 
@@ -270,6 +329,21 @@ export const feature = {
       }
     }
 
+    async function pushFeishuIfNeeded(record) {
+      try {
+        const cfg = readConfig(ctx)
+        if (!cfg.feishuEnabled || !cfg.feishuWebhook) return
+        const success = !record.endReason || record.endReason === 'completed'
+        if (success ? !cfg.notifyOnComplete : !cfg.notifyOnError) return
+        const { title, card } = buildFeishuMessage(record)
+        const r = await sendFeishu(cfg.feishuWebhook, title, card)
+        if (r.ok) console.log('[dsh-dock] animation feishu pushed:', title)
+        else console.error('[dsh-dock] animation feishu push failed:', r.error)
+      } catch (e) {
+        console.error('[dsh-dock] animation feishu push error:', e && e.message)
+      }
+    }
+
     function handleSessionEvent(sessionQuery, session, event) {
       const sid = typeof session === 'object' && session ? (session.id || '') : String(session || '')
       if (!sid || !event || !event.type) return
@@ -280,6 +354,8 @@ export const feature = {
         s.phase = 'think' // 新步骤：模型正在推理下一步
         s.phaseAt = event.time || Date.now()
         s.lastActivityAt = s.phaseAt
+        s.motionTicks += 2
+        s.lastMotionAt = s.phaseAt
         if (event.data && event.data.turn !== undefined) {
           s.turns = Math.max(s.turns, num(event.data.turn) + 1)
         }
@@ -290,13 +366,22 @@ export const feature = {
       const now = event.time || Date.now()
       // 流级阶段：chunk 高频到达（每 token 一条），只做最廉价的阶段切换
       if (event.type === 'assistant/chunk') {
-        const ctype = event.data && event.data.chunk && event.data.chunk.type
+        const chunk = event.data && event.data.chunk
+        const ctype = chunk && chunk.type
         if (ctype === 'reasoning-delta') {
           s.phase = 'think'
           s.phaseAt = now
         } else if (ctype === 'text-delta') {
           s.phase = 'write'
           s.phaseAt = now
+        }
+        // 不同适配器的 delta 字段名并不完全一致。按可见文本量估算，
+        // 无文本时每个 chunk 也记一个脉冲，保证推理流同样有动作反馈。
+        if (ctype === 'reasoning-delta' || ctype === 'text-delta') {
+          const delta = chunk && (chunk.text || chunk.delta || chunk.content)
+          const units = typeof delta === 'string' ? Math.max(1, Math.ceil(delta.length / 24)) : 1
+          s.motionTicks += units
+          s.lastMotionAt = now
         }
         s.lastActivityAt = now
         return
@@ -312,6 +397,9 @@ export const feature = {
         s.toolCalls++
         s.phase = phaseOfToolName(event.data && event.data.name)
         s.phaseAt = now
+        // 工具启动是稀疏事件，给一个更明显的短促动作，检索/写文件也不会显得停住。
+        s.motionTicks += s.phase === 'search' ? 7 : 9
+        s.lastMotionAt = now
       } else if (event.type === 'user/message') {
         if (!s.firstPrompt && event.data && event.data.content) {
           const text = extractText(event.data.content)
@@ -416,6 +504,8 @@ export const feature = {
                   phase: s.phase,
                   phaseAt: s.phaseAt,
                   lastActivityAt: s.lastActivityAt,
+                  motionTicks: s.motionTicks,
+                  lastMotionAt: s.lastMotionAt,
                 })
               }
               return sendJson(res, 200, {
@@ -457,6 +547,16 @@ export const feature = {
                 }
                 cfg.dingtalkWebhook = hook
               }
+              if (typeof p.feishuEnabled === 'boolean') cfg.feishuEnabled = p.feishuEnabled
+              if (typeof p.feishuWebhook === 'string') {
+                const hook = p.feishuWebhook.trim()
+                if (hook && !/^https?:\/\//i.test(hook)) {
+                  const err = new Error('飞书 Webhook 地址需以 http(s):// 开头')
+                  err.statusCode = 400
+                  throw err
+                }
+                cfg.feishuWebhook = hook
+              }
 
               const settings = ctx.get('settings')
               if (!settings || typeof settings.mutate !== 'function') {
@@ -473,28 +573,54 @@ export const feature = {
               return sendJson(res, 200, { ok: true, data: { config: cfg, savedAt: Date.now() } })
             }
 
-            // 钉钉连通性测试：用当前已保存的 Webhook 发一条测试消息
+            // 机器人连通性测试：payload.target 指定 'dingtalk'（默认）或 'feishu'，用当前已保存的 Webhook 发一条测试消息
             if (method === 'test') {
+              const target = (payload && payload.target) === 'feishu' ? 'feishu' : 'dingtalk'
               const cfgNow = readConfig(ctx)
-              if (!cfgNow.dingtalkWebhook) {
-                const err = new Error('请先填写并保存钉钉 Webhook 地址')
+              const webhook = target === 'feishu' ? cfgNow.feishuWebhook : cfgNow.dingtalkWebhook
+              if (!webhook) {
+                const err = new Error(`请先填写并保存${target === 'feishu' ? '飞书' : '钉钉'} Webhook 地址`)
                 err.statusCode = 400
                 throw err
               }
-              const text = [
-                '### 🧪 dsh 任务动画测试',
-                '',
-                '这是一条来自 dsh-dock 任务动画的测试消息。',
-                '',
-                `**时间**: ${fmtDateClockOf(Date.now())}`,
-                '',
-                '> 看到这条消息说明钉钉 Webhook 配置正确。',
-                '',
-                '---',
-                '*由 dsh-dock 任务动画发送*',
-              ].join('\n')
-              const r = await sendDingtalk(cfgNow.dingtalkWebhook, 'dsh 任务动画测试', text)
-              if (!r.ok) console.error('[dsh-dock] animation dingtalk test failed:', r.error)
+              const nameCn = target === 'feishu' ? '飞书' : '钉钉'
+              let r
+              if (target === 'feishu') {
+                const text = [
+                  '**这是一条来自 dsh-dock 任务动画的测试消息。**',
+                  '',
+                  `**时间**: ${fmtDateClockOf(Date.now())}`,
+                  '',
+                  '看到这条消息说明飞书 Webhook 配置正确。',
+                  '',
+                  '---',
+                  '*由 dsh-dock 任务动画发送*',
+                ].join('\n')
+                const card = {
+                  config: { wide_screen_mode: true },
+                  header: {
+                    template: 'blue',
+                    title: { tag: 'plain_text', content: '🧪 dsh 任务动画测试' },
+                  },
+                  elements: [{ tag: 'div', text: { tag: 'lark_md', content: text } }],
+                }
+                r = await sendFeishu(webhook, 'dsh 任务动画测试', card)
+              } else {
+                const text = [
+                  '### 🧪 dsh 任务动画测试',
+                  '',
+                  '这是一条来自 dsh-dock 任务动画的测试消息。',
+                  '',
+                  `**时间**: ${fmtDateClockOf(Date.now())}`,
+                  '',
+                  '> 看到这条消息说明钉钉 Webhook 配置正确。',
+                  '',
+                  '---',
+                  '*由 dsh-dock 任务动画发送*',
+                ].join('\n')
+                r = await sendDingtalk(webhook, 'dsh 任务动画测试', text)
+              }
+              if (!r.ok) console.error(`[dsh-dock] animation ${target} test failed:`, r.error)
               return sendJson(res, 200, { ok: true, data: { sent: r.ok, error: r.ok ? '' : r.error } })
             }
 

@@ -36,10 +36,10 @@ function rpcCall(method, args) {
 // ---------- 动画模式 ----------
 const EFFECT_MODES = [
 	{ id: "flow", name: "流光细线", desc: "顶部细线流光往返，速度随任务吞吐加快" },
-	{ id: "breathe", name: "呼吸光点", desc: "状态徽标圆点呼吸，越忙呼吸越快" },
+	{ id: "breathe", name: "呼吸光点", desc: "醒目呼吸光点带扩散光晕：颜色随任务阶段（思考蓝/输出绿/代码橙/查资料青），呼吸随吞吐加快" },
 	{ id: "ring", name: "轨道光环", desc: "细环绕圆点旋转，转速随任务速度" },
 	{ id: "orbit", name: "环屏巡航", desc: "一颗光点沿屏幕边缘巡航整圈，醒目不遮挡" },
-	{ id: "robot", name: "桌面伙伴", desc: "更具象的人物坐镇四屏工位：思考、输出、查资料随任务阶段切换" },
+	{ id: "robot", name: "桌面伙伴", desc: "真人化双工位：查资料看左屏、写入/改代码移到右屏；座椅和转头随实时任务节奏加速" },
 	{ id: "matrix", name: "代码雨", desc: "字符沿屏幕缓落如数据流，速度随任务吞吐，克制的低透明度" },
 	{ id: "stars", name: "星野", desc: "细碎星点缓慢飘移闪烁，安静耐看的背景氛围" },
 	{ id: "aurora", name: "极光", desc: "屏幕顶部柔光带缓慢呼吸流动，像极光拂过" },
@@ -49,6 +49,9 @@ const EFFECT_MODES = [
 // reasoning-delta=think、text-delta=write、tool 名分类=search/code）
 const PHASE_LABELS = { think: "思考中", write: "输出中", code: "编写代码", search: "查资料" };
 function phaseLabel(p) { return PHASE_LABELS[p] || "工作中"; }
+// 阶段配色（徽标呼吸点/光环随任务阶段变色，--dkan-phase 下发到 CSS）
+const PHASE_COLORS = { think: "#60a5fa", write: "#34d399", code: "#fbbf24", search: "#2dd4bf" };
+function phaseColor(p) { return PHASE_COLORS[p] || "#4d9fff"; }
 
 // ---------- 结束原因 ----------
 const END_LABELS = {
@@ -172,6 +175,7 @@ function Box3(props) {
 
 function Monitor3(props) {
 	const w = props.w, h = props.h;
+	const searchScreen = props.mode === "search";
 	// 屏幕内容：10 行代码（5 行×2 循环）+ 光标，整体向上滚动（速度随 --dkan-speed）
 	const lines = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
 	return (
@@ -179,77 +183,104 @@ function Monitor3(props) {
 			style={{ left: props.x - w / 2, top: props.y - h / 2, width: w, height: h, transform: "translateZ(" + (props.z || -3) + "px) rotateY(" + (props.ry || 0) + "deg)" }}>
 			<Box3 w={w} h={h} d={5} cls="dk3-frame" x={w / 2} y={h / 2} />
 			<span className="dk3-screen" style={{ width: w - 4, height: h - 4, transform: "translate(-50%,-50%) translateZ(3.1px)" }}>
-				<span className="dk3-code">
+				{searchScreen ? <span className="dk3-search-ui">
+					<span className="dk3-search-box"><b /></span>
+					<span className="dk3-search-results">{lines.slice(0, 6).map((n, i) => <i key={i} />)}</span>
+				</span> : <span className="dk3-code">
 					{lines.map((n, i) => <i key={i} />)}
 					<span className="dk3-cur" />
-				</span>
+				</span>}
 			</span>
 		</span>
 	);
 }
 
-// 3D 动漫人物：更拟人的比例与细节（圆角头/ volumetric 头发/五官/脖颈/弯肘/腿脚鞋），侧身面向三屏
+// 3D 动漫人物：更拟人的比例与细节（圆角头/ volumetric 头发/五官/脖颈/弯肘/腿脚鞋）。
+// 紧凑双工位：左侧专做资料检索，右侧专做写作/改文件；顶部小屏放任务状态。
+// 人物坐滚轮椅在两侧工位间滑动，思考时停在两屏之间。
 function RobotScene(props) {
 	const phase = props && props.phase ? props.phase : "code";
+	const tasks = Array.isArray(props && props.tasks) ? props.tasks : null;
+	const n = tasks ? Math.max(1, Math.min(3, tasks.length)) : 1;
+	// 左工位只做资料检索；正文输出和工具写入都在右工位，思考回到中位。
+	const station = phase === "search" ? "left" : (phase === "write" || phase === "code" ? "right" : "center");
 	return (
-		<div className="dkan-bot-scene" data-phase={phase} aria-hidden="true">
+		<div className="dkan-bot-scene" data-phase={phase} data-station={station} data-tasks={tasks ? String(n) : undefined} aria-hidden="true">
 			<div className="dk3-world">
-				{/* 书桌（缩短：150 宽，人物居中） */}
-				<Box3 w={150} h={7} d={40} cls="dk3-desk" x={115} y={78} />
-				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={48} y={94} />
-				<Box3 w={5} h={26} d={32} cls="dk3-metal dk3-leg" x={182} y={94} />
-				{/* 四屏：三台扇形 + 中屏上叠一台竖屏 */}
-				<Monitor3 w={34} h={24} x={140} y={60} ry={24} cls="left" />
-				<Monitor3 w={40} h={30} x={168} y={58} ry={0} cls="center" />
-				<Monitor3 w={28} h={21} x={188} y={62} ry={-24} cls="right" />
-				<Monitor3 w={30} h={20} x={168} y={28} ry={0} cls="top" />
-				{/* 键盘 + 咖啡杯（人物手边） */}
-				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={126} y={73} z={14} />
-				<Box3 w={4} h={5} d={4} cls="dk3-mug" x={140} y={71} z={14} />
-				{/* 人物组：坐在桌子中间近镜头侧（z=30） */}
+				{/* 紧凑单人书桌：只留左右两个真实工作位，消除左侧空桌面。 */}
+				<Box3 w={134} h={7} d={38} cls="dk3-desk" x={145} y={76} />
+				<Box3 w={5} h={24} d={30} cls="dk3-metal dk3-leg" x={84} y={89} />
+				<Box3 w={5} h={24} d={30} cls="dk3-metal dk3-leg" x={206} y={89} />
+				{/* 左检索、右编码，顶部小屏显示任务进度。 */}
+				<Monitor3 w={34} h={24} x={140} y={59} ry={20} cls="left" mode="search" />
+				<Monitor3 w={42} h={30} x={180} y={57} ry={-16} cls="right" />
+				<Monitor3 w={28} h={18} x={160} y={31} ry={0} cls="top" />
+				{/* 两套键鼠紧贴相应屏幕，中央仅保留咖啡杯。 */}
+				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={130} y={71} z={14} />
+				<Box3 w={4} h={2.5} d={6} cls="dk3-metal dk3-mouse3" x={141} y={71} z={14} />
+				<Box3 w={4} h={5} d={4} cls="dk3-mug" x={154} y={69} z={14} />
+				<Box3 w={16} h={2.5} d={9} cls="dk3-metal dk3-kb3" x={170} y={71} z={14} />
+				<Box3 w={4} h={2.5} d={6} cls="dk3-metal dk3-mouse3" x={181} y={71} z={14} />
+				{/* 人物组：按当前任务在左检索/中思考/右编码两个工位间平滑移动。 */}
 				<div className="dk3-person">
-					{/* 椅子：靠背/坐垫/支柱/底盘 */}
-					<Box3 w={4} h={30} d={22} cls="dk3-chairback" x={2} y={42} />
-					<Box3 w={20} h={4} d={22} cls="dk3-chairseat" x={12} y={58} />
-					<Box3 w={3} h={12} d={3} cls="dk3-metal" x={12} y={68} />
-					<Box3 w={14} h={2} d={14} cls="dk3-metal" x={12} y={74} />
+					{/* 椅子：靠背只到肩胛、降低支柱和底盘，贴近真实坐姿。 */}
+					<Box3 w={4} h={20} d={20} cls="dk3-chairback" x={2} y={47} />
+					<Box3 w={18} h={4} d={20} cls="dk3-chairseat" x={12} y={59} />
+					<Box3 w={3} h={9} d={3} cls="dk3-metal" x={12} y={66} />
+					<Box3 w={13} h={2} d={13} cls="dk3-metal" x={12} y={71} />
+					{/* 椅子滚轮（左右各一，滑动时可见） */}
+					<Box3 w={3} h={3} d={3} cls="dk3-wheel" x={6} y={74} />
+					<Box3 w={3} h={3} d={3} cls="dk3-wheel" x={18} y={74} />
 					{/* 腿：大腿/小腿/鞋 */}
-					<Box3 w={13} h={5} d={9} cls="dk3-pants" x={20} y={54} />
-					<Box3 w={4} h={12} d={4} cls="dk3-pants" x={26} y={62} />
-					<Box3 w={6} h={3} d={5} cls="dk3-shoe" x={28} y={73} />
-					{/* 躯干（卫衣）+ 后帽兜 */}
-					<Box3 w={15} h={20} d={11} cls="dk3-hood dk3-torso" x={12} y={36} />
-					<Box3 w={5} h={8} d={9} cls="dk3-hood dk3-hoodbump" x={5} y={30} />
-					{/* 脖颈 */}
-					<Box3 w={4} h={3} d={4} cls="dk3-skin" x={14} y={25} />
-					{/* 头组：圆角头 + volumetric 头发 + 眼睛 + 嘴（俯仰=rotateZ，左右看=rotateY） */}
-					<div className="dk3-head3">
-						<Box3 w={13} h={12} d={12} cls="dk3-skin dk3-headbox" x={8} y={10}>
-							<span className="dk3-brows" style={{ width: 10, height: 4, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.3px)" }}><i /><i /></span>
-							<span className="dk3-eyes" style={{ width: 10, height: 7, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }}>
-								<i /><i />
-							</span>
-							<span className="dk3-nose" style={{ transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.8px)" }} />
-							<span className="dk3-mouth" style={{ transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.2px)" }} />
-						</Box3>
-						<Box3 w={14} h={6} d={13} cls="dk3-hair" x={8} y={4} />
-						<Box3 w={4} h={11} d={13} cls="dk3-hair" x={2} y={9} />
-						<span className="dk3-ear" />
-					</div>
-					{/* 近侧手臂：上臂微前倾 + 肘 + 前臂 + 手 */}
-					<div className="dk3-arm3">
-						<Box3 w={4} h={11} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
-						<div className="dk3-elbow">
-							<Box3 w={11} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={6} y={2} />
-							<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={12.5} y={2} />
+					<Box3 w={12} h={5} d={9} cls="dk3-pants" x={20} y={54} />
+					<Box3 w={4} h={10} d={4} cls="dk3-pants" x={26} y={62} />
+					<Box3 w={6} h={3} d={5} cls="dk3-shoe" x={28} y={70} />
+					{/* 上身整体始终面向桌面；阶段动作只改变前倾、肩肘腕和视线。 */}
+					<div className="dk3-upper3">
+						{/* 肩线、胸腔和腰部做成上宽下窄，摆脱直筒积木感。 */}
+						<Box3 w={18} h={5} d={12} cls="dk3-hood dk3-shoulders3" x={13} y={30} />
+						<Box3 w={15} h={14} d={11} cls="dk3-hood dk3-torso dk3-chest3" x={12} y={38} />
+						<Box3 w={12} h={7} d={10} cls="dk3-hood dk3-torso dk3-waist3" x={12} y={47} />
+						<Box3 w={5} h={8} d={9} cls="dk3-hood dk3-hoodbump" x={5} y={32} />
+						{/* 颈部加长并与下颌、衣领重叠，避免悬空。 */}
+						<Box3 w={5} h={7} d={5} cls="dk3-skin dk3-neck3" x={14} y={24} />
+						<Box3 w={8} h={3} d={8} cls="dk3-collar3" x={14} y={28} />
+						{/* 头组与颈部同轴：颅骨 + 收窄下颌 + 短侧渐层发型。 */}
+						<div className="dk3-head3">
+							<Box3 w={12} h={11} d={11} cls="dk3-skin dk3-cranium" x={8} y={8}>
+								<span className="dk3-brows" style={{ width: 9, height: 4, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(5.8px)" }}><i /><i /></span>
+								<span className="dk3-eyes" style={{ width: 9, height: 6, transform: "translate(-50%,-50%) rotateY(90deg) translateZ(5.7px)" }}><i /><i /></span>
+								<span className="dk3-nose" style={{ transform: "translate(-50%,-50%) rotateY(90deg) translateZ(6.1px)" }} />
+							</Box3>
+							<Box3 w={9} h={7} d={9} cls="dk3-skin dk3-jaw3" x={8.5} y={14}>
+								<span className="dk3-mouth" style={{ transform: "translate(-50%,-50%) rotateY(90deg) translateZ(4.7px)" }} />
+							</Box3>
+							<Box3 w={12} h={5} d={12} cls="dk3-hair dk3-hair-crown" x={8} y={3.5} />
+							<Box3 w={4} h={8} d={11} cls="dk3-hair dk3-hair-back" x={3} y={7.5} />
+							<span className="dk3-fringe3"><i /><i /><i /></span>
+							<span className="dk3-ear" />
 						</div>
-					</div>
-					{/* 远侧手臂 */}
-					<div className="dk3-arm3 dk3-far">
-						<Box3 w={4} h={11} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
-						<div className="dk3-elbow">
-							<Box3 w={11} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={6} y={2} />
-							<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={12.5} y={2} />
+						{/* 近侧手臂：肩、肘、腕、手指分段动作。 */}
+						<div className="dk3-arm3 dk3-near">
+							<Box3 w={4} h={11} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
+							<div className="dk3-elbow">
+								<Box3 w={10} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={5.5} y={2} />
+								<div className="dk3-wrist3">
+									<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={2} y={2} />
+									<span className="dk3-fingers3"><i /><i /></span>
+								</div>
+							</div>
+						</div>
+						{/* 远侧手臂：在桌面深处，和近侧手错开节奏。 */}
+						<div className="dk3-arm3 dk3-far">
+							<Box3 w={4} h={11} d={4} cls="dk3-hood dk3-uarm" x={2} y={6} />
+							<div className="dk3-elbow">
+								<Box3 w={10} h={3.5} d={3.5} cls="dk3-hood dk3-farm" x={5.5} y={2} />
+								<div className="dk3-wrist3">
+									<Box3 w={3.5} h={3} d={3} cls="dk3-skin dk3-hand" x={2} y={2} />
+									<span className="dk3-fingers3"><i /><i /></span>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -477,7 +508,7 @@ export function AnimationOverlay(props) {
 		taskCountRef.current = n;
 	}, [snap.status, pushBurst]);
 
-	// 轮询：有任务 2s / 空闲 6s / 出错 15s；页面从后台切回立即刷新
+	// 轮询：任务中 850ms，实时捕捉 chunk/工具活动；空闲 6s / 出错 15s；页面切回立即刷新。
 	useEffect(() => {
 		let stopped = false;
 		let timer = null;
@@ -485,7 +516,7 @@ export function AnimationOverlay(props) {
 			await animationStore.refresh();
 			if (stopped) return;
 			const s = animationStore.snap;
-			timer = setTimeout(loop, s.error ? 15000 : (s.status && s.status.active && s.status.active.length > 0 ? 2000 : 6000));
+			timer = setTimeout(loop, s.error ? 15000 : (s.status && s.status.active && s.status.active.length > 0 ? 850 : 6000));
 		};
 		loop();
 		const onVisible = () => {
@@ -578,6 +609,10 @@ export function AnimationOverlay(props) {
 	const active = st && st.active ? st.active : [];
 	const animOn = !!(cfg && cfg.animationEnabled && active.length > 0);
 	const mode = cfg && cfg.effectMode ? cfg.effectMode : "flow";
+	// 机器人阶段：取最近发生阶段变化的活跃任务。
+	const phase = active.length > 0
+		? active.reduce((best, x) => (!best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best), null).phase
+		: "think";
 	useTicker(ctx, animOn);
 	// 徽标计时：以最早开始的任务为基准
 	const now = Date.now();
@@ -588,23 +623,22 @@ export function AnimationOverlay(props) {
 		setPanelOpen(panelNav.open);
 		return subscribePanel(() => setPanelOpen(panelNav.open));
 	}, []);
-	// 任务速度：两次轮询间 Token 吞吐 → CSS --dkan-speed（0.7~3，越忙越快）
+	// 任务速度：优先使用 host 从 chunk/tool 实时累积的活动脉冲；
+	// token usage 只在完整消息后才到达，不能再作为唯一速度来源。
 	const [speed, setSpeed] = useState(1);
-	const speedRef = useRef({ tokens: -1, at: 0 });
+	const speedRef = useRef({ ticks: -1, at: 0 });
 	useEffect(() => {
-		if (!st || active.length === 0) { speedRef.current = { tokens: -1, at: 0 }; return; }
-		const total = active.reduce((a, x) => a + (x.totalTokens || 0), 0);
+		if (!st || active.length === 0) { speedRef.current = { ticks: -1, at: 0 }; setSpeed(1); return; }
+		const ticks = active.reduce((a, x) => a + (x.motionTicks || 0), 0);
 		const t = Date.now();
 		const prev = speedRef.current;
-		if (prev.tokens < 0 || t - prev.at < 500) { speedRef.current = { tokens: total, at: t }; return; }
-		const rate = Math.max(0, (total - prev.tokens) / ((t - prev.at) / 1000));
-		setSpeed(Math.max(0.7, Math.min(3, 0.7 + rate / 45)));
-		speedRef.current = { tokens: total, at: t };
+		if (prev.ticks < 0 || t - prev.at < 300) { speedRef.current = { ticks, at: t }; return; }
+		const rate = Math.max(0, (ticks - prev.ticks) / ((t - prev.at) / 1000));
+		const phaseBoost = phase === "write" || phase === "code" ? .28 : (phase === "search" ? .18 : 0);
+		const next = Math.max(.9, Math.min(4, Number((.9 + rate / 14 + phaseBoost).toFixed(2))));
+		setSpeed((current) => Math.abs(current - next) < .03 ? current : next);
+		speedRef.current = { ticks, at: t };
 	}, [snap.status]);
-	// 机器人阶段：取最近发生阶段变化的活跃任务
-	const phase = active.length > 0
-		? active.reduce((best, x) => (!best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best), null).phase
-		: "think";
 	const ambientOn = animOn && !panelOpen;
 	const robotScaleFromConfig = Math.max(.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
 	const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
@@ -721,7 +755,7 @@ export function AnimationOverlay(props) {
 		{ambientOn && mode === "orbit" ? <div className="dkan-orbit" style={speedStyle} aria-hidden="true" /> : null}
 		{/* 交互反馈层：纸飞机/火花/流光/微光/光涌/彩带（与动画开关独立，只要功能启用即回应操作） */}
 		<BurstLayer bursts={bursts} />
-		{/* 桌面伙伴：背侧视角三屏工位机器人，阶段与任务同步；整卡可拖到任意位置（robot 模式） */}
+		{/* 桌面伙伴：背侧视角紧凑双工位人物，阶段与任务同步；整卡可拖到任意位置（robot 模式） */}
 		{ambientOn && mode === "robot" ? (
 			<div className="dkan-botcard" role="button" tabIndex={0} style={botCardStyle}
 				title={active.length + " 个任务 · " + phaseLabel(phase) + " · 点击查看任务动画页 · 可拖动到任意位置"}
@@ -731,7 +765,7 @@ export function AnimationOverlay(props) {
 				onPointerCancel={onBotPointerUp}
 				onClick={onBotClick}
 				onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onBotClick(); } }}>
-				<RobotScene phase={phase} />
+				<RobotScene phase={phase} tasks={active} />
 				<span className="dkan-bot-cap">
 					<span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {phaseLabel(phase)}
 				</span>
@@ -750,16 +784,18 @@ export function AnimationOverlay(props) {
 					}} />
 			</div>
 		) : null}
-		{/* 右下角状态徽标：dot 随模式变化（breathe/ring 装饰），点击进功能坞动画页 */}
+		{/* 右下角状态徽标：dot 随模式变化（breathe/ring 装饰），颜色随任务阶段、呼吸随吞吐；点击进功能坞动画页 */}
 		{ambientOn && mode !== "robot" ? (
-			<button type="button" className="dkan-badge" style={speedStyle}
-				title={active.length + " 个任务进行中 · 点击查看任务动画页"}
+			<button type="button" className={"dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : "")}
+				style={Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(phase) })}
+				title={active.length + " 个任务进行中 · " + phaseLabel(phase) + " · 点击查看任务动画页"}
 				onClick={() => openPanel("animation")}>
 				<span className="dkan-dotwrap">
 					<span className="dkan-dot" />
+					{mode === "breathe" ? <span className="dkan-halo" /> : null}
 					{mode === "ring" ? <span className="dkan-ring" /> : null}
 				</span>
-				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""}</span>
+				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {phaseLabel(phase)}</span>
 			</button>
 		) : null}
 		{/* 完成瞬间的一次性流光（成功绿 / 异常红），动画结束自动清场 */}
@@ -823,7 +859,7 @@ function ModePreview({ id }) {
 	}
 	return (
 		<span className="dkan-prev">
-			<span className="dkan-dotwrap dkan-breathe"><span className="dkan-dot" /></span>
+			<span className="dkan-dotwrap dkan-breathe"><span className="dkan-dot" /><span className="dkan-halo" /></span>
 		</span>
 	);
 }
@@ -856,15 +892,18 @@ function AnimationView(props) {
 	const [cfg, setCfg] = useState(null); // null = 尚未加载
 	const [saveErr, setSaveErr] = useState("");
 	const [testing, setTesting] = useState(false);
-	const [testState, setTestState] = useState(null); // { ok, msg } 钉钉测试结果
+	const [testState, setTestState] = useState(null); // { ok, msg } 机器人测试结果
+	const [feishuTestState, setFeishuTestState] = useState(null); // { ok, msg } 飞书测试结果
+	const [feishuTesting, setFeishuTesting] = useState(false);
 	const cfgRef = useRef(null);
 	const pendingSavesRef = useRef(0); // 进行中的保存（轮询回包不覆盖乐观值）
-	const editingWebhookRef = useRef(false); // Webhook 输入中（轮询不覆盖草稿）
+	const editingWebhookRef = useRef(false); // 钉钉 Webhook 输入中（轮询不覆盖草稿）
+	const editingFeishuRef = useRef(false); // 飞书 Webhook 输入中（轮询不覆盖草稿）
 	// 拉到新配置（含保存回包）后同步本地编辑态；保存中/输入中不覆盖
 	useEffect(() => {
 		const c = snap.status && snap.status.config;
 		if (!c) return;
-		if (pendingSavesRef.current > 0 || editingWebhookRef.current) return;
+		if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
 		if (c !== cfgRef.current) {
 			cfgRef.current = c;
 			setCfg(Object.assign({}, c));
@@ -901,6 +940,18 @@ function AnimationView(props) {
 			setCfg(Object.assign({}, c));
 		}
 	};
+	// 飞书 Webhook 草稿保存
+	const saveFeishuWebhook = async () => {
+		if (!editingFeishuRef.current) return;
+		const hook = String(cfg.feishuWebhook || "").trim();
+		await patch({ feishuWebhook: hook });
+		editingFeishuRef.current = false;
+		const c = animationStore.snap.status && animationStore.snap.status.config;
+		if (c && c !== cfgRef.current) {
+			cfgRef.current = c;
+			setCfg(Object.assign({}, c));
+		}
+	};
 	// 钉钉测试：草稿未保存先保存，再发测试消息
 	const runDingtalkTest = async () => {
 		setTesting(true);
@@ -923,6 +974,30 @@ function AnimationView(props) {
 			setTestState({ ok: false, msg: (e && e.message) || String(e) });
 		} finally {
 			setTesting(false);
+		}
+	};
+	// 飞书测试：草稿未保存先保存，再发测试消息
+	const runFeishuTest = async () => {
+		setFeishuTesting(true);
+		setFeishuTestState(null);
+		try {
+			if (editingFeishuRef.current) {
+				const hook = String(cfg.feishuWebhook || "").trim();
+				if (!hook) throw new Error("请先填写 Webhook 地址");
+				const d = await rpcCall("config", { feishuWebhook: hook });
+				animationStore.applyConfig(d && d.config);
+				editingFeishuRef.current = false;
+				cfgRef.current = (d && d.config) || cfgRef.current;
+				setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
+			}
+			const r = await rpcCall("test", { target: "feishu" });
+			setFeishuTestState(r && r.sent
+				? { ok: true, msg: "测试消息已发送，去群里看看" }
+				: { ok: false, msg: (r && r.error) || "发送失败" });
+		} catch (e) {
+			setFeishuTestState({ ok: false, msg: (e && e.message) || String(e) });
+		} finally {
+			setFeishuTesting(false);
 		}
 	};
 	const enableSystemNotify = async (next) => {
@@ -1115,6 +1190,46 @@ function AnimationView(props) {
 					<div className="dkan-note">机器人创建：钉钉群 → 设置 → 智能群助手 → 添加机器人 → 自定义（Webhook），
 						安全设置选「自定义关键词」填「任务」或「dsh」（推送标题含「任务」即可命中）。</div>
 				</div> : <div className="dkan-note">未开启——任务结束不推送钉钉。</div>}
+			</div>,
+			<div key="feishu" className="dkan-sec">
+				<div className="dkan-sec-head">
+					<span className="dkan-sec-title">飞书推送</span>
+					<span className="dkan-sec-sub">任务结束推送到飞书群机器人（宿主直发，浏览器关着也能推；事件跟随上方完成/异常开关）</span>
+					<span className="dkan-sec-sw">
+						<span className={"dkan-sec-swlabel" + (cfg.feishuEnabled ? " on" : "")}>{cfg.feishuEnabled ? "已开启" : "已关闭"}</span>
+						<button type="button" className={"dock-sw" + (cfg.feishuEnabled ? " on" : "")}
+							role="switch" aria-checked={cfg.feishuEnabled} aria-label="开关飞书推送"
+							title={cfg.feishuEnabled ? "关闭飞书推送" : "开启飞书推送"}
+							onClick={() => patch({ feishuEnabled: !cfg.feishuEnabled })} />
+					</span>
+				</div>
+				{cfg.feishuEnabled ? <div className="dkan-rows-narrow">
+					<div className="dkan-row dkan-row-webhook">
+						<span className="dkan-row-label">Webhook</span>
+						<input type="text" className="dkan-input" spellCheck={false}
+							value={cfg.feishuWebhook || ""}
+							placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…"
+							onChange={(e) => {
+								editingFeishuRef.current = true;
+								setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
+							}} />
+						<button type="button" className="dkan-btn" disabled={!editingFeishuRef.current}
+							onClick={saveFeishuWebhook}>
+							{editingFeishuRef.current ? "保存" : "已保存"}
+						</button>
+					</div>
+					<div className="dkan-row">
+						<span className="dkan-row-label">连通测试</span>
+						<button type="button" className="dkan-btn" disabled={feishuTesting} onClick={runFeishuTest}>
+							{feishuTesting ? "发送中…" : "发送测试消息"}
+						</button>
+						{feishuTestState ? <span className={"dkan-row-sub" + (feishuTestState.ok ? " dkan-ok" : " dkan-err")}>
+							{feishuTestState.ok ? "✓ " : "✗ "}{feishuTestState.msg}
+						</span> : <span className="dkan-row-sub">用当前保存的 Webhook 发一条测试消息</span>}
+					</div>
+					<div className="dkan-note">机器人创建：飞书群 → 设置 → 群机器人 → 添加机器人 → 自定义机器人（获取 Webhook 地址）；
+						安全设置如选「自定义关键词」填「任务」或「dsh」（推送标题含「任务」即可命中）。</div>
+				</div> : <div className="dkan-note">未开启——任务结束不推送飞书。</div>}
 			</div>
 		);
 	}
@@ -1169,6 +1284,8 @@ const css = [
 	"@keyframes dkan-orbit{0%{top:0;left:0}25%{top:0;left:calc(100vw - 12px)}50%{top:calc(100vh - 12px);left:calc(100vw - 12px)}75%{top:calc(100vh - 12px);left:0}100%{top:0;left:0}}",
 	// ===== 氛围动效 =====
 	".dkan-amb{position:fixed;inset:0;z-index:9989;pointer-events:none;overflow:hidden;}",
+	// pointer-events 不继承：全屏装饰层的子粒子（星点/流星/极光/火花/彩带）必须各自透明于点击
+	".dkan-amb *,.dkan-fxwrap *{pointer-events:none;}",
 	// 代码雨：字符列缓落（提亮加大，速度随吞吐）
 	".dkan-matrix span{position:absolute;top:-12%;writing-mode:vertical-rl;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-accent,#4d9fff);text-shadow:0 0 6px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 60%,transparent);animation:dkan-fall linear infinite;will-change:transform;}",
 	"@keyframes dkan-fall{to{transform:translateY(125vh)}}",
@@ -1215,10 +1332,16 @@ const css = [
 	".dkan-badge .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
 	"@keyframes dkan-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}",
 	// 徽标圆点与两种动效（呼吸 / 轨道环）
-	".dkan-dotwrap{position:relative;width:16px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
-	".dkan-dot{width:9px;height:9px;border-radius:50%;background:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 8px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 55%,transparent);}",
-	".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.6s / var(--dkan-speed,1)) ease-in-out infinite;}",
-	"@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.6);opacity:1}}",
+	".dkan-dotwrap{position:relative;width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;}",
+	".dkan-dot{width:12px;height:12px;border-radius:50%;background:var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));box-shadow:0 0 10px color-mix(in srgb,var(--dkan-phase,var(--dsw-alias-accent,#4d9fff)) 70%,transparent);transition:background .4s var(--ds-ease-in-out),box-shadow .4s var(--ds-ease-in-out);}",
+	".dkan-breathe .dkan-dot{animation:dkan-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+	"@keyframes dkan-breathe{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.7);opacity:1}}",
+	// 呼吸光晕：向外扩散的波纹环，与圆点同频（颜色随阶段）
+	".dkan-halo{position:absolute;inset:0;border-radius:50%;border:2px solid var(--dkan-phase,var(--dsw-alias-accent,#4d9fff));animation:dkan-halo calc(2.2s / var(--dkan-speed,1)) ease-out infinite;}",
+	"@keyframes dkan-halo{0%{transform:scale(.5);opacity:.9}70%{transform:scale(1.5);opacity:.25}100%{transform:scale(1.7);opacity:0}}",
+	// breathe 模式徽标更醒目：阶段色描边 + 呼吸辉光
+	".dkan-badge-breathe{border-color:color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent);animation:dkan-rise .3s var(--ds-ease-in-out),dkan-badge-breathe calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite;}",
+	"@keyframes dkan-badge-breathe{0%,100%{box-shadow:0 0 6px color-mix(in srgb,var(--dkan-phase,#4d9fff) 22%,transparent),0 6px 24px rgb(0 0 0 / .16)}50%{box-shadow:0 0 18px color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent),0 6px 24px rgb(0 0 0 / .16)}}",
 	".dkan-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 68%,var(--dsw-alias-accent,#4d9fff) 92%,#fff);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));animation:dkan-spin calc(2.2s / var(--dkan-speed,1)) linear infinite;opacity:.9;}",
 	"@keyframes dkan-spin{to{transform:rotate(360deg)}}",
 	// 通知卡片栈（右上角）
@@ -1293,7 +1416,7 @@ const css = [
 	"@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
 	".dkan-prev-bot{height:92px;justify-content:center;}",
 	".dkan-prev-bot .dkan-bot-scene{--dkan-bot-scale:1;transform:scale(.56);transform-origin:center;}",
-	// ===== 桌面伙伴：具象人物 + 四屏工位（尺寸可调，整卡可拖拽） =====
+	// ===== 桌面伙伴：具象人物 + 紧凑双工位（尺寸可调，整卡可拖拽） =====
 	// 卡片：玻璃拟态；默认停泊右下（dsh 输入卡上方），拖动后位置持久化、可放屏幕任意处
 	".dkan-botcard{--dkan-bot-scale:1.35;position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:9990;display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:16px;cursor:grab;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 86%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 12px 36px rgb(0 0 0 / .22);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;pointer-events:auto;touch-action:none;user-select:none;animation:dkan-rise .3s var(--ds-ease-in-out);}",
 	".dkan-botcard:hover,.dkan-botcard:focus-visible{border-color:var(--dsw-alias-accent,#4d9fff);outline:none;}",
@@ -1328,9 +1451,24 @@ const css = [
 	".dk3-code i:nth-child(5n+4){width:72%;}",
 	".dk3-code i:nth-child(5n){width:54%;background:var(--dkan-code-a);}",
 	".dk3-cur{position:absolute;left:3px;bottom:2px;width:4px;height:2px;background:var(--dkan-code-b);animation:dkan-blink3 1s steps(1) infinite;}",
+	// 左屏检索视图：搜索框、放大镜与结果条，和右侧代码编辑器明确区分
+	".dk3-search-ui{position:absolute;inset:3px;display:block;overflow:hidden;}",
+	".dk3-search-box{display:block;height:5px;margin:0 1px 3px;border:1px solid color-mix(in srgb,var(--dkan-code-a) 72%,#d7fff4);border-radius:2px;box-sizing:border-box;}",
+	".dk3-search-box b{display:block;width:2px;height:2px;margin:1px 0 0 2px;border:1px solid var(--dkan-code-a);border-radius:50%;position:relative;}",
+	".dk3-search-box b:after{content:'';position:absolute;width:2px;height:1px;background:var(--dkan-code-a);right:-2px;bottom:-1px;transform:rotate(45deg);transform-origin:left center;}",
+	".dk3-search-results{display:block;animation:dk3-search-scroll calc(2.1s / var(--dkan-speed,1)) linear infinite;}",
+	".dk3-search-results i{display:block;height:2px;margin:2px 1px 0;border-radius:1px;background:var(--dkan-code-a);opacity:.72;}",
+	".dk3-search-results i:nth-child(2n){width:74%;background:var(--dkan-code-b);}",
+	".dk3-search-results i:nth-child(3n){width:48%;background:var(--dkan-code-c);}",
+	"@keyframes dk3-search-scroll{to{transform:translateY(-5px)}}",
 	"@keyframes dk3-scroll{to{transform:translateY(-50%)}}",
-	// 人物组（坐在桌子中间近镜头侧 z=30，侧身面朝 +X 三屏；不会被桌体遮挡）
-	".dk3-person{position:absolute;left:96px;top:14px;width:44px;height:64px;transform-style:preserve-3d;transform:translateZ(30px);}",
+	// 人物与椅子始终正对桌面：工位切换只横移，不再旋转整个人和座椅。
+	".dk3-person{--dk3-seat-x:22px;position:absolute;left:98px;top:14px;width:44px;height:61px;transform-style:preserve-3d;transform:translateZ(30px) translateX(var(--dk3-seat-x));transition:transform max(.18s,calc(.38s / var(--dkan-speed,1))) cubic-bezier(.23,1,.32,1);will-change:transform;}",
+	".dkan-bot-scene[data-station=left] .dk3-person{--dk3-seat-x:0px;}",
+	".dkan-bot-scene[data-station=center] .dk3-person{--dk3-seat-x:22px;}",
+	".dkan-bot-scene[data-station=right] .dk3-person{--dk3-seat-x:44px;}",
+	// 上身以髋部为旋转原点；只做前后倾，始终朝向桌面。
+	".dk3-upper3{position:absolute;inset:0;transform-style:preserve-3d;transform-origin:12px 52px;transform:translateZ(0);transition:transform .24s cubic-bezier(.77,0,.175,1);will-change:transform;}",
 	// 动漫人物配色：皮肤/头发/卫衣/裤子
 	".dk3-skin .dk3-face{background:linear-gradient(180deg,#ffd9b8,#f3b98d);}",
 	".dk3-skin .dk3-face:nth-child(5){background:#ffe3c9;}",
@@ -1340,64 +1478,106 @@ const css = [
 	".dk3-hood .dk3-face:nth-child(5){background:#93a5ba;}",
 	".dk3-pants .dk3-face{background:linear-gradient(180deg,#3d4a5c,#2c3646);}",
 	".dk3-pants .dk3-face:nth-child(5){background:#4a5a70;}",
-	// 人物细节：圆角 + 鞋 + 咖啡杯 + 嘴
-	".dk3-headbox .dk3-face{border-radius:3px;}",
-	".dk3-torso .dk3-face{border-radius:3px;}",
+	// 人物细节：收窄下颌、连续肩颈、短侧渐层发型
+	".dk3-cranium .dk3-face{border-radius:42% 46% 38% 36%;}",
+	".dk3-jaw3 .dk3-face{border-radius:30% 30% 48% 48%;}",
+	".dk3-neck3 .dk3-face{border-radius:2px;}",
+	".dk3-collar3 .dk3-face{background:linear-gradient(180deg,#516176,#374459);border-radius:3px;}",
+	".dk3-shoulders3 .dk3-face{border-radius:4px;}",
+	".dk3-chest3 .dk3-face{border-radius:4px;}",
+	".dk3-waist3 .dk3-face{border-radius:3px;}",
 	".dk3-hair .dk3-face{border-radius:2px;}",
+	".dk3-hair-crown .dk3-face{border-radius:48% 42% 28% 30%;}",
+	".dk3-hair-back .dk3-face{background:linear-gradient(180deg,#493727,#2f241b);border-radius:46% 24% 38% 44%;}",
 	".dk3-shoe .dk3-face{background:#20262f;border-radius:2px;}",
 	".dk3-mug .dk3-face{background:#c2703d;border-radius:1px;}",
 	".dk3-mug .dk3-face:nth-child(5){background:#e08a52;}",
-	".dk3-mouth{position:absolute;left:50%;top:78%;width:5px;height:1.5px;border-radius:1px;background:#b5766a;}",
+	".dk3-mouth{position:absolute;left:50%;top:64%;width:3.5px;height:1px;border-radius:2px;background:#a9635c;}",
 	// 椅子
 	".dk3-chairback .dk3-face{background:linear-gradient(180deg,#3f4c60,#2c3648);}",
 	".dk3-chairseat .dk3-face{background:#33415a;}",
-	// 头组（俯仰=rotateZ，左右看=rotateY）；眼睛贴在 +X 面板上
-	".dk3-head3{position:absolute;left:14px;top:2px;width:17px;height:20px;transform-style:preserve-3d;transform-origin:50% 85%;transition:transform .25s var(--ds-ease-in-out);}",
-	".dk3-brows{position:absolute;left:50%;top:30%;display:flex;gap:3px;align-items:center;justify-content:center;}",
-	".dk3-brows i{width:3px;height:1px;border-radius:2px;background:#4a3428;}",
-	".dk3-eyes{position:absolute;left:50%;top:52%;display:flex;gap:3px;align-items:center;justify-content:center;}",
-	".dk3-eyes i{width:3px;height:4px;border-radius:50%;background:radial-gradient(circle at 60% 35%,#fff 0 .5px,#2b3442 .8px);animation:dkan-blink3 4.6s infinite;}",
-	".dk3-nose{position:absolute;left:50%;top:64%;width:2px;height:2px;border-radius:50%;background:#d99277;}",
-	".dk3-ear{position:absolute;left:-1px;top:11px;width:3px;height:5px;border-radius:50%;background:#f3b98d;transform:translateZ(2px);}",
+	// 头组与颈部中心均为 x=14；只让头部观察左右屏，身体和椅子不转向。
+	".dk3-head3{--dk3-head-turn:rotateY(0deg);position:absolute;left:6px;top:3px;width:17px;height:21px;transform-style:preserve-3d;transform-origin:8px 18px;transform:var(--dk3-head-turn);transition:transform max(.18s,calc(.22s / var(--dkan-speed,1))) cubic-bezier(.23,1,.32,1);will-change:transform;}",
+	".dkan-bot-scene[data-station=left] .dk3-head3{--dk3-head-turn:rotateY(-18deg);}",
+	".dkan-bot-scene[data-station=center] .dk3-head3{--dk3-head-turn:rotateY(0deg);}",
+	".dkan-bot-scene[data-station=right] .dk3-head3{--dk3-head-turn:rotateY(14deg);}",
+	".dk3-brows{position:absolute;left:50%;top:29%;display:flex;gap:2.5px;align-items:center;justify-content:center;}",
+	".dk3-brows i{width:3.5px;height:1px;border-radius:2px;background:#3a2a21;transform:rotate(-7deg);}",
+	".dk3-brows i+ i{transform:rotate(7deg);}",
+	".dk3-eyes{position:absolute;left:50%;top:51%;display:flex;gap:2.5px;align-items:center;justify-content:center;}",
+	".dk3-eyes i{width:3.5px;height:2.5px;border-radius:50%;background:radial-gradient(circle at 62% 30%,#fff 0 .5px,#263141 .8px 1.7px,#111827 1.9px);animation:dkan-blink3 4.8s infinite;}",
+	".dk3-nose{position:absolute;left:50%;top:66%;width:2px;height:3px;border-radius:60% 40% 55% 45%;background:linear-gradient(90deg,#e7a67e,#c77f67);}",
+	".dk3-ear{position:absolute;left:1px;top:10px;width:3px;height:5px;border-radius:52% 44% 48% 52%;background:linear-gradient(90deg,#edaa82,#ffd2ad);transform:translateZ(2px);}",
+	".dk3-fringe3{position:absolute;left:13px;top:4px;width:5px;height:7px;transform-style:preserve-3d;transform:rotateY(90deg) translateZ(5.8px);}",
+	".dk3-fringe3 i{position:absolute;top:0;width:2px;height:6px;border-radius:70% 25% 60% 30%;background:linear-gradient(180deg,#6b5239,#392b20);transform-origin:top center;}",
+	".dk3-fringe3 i:nth-child(1){left:0;transform:rotate(-18deg);height:5px;}",
+	".dk3-fringe3 i:nth-child(2){left:1.8px;transform:rotate(-6deg);height:6px;}",
+	".dk3-fringe3 i:nth-child(3){left:3.5px;transform:rotate(12deg);height:4px;}",
 	"@keyframes dkan-blink3{0%,91%,100%{transform:scaleY(1)}94%{transform:scaleY(.15)}}",
-	// 手臂：肩组挂躯干前上，肘组在其下端（前臂+手伸向键盘）；write/code 时肘部高频敲击
-	".dk3-arm3{position:absolute;left:20px;top:30px;width:16px;height:16px;transform-style:preserve-3d;}",
-	".dk3-elbow{position:absolute;left:0;top:10px;width:15px;height:5px;transform-style:preserve-3d;transform-origin:2px 2px;}",
-	".dk3-far{transform:translateZ(-8px);filter:brightness(.62);}",
+	// 手臂按肩→肘→腕分段，旋转原点位于真实关节连接处。
+	".dk3-arm3{position:absolute;left:20px;top:30px;width:16px;height:16px;transform-style:preserve-3d;transform-origin:2px 2px;will-change:transform;}",
+	".dk3-elbow{position:absolute;left:0;top:10px;width:15px;height:5px;transform-style:preserve-3d;transform-origin:1px 2px;will-change:transform;}",
+	".dk3-wrist3{position:absolute;left:9.5px;top:0;width:6px;height:5px;transform-style:preserve-3d;transform-origin:1px 2px;will-change:transform;}",
+	".dk3-fingers3{position:absolute;left:3px;top:1px;width:4px;height:3px;transform:translateZ(2px);}",
+	".dk3-fingers3 i{position:absolute;left:0;width:4px;height:.8px;border-radius:2px;background:#f2b58d;}",
+	".dk3-fingers3 i+ i{top:1.4px;width:3.5px;}",
+	".dk3-far{transform:translateZ(-7px);filter:brightness(.72);}",
 	// 思考泡泡（贴镜头 2D 层，think 阶段显示）
 	".dkan-bubble{position:absolute;left:80px;top:4px;display:none;gap:3px;padding:4px 6px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);box-shadow:0 2px 6px rgb(0 0 0 / .15);z-index:3;}",
 	".dkan-bubble i{width:4px;height:4px;border-radius:50%;background:var(--dsw-alias-label-tertiary);animation:dkan-bubdot 1.2s ease-in-out infinite;}",
 	".dkan-bubble i:nth-child(2){animation-delay:.2s;}",
 	".dkan-bubble i:nth-child(3){animation-delay:.4s;}",
 	"@keyframes dkan-bubdot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}",
+	// ===== 多任务工位（data-tasks=活跃任务数，上限 3） =====
+	// 椅子滚轮
+	".dk3-wheel .dk3-face{background:#1c232e;border-radius:50%;}",
+	// 有活跃任务时，未轮到的侧工位稍暗；多任务则两个工位均保持可见。
+	".dkan-bot-scene[data-tasks] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks] .dk3-mon3.right .dk3-screen{opacity:.3;}",
+	// 2 个及以上任务：左右工位同时点亮（各自带辉光、代码滚动加速）。
+	".dkan-bot-scene[data-tasks=\"2\"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks=\"2\"] .dk3-mon3.right .dk3-screen,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 42%,transparent);}",
+	".dkan-bot-scene[data-tasks=\"2\"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks=\"2\"] .dk3-mon3.right .dk3-code,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-tasks=\"3\"] .dk3-mon3.right .dk3-code{animation-duration:calc(2.6s / var(--dkan-speed,1));}",
+	// 座椅移动期间滚轮跟随任务节奏转动；思考中停下，避免无意义的常驻运动。
+	".dkan-bot-scene[data-station=left] .dk3-wheel,.dkan-bot-scene[data-station=right] .dk3-wheel{animation:dkan-wheel calc(.46s / var(--dkan-speed,1)) linear infinite;transform-origin:center;}",
+	"@keyframes dkan-wheel{to{transform:rotateZ(360deg)}}",
 	// ===== 阶段驱动（data-phase 四态，host 由 chunk 流实时同步） =====
-	// think：屏幕调暗 + 仰头苦想 + 泡泡浮现
+	// think：上身轻靠、近侧手托下巴、远侧手留在桌面；动作有停顿而不是机械往返。
 	".dkan-bot-scene[data-phase=think] .dk3-screen{opacity:.32;}",
 	".dkan-bot-scene[data-phase=think] .dkan-bubble{display:inline-flex;}",
-	".dkan-bot-scene[data-phase=think] .dk3-head3{animation:dkan-think-head 1.8s ease-in-out infinite alternate;}",
-	".dkan-bot-scene[data-phase=think] .dk3-arm3:not(.dk3-far){animation:dkan-think-arm 1.8s ease-in-out infinite alternate;}",
-	".dkan-bot-scene[data-phase=think] .dk3-arm3.dk3-far{animation:dkan-think-arm-far 1.8s ease-in-out infinite alternate;}",
-	"@keyframes dkan-think-head{from{transform:rotateZ(-12deg) translateY(-1px)}to{transform:rotateZ(-22deg) translate(3px,-4px)}}",
-	"@keyframes dkan-think-arm{from{transform:rotateZ(-4deg)}to{transform:rotateZ(-34deg) translate(1px,-8px)}}",
-	"@keyframes dkan-think-arm-far{from{transform:translateZ(-8px) rotateZ(-2deg)}to{transform:translateZ(-8px) rotateZ(-24deg) translate(1px,-7px)}}",
-	// write/code：中屏高亮代码滚动 + 肘部高频敲击 + 低头专注
-	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 45%,transparent);}",
-	".dkan-bot-scene[data-phase=write] .dk3-mon3.center .dk3-code,.dkan-bot-scene[data-phase=code] .dk3-mon3.center .dk3-code{animation-duration:calc(2.2s / var(--dkan-speed,1));}",
-	".dkan-bot-scene[data-phase=write] .dk3-arm3:not(.dk3-far),.dkan-bot-scene[data-phase=code] .dk3-arm3:not(.dk3-far){animation:dkan-output-arm calc(.46s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-	".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far{animation:dkan-output-arm-far calc(.46s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-	".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type3 calc(.22s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-	".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far .dk3-elbow{animation-delay:.11s;}",
-	"@keyframes dkan-type3{from{transform:rotate(12deg) translateY(-1px)}to{transform:rotate(-14deg) translateY(2px)}}",
-	"@keyframes dkan-output-arm{from{transform:rotateZ(7deg) translateY(0)}to{transform:rotateZ(-13deg) translateY(4px)}}",
-	"@keyframes dkan-output-arm-far{from{transform:translateZ(-8px) rotateZ(5deg)}to{transform:translateZ(-8px) rotateZ(-11deg) translateY(4px)}}",
-	".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{animation:dkan-output-head calc(.8s / var(--dkan-speed,1)) ease-in-out infinite alternate;}",
-	"@keyframes dkan-output-head{from{transform:rotateZ(4deg) translateY(0)}to{transform:rotateZ(10deg) translate(2px,2px)}}",
-	// search：侧屏高亮 + 滚动加速 + 头部左右扫视（一会忙这个一会看那个）
-	".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 8px color-mix(in srgb,var(--dkan-code-a,#4ade80) 40%,transparent);}",
-	".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-code,.dkan-bot-scene[data-phase=search] .dk3-mon3.right .dk3-code{animation-duration:calc(1.6s / var(--dkan-speed,1));}",
-	".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-scan3 3.4s ease-in-out infinite;}",
-	"@keyframes dkan-scan3{0%,16%{transform:rotateZ(3deg) rotateY(-38deg)}30%,48%{transform:rotateZ(3deg) rotateY(6deg)}62%,80%{transform:rotateZ(3deg) rotateY(38deg)}100%{transform:rotateZ(3deg) rotateY(-38deg)}}",
-	"@media (prefers-reduced-motion:reduce){.dkan-botcard *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}}",
+	".dkan-bot-scene[data-phase=think] .dk3-upper3{animation:dkan-think-upper max(1.8s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=think] .dk3-head3{animation:dkan-think-head max(1.8s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=think] .dk3-arm3.dk3-near{animation:dkan-think-near max(1.8s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=think] .dk3-arm3.dk3-far{transform:translateZ(-7px) rotateZ(3deg);}",
+	".dkan-bot-scene[data-phase=think] .dk3-near .dk3-elbow{transform:rotateZ(-28deg) translateY(-1px);}",
+	".dkan-bot-scene[data-phase=think] .dk3-near .dk3-wrist3{transform:rotateZ(-18deg) translateY(-1px);}",
+	"@keyframes dkan-think-upper{0%,44%{transform:rotateZ(-1deg) translateY(0)}62%,100%{transform:rotateZ(-1.8deg) translateY(-.5px)}}",
+	"@keyframes dkan-think-head{0%,44%{transform:var(--dk3-head-turn) rotateZ(-3deg)}62%,100%{transform:var(--dk3-head-turn) rotateZ(-6deg) translateY(-.5px)}}",
+	"@keyframes dkan-think-near{0%,44%{transform:rotateZ(-31deg) translate(-8px,-14.5px)}62%,100%{transform:rotateZ(-34deg) translate(-8.5px,-15px)}}",
+	// write/code：身体仍面向桌面，仅轻微前倾；主要由手腕和手指敲击。
+	".dkan-bot-scene[data-phase=write] .dk3-mon3.right .dk3-screen,.dkan-bot-scene[data-phase=code] .dk3-mon3.right .dk3-screen{opacity:1;box-shadow:0 0 11px color-mix(in srgb,var(--dkan-code-b,#60a5fa) 52%,transparent);}",
+	".dkan-bot-scene[data-phase=write] .dk3-mon3.right .dk3-code,.dkan-bot-scene[data-phase=code] .dk3-mon3.right .dk3-code{animation-duration:calc(1.35s / var(--dkan-speed,1));}",
+	".dkan-bot-scene[data-phase=write] .dk3-upper3,.dkan-bot-scene[data-phase=code] .dk3-upper3{animation:dkan-code-upper max(1.2s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-near,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-near{transform:rotateZ(3deg);}",
+	".dkan-bot-scene[data-phase=write] .dk3-arm3.dk3-far,.dkan-bot-scene[data-phase=code] .dk3-arm3.dk3-far{transform:translateZ(-7px) rotateZ(1deg);}",
+	".dkan-bot-scene[data-phase=write] .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-elbow{animation:dkan-type-elbow max(.28s,calc(.58s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=write] .dk3-wrist3,.dkan-bot-scene[data-phase=code] .dk3-wrist3{animation:dkan-type-wrist max(.18s,calc(.29s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=write] .dk3-far .dk3-elbow,.dkan-bot-scene[data-phase=code] .dk3-far .dk3-elbow{animation-delay:-.09s;animation-duration:max(.3s,calc(.63s / var(--dkan-speed,1)));}",
+	".dkan-bot-scene[data-phase=write] .dk3-far .dk3-wrist3,.dkan-bot-scene[data-phase=code] .dk3-far .dk3-wrist3{animation-delay:-.09s;animation-duration:max(.2s,calc(.33s / var(--dkan-speed,1)));}",
+	".dkan-bot-scene[data-phase=write] .dk3-head3,.dkan-bot-scene[data-phase=code] .dk3-head3{animation:dkan-output-head max(1.2s,calc(2.4s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	"@keyframes dkan-code-upper{0%,38%{transform:rotateZ(2deg) translate(1px,0)}62%,100%{transform:rotateZ(3deg) translate(1px,1px)}}",
+	"@keyframes dkan-type-elbow{0%,38%{transform:rotateZ(-4deg)}62%,100%{transform:rotateZ(5deg) translateY(1px)}}",
+	"@keyframes dkan-type-wrist{0%,34%{transform:rotateZ(-2deg) translateY(0)}62%,100%{transform:rotateZ(3deg) translateY(1.5px)}}",
+	"@keyframes dkan-output-head{0%,46%,100%{transform:var(--dk3-head-turn) rotateZ(3deg)}58%{transform:var(--dk3-head-turn) rotateZ(5deg) translateY(1px)}}",
+	// search：身体正对桌面，头看左屏，近侧手腕小幅操作鼠标。
+	".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-screen{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--dkan-code-a,#4ade80) 52%,transparent);}",
+	".dkan-bot-scene[data-phase=search] .dk3-mon3.left .dk3-search-results{animation-duration:calc(1.05s / var(--dkan-speed,1));}",
+	".dkan-bot-scene[data-phase=search] .dk3-upper3{transform:rotateZ(2deg) translateY(1px);}",
+	".dkan-bot-scene[data-phase=search] .dk3-head3{animation:dkan-search-head max(.72s,calc(1.15s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=search] .dk3-near .dk3-wrist3{animation:dkan-search-wrist max(.45s,calc(.72s / var(--dkan-speed,1))) cubic-bezier(.77,0,.175,1) infinite;}",
+	".dkan-bot-scene[data-phase=search] .dk3-far{transform:translateZ(-7px) rotateZ(2deg);}",
+	"@keyframes dkan-search-head{0%,28%{transform:var(--dk3-head-turn) rotateZ(1deg)}48%,68%{transform:var(--dk3-head-turn) rotateZ(6deg) translate(1px,1px)}88%,100%{transform:var(--dk3-head-turn) rotateZ(2deg)}}",
+	"@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
+	// 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
+	"@media (prefers-reduced-motion:reduce){.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
 	// 通知子选项行
 	".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
 	".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
