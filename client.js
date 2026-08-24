@@ -952,7 +952,7 @@ function ModelsView() {
         {
           key: v,
           className: "dkm-check",
-          title: v === "image" ? "\u52FE\u9009=\u7AEF\u70B9\u539F\u751F\u652F\u6301\u56FE\u7247\uFF08\u539F\u56FE\u76F4\u53D1\uFF0C\u56FE\u7247\u7406\u89E3\u4EE3\u7406\u8DF3\u8FC7\uFF09\uFF1B\u7EAF\u6587\u672C\u6A21\u578B\u52FF\u52FE\u2014\u2014\u6536\u56FE\u4F1A\u81EA\u52A8\u4EA4\u7ED9\u56FE\u7247\u7406\u89E3\u4EE3\u7406\u8BC6\u522B" : null
+          title: v === "image" ? "\u7531\u4F60\u58F0\u660E\u8BE5\u7AEF\u70B9\u652F\u6301\u56FE\u7247\uFF1A\u4FDD\u5B58\u540E\u539F\u56FE\u76F4\u53D1\uFF0C\u5E76\u53EF\u4F5C\u4E3A\u89C6\u89C9\u6A21\u578B\u5019\u9009\u3002\u7CFB\u7EDF\u4E0D\u4F1A\u66FF\u4F60\u731C\u6D4B\uFF1B\u7AEF\u70B9\u5B9E\u9645\u4E0D\u652F\u6301\u65F6\u53D6\u6D88\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406" : null
         },
         import_react3.default.createElement("input", {
           type: "checkbox",
@@ -1042,12 +1042,22 @@ function ModelsView() {
   }
   if (data && data.visionProxy !== void 0 && vpDraft) {
     const runtimeImage = (m) => Array.isArray(m.runtimeInput) && m.runtimeInput.indexOf("image") >= 0;
+    const declaredImage = (m) => Array.isArray(m.input) && m.input.indexOf("image") >= 0;
     const vpDirect = [];
     const vpProxied = [];
     for (const p of providers) {
       for (const m of p.models || []) {
-        const item = { key: p.id + "/" + m.id, label: (p.displayName || p.id) + " / " + (m.name || m.id), model: m.name || m.id };
-        (runtimeImage(m) ? vpDirect : vpProxied).push(item);
+        const declared = declaredImage(m);
+        const runtime = runtimeImage(m);
+        const source = declared ? "\u4F60\u5DF2\u6807\u8BB0\u56FE\u7247" : runtime ? "\u8FD0\u884C\u65F6\u8BC6\u522B" : "\u672A\u6807\u8BB0\u56FE\u7247";
+        const item = {
+          key: p.id + "/" + m.id,
+          label: (p.displayName || p.id) + " / " + (m.name || m.id) + "\uFF08" + source + "\uFF09",
+          model: m.name || m.id,
+          source,
+          declared
+        };
+        (declared || runtime ? vpDirect : vpProxied).push(item);
       }
     }
     const vpCandidates = vpDirect.slice();
@@ -1102,12 +1112,12 @@ function ModelsView() {
           !vpKnown && vpDraft.provider ? import_react3.default.createElement("option", { value: vpKey }, vpDraft.provider + " / " + vpDraft.model + "\uFF08\u5F53\u524D\uFF09") : null,
           vpCandidates.map((c) => import_react3.default.createElement("option", { key: c.key, value: c.key }, c.label))
         ),
-        vpCandidates.length === 0 ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u76EE\u5F55\u91CC\u6682\u65E0\u591A\u6A21\u6001\u6A21\u578B\u2014\u2014\u5148\u5728\u4E0B\u65B9\u7ED9\u771F\xB7\u591A\u6A21\u6001\u6A21\u578B\u52FE\u9009\u300C\u56FE\u7247\u300D\u8F93\u5165\u7C7B\u578B") : null
+        vpCandidates.length === 0 ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u8FD8\u6CA1\u6709\u6807\u8BB0\u56FE\u7247\u80FD\u529B\u7684\u6A21\u578B\u2014\u2014\u5728\u4E0B\u65B9\u7ED9\u4F60\u786E\u8BA4\u652F\u6301\u56FE\u7247\u7684\u6A21\u578B\u52FE\u9009\u300C\u56FE\u7247\u300D\u5E76\u4FDD\u5B58") : null
       ),
       import_react3.default.createElement(
         "div",
         { className: "dkm-sub" },
-        "\u5019\u9009\u4EC5\u6765\u81EA\u672C\u6B21\u8FD0\u884C\u65F6\u6210\u529F\u89E3\u6790\u4E14\u58F0\u660E\u652F\u6301\u56FE\u7247\u7684\u6A21\u578B\uFF1B\u5B83\u4E0D\u4EE3\u8868\u5DF2\u8054\u7F51\u5B9E\u6D4B\u53EF\u8C03\u7528\uFF0C\u5B9E\u9645\u53EF\u7528\u6027\u4ECD\u53D6\u51B3\u4E8E Provider \u51ED\u636E\u3001\u989D\u5EA6\u4E0E\u4E0A\u6E38\u670D\u52A1\u3002\u82E5\u7AEF\u70B9\u5B9E\u9645\u4E0D\u8BA4\u56FE\u5374\u58F0\u660E\u652F\u6301\u56FE\u7247\uFF0C\u6A21\u578B\u4F1A\u770B\u4E0D\u89C1\u56FE\u7247\u3001\u8F6C\u800C\u7528\u5DE5\u5177\u778E\u6298\u817E\u2014\u2014\u4E0D\u786E\u5B9A\u5C31\u4E0D\u8981\u52FE\uFF0C\u4EA4\u7ED9\u4EE3\u7406\u3002"
+        "\u4EE5\u4F60\u5728\u4E0B\u65B9\u52FE\u9009\u7684\u300C\u56FE\u7247\u300D\u4E3A\u51C6\uFF1B\u8FD0\u884C\u65F6\u8BC6\u522B\u53EA\u662F\u8F85\u52A9\u63D0\u793A\u3002\u5B83\u4E0D\u4EE3\u8868\u5DF2\u8054\u7F51\u5B9E\u6D4B\u53EF\u8C03\u7528\uFF0C\u5B9E\u9645\u53EF\u7528\u6027\u4ECD\u53D6\u51B3\u4E8E Provider \u51ED\u636E\u3001\u989D\u5EA6\u4E0E\u4E0A\u6E38\u670D\u52A1\u3002\u82E5\u7AEF\u70B9\u5B9E\u9645\u4E0D\u8BA4\u56FE\uFF0C\u53D6\u6D88\u8BE5\u6A21\u578B\u7684\u300C\u56FE\u7247\u300D\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406\u3002"
       ),
       vpDirect.length > 0 ? import_react3.default.createElement(
         "div",
@@ -1115,7 +1125,7 @@ function ModelsView() {
         import_react3.default.createElement(
           "div",
           { className: "dkm-checks" },
-          import_react3.default.createElement("span", { className: "dkm-label" }, "\u539F\u56FE\u76F4\u53D1\u5019\u9009\uFF08\u8FD0\u884C\u65F6\u5DF2\u58F0\u660E\u56FE\u7247\u80FD\u529B\uFF0C" + vpDirect.length + "\uFF09\uFF1A"),
+          import_react3.default.createElement("span", { className: "dkm-label" }, "\u539F\u56FE\u76F4\u53D1\u5019\u9009\uFF08\u4F60\u7684\u6807\u8BB0\u4F18\u5148\uFF0C" + vpDirect.length + "\uFF09\uFF1A"),
           import_react3.default.createElement("button", {
             type: "button",
             className: "dkm-mini",
@@ -1126,13 +1136,13 @@ function ModelsView() {
         vpDirectExpanded ? import_react3.default.createElement(
           "div",
           { className: "dkm-checks dkm-capability-list" },
-          vpDirect.map((c) => import_react3.default.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model))
+          vpDirect.map((c) => import_react3.default.createElement("span", { key: c.key, className: "dkm-chip", title: c.key + " \xB7 " + c.source }, c.model))
         ) : null
       ) : null,
       vpProxied.length > 0 ? import_react3.default.createElement(
         "div",
         { className: "dkm-checks" },
-        import_react3.default.createElement("span", { className: "dkm-label" }, "\u8D70\u89C6\u89C9\u4EE3\u7406\uFF08\u7EAF\u6587\u672C\uFF0C" + vpProxied.length + "\uFF09\uFF1A"),
+        import_react3.default.createElement("span", { className: "dkm-label" }, "\u8D70\u89C6\u89C9\u4EE3\u7406\uFF08\u672A\u6807\u8BB0\u56FE\u7247\uFF0C" + vpProxied.length + "\uFF09\uFF1A"),
         import_react3.default.createElement("span", { className: "dkm-sub" }, vpProxied.map((c) => c.model).join("\u3001"))
       ) : null,
       import_react3.default.createElement(
