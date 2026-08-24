@@ -107,9 +107,13 @@ const SHELL_CSS = [
 	".dock-badge{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 10px;font-size:12px;}",
 	".dock-body{border-top:1px solid var(--dsw-alias-border-l1);padding-top:8px;color:var(--dsw-alias-label-secondary);display:flex;flex-direction:column;gap:4px;}",
 	// 侧栏入口按钮（docke2- 前缀）+ 功能坞弹出面板（dockm- 前缀，仿 dsh 设置的居中模态：遮罩 + 对话框，左导航 + 右内容）
-	".docke2-btn{box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--dsw-alias-label-secondary);border-radius:10px;height:32px;font-family:inherit;font-size:13px;line-height:32px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
-	".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+	// 侧栏入口按钮（docke2- 前缀）：与 dsh 设置按钮（.VOzbGW_trigger）几何逐条对齐——
+	// 宽栏同为整宽左对齐行按钮（高 42、margin 4/-2、padding 0 10px 0 8px、圆角 12），窄栏同为 36 圆钮居中，
+	// 使两按钮上下成列、左右边缘完全对齐（此前右对齐/叠放都会错位）。
+	".docke2-btn{box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;border:none;background:transparent;color:var(--dsw-alias-label-primary);border-radius:12px;width:calc(100% + 4px);height:42px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+	".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
 	".docke2-btn.docke2-on{color:var(--dsw-alias-accent,#4d9fff);background:var(--dsw-alias-accent-soft,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 12%,transparent));}",
+	".docke2-btn.docke2-rail{width:36px;height:36px;margin:8px 0 10px;padding:0;border-radius:50%;justify-content:center;gap:0;}",
 	".docke2-label{white-space:nowrap;overflow:hidden;}",
 	".dockm-backdrop{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 55%,transparent);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
 	"@keyframes dockm-fade{from{opacity:0}to{opacity:1}}",
@@ -174,8 +178,15 @@ const SHELL_CSS = [
 	".dockh-foot{display:flex;align-items:center;gap:8px;}",
 	".dockh-go{color:var(--dsw-alias-label-tertiary);font-size:11px;}",
 	// 会话输入区工具行 chips（dockchip- 前缀）：余额/用量随身小控件，挂在模型选择器左侧
-	".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;}",
-	".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+	// 溢出兼容（两层防护，缺一不可）：
+	//  1) 宽度上限：宿主 .row 是 flex-wrap:wrap 且换行优先于收缩，chips 一长 tools 整行变宽，
+	//     右侧模型选择器/发送键被挤到第二行（左右错位）。宿主 .row 带 container-type:inline-size，
+	//     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定 280px。
+	//  2) 截断：超限部分用省略号截断（完整数值在 title 悬浮提示里），防 chips 凸出输入卡圆角（悬空）。
+	".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:280px;}",
+	"@supports (width:1cqw){.dockchip-row{max-width:min(280px,36cqw);}}",
+	".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+	".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
 	".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
 	".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
 	".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
@@ -221,8 +232,9 @@ function useExternalVersion() {
 // ---- 弹层窗口几何记忆（页面生命周期内）：拖动/缩放后记住位置与尺寸，重开还原 ----
 let lastGeom = { x: null, y: null, w: null, h: null };
 
-function DockIcon() {
-	return react.createElement("svg", { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+function DockIcon(props) {
+	const size = (props && props.size) || 16;
+	return react.createElement("svg", { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
 		react.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
 		react.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
 		react.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
@@ -235,18 +247,12 @@ function DockEntry(props) {
 	react.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
 	return react.createElement("button", {
 		type: "button",
-		className: "docke2-btn" + (open ? " docke2-on" : ""),
-		style: wide
-			// 与设置按钮精确同框：设置 trigger 宽栏 = 42px 高、margin-top 4 → 下移 46px、高度同为 42，
-			// 使本按钮的四条边与设置按钮完全重合（同一水平线）；rail = 36px、margin-top 8 → 下移 44px、高 36 亦然。
-			// zIndex 保证盖在满宽设置按钮之上（其右侧为空白区，不遮齿轮图标）
-			? { marginLeft: "auto", transform: "translateY(46px)", zIndex: 1, height: 42, lineHeight: "42px", padding: "0 12px" }
-			: { transform: "translateY(44px)", zIndex: 1, width: 36, height: 36, justifyContent: "center", padding: 0 },
+		className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
 		title: "功能坞",
 		"aria-label": "功能坞",
 		"aria-expanded": open,
 		onClick: () => setPanelOpen(!open)
-	}, react.createElement(DockIcon, null), wide ? react.createElement("span", { className: "docke2-label" }, "功能坞") : null);
+	}, react.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? react.createElement("span", { className: "docke2-label" }, "功能坞") : null);
 }
 
 // ---- 功能坞弹出面板：shell.overlay（仿 dsh 设置：居中模态 = 遮罩 + 对话框） ----
