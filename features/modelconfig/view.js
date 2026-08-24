@@ -12,8 +12,10 @@ const modelsStore = {
 	set(patch) { this.snap = Object.assign({}, this.snap, patch); for (const fn of this.listeners) fn(); },
 	load() {
 		if (this.snap.loading) return;
-		this.set({ loading: true });
-		fetch("/dsh-dock/models", { signal: AbortSignal.timeout(20000) })
+		this.set({ loading: true, error: null });
+		// Provider 可在 DSH 原生模型设置中随时增删；不要复用浏览器缓存，
+		// 否则返回本页时仍可能看到旧的共享快照。
+		fetch("/dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(20000) })
 			.then((res) => (res.ok ? res.json() : Promise.reject(new Error("模型目录接口 HTTP " + res.status))))
 			.then((data) => this.set({ data: data, loading: false, error: null }))
 			.catch((e) => this.set({ loading: false, error: (e && e.message) || String(e) }));
@@ -81,6 +83,15 @@ function ModelsView() {
 	const [vpDirty, setVpDirty] = react.useState(false);
 	const [vpSaving, setVpSaving] = react.useState(false);
 	const [vpMsg, setVpMsg] = react.useState(null);
+	const [vpDirectExpanded, setVpDirectExpanded] = react.useState(false);
+
+	// 每次进入模型设置都重新读取官方目录。modelsStore 是跨页面共享快照，
+	// 原生设置刚新增 Provider 时不能要求用户再滚到页面底部手动刷新。
+	react.useEffect(() => { modelsStore.load(); }, []);
+	const refreshModels = () => {
+		setBuiltKey(null);
+		modelsStore.load();
+	};
 
 	const cur = providers.length > 0 ? (providers.find((p) => p.id === selId) || providers[0]) : null;
 	// 选中 Provider 或目录刷新时重建草稿（render 期受控重置；msg 只在切 Provider/编辑时清）
@@ -251,6 +262,11 @@ function ModelsView() {
 					react.createElement("button", { type: "button", className: "dkm-mini", title: "一键取消全部强度档", onClick: () => patchModel(i, allLevels(false)) }, "取消全选"))));
 
 	const body = [];
+	if (data) {
+		body.push(react.createElement("div", { key: "refresh", className: "dkm-topbar" },
+			react.createElement("span", { className: "dkm-sub" }, "已载入 " + providers.length + " 个 Provider；在 DSH 原生模型设置中新增后，返回本页会自动更新"),
+			react.createElement("button", { type: "button", className: "dkb-refresh", disabled: snap.loading || saving, onClick: refreshModels }, snap.loading ? "刷新中…" : "刷新模型目录")));
+	}
 	if (snap.error) {
 		body.push(react.createElement("div", { key: "err", className: "dkm-error" },
 			"模型目录拉取失败：" + snap.error + " ",
@@ -266,14 +282,16 @@ function ModelsView() {
 			"图片理解代理需要新版宿主进程：当前 dsh web 较旧，重启后此面板可用。"));
 	}
 	if (data && data.visionProxy !== undefined && vpDraft) {
-		// 图片能力以运行时视角（runtimeInput，与官方投影同源）为准，无则回退条目 input
-		const effInput = (m) => (m.runtimeInput && m.runtimeInput.length > 0 ? m.runtimeInput : m.input) || [];
+		// 候选必须由运行时成功解析并明确声明图片能力；不再用本地条目 input
+		// 回退猜测，避免把“手动勾选图片”或无法解析的模型展示成可用视觉模型。
+		// 这仍不等同于联网实测：凭据、配额和上游服务状态只能在真实调用时确认。
+		const runtimeImage = (m) => Array.isArray(m.runtimeInput) && m.runtimeInput.indexOf("image") >= 0;
 		const vpDirect = [];
 		const vpProxied = [];
 		for (const p of providers) {
 			for (const m of (p.models || [])) {
 				const item = { key: p.id + "/" + m.id, label: (p.displayName || p.id) + " / " + (m.name || m.id), model: m.name || m.id };
-				(effInput(m).indexOf("image") >= 0 ? vpDirect : vpProxied).push(item);
+				(runtimeImage(m) ? vpDirect : vpProxied).push(item);
 			}
 		}
 		const vpCandidates = vpDirect.slice();
@@ -312,11 +330,21 @@ function ModelsView() {
 					? react.createElement("span", { className: "dkm-sub" }, "目录里暂无多模态模型——先在下方给真·多模态模型勾选「图片」输入类型")
 					: null),
 			react.createElement("div", { className: "dkm-sub" },
-				"判定与官方运行时同源：「图片」勾选（或目录默认）= 端点原生支持、原图直发；其余模型收图自动走视觉模型。注意：若端点实际不认图却勾了「图片」，模型会看不见图片、转而用工具瞎折腾——不确定就不要勾，交给代理。"),
+				"候选仅来自本次运行时成功解析且声明支持图片的模型；它不代表已联网实测可调用，实际可用性仍取决于 Provider 凭据、额度与上游服务。若端点实际不认图却声明支持图片，模型会看不见图片、转而用工具瞎折腾——不确定就不要勾，交给代理。"),
 			vpDirect.length > 0
-				? react.createElement("div", { className: "dkm-checks" },
-					react.createElement("span", { className: "dkm-label" }, "原图直发（多模态，" + vpDirect.length + "）："),
-					vpDirect.map((c) => react.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model)))
+				? react.createElement("div", { className: "dkm-capabilities" },
+					react.createElement("div", { className: "dkm-checks" },
+						react.createElement("span", { className: "dkm-label" }, "原图直发候选（运行时已声明图片能力，" + vpDirect.length + "）："),
+						react.createElement("button", {
+							type: "button",
+							className: "dkm-mini",
+							"aria-expanded": vpDirectExpanded,
+							onClick: () => setVpDirectExpanded(!vpDirectExpanded)
+						}, vpDirectExpanded ? "收起列表" : "展开列表")),
+					vpDirectExpanded
+						? react.createElement("div", { className: "dkm-checks dkm-capability-list" },
+							vpDirect.map((c) => react.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model)))
+						: null)
 				: null,
 			vpProxied.length > 0
 				? react.createElement("div", { className: "dkm-checks" },
@@ -379,7 +407,7 @@ function ModelsView() {
 			react.createElement("div", { className: "dkm-savebar" },
 				react.createElement("span", { className: "dkm-msg" }, dirty ? "有未保存的修改" : "无未保存修改"),
 				react.createElement("button", { type: "button", className: "dkm-save", disabled: !dirty || saving, onClick: save }, saving ? "保存中…" : "保存写回官方配置"),
-				react.createElement("button", { type: "button", className: "dkb-refresh", disabled: saving, onClick: () => { setBuiltKey(null); modelsStore.load(); } }, "重新拉取"),
+				react.createElement("button", { type: "button", className: "dkb-refresh", disabled: saving || snap.loading, onClick: refreshModels }, snap.loading ? "刷新中…" : "重新拉取"),
 				msg ? react.createElement("span", { className: "dkm-msg " + (msg.ok ? "ok" : "err") }, msg.text) : null)));
 	}
 	return react.createElement("div", { className: "dkm-list" }, body);
@@ -438,6 +466,9 @@ export const feature = {
 		".dkm-msg.ok{color:var(--dsw-alias-state-success-primary);}",
 		".dkm-msg.err{color:var(--dsw-alias-state-error-primary);}",
 		".dkm-list{display:flex;flex-direction:column;gap:8px;}",
+		".dkm-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}",
+		".dkm-capabilities{display:flex;flex-direction:column;gap:6px;}",
+		".dkm-capability-list{max-height:168px;overflow:auto;padding:2px 0 2px 2px;}",
 		".dkm-ro{color:var(--dsw-alias-label-secondary);font-size:12px;}",
 		".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
 		".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",

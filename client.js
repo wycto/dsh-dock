@@ -768,8 +768,8 @@ var modelsStore = {
   },
   load() {
     if (this.snap.loading) return;
-    this.set({ loading: true });
-    fetch("/dsh-dock/models", { signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+    this.set({ loading: true, error: null });
+    fetch("/dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
   }
 };
 function useModels() {
@@ -826,6 +826,14 @@ function ModelsView() {
   const [vpDirty, setVpDirty] = import_react3.default.useState(false);
   const [vpSaving, setVpSaving] = import_react3.default.useState(false);
   const [vpMsg, setVpMsg] = import_react3.default.useState(null);
+  const [vpDirectExpanded, setVpDirectExpanded] = import_react3.default.useState(false);
+  import_react3.default.useEffect(() => {
+    modelsStore.load();
+  }, []);
+  const refreshModels = () => {
+    setBuiltKey(null);
+    modelsStore.load();
+  };
   const cur = providers.length > 0 ? providers.find((p) => p.id === selId) || providers[0] : null;
   const wantKey = cur ? cur.id + ":" + String(data && data.generatedAt || 0) : null;
   if (cur && builtKey !== wantKey) {
@@ -1007,6 +1015,14 @@ function ModelsView() {
     )
   );
   const body = [];
+  if (data) {
+    body.push(import_react3.default.createElement(
+      "div",
+      { key: "refresh", className: "dkm-topbar" },
+      import_react3.default.createElement("span", { className: "dkm-sub" }, "\u5DF2\u8F7D\u5165 " + providers.length + " \u4E2A Provider\uFF1B\u5728 DSH \u539F\u751F\u6A21\u578B\u8BBE\u7F6E\u4E2D\u65B0\u589E\u540E\uFF0C\u8FD4\u56DE\u672C\u9875\u4F1A\u81EA\u52A8\u66F4\u65B0"),
+      import_react3.default.createElement("button", { type: "button", className: "dkb-refresh", disabled: snap.loading || saving, onClick: refreshModels }, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u5237\u65B0\u6A21\u578B\u76EE\u5F55")
+    ));
+  }
   if (snap.error) {
     body.push(import_react3.default.createElement(
       "div",
@@ -1025,13 +1041,13 @@ function ModelsView() {
     ));
   }
   if (data && data.visionProxy !== void 0 && vpDraft) {
-    const effInput = (m) => (m.runtimeInput && m.runtimeInput.length > 0 ? m.runtimeInput : m.input) || [];
+    const runtimeImage = (m) => Array.isArray(m.runtimeInput) && m.runtimeInput.indexOf("image") >= 0;
     const vpDirect = [];
     const vpProxied = [];
     for (const p of providers) {
       for (const m of p.models || []) {
         const item = { key: p.id + "/" + m.id, label: (p.displayName || p.id) + " / " + (m.name || m.id), model: m.name || m.id };
-        (effInput(m).indexOf("image") >= 0 ? vpDirect : vpProxied).push(item);
+        (runtimeImage(m) ? vpDirect : vpProxied).push(item);
       }
     }
     const vpCandidates = vpDirect.slice();
@@ -1091,13 +1107,27 @@ function ModelsView() {
       import_react3.default.createElement(
         "div",
         { className: "dkm-sub" },
-        "\u5224\u5B9A\u4E0E\u5B98\u65B9\u8FD0\u884C\u65F6\u540C\u6E90\uFF1A\u300C\u56FE\u7247\u300D\u52FE\u9009\uFF08\u6216\u76EE\u5F55\u9ED8\u8BA4\uFF09= \u7AEF\u70B9\u539F\u751F\u652F\u6301\u3001\u539F\u56FE\u76F4\u53D1\uFF1B\u5176\u4F59\u6A21\u578B\u6536\u56FE\u81EA\u52A8\u8D70\u89C6\u89C9\u6A21\u578B\u3002\u6CE8\u610F\uFF1A\u82E5\u7AEF\u70B9\u5B9E\u9645\u4E0D\u8BA4\u56FE\u5374\u52FE\u4E86\u300C\u56FE\u7247\u300D\uFF0C\u6A21\u578B\u4F1A\u770B\u4E0D\u89C1\u56FE\u7247\u3001\u8F6C\u800C\u7528\u5DE5\u5177\u778E\u6298\u817E\u2014\u2014\u4E0D\u786E\u5B9A\u5C31\u4E0D\u8981\u52FE\uFF0C\u4EA4\u7ED9\u4EE3\u7406\u3002"
+        "\u5019\u9009\u4EC5\u6765\u81EA\u672C\u6B21\u8FD0\u884C\u65F6\u6210\u529F\u89E3\u6790\u4E14\u58F0\u660E\u652F\u6301\u56FE\u7247\u7684\u6A21\u578B\uFF1B\u5B83\u4E0D\u4EE3\u8868\u5DF2\u8054\u7F51\u5B9E\u6D4B\u53EF\u8C03\u7528\uFF0C\u5B9E\u9645\u53EF\u7528\u6027\u4ECD\u53D6\u51B3\u4E8E Provider \u51ED\u636E\u3001\u989D\u5EA6\u4E0E\u4E0A\u6E38\u670D\u52A1\u3002\u82E5\u7AEF\u70B9\u5B9E\u9645\u4E0D\u8BA4\u56FE\u5374\u58F0\u660E\u652F\u6301\u56FE\u7247\uFF0C\u6A21\u578B\u4F1A\u770B\u4E0D\u89C1\u56FE\u7247\u3001\u8F6C\u800C\u7528\u5DE5\u5177\u778E\u6298\u817E\u2014\u2014\u4E0D\u786E\u5B9A\u5C31\u4E0D\u8981\u52FE\uFF0C\u4EA4\u7ED9\u4EE3\u7406\u3002"
       ),
       vpDirect.length > 0 ? import_react3.default.createElement(
         "div",
-        { className: "dkm-checks" },
-        import_react3.default.createElement("span", { className: "dkm-label" }, "\u539F\u56FE\u76F4\u53D1\uFF08\u591A\u6A21\u6001\uFF0C" + vpDirect.length + "\uFF09\uFF1A"),
-        vpDirect.map((c) => import_react3.default.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model))
+        { className: "dkm-capabilities" },
+        import_react3.default.createElement(
+          "div",
+          { className: "dkm-checks" },
+          import_react3.default.createElement("span", { className: "dkm-label" }, "\u539F\u56FE\u76F4\u53D1\u5019\u9009\uFF08\u8FD0\u884C\u65F6\u5DF2\u58F0\u660E\u56FE\u7247\u80FD\u529B\uFF0C" + vpDirect.length + "\uFF09\uFF1A"),
+          import_react3.default.createElement("button", {
+            type: "button",
+            className: "dkm-mini",
+            "aria-expanded": vpDirectExpanded,
+            onClick: () => setVpDirectExpanded(!vpDirectExpanded)
+          }, vpDirectExpanded ? "\u6536\u8D77\u5217\u8868" : "\u5C55\u5F00\u5217\u8868")
+        ),
+        vpDirectExpanded ? import_react3.default.createElement(
+          "div",
+          { className: "dkm-checks dkm-capability-list" },
+          vpDirect.map((c) => import_react3.default.createElement("span", { key: c.key, className: "dkm-chip", title: c.key }, c.model))
+        ) : null
       ) : null,
       vpProxied.length > 0 ? import_react3.default.createElement(
         "div",
@@ -1182,10 +1212,7 @@ function ModelsView() {
         { className: "dkm-savebar" },
         import_react3.default.createElement("span", { className: "dkm-msg" }, dirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : "\u65E0\u672A\u4FDD\u5B58\u4FEE\u6539"),
         import_react3.default.createElement("button", { type: "button", className: "dkm-save", disabled: !dirty || saving, onClick: save }, saving ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u5199\u56DE\u5B98\u65B9\u914D\u7F6E"),
-        import_react3.default.createElement("button", { type: "button", className: "dkb-refresh", disabled: saving, onClick: () => {
-          setBuiltKey(null);
-          modelsStore.load();
-        } }, "\u91CD\u65B0\u62C9\u53D6"),
+        import_react3.default.createElement("button", { type: "button", className: "dkb-refresh", disabled: saving || snap.loading, onClick: refreshModels }, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u91CD\u65B0\u62C9\u53D6"),
         msg ? import_react3.default.createElement("span", { className: "dkm-msg " + (msg.ok ? "ok" : "err") }, msg.text) : null
       )
     ));
@@ -1244,6 +1271,9 @@ var feature2 = {
     ".dkm-msg.ok{color:var(--dsw-alias-state-success-primary);}",
     ".dkm-msg.err{color:var(--dsw-alias-state-error-primary);}",
     ".dkm-list{display:flex;flex-direction:column;gap:8px;}",
+    ".dkm-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}",
+    ".dkm-capabilities{display:flex;flex-direction:column;gap:6px;}",
+    ".dkm-capability-list{max-height:168px;overflow:auto;padding:2px 0 2px 2px;}",
     ".dkm-ro{color:var(--dsw-alias-label-secondary);font-size:12px;}",
     ".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
     ".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
