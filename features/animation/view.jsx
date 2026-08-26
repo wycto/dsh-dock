@@ -43,7 +43,20 @@ const EFFECT_MODES = [
 	{ id: "matrix", name: "代码雨", desc: "字符沿屏幕缓落如数据流，速度随任务吞吐，克制的低透明度" },
 	{ id: "stars", name: "星野", desc: "细碎星点缓慢飘移闪烁，安静耐看的背景氛围" },
 	{ id: "aurora", name: "极光", desc: "屏幕顶部柔光带缓慢呼吸流动，像极光拂过" },
+	{ id: "space", name: "星际远征", desc: "任务中星球与飞船巡航；完成后货运旗舰携实际输出量停靠输入框" },
+	{ id: "nebula", name: "星云潮汐", desc: "四团彩色星云在屏幕边缘缓慢潮汐，阶段色随任务改变" },
+	{ id: "warp", name: "曲速航道", desc: "光束从屏幕中心向外拉伸，吞吐越高曲速越快" },
+	{ id: "radar", name: "量子雷达", desc: "三座边缘雷达持续扫描，任务活动化作跳动信标" },
+	{ id: "constellation", name: "星座网络", desc: "节点与连线逐段点亮，像任务知识图谱在生长" },
+	{ id: "fireflies", name: "数据萤火", desc: "轻盈光点在空白区游弋，活跃阶段会更明亮" },
+	{ id: "ocean", name: "深海脉动", desc: "低透明度波层与气泡缓慢上浮，安静但富有生命感" },
+	{ id: "prism", name: "棱镜光谱", desc: "彩色光束从屏幕边缘折射穿行，形成克制的玻璃光感" },
+	{ id: "circuit", name: "神经电路", desc: "电路路径依次通电，脉冲速度跟随代码与工具活动" },
+	{ id: "gravity", name: "引力涟漪", desc: "多个引力源向外扩散波纹，任务越快涟漪越紧密" },
+	{ id: "lantern", name: "灵感天灯", desc: "微型灵感灯从屏幕底部缓慢升起，留下温暖光迹" },
 ];
+
+const AMBIENT_EFFECT_MODES = new Set(["matrix", "stars", "aurora", "space", "nebula", "warp", "radar", "constellation", "fireflies", "ocean", "prism", "circuit", "gravity", "lantern"]);
 
 // 任务阶段 → 机器人行为/文案（host 按 chunk/事件实时推导：
 // reasoning-delta=think、text-delta=write、tool 名分类=search/code）
@@ -415,17 +428,37 @@ const MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
 	const mode = props.mode;
 	const speed = props.speed;
-	const matrix = useMemo(() => makeBits(34, () => ({
-		l: Math.random() * 100, d: 4 + Math.random() * 6, delay: -Math.random() * 8, o: 0.28 + Math.random() * 0.34, s: 11 + Math.round(Math.random() * 4),
-		c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)],
-	})), []);
-	const stars = useMemo(() => makeBits(80, () => ({
-		l: Math.random() * 100, t: Math.random() * 100, sz: 1.5 + Math.random() * 2, d: 2 + Math.random() * 4, delay: -Math.random() * 6, dx: (Math.random() - 0.5) * 40, dy: (Math.random() - 0.5) * 24,
-	})), []);
+	// 一个模式只创建自己需要的粒子；星际模式不再额外生成代码雨和星野的 114 个无用节点。
+	const particles = useMemo(() => {
+		if (mode === "matrix") return { matrix: makeBits(34, () => ({
+			l: Math.random() * 100, d: 4 + Math.random() * 6, delay: -Math.random() * 8, o: 0.28 + Math.random() * 0.34, s: 11 + Math.round(Math.random() * 4),
+			c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)],
+		})) };
+		if (mode === "stars") return { stars: makeBits(80, () => ({
+			l: Math.random() * 100, t: Math.random() * 100, sz: 1.5 + Math.random() * 2, d: 2 + Math.random() * 4, delay: -Math.random() * 6, dx: (Math.random() - 0.5) * 40, dy: (Math.random() - 0.5) * 24,
+		})) };
+		if (mode === "space") return { dust: makeBits(22, () => ({
+			l: Math.random() * 100, t: Math.random() * 82, sz: 1 + Math.random() * 2.2, d: 2.4 + Math.random() * 3.8, delay: -Math.random() * 6,
+		})) };
+		if (mode === "warp") return { warp: makeBits(28, () => ({
+			a: Math.random() * 360, len: 54 + Math.random() * 130, d: 1.8 + Math.random() * 2.4, delay: -Math.random() * 4,
+		})) };
+		if (mode === "fireflies") return { fireflies: makeBits(28, () => ({
+			l: 4 + Math.random() * 92, t: 8 + Math.random() * 78, sz: 3 + Math.random() * 5, dx: -42 + Math.random() * 84, dy: -32 + Math.random() * 64, d: 4.8 + Math.random() * 5.4, delay: -Math.random() * 8,
+		})) };
+		if (mode === "ocean") return { bubbles: makeBits(18, () => ({
+			l: 3 + Math.random() * 94, sz: 4 + Math.random() * 12, d: 5 + Math.random() * 6, delay: -Math.random() * 9, drift: -34 + Math.random() * 68,
+		})) };
+		if (mode === "lantern") return { lanterns: makeBits(18, () => ({
+			l: 4 + Math.random() * 92, sz: 8 + Math.random() * 9, d: 7 + Math.random() * 7, delay: -Math.random() * 12, drift: -48 + Math.random() * 96,
+		})) };
+		return {};
+	}, [mode]);
+	const ambientStyle = { "--dkan-speed": speed, "--dkan-phase": phaseColor(props.phase) };
 	if (mode === "matrix") {
 		return (
 			<div className="dkan-amb dkan-matrix" style={{ "--dkan-speed": speed }} aria-hidden="true">
-				{matrix.map((p, i) => (
+				{particles.matrix.map((p, i) => (
 					<span key={i} style={{ left: p.l + "%", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", opacity: p.o, fontSize: p.s }}>{p.c}</span>
 				))}
 			</div>
@@ -434,7 +467,7 @@ function AmbientLayer(props) {
 	if (mode === "stars") {
 		return (
 			<div className="dkan-amb dkan-stars" style={{ "--dkan-speed": speed }} aria-hidden="true">
-				{stars.map((p, i) => (
+				{particles.stars.map((p, i) => (
 					<i key={i} className="dkan-star" style={{ left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" }} />
 				))}
 				<span className="dkan-moon" />
@@ -451,7 +484,310 @@ function AmbientLayer(props) {
 			</div>
 		);
 	}
+	if (mode === "nebula") {
+		return <div className="dkan-amb dkan-nebula" style={ambientStyle} aria-hidden="true"><i /><i /><i /><i /></div>;
+	}
+	if (mode === "warp") {
+		return <div className="dkan-amb dkan-warp" style={ambientStyle} aria-hidden="true">
+			{particles.warp.map((p, i) => <i key={i} style={{ "--a": p.a + "deg", "--len": p.len + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" }} />)}
+		</div>;
+	}
+	if (mode === "radar") {
+		return <div className="dkan-amb dkan-radar" style={ambientStyle} aria-hidden="true">
+			{["a", "b", "c"].map((id) => <span className={"dkan-radar-station " + id} key={id}><i /><b /></span>)}
+		</div>;
+	}
+	if (mode === "constellation") {
+		return <div className="dkan-amb dkan-constellation" style={ambientStyle} aria-hidden="true">
+			<svg viewBox="0 0 100 100" preserveAspectRatio="none">
+				<path pathLength="1" d="M6 68 L18 30 L31 48 L45 18 L58 42 L73 25 L91 58 L78 78 L58 42 L31 48 L18 76 L6 68" />
+				{[[6,68],[18,30],[31,48],[45,18],[58,42],[73,25],[91,58],[78,78],[18,76]].map(([cx, cy], i) => <circle key={i} cx={cx} cy={cy} r={i % 3 === 0 ? 1.1 : .7} style={{ animationDelay: (-i * .24) + "s" }} />)}
+			</svg>
+		</div>;
+	}
+	if (mode === "fireflies") {
+		return <div className="dkan-amb dkan-fireflies" style={ambientStyle} aria-hidden="true">
+			{particles.fireflies.map((p, i) => <i key={i} style={{ left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, "--dx": p.dx + "px", "--dy": p.dy + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" }} />)}
+		</div>;
+	}
+	if (mode === "ocean") {
+		return <div className="dkan-amb dkan-ocean" style={ambientStyle} aria-hidden="true">
+			<span className="dkan-ocean-waves">{Array.from({ length: 5 }, (_, i) => <i key={i} />)}</span>
+			{particles.bubbles.map((p, i) => <b key={i} style={{ left: p.l + "%", width: p.sz, height: p.sz, "--drift": p.drift + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" }} />)}
+		</div>;
+	}
+	if (mode === "prism") {
+		return <div className="dkan-amb dkan-prism" style={ambientStyle} aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} />)}</div>;
+	}
+	if (mode === "circuit") {
+		return <div className="dkan-amb dkan-circuit" style={ambientStyle} aria-hidden="true">
+			<svg viewBox="0 0 1000 600" preserveAspectRatio="none">
+				{["M0 92 H180 V210 H390 V128 H610 V260 H820 V104 H1000", "M0 486 H144 V358 H334 V470 H520 V338 H748 V448 H1000", "M82 0 V126 H264 V286 H472 V196 H694 V320 H914 V600", "M936 0 V148 H776 V278 H566 V410 H350 V548 H112 V600"].map((d, i) => <path key={i} pathLength="1" d={d} style={{ animationDelay: (-i * .7) + "s" }} />)}
+				{[[180,210],[390,128],[610,260],[144,358],[520,338],[264,286],[694,320],[566,410]].map(([cx, cy], i) => <circle key={i} cx={cx} cy={cy} r="5" />)}
+			</svg>
+		</div>;
+	}
+	if (mode === "gravity") {
+		return <div className="dkan-amb dkan-gravity" style={ambientStyle} aria-hidden="true">
+			{["a", "b", "c"].map((id) => <span className={"dkan-gravity-source " + id} key={id}><b />{Array.from({ length: 4 }, (_, i) => <i key={i} style={{ animationDelay: "calc(" + (-i * .9) + "s / var(--dkan-speed,1))" }} />)}</span>)}
+		</div>;
+	}
+	if (mode === "lantern") {
+		return <div className="dkan-amb dkan-lantern" style={ambientStyle} aria-hidden="true">
+			{particles.lanterns.map((p, i) => <i key={i} style={{ left: p.l + "%", width: p.sz, height: p.sz * 1.28, "--drift": p.drift + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" }} />)}
+		</div>;
+	}
+	if (mode === "space") {
+		const taskCount = Math.max(1, Math.min(3, Array.isArray(props.tasks) ? props.tasks.length : 1));
+		// 任务期间每条航线至少有两艘巡航船，三座星系之间始终有可见往返；并发任务越多，舰队越密。
+		// 所有飞船仍只使用 transform/opacity 合成动画，速度跟随任务活动速率。
+		const runnerCount = Math.max(6, Math.min(9, taskCount * 3));
+		const galaxies = props.galaxies;
+		if (!galaxies) return null;
+		return (
+			<div className="dkan-amb dkan-space" style={{
+				"--dkan-speed": speed, "--dkan-space-ships": taskCount,
+				"--dkan-alpha-x": galaxies.alpha.cx + "px", "--dkan-alpha-y": galaxies.alpha.cy + "px",
+				"--dkan-beta-x": galaxies.beta.cx + "px", "--dkan-beta-y": galaxies.beta.cy + "px",
+				"--dkan-gamma-x": galaxies.gamma.cx + "px", "--dkan-gamma-y": galaxies.gamma.cy + "px",
+			}} aria-hidden="true">
+				{particles.dust.map((p, i) => <i key={i} className="dkan-space-dust" style={{ left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" }} />)}
+				{["alpha", "beta", "gamma"].map((galaxy) => <span className={"dkan-space-system " + galaxy} key={galaxy} style={{ left: galaxies[galaxy].x, top: galaxies[galaxy].y, "--dkan-system-scale": galaxies[galaxy].scale }}>
+					<i className="dkan-space-sun" />
+					<span className="dkan-space-orbit a"><i /></span>
+					<span className="dkan-space-orbit b"><i /></span>
+					<span className="dkan-space-orbit c"><i /></span>
+				</span>)}
+				{Array.from({ length: runnerCount }, (_, i) => <span className={"dkan-space-runner route-" + (i % 3)} key={i} style={{ "--dkan-run-delay": (-i * 1.8) + "s" }}><FreighterHull units={1} empty /></span>)}
+			</div>
+		);
+	}
 	return null;
+}
+
+// ---------- 完成货运舰：从任务航线归航到会话输入框上方，货舱量使用真实输出 Token ----------
+function outputCargo(outputTokens) {
+	const tokens = Math.max(0, Number(outputTokens) || 0);
+	// 每个可见货舱约代表 900 输出 Token；保留 1 个基础舱，防止无 usage 时舰体塌陷。
+	return { tokens, units: Math.max(1, Math.min(8, Math.ceil(tokens / 900))) };
+}
+function fallbackComposerDockPoint(side = "right") {
+	const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+	const vh = typeof window === "undefined" ? 900 : window.innerHeight;
+	return {
+		// 待命位贴近输入框右上；右侧远端只保留给旧的通用停靠计算。
+		x: side === "left" ? Math.max(304, Math.min(520, Math.round(vw * .18)))
+			: side === "ready" ? Math.max(316, vw - 640)
+				: Math.max(16, vw - 232),
+		y: Math.max(32, vh - 218),
+	};
+}
+function visibleRect(el) {
+	if (!el || typeof window === "undefined") return null;
+	const r = el.getBoundingClientRect();
+	return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight ? r : null;
+}
+const COMPOSER_SEND_SELECTOR = 'button[aria-label="Send message"],button[aria-label*="发送"],button[data-testid*="send"],button[data-testid*="submit"],button[type="submit"]';
+function conversationComposer() {
+	if (typeof document === "undefined" || typeof window === "undefined") return null;
+	// 发送键只会位于真实会话输入卡内。由它逐层向上找卡片，比遍历历史消息的编辑节点可靠。
+	const sendButtons = document.querySelectorAll(COMPOSER_SEND_SELECTOR);
+	for (const button of sendButtons) {
+		let el = button.parentElement;
+		for (let depth = 0; el && depth < 9; depth += 1, el = el.parentElement) {
+			const r = visibleRect(el);
+			if (r && r.width >= 360 && r.height >= 72 && r.height <= 360 && r.top > window.innerHeight * .42) return { element: el, rect: r };
+		}
+	}
+	return null;
+}
+function conversationComposerRect() {
+	const composer = conversationComposer();
+	return composer ? composer.rect : null;
+}
+function composerPointFromRect(composer, side) {
+	return {
+		x: side === "ready" ? Math.max(composer.left + 16, composer.right - 210) : fallbackComposerDockPoint(side).x,
+		y: Math.max(22, composer.top - 92),
+	};
+}
+function composerDockPoint(side = "right") {
+	if (typeof document === "undefined" || typeof window === "undefined") return fallbackComposerDockPoint(side);
+	const composer = conversationComposerRect();
+	if (composer) return composerPointFromRect(composer, side);
+	const selectors = [
+		'[data-testid*="composer"]', '[data-testid*="conversation-input"]', '[data-slot*="conversation.input"]',
+		'textarea[placeholder*="Message"]', 'textarea[placeholder*="消息"]', 'textarea',
+		'[contenteditable="true"][data-testid*="composer"]', '[contenteditable="true"][aria-label*="消息"]', '[contenteditable="true"][data-slot*="conversation.input"]',
+	];
+	const seen = new Set();
+	const candidates = [];
+	for (const selector of selectors) {
+		for (const el of document.querySelectorAll(selector)) {
+			if (seen.has(el)) continue;
+			seen.add(el);
+			const r = el.getBoundingClientRect();
+			if (r.width > 80 && r.height > 16 && r.bottom > window.innerHeight * .48) candidates.push({ el, r });
+		}
+	}
+	const best = candidates.sort((a, b) => b.r.bottom - a.r.bottom)[0];
+	if (!best) return fallbackComposerDockPoint(side);
+	const r = best.r;
+	// 候补输入节点没有卡片边界时，仅待命位贴近其右侧；其他位置仍由视口锚点决定。
+	const x = side === "ready" ? Math.max(r.left + 16, r.right - 210) : fallbackComposerDockPoint(side).x;
+	return {
+		// 纵向以真实输入控件上沿停靠，飞船底部和输入框保留间隙。
+		x,
+		y: Math.max(22, r.top - 92),
+	};
+}
+// 刷新时先让会话本身完成首帧绘制，再在空闲期读取输入框布局。
+// 避免星际模式恢复时 querySelectorAll + getBoundingClientRect 抢占主线程。
+function useSpaceDocks(enabled) {
+	const [docks, setDocks] = useState(null);
+	useEffect(() => {
+		if (!enabled || typeof window === "undefined") { setDocks(null); return undefined; }
+		let disposed = false;
+		let frame = 0;
+		let idle = 0;
+		let timer = 0;
+		let pollTimer = 0;
+		let retries = 0;
+		let pending = false;
+		let observedComposer = null;
+		let resizeObserver = null;
+		const samePoint = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
+		const bindComposerResize = (element) => {
+			if (!resizeObserver || observedComposer === element) return;
+			if (observedComposer) resizeObserver.unobserve(observedComposer);
+			observedComposer = element;
+			if (observedComposer) resizeObserver.observe(observedComposer);
+		};
+		const measure = () => {
+			if (disposed) return;
+			const found = conversationComposer();
+			// 历史会话切换时输入卡可能比浮层更晚挂载；没有真实卡片就不显示，绝不猜到正文中。
+			if (!found) {
+				bindComposerResize(null);
+				setDocks(null);
+				if (retries++ < 20) schedule(140);
+				return;
+			}
+			retries = 0;
+			bindComposerResize(found.element);
+			const composer = found.rect;
+			const right = composerPointFromRect(composer, "right");
+			// 三个停泊位共用同一输入框上沿，避免重复扫描整个页面读取布局。
+			const next = {
+				right,
+				left: composerPointFromRect(composer, "left"),
+				ready: composerPointFromRect(composer, "ready"),
+			};
+			setDocks((current) => current && samePoint(current.right, next.right) && samePoint(current.left, next.left) && samePoint(current.ready, next.ready) ? current : next);
+		};
+		function schedule(delay = 0, deferUntilIdle = false) {
+			if (disposed || pending) return;
+			pending = true;
+			const queueFrame = () => {
+				frame = window.requestAnimationFrame(() => {
+					pending = false;
+					measure();
+				});
+			};
+			if (delay > 0) timer = window.setTimeout(queueFrame, delay);
+			else if (deferUntilIdle && typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(queueFrame, { timeout: 350 });
+			else queueFrame();
+		};
+		if (typeof window.ResizeObserver === "function") resizeObserver = new window.ResizeObserver(() => schedule());
+		// 会话是 SPA 切换：输入框节点会被整体替换，但 effect 本身不会重新挂载。仅在包含发送键的子树增删时重测。
+		const mutationObserver = typeof window.MutationObserver === "function" ? new window.MutationObserver((mutations) => {
+			const hasComposerChange = mutations.some((mutation) => Array.from(mutation.addedNodes).concat(Array.from(mutation.removedNodes)).some((node) => {
+				if (!node || node.nodeType !== 1) return false;
+				return (node.matches && node.matches(COMPOSER_SEND_SELECTOR)) || (node.querySelector && node.querySelector(COMPOSER_SEND_SELECTOR));
+			}));
+			if (hasComposerChange) schedule(40);
+		}) : null;
+		if (mutationObserver && document.body) mutationObserver.observe(document.body, { childList: true, subtree: true });
+		schedule(0, true);
+		// 部分会话会复用同一输入框节点、只改变祖先布局；低频校准覆盖这种无 DOM 替换的位移。
+		pollTimer = window.setInterval(() => schedule(), 700);
+		const onResize = () => {
+			if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
+			if (timer) window.clearTimeout(timer);
+			pending = false;
+			schedule();
+		};
+		window.addEventListener("resize", onResize, { passive: true });
+		return () => {
+			disposed = true;
+			window.cancelAnimationFrame(frame);
+			if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
+			if (timer) window.clearTimeout(timer);
+			if (pollTimer) window.clearInterval(pollTimer);
+			if (mutationObserver) mutationObserver.disconnect();
+			if (resizeObserver) resizeObserver.disconnect();
+			window.removeEventListener("resize", onResize);
+		};
+	}, [enabled]);
+	return docks;
+}
+// 三个星系分处内容区右上、左上、左下，路线有足够的飞行距离且避开侧栏和输入框。
+// 返回中心点还会被巡航线路和归航飞船共用，避免“从空气里飞回来”。
+function spaceGalaxyLayout() {
+	const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+	const vh = typeof window === "undefined" ? 900 : window.innerHeight;
+	const contentLeft = 316;
+	const make = (x, y, scale) => ({ x, y, scale, cx: x + 123, cy: y + 123 });
+	return {
+		alpha: make(Math.max(contentLeft + 420, vw - 360), 72, .50),
+		beta: make(contentLeft, Math.max(142, Math.min(232, vh * .18)), .48),
+		gamma: make(contentLeft + 18, Math.max(420, vh - 382), .48),
+	};
+}
+function freighterAnchorAt(point) {
+	// 飞船外框为 210×88，飞船主体中心约在 (88, 32)，对齐到星系中心而不是左上角。
+	return { x: Math.round(point.x - 88), y: Math.round(point.y - 32) };
+}
+function flightAngle(from, to) {
+	return Math.round(Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI);
+}
+function FreighterHull(props) {
+	const units = Math.max(1, Number(props.units) || 1);
+	return <span className="dkan-freighter">
+		<i className="dkan-freighter-engine"><i /><i /></i>
+		<i className="dkan-freighter-wing left" /><i className="dkan-freighter-wing right" /><i className="dkan-freighter-fin" />
+		<i className="dkan-freighter-hull" /><i className="dkan-freighter-canopy" /><i className="dkan-freighter-nose" />
+		<span className={"dkan-freighter-cargo" + (props.empty ? " empty" : "")}>{Array.from({ length: units }, (_, i) => <i key={i} />)}</span>
+	</span>;
+}
+function DeliveryFreighter(props) {
+	const d = props.delivery;
+	return (
+		<div className="dkan-delivery" style={{
+			"--dkan-from-x": d.from.x + "px", "--dkan-from-y": d.from.y + "px",
+			"--dkan-to-x": d.to.x + "px", "--dkan-to-y": d.to.y + "px",
+			"--dkan-delivery-duration": d.duration + "ms",
+		}} aria-hidden="true">
+			<span className="dkan-delivery-trail" />
+			<FreighterHull units={d.units} />
+			<span className="dkan-delivery-label"><b>归航货运舰</b><span>输出 {fmtCompact(d.tokens)} Tokens · {d.units} 舱</span></span>
+		</div>
+	);
+}
+function ReadyFreighter(props) {
+	const dock = props.dock || fallbackComposerDockPoint("ready");
+	return <div className="dkan-ready-freighter" style={{ left: dock.x, top: dock.y }} aria-hidden="true"><FreighterHull units={3} empty /><span>待命 · 等待下一条任务</span></div>;
+}
+function MissionDeparture(props) {
+	const d = props.departure;
+	return <div className="dkan-departure" style={{
+		"--dkan-from-x": d.from.x + "px", "--dkan-from-y": d.from.y + "px",
+		"--dkan-to-x": d.to.x + "px", "--dkan-to-y": d.to.y + "px",
+		"--dkan-flight-angle": d.angle + "deg", "--dkan-departure-duration": d.duration + "ms",
+	}} aria-hidden="true"><FreighterHull units={3} empty /></div>;
+}
+function ProgrammingStuck(props) {
+	return <div className="dkan-space-stuck" aria-hidden="true"><FreighterHull units={3} empty /><span className="dkan-stuck-code"><i />{`{ }`}</span><strong>编程等待中</strong><small>{truncate((props.task && props.task.title) || "工具暂无新响应", 28)}</small></div>;
 }
 
 // ---------- 全局浮层：轮询 + 动效 + 通知（功能启用即常驻） ----------
@@ -461,14 +797,46 @@ export function AnimationOverlay(props) {
 	const [toasts, setToasts] = useState([]);
 	const [flourish, setFlourish] = useState(null); // { key, err } 完成瞬间的一次性流光
 	const [bursts, setBursts] = useState([]); // 交互反馈动画队列
+	const [deliveries, setDeliveries] = useState([]); // 星际模式完成时停泊在输入框上方的归航货运舰
+	const [departures, setDepartures] = useState([]); // 从输入框起飞的出航舰
 	const prevActiveRef = useRef(null);
 	const burstIdRef = useRef(0);
+	const deliveryIdRef = useRef(0);
+	const departureTimersRef = useRef(new Map());
+	const lastImmediateDepartureRef = useRef(0);
+
+	useEffect(() => () => {
+		for (const timer of departureTimersRef.current.values()) clearTimeout(timer);
+		departureTimersRef.current.clear();
+	}, []);
 
 	// 触发一个交互反馈动画（自动清理）
 	const pushBurst = useCallback((type, x, y, bits) => {
 		const id = ++burstIdRef.current;
 		setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
 		setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
+	}, []);
+	// 发送即出发：从左侧归航位先缓慢滑行，再逐段加速，最终并入右上角星系。
+	const launchMission = useCallback(() => {
+		const cfg = animationStore.snap.status && animationStore.snap.status.config;
+		if (!cfg || !cfg.animationEnabled || cfg.effectMode !== "space") return false;
+		const id = ++deliveryIdRef.current;
+		const from = composerDockPoint("left");
+		const targetGalaxy = spaceGalaxyLayout().alpha;
+		const to = freighterAnchorAt({ x: targetGalaxy.cx, y: targetGalaxy.cy });
+		const departure = {
+			id, from, to,
+			angle: flightAngle(from, to),
+			duration: 8600,
+		};
+		lastImmediateDepartureRef.current = Date.now();
+		setDeliveries([]); // 满载归港舰重新出航前离开停泊位
+		setDepartures((prev) => prev.concat([departure]).slice(-3));
+		departureTimersRef.current.set(id, setTimeout(() => {
+			departureTimersRef.current.delete(id);
+			setDepartures((prev) => prev.filter((item) => item.id !== id));
+		}, departure.duration));
+		return true;
 	}, []);
 
 	// 点击监听：识别用户操作 → 即时反馈（发送/新会话/切会话/切工作目录）
@@ -483,6 +851,7 @@ export function AnimationOverlay(props) {
 			const sessionItem = t.closest('[role="treeitem"]');
 			if (sendBtn) {
 				pushBurst("plane", e.clientX, e.clientY);
+				launchMission();
 			} else if (newSession) {
 				pushBurst("spark", e.clientX, e.clientY, makeBits(10, () => ({
 					dx: (Math.random() - 0.5) * 70, dy: (Math.random() - 0.5) * 70,
@@ -496,17 +865,21 @@ export function AnimationOverlay(props) {
 		};
 		document.addEventListener("click", onClick, true);
 		return () => document.removeEventListener("click", onClick, true);
-	}, [pushBurst]);
+	}, [pushBurst, launchMission]);
 
-	// 任务状态变化 → 开始光涌 / 完成彩带
+	// 任务状态变化：没有直接发送事件时，仍由状态变化兜底从左侧起飞。
 	const taskCountRef = useRef(0);
 	useEffect(() => {
 		const st = snap.status;
 		if (!st || !st.active) return;
 		const n = st.active.length;
-		if (n > taskCountRef.current) pushBurst("surge");
+		if (n > taskCountRef.current) {
+			pushBurst("surge");
+			const cfg = st.config || {};
+			if (cfg.animationEnabled && cfg.effectMode === "space" && Date.now() - lastImmediateDepartureRef.current > 10000) launchMission();
+		}
 		taskCountRef.current = n;
-	}, [snap.status, pushBurst]);
+	}, [snap.status, pushBurst, launchMission]);
 
 	// 轮询：任务中 850ms，实时捕捉 chunk/工具活动；空闲 6s / 出错 15s；页面切回立即刷新。
 	useEffect(() => {
@@ -549,6 +922,22 @@ export function AnimationOverlay(props) {
 		// 动画侧：完成瞬间一缕流光掠过 + 成功时顶部彩带庆祝（动画关时不渲染）
 		if (cfg.animationEnabled) {
 			setFlourish({ key: Date.now(), err: !success });
+			// 星际远征把完成结果送回用户正在输入的位置。速度继承最后一帧任务节奏；
+			// 货舱数量及标签只取 Host 已记录的真实 outputTokens。
+			if (cfg.effectMode === "space") {
+				const cargo = outputCargo((record && record.outputTokens) || task.outputTokens);
+				const id = ++deliveryIdRef.current;
+				const taskSpeed = Math.max(.9, Number(speed) || 1);
+				const duration = Math.round(Math.max(8000, Math.min(9400, 10000 / Math.sqrt(taskSpeed))));
+				// 从三个星系中随机挑选归航起点，任务完成时才能知道本次货舰从哪里回来。
+				const galaxies = spaceGalaxyLayout();
+				const returnGalaxy = galaxies[["alpha", "beta", "gamma"][Math.floor(Math.random() * 3)]];
+				const from = freighterAnchorAt({ x: returnGalaxy.cx, y: returnGalaxy.cy });
+				const to = composerDockPoint("left");
+				// 满载舰最终停入左侧归航位，和右上出发星系形成清晰的往返方向。
+				const delivery = Object.assign({ id, from, to, duration }, cargo);
+				setDeliveries([delivery]);
+			}
 			if (success) {
 				pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
 					l: 4 + (i / 18) * 92 + Math.random() * 3,
@@ -640,6 +1029,11 @@ export function AnimationOverlay(props) {
 		speedRef.current = { ticks, at: t };
 	}, [snap.status]);
 	const ambientOn = animOn && !panelOpen;
+	const spaceModeOn = !!(cfg && cfg.animationEnabled && mode === "space" && !panelOpen);
+	const spaceDocks = useSpaceDocks(spaceModeOn);
+	const spaceGalaxies = spaceModeOn && spaceDocks ? spaceGalaxyLayout() : null;
+	// Host 在编程阶段持续 18 秒没有 chunk/tool 活动，才把它视为卡住；正常长任务不会误触发。
+	const stuckTask = active.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18000) || null;
 	const robotScaleFromConfig = Math.max(.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
 	const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
 	const saveRobotScale = useCallback((robotScale) => {
@@ -748,9 +1142,13 @@ export function AnimationOverlay(props) {
 	return (<>
 		{/* 顶部流光细线（flow 模式 / 任务进行中） */}
 		{ambientOn && mode === "flow" ? <div className="dkan-line" style={speedStyle} aria-hidden="true" /> : null}
-		{/* 氛围动效（代码雨/星野/极光，任务进行中渲染，速度随吞吐） */}
-		{ambientOn && (mode === "matrix" || mode === "stars" || mode === "aurora")
-			? <AmbientLayer mode={mode} speed={Number(speed).toFixed(2)} /> : null}
+		{/* 氛围动效（代码雨/星野/极光/星际远征，任务进行中渲染，速度随吞吐） */}
+		{ambientOn && AMBIENT_EFFECT_MODES.has(mode) && (mode !== "space" || spaceGalaxies)
+			? <AmbientLayer mode={mode} phase={phase} speed={Number(speed).toFixed(2)} tasks={active} galaxies={spaceGalaxies} /> : null}
+		{/* 星际模式：空闲时在输入框上方待命；任务卡住时在中央呈现编程等待状态。 */}
+		{spaceModeOn && spaceDocks && active.length === 0 && deliveries.length === 0 ? <ReadyFreighter dock={spaceDocks.ready} /> : null}
+		{spaceModeOn && stuckTask ? <ProgrammingStuck task={stuckTask} /> : null}
+		{!panelOpen ? departures.map((departure) => <MissionDeparture key={departure.id} departure={departure} />) : null}
 		{/* 环屏巡航：一颗光点沿屏幕边缘转圈（orbit 模式） */}
 		{ambientOn && mode === "orbit" ? <div className="dkan-orbit" style={speedStyle} aria-hidden="true" /> : null}
 		{/* 交互反馈层：纸飞机/火花/流光/微光/光涌/彩带（与动画开关独立，只要功能启用即回应操作） */}
@@ -803,6 +1201,8 @@ export function AnimationOverlay(props) {
 			<div key={flourish.key} className={"dkan-done" + (flourish.err ? " err" : "")}
 				onAnimationEnd={() => setFlourish(null)} aria-hidden="true" />
 		) : null}
+		{/* 星际任务完成：货运舰沿航线飞到输入框上方并保持停泊，直到下一次任务出航。 */}
+		{!panelOpen ? deliveries.map((delivery) => <DeliveryFreighter key={delivery.id} delivery={delivery} />) : null}
 		{/* 通知卡片栈（右下→右上不遮 dsh 自身 UI；右上角更常规） */}
 		{toasts.length > 0 ? (
 			<div className="dkan-toasts">
@@ -843,12 +1243,18 @@ function ModePreview({ id }) {
 			</span>
 		);
 	}
+	if (id === "space") {
+		return <span className="dkan-prev dkan-prev-space"><i /><b /><em /></span>;
+	}
 	if (id === "aurora") {
 		return (
 			<span className="dkan-prev dkan-prev-aurora">
 				<i /><i />
 			</span>
 		);
+	}
+	if (["nebula", "warp", "radar", "constellation", "fireflies", "ocean", "prism", "circuit", "gravity", "lantern"].includes(id)) {
+		return <span className={"dkan-prev dkan-prev-new dkan-prev-" + id}>{Array.from({ length: id === "warp" ? 8 : 6 }, (_, i) => <i key={i} />)}</span>;
 	}
 	if (id === "robot") {
 		return (
@@ -1298,12 +1704,66 @@ const css = [
 	".dkan-meteor{position:absolute;width:110px;height:2px;border-radius:2px;background:linear-gradient(90deg,#fff,color-mix(in srgb,#8ab6ff 60%,transparent) 40%,transparent);transform:rotate(35deg);transform-origin:left center;opacity:0;animation:dkan-meteor 8.4s linear infinite;}",
 	".dkan-meteor::before{content:\"\";position:absolute;left:-2px;top:-2px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px color-mix(in srgb,#cfe3ff 70%,transparent);}",
 	"@keyframes dkan-meteor{0%{opacity:0;transform:rotate(35deg) translateX(0)}3%{opacity:1}10%{opacity:0;transform:rotate(35deg) translateX(46vh)}100%{opacity:0;transform:rotate(35deg) translateX(46vh)}}",
+	// 星际远征：星尘、行星轨道和任务飞船都只在任务运行时出现，统一由 --dkan-speed 加速。
+	".dkan-space{background:radial-gradient(ellipse 34% 28% at 84% 11%,color-mix(in srgb,#426aaf 15%,transparent),transparent 72%),radial-gradient(ellipse 26% 22% at 14% 58%,color-mix(in srgb,#7c4dff 10%,transparent),transparent 74%);}",
+	".dkan-space-dust{position:absolute;border-radius:50%;background:#dbeafe;box-shadow:0 0 5px color-mix(in srgb,#93c5fd 62%,transparent);opacity:.2;animation:dkan-space-dust ease-in-out infinite alternate;will-change:transform,opacity;}",
+	"@keyframes dkan-space-dust{0%{opacity:.14;transform:translate3d(0,0,0) scale(.7)}55%{opacity:.78}100%{opacity:.26;transform:translate3d(22px,-8px,0) scale(1.15)}}",
+	".dkan-space-system{position:fixed;width:246px;height:246px;border-radius:50%;opacity:.78;transform:translateZ(0) scale(var(--dkan-system-scale,1));transform-origin:center;contain:layout paint style;}.dkan-space-system.alpha{opacity:.76}.dkan-space-system.beta{opacity:.68}.dkan-space-system.gamma{opacity:.64}",
+	".dkan-space-sun{position:absolute;left:50%;top:50%;width:34px;height:34px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 32% 28%,#fff7c2 0 9%,#ffc85a 30%,#e76f2e 74%);box-shadow:0 0 12px 4px color-mix(in srgb,#ffc85a 58%,transparent),0 0 36px 12px color-mix(in srgb,#f97316 20%,transparent);}",
+	".dkan-space-orbit{position:absolute;left:50%;top:50%;border:1px solid color-mix(in srgb,#93c5fd 28%,transparent);border-radius:50%;animation:dkan-space-orbit linear infinite;transform-origin:center;}",
+	".dkan-space-orbit i{position:absolute;top:50%;left:-5px;width:10px;height:10px;border-radius:50%;transform:translateY(-50%);box-shadow:0 0 9px 2px currentColor;}",
+	".dkan-space-orbit.a{width:82px;height:50px;margin:-25px 0 0 -41px;animation-duration:calc(5.4s / var(--dkan-speed,1));}.dkan-space-orbit.a i{color:#67e8f9;background:#22d3ee;}",
+	".dkan-space-orbit.b{width:142px;height:86px;margin:-43px 0 0 -71px;animation-duration:calc(9.2s / var(--dkan-speed,1));animation-direction:reverse;}.dkan-space-orbit.b i{width:15px;height:15px;color:#c4b5fd;background:radial-gradient(circle at 30% 28%,#ede9fe,#8b5cf6 72%);}",
+	".dkan-space-orbit.c{width:212px;height:130px;margin:-65px 0 0 -106px;animation-duration:calc(15.6s / var(--dkan-speed,1));}.dkan-space-orbit.c i{width:18px;height:18px;color:#fda4af;background:radial-gradient(circle at 32% 28%,#ffe4e6,#e11d48 74%);}",
+	"@keyframes dkan-space-orbit{to{transform:rotate(360deg)}}",
+	".dkan-space-runner{position:fixed;left:0;top:0;width:108px;height:56px;opacity:0;animation-duration:calc(10.8s / var(--dkan-speed,1));animation-timing-function:linear;animation-iteration-count:infinite;animation-delay:var(--dkan-run-delay,0s);will-change:transform,opacity;contain:layout paint style;backface-visibility:hidden;}.dkan-space-runner .dkan-freighter{left:0;top:0;transform:translateZ(0) scale(.52);transform-origin:top left;filter:none}.dkan-space-runner .dkan-freighter-engine i{animation:none;opacity:.76;box-shadow:-6px 0 8px #22d3ee}.dkan-space-runner .dkan-freighter-nose{filter:none}.dkan-space-runner.route-0{animation-name:dkan-space-route-a}.dkan-space-runner.route-1{animation-name:dkan-space-route-b}.dkan-space-runner.route-2{animation-name:dkan-space-route-c}",
+	"@keyframes dkan-space-route-a{0%{opacity:0;transform:translate3d(var(--dkan-alpha-x),var(--dkan-alpha-y),0) rotate(151deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-beta-x),var(--dkan-beta-y),0) rotate(151deg)}}@keyframes dkan-space-route-b{0%{opacity:0;transform:translate3d(var(--dkan-beta-x),var(--dkan-beta-y),0) rotate(-90deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-gamma-x),var(--dkan-gamma-y),0) rotate(-90deg)}}@keyframes dkan-space-route-c{0%{opacity:0;transform:translate3d(var(--dkan-gamma-x),var(--dkan-gamma-y),0) rotate(-18deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-alpha-x),var(--dkan-alpha-y),0) rotate(-18deg)}}",
+	// 完成归航：一艘货运旗舰从航线飞到真实会话输入框上方，货舱逐格表达实际输出量。
+	".dkan-delivery{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-delivery-flight var(--dkan-delivery-duration,8600ms) cubic-bezier(.22,.61,.36,1) forwards;}",
+	"@keyframes dkan-delivery-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(.5) rotate(-12deg)}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(.56) rotate(-10deg)}100%{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(1) rotate(0)}}",
+	".dkan-delivery-trail{position:absolute;left:-132px;top:26px;width:154px;height:4px;border-radius:999px;background:linear-gradient(90deg,transparent,#34d399 48%,#d9f99d 78%,transparent);opacity:.9;animation:dkan-delivery-trail var(--dkan-delivery-duration,8600ms) linear forwards;}@keyframes dkan-delivery-trail{0%,82%{opacity:.9}100%{opacity:0}}.dkan-freighter{position:absolute;left:10px;top:10px;width:176px;height:45px;display:block;filter:drop-shadow(0 0 9px color-mix(in srgb,#7dd3fc 62%,transparent));}.dkan-delivery .dkan-freighter,.dkan-departure .dkan-freighter{filter:none}.dkan-delivery .dkan-freighter-engine i,.dkan-departure .dkan-freighter-engine i{animation:none;opacity:.76;box-shadow:-6px 0 8px #22d3ee}.dkan-delivery .dkan-freighter-nose,.dkan-departure .dkan-freighter-nose{filter:none}.dkan-freighter-hull{position:absolute;z-index:3;left:21px;top:7px;width:126px;height:31px;background:linear-gradient(150deg,#f8fbff 0%,#9cc8ff 30%,#385d91 72%,#1d3150);clip-path:polygon(0 30%,43% 0,83% 17%,100% 50%,83% 83%,43% 100%,0 70%,12% 50%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),inset -7px -5px 9px rgb(8 24 49 / .38);}.dkan-freighter-nose{position:absolute;z-index:4;right:10px;top:16px;width:28px;height:14px;background:linear-gradient(90deg,#a9d1ff,#e8f5ff);clip-path:polygon(0 0,100% 50%,0 100%,22% 50%);filter:drop-shadow(5px 0 5px color-mix(in srgb,#93c5fd 62%,transparent));}.dkan-freighter-canopy{position:absolute;z-index:5;left:77px;top:10px;width:39px;height:11px;border-radius:70% 48% 42% 32%;background:linear-gradient(135deg,#ecfeff 0%,#67e8f9 32%,#2563eb 75%);transform:skewX(-18deg);box-shadow:inset 0 2px 2px rgb(255 255 255 / .7),0 0 8px color-mix(in srgb,#67e8f9 42%,transparent);}.dkan-freighter-fin{position:absolute;z-index:2;left:48px;top:3px;width:24px;height:17px;background:linear-gradient(135deg,#31557f,#a7caf7);clip-path:polygon(0 100%,58% 0,100% 100%);}.dkan-freighter-wing{position:absolute;z-index:1;left:48px;width:60px;height:18px;background:linear-gradient(135deg,#24436d,#8ebaf4);}.dkan-freighter-wing.left{top:2px;clip-path:polygon(0 100%,100% 0,68% 100%)}.dkan-freighter-wing.right{top:26px;clip-path:polygon(0 0,68% 0,100% 100%)}",
+	".dkan-freighter-cargo{position:absolute;z-index:6;left:37px;top:31px;width:74px;height:7px;display:flex;align-items:center;gap:2px;padding:1px 3px;border-radius:4px;background:#172842;border:1px solid color-mix(in srgb,#b8d8ff 48%,transparent);box-shadow:inset 0 1px 0 rgb(255 255 255 / .2);}.dkan-freighter-cargo i{display:block;flex:1;min-width:4px;height:5px;border-radius:1px;background:linear-gradient(135deg,#fef3c7,#f59e0b 58%,#b45309);box-shadow:0 0 4px color-mix(in srgb,#fbbf24 58%,transparent);}.dkan-freighter-cargo.empty i{background:linear-gradient(135deg,#dbeafe,#38bdf8 58%,#1d4ed8);box-shadow:0 0 4px color-mix(in srgb,#38bdf8 55%,transparent);}.dkan-freighter-engine{position:absolute;z-index:0;left:5px;top:19px;display:flex;gap:3px;align-items:center;height:11px;}.dkan-freighter-engine i{width:18px;height:5px;border-radius:60% 0 0 60%;background:linear-gradient(90deg,transparent,#67e8f9);box-shadow:-9px 0 12px #22d3ee;animation:dkan-engine .34s ease-in-out infinite alternate;}.dkan-freighter-engine i:nth-child(2){animation-delay:-.14s}",
+	"@keyframes dkan-engine{to{transform:scaleX(.55);opacity:.5}}",
+	".dkan-delivery-label{position:absolute;left:21px;top:58px;display:flex;align-items:baseline;gap:6px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 30%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-delivery-label b{color:var(--dsw-alias-label-primary);font-weight:650}.dkan-delivery-label span{color:#7dd3fc;}",
+	"@media (max-width:1100px){.dkan-space-system,.dkan-space-runner{display:none}}",
+	".dkan-ready-freighter{position:fixed;width:210px;height:88px;z-index:9994;pointer-events:none;filter:drop-shadow(0 10px 14px rgb(0 0 0 / .18));}.dkan-ready-freighter>span:last-child{position:absolute;left:21px;top:58px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 28%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 80%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-departure{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-departure-flight var(--dkan-departure-duration,8600ms) cubic-bezier(.42,0,.85,.45) forwards;}@keyframes dkan-departure-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}100%{opacity:0;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(.24) rotate(var(--dkan-flight-angle,0deg))}}",
+	".dkan-space-stuck{position:fixed;left:50%;top:50%;width:244px;height:160px;z-index:9993;pointer-events:none;transform:translate(-50%,-50%);border:1px solid color-mix(in srgb,#f59e0b 48%,var(--dsw-alias-border-l1));border-radius:20px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgb(0 0 0 / .28),0 0 30px color-mix(in srgb,#f59e0b 15%,transparent);}.dkan-space-stuck .dkan-freighter{left:37px;top:11px;transform:scale(.9);transform-origin:top left;}.dkan-stuck-code{position:absolute;left:17px;right:17px;top:60px;height:36px;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,#f59e0b 18%,transparent),transparent);color:#fbbf24;font:700 14px/36px var(--ds-font-family-code,monospace);letter-spacing:.12em;text-align:center;overflow:hidden;}.dkan-stuck-code::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,#fef3c7 70%,transparent),transparent);transform:translateX(-110%);animation:dkan-stuck-scan 1.25s linear infinite;}.dkan-stuck-code i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 9px #f59e0b;animation:dkan-stuck-pulse .8s ease-in-out infinite alternate;}.dkan-space-stuck strong{position:absolute;left:0;right:0;top:108px;color:var(--dsw-alias-label-primary);font:650 13px/1.2 var(--ds-font-family,system-ui,sans-serif);text-align:center;}.dkan-space-stuck small{position:absolute;left:18px;right:18px;top:128px;color:var(--dsw-alias-label-secondary);font:11px/1.25 var(--ds-font-family,system-ui,sans-serif);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}@keyframes dkan-stuck-scan{to{transform:translateX(110%)}}@keyframes dkan-stuck-pulse{to{transform:scale(.55);opacity:.45}}",
 	// 极光：顶部柔光带呼吸流动（加浓）
 	".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(50px);opacity:.32;animation:dkan-aurora ease-in-out infinite alternate;}",
 	".dkan-aurora i:nth-child(1){background:#4d9fff;}",
 	".dkan-aurora i:nth-child(2){background:#34d399;left:20%;animation-delay:-2s;}",
 	".dkan-aurora i:nth-child(3){background:#a78bfa;left:55%;animation-delay:-4s;}",
 	"@keyframes dkan-aurora{0%{transform:translateX(-8%) scaleY(1)}100%{transform:translateX(10%) scaleY(1.3)}}",
+	// 星云潮汐：无动态模糊，柔边由径向渐变生成，移动只发生在合成层。
+	".dkan-nebula{contain:strict}.dkan-nebula i{position:absolute;width:48vw;aspect-ratio:1;border-radius:50%;opacity:.22;background:radial-gradient(circle,color-mix(in srgb,var(--dkan-phase,#60a5fa) 48%,transparent),color-mix(in srgb,#8b5cf6 18%,transparent) 42%,transparent 70%);animation:dkan-nebula-drift calc(18s / var(--dkan-speed,1)) cubic-bezier(.45,0,.55,1) infinite alternate;will-change:transform,opacity}.dkan-nebula i:nth-child(1){left:-18%;top:-24%}.dkan-nebula i:nth-child(2){right:-18%;top:4%;background:radial-gradient(circle,color-mix(in srgb,#22d3ee 34%,transparent),color-mix(in srgb,#3b82f6 15%,transparent) 45%,transparent 72%);animation-delay:-5s}.dkan-nebula i:nth-child(3){left:4%;bottom:-34%;background:radial-gradient(circle,color-mix(in srgb,#f472b6 28%,transparent),color-mix(in srgb,#8b5cf6 14%,transparent) 48%,transparent 72%);animation-delay:-10s}.dkan-nebula i:nth-child(4){right:8%;bottom:-26%;width:36vw;animation-delay:-14s}",
+	"@keyframes dkan-nebula-drift{0%{opacity:.14;transform:translate3d(-3vw,-2vh,0) scale(.92)}100%{opacity:.3;transform:translate3d(5vw,4vh,0) scale(1.12)}}",
+	// 曲速航道：从视口中心放射的独立光束。
+	".dkan-warp{background:radial-gradient(circle at center,color-mix(in srgb,var(--dkan-phase,#60a5fa) 10%,transparent),transparent 34%);contain:strict}.dkan-warp i{position:absolute;left:50%;top:50%;width:var(--len);height:1px;border-radius:999px;transform-origin:left center;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--dkan-phase,#60a5fa) 48%,transparent),#e0f2fe);opacity:0;animation-name:dkan-warp-ray;animation-timing-function:cubic-bezier(.3,.1,.8,1);animation-iteration-count:infinite;will-change:transform,opacity}",
+	"@keyframes dkan-warp-ray{0%{opacity:0;transform:rotate(var(--a)) translate3d(18px,0,0) scaleX(.05)}18%{opacity:.6}100%{opacity:0;transform:rotate(var(--a)) translate3d(58vw,0,0) scaleX(1.55)}}",
+	// 量子雷达：三个边缘站点各自扫描，避免占据会话正文中心。
+	".dkan-radar{contain:strict}.dkan-radar-station{position:absolute;width:176px;height:176px;border-radius:50%;opacity:.44;background:repeating-radial-gradient(circle,color-mix(in srgb,var(--dkan-phase,#60a5fa) 28%,transparent) 0 1px,transparent 1px 29px);border:1px solid color-mix(in srgb,var(--dkan-phase,#60a5fa) 22%,transparent)}.dkan-radar-station.a{right:4%;top:8%}.dkan-radar-station.b{left:1%;top:38%;transform:scale(.72)}.dkan-radar-station.c{right:7%;bottom:9%;transform:scale(.58)}.dkan-radar-station i{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 76%,color-mix(in srgb,var(--dkan-phase,#60a5fa) 44%,transparent) 92%,transparent);animation:dkan-radar-sweep calc(4.8s / var(--dkan-speed,1)) linear infinite;will-change:transform}.dkan-radar-station b{position:absolute;left:67%;top:31%;width:7px;height:7px;border-radius:50%;background:var(--dkan-phase,#60a5fa);box-shadow:0 0 12px 4px color-mix(in srgb,var(--dkan-phase,#60a5fa) 58%,transparent);animation:dkan-radar-blip calc(2.4s / var(--dkan-speed,1)) ease-in-out infinite}",
+	"@keyframes dkan-radar-sweep{to{transform:rotate(360deg)}}@keyframes dkan-radar-blip{0%,70%,100%{opacity:.15;transform:scale(.65)}78%{opacity:1;transform:scale(1.25)}}",
+	// 星座网络：轻量 SVG 线网分段点亮。
+	".dkan-constellation svg{position:absolute;left:8%;top:7%;width:86%;height:78%;overflow:visible}.dkan-constellation path{fill:none;stroke:color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent);stroke-width:.16;vector-effect:non-scaling-stroke;stroke-dasharray:.08 .025;animation:dkan-constellation-line calc(7s / var(--dkan-speed,1)) linear infinite}.dkan-constellation circle{fill:var(--dkan-phase,#60a5fa);filter:drop-shadow(0 0 2px var(--dkan-phase,#60a5fa));animation:dkan-constellation-star calc(2.8s / var(--dkan-speed,1)) ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}",
+	"@keyframes dkan-constellation-line{to{stroke-dashoffset:-1}}@keyframes dkan-constellation-star{0%{opacity:.28;transform:scale(.68)}100%{opacity:.92;transform:scale(1.22)}}",
+	// 数据萤火：二维漂移和明暗呼吸组合在同一个 transform 动画中。
+	".dkan-fireflies{contain:strict}.dkan-fireflies i{position:absolute;border-radius:50%;background:color-mix(in srgb,var(--dkan-phase,#60a5fa) 78%,#fff);box-shadow:0 0 8px 2px color-mix(in srgb,var(--dkan-phase,#60a5fa) 46%,transparent);opacity:.2;animation-name:dkan-firefly;animation-timing-function:cubic-bezier(.45,0,.55,1);animation-iteration-count:infinite;animation-direction:alternate;will-change:transform,opacity}",
+	"@keyframes dkan-firefly{0%{opacity:.12;transform:translate3d(0,0,0) scale(.65)}48%{opacity:.86}100%{opacity:.26;transform:translate3d(var(--dx),var(--dy),0) scale(1.18)}}",
+	// 深海脉动：波层在底部横向漂移，气泡只做向上合成位移。
+	".dkan-ocean{background:linear-gradient(0deg,color-mix(in srgb,#0284c7 12%,transparent),transparent 46%);contain:strict}.dkan-ocean-waves{position:absolute;left:-12%;right:-12%;bottom:0;height:42%}.dkan-ocean-waves i{position:absolute;left:0;width:112%;height:52%;border-top:1px solid color-mix(in srgb,#67e8f9 28%,transparent);border-radius:50%;animation:dkan-ocean-wave calc(9s / var(--dkan-speed,1)) ease-in-out infinite alternate;will-change:transform}.dkan-ocean-waves i:nth-child(1){top:2%}.dkan-ocean-waves i:nth-child(2){top:18%;animation-delay:-2s}.dkan-ocean-waves i:nth-child(3){top:34%;animation-delay:-4s}.dkan-ocean-waves i:nth-child(4){top:50%;animation-delay:-6s}.dkan-ocean-waves i:nth-child(5){top:66%;animation-delay:-8s}.dkan-ocean>b{position:absolute;bottom:-20px;border:1px solid color-mix(in srgb,#a5f3fc 54%,transparent);border-radius:50%;opacity:0;animation-name:dkan-ocean-bubble;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform,opacity}",
+	"@keyframes dkan-ocean-wave{to{transform:translate3d(7%,5px,0) scaleY(1.08)}}@keyframes dkan-ocean-bubble{0%{opacity:0;transform:translate3d(0,0,0) scale(.7)}14%{opacity:.58}100%{opacity:0;transform:translate3d(var(--drift),-82vh,0) scale(1.18)}}",
+	// 棱镜光谱：七条低透明度光带错峰穿过视口。
+	".dkan-prism{contain:strict}.dkan-prism i{position:absolute;left:-32vw;width:160vw;height:2px;border-radius:999px;opacity:0;background:linear-gradient(90deg,transparent,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#6366f1,#a855f7,transparent);animation:dkan-prism-ray calc(8s / var(--dkan-speed,1)) cubic-bezier(.45,0,.55,1) infinite;will-change:transform,opacity}.dkan-prism i:nth-child(1){top:12%;animation-delay:0s}.dkan-prism i:nth-child(2){top:25%;animation-delay:-1.1s}.dkan-prism i:nth-child(3){top:38%;animation-delay:-2.2s}.dkan-prism i:nth-child(4){top:51%;animation-delay:-3.3s}.dkan-prism i:nth-child(5){top:64%;animation-delay:-4.4s}.dkan-prism i:nth-child(6){top:77%;animation-delay:-5.5s}.dkan-prism i:nth-child(7){top:90%;animation-delay:-6.6s}",
+	"@keyframes dkan-prism-ray{0%{opacity:0;transform:translate3d(-12vw,0,0) rotate(-7deg) scaleX(.7)}34%{opacity:.2}66%{opacity:.36}100%{opacity:0;transform:translate3d(20vw,0,0) rotate(-7deg) scaleX(1.05)}}",
+	// 神经电路：少量 SVG 路径的虚线脉冲，节点保持低透明度。
+	".dkan-circuit svg{position:absolute;inset:5% 3% 9% 8%;width:89%;height:86%;overflow:visible}.dkan-circuit path{fill:none;stroke:color-mix(in srgb,var(--dkan-phase,#60a5fa) 40%,transparent);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:.045 .12;animation:dkan-circuit-pulse calc(5.6s / var(--dkan-speed,1)) linear infinite}.dkan-circuit circle{fill:var(--dkan-phase,#60a5fa);opacity:.58;filter:drop-shadow(0 0 4px var(--dkan-phase,#60a5fa));animation:dkan-circuit-node calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite alternate}",
+	"@keyframes dkan-circuit-pulse{to{stroke-dashoffset:-1}}@keyframes dkan-circuit-node{to{opacity:.16}}",
+	// 引力涟漪：三个边缘引力源按错峰节奏扩散。
+	".dkan-gravity{contain:strict}.dkan-gravity-source{position:absolute;width:260px;height:260px}.dkan-gravity-source.a{right:2%;top:5%}.dkan-gravity-source.b{left:-4%;top:39%;transform:scale(.76)}.dkan-gravity-source.c{right:17%;bottom:-10%;transform:scale(.62)}.dkan-gravity-source b{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:var(--dkan-phase,#60a5fa);box-shadow:0 0 16px 5px color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent)}.dkan-gravity-source i{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px;border:1px solid color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent);border-radius:50%;opacity:0;animation:dkan-gravity-wave calc(4.6s / var(--dkan-speed,1)) cubic-bezier(.2,.55,.35,1) infinite;will-change:transform,opacity}",
+	"@keyframes dkan-gravity-wave{0%{opacity:.64;transform:scale(.3)}100%{opacity:0;transform:scale(9)}}",
+	// 灵感天灯：暖色灯体从屏幕底部缓慢升起，尾迹由伪元素提供。
+	".dkan-lantern{contain:strict}.dkan-lantern i{position:absolute;bottom:-30px;border-radius:45% 45% 34% 34%;background:linear-gradient(150deg,#fff7c2 0%,#fbbf24 46%,#f97316 100%);box-shadow:0 0 10px 3px color-mix(in srgb,#fbbf24 36%,transparent);opacity:0;animation-name:dkan-lantern-rise;animation-timing-function:cubic-bezier(.34,.02,.6,1);animation-iteration-count:infinite;will-change:transform,opacity}.dkan-lantern i::after{content:'';position:absolute;left:42%;top:100%;width:16%;height:13px;background:linear-gradient(#f59e0b,transparent)}",
+	"@keyframes dkan-lantern-rise{0%{opacity:0;transform:translate3d(0,0,0) rotate(-3deg) scale(.72)}12%{opacity:.72}78%{opacity:.48}100%{opacity:0;transform:translate3d(var(--drift),-104vh,0) rotate(4deg) scale(1.04)}}",
 	// ===== 交互反馈层 =====
 	".dkan-fxwrap{position:fixed;inset:0;z-index:9992;pointer-events:none;overflow:hidden;}",
 	".dkan-fx{position:absolute;}",
@@ -1409,11 +1869,24 @@ const css = [
 	".dkan-prev-stars i:nth-child(5){left:28%;top:70%;animation-delay:-.6s;}",
 	".dkan-prev-stars i:nth-child(6){left:70%;top:75%;animation-delay:-1s;}",
 	"@keyframes dkan-prev-star{0%{opacity:.2}100%{opacity:.9}}",
+	// 预览：星际远征（行星、轨道与飞船）
+	".dkan-prev-space i{position:absolute;left:49%;top:50%;width:9px;height:9px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;}.dkan-prev-space b{position:absolute;left:21%;top:23%;width:15px;height:8px;border:1px solid #93c5fd;border-radius:50%;animation:dkan-prev-space-orbit 2.4s linear infinite;}.dkan-prev-space b::after{content:'';position:absolute;left:-3px;top:0;width:5px;height:5px;border-radius:50%;background:#a78bfa;box-shadow:0 0 4px #a78bfa;}.dkan-prev-space em{position:absolute;left:5%;top:65%;width:19px;height:4px;border-radius:50% 0 0 50%;background:linear-gradient(90deg,#22d3ee,#dbeafe);animation:dkan-prev-space-ship 1.8s linear infinite;}.dkan-prev-space em::after{content:'';position:absolute;right:-7px;top:-3px;border-left:9px solid #93c5fd;border-top:5px solid transparent;border-bottom:5px solid transparent;}.dkan-prev-space{background:radial-gradient(ellipse at 78% 20%,color-mix(in srgb,#6366f1 18%,transparent),transparent 58%);}.dkan-prev-space i,.dkan-prev-space b,.dkan-prev-space em{font-style:normal;}.dkan-prev-space b{transform-origin:34px 11px;}@keyframes dkan-prev-space-orbit{to{transform:rotate(360deg)}}@keyframes dkan-prev-space-ship{to{transform:translateX(105px)}}",
 	// 预览：极光（柔光带呼吸）
 	".dkan-prev-aurora i{position:absolute;top:-30%;width:60%;height:120%;border-radius:50%;filter:blur(8px);opacity:.35;animation:dkan-prev-aurora 2.4s ease-in-out infinite alternate;}",
 	".dkan-prev-aurora i:nth-child(1){left:5%;background:#4d9fff;}",
 	".dkan-prev-aurora i:nth-child(2){left:45%;background:#34d399;animation-delay:-1.2s;}",
 	"@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
+	// 十种新增模式的缩微预览：复用主体运动语言，但把节点数和振幅压到卡片内。
+	".dkan-prev-new{--dkan-phase:var(--dsw-alias-accent,#4d9fff)}.dkan-prev-new i{position:absolute;display:block}",
+	".dkan-prev-nebula i{width:48px;height:48px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--dkan-phase) 48%,transparent),transparent 70%);animation:dkan-prev-nebula 3s ease-in-out infinite alternate}.dkan-prev-nebula i:nth-child(1){left:2%;top:-60%}.dkan-prev-nebula i:nth-child(2){right:4%;bottom:-65%;background:radial-gradient(circle,color-mix(in srgb,#a855f7 42%,transparent),transparent 70%);animation-delay:-1.4s}.dkan-prev-nebula i:nth-child(n+3){display:none}@keyframes dkan-prev-nebula{to{transform:translateX(24px) scale(1.18)}}",
+	".dkan-prev-warp i{left:50%;top:50%;width:36px;height:1px;transform-origin:left;background:linear-gradient(90deg,transparent,var(--dkan-phase),#fff);animation:dkan-prev-warp 1.8s linear infinite;opacity:0}.dkan-prev-warp i:nth-child(1){--a:0deg}.dkan-prev-warp i:nth-child(2){--a:45deg;animation-delay:-.2s}.dkan-prev-warp i:nth-child(3){--a:90deg;animation-delay:-.4s}.dkan-prev-warp i:nth-child(4){--a:135deg;animation-delay:-.6s}.dkan-prev-warp i:nth-child(5){--a:180deg;animation-delay:-.8s}.dkan-prev-warp i:nth-child(6){--a:225deg;animation-delay:-1s}.dkan-prev-warp i:nth-child(7){--a:270deg;animation-delay:-1.2s}.dkan-prev-warp i:nth-child(8){--a:315deg;animation-delay:-1.4s}@keyframes dkan-prev-warp{0%{opacity:0;transform:rotate(var(--a)) translateX(2px) scaleX(.1)}35%{opacity:.8}100%{opacity:0;transform:rotate(var(--a)) translateX(40px) scaleX(1.3)}}",
+	".dkan-prev-radar i{left:50%;top:50%;width:24px;height:24px;margin:-12px;border:1px solid color-mix(in srgb,var(--dkan-phase) 48%,transparent);border-radius:50%;animation:dkan-prev-radar 2.6s ease-out infinite;opacity:0}.dkan-prev-radar i:nth-child(2){animation-delay:-.85s}.dkan-prev-radar i:nth-child(3){animation-delay:-1.7s}.dkan-prev-radar i:nth-child(n+4){display:none}@keyframes dkan-prev-radar{0%{opacity:.8;transform:scale(.2)}100%{opacity:0;transform:scale(1.25)}}",
+	".dkan-prev-constellation::after{content:'';position:absolute;left:12%;right:12%;top:50%;height:1px;background:linear-gradient(90deg,transparent,var(--dkan-phase),transparent);transform:rotate(-9deg)}.dkan-prev-constellation i,.dkan-prev-fireflies i{width:4px;height:4px;border-radius:50%;background:var(--dkan-phase);box-shadow:0 0 5px var(--dkan-phase);animation:dkan-prev-twinkle 1.8s ease-in-out infinite alternate}.dkan-prev-constellation i:nth-child(1),.dkan-prev-fireflies i:nth-child(1){left:12%;top:62%}.dkan-prev-constellation i:nth-child(2),.dkan-prev-fireflies i:nth-child(2){left:28%;top:26%;animation-delay:-.3s}.dkan-prev-constellation i:nth-child(3),.dkan-prev-fireflies i:nth-child(3){left:45%;top:52%;animation-delay:-.6s}.dkan-prev-constellation i:nth-child(4),.dkan-prev-fireflies i:nth-child(4){left:61%;top:18%;animation-delay:-.9s}.dkan-prev-constellation i:nth-child(5),.dkan-prev-fireflies i:nth-child(5){left:76%;top:58%;animation-delay:-1.2s}.dkan-prev-constellation i:nth-child(6),.dkan-prev-fireflies i:nth-child(6){left:88%;top:34%;animation-delay:-1.5s}@keyframes dkan-prev-twinkle{to{opacity:.2;transform:translateY(4px) scale(.65)}}",
+	".dkan-prev-ocean i{left:-10%;width:120%;height:18px;border-top:1px solid color-mix(in srgb,#22d3ee 52%,transparent);border-radius:50%;animation:dkan-prev-wave 2.8s ease-in-out infinite alternate}.dkan-prev-ocean i:nth-child(1){top:15%}.dkan-prev-ocean i:nth-child(2){top:35%;animation-delay:-.5s}.dkan-prev-ocean i:nth-child(3){top:55%;animation-delay:-1s}.dkan-prev-ocean i:nth-child(4){top:75%;animation-delay:-1.5s}.dkan-prev-ocean i:nth-child(n+5){display:none}@keyframes dkan-prev-wave{to{transform:translateX(12px) scaleY(1.2)}}",
+	".dkan-prev-prism i{left:-10%;width:120%;height:1px;background:linear-gradient(90deg,transparent,#ef4444,#fbbf24,#22c55e,#22d3ee,#8b5cf6,transparent);transform:rotate(-6deg);animation:dkan-prev-prism 2.8s ease-in-out infinite}.dkan-prev-prism i:nth-child(1){top:18%}.dkan-prev-prism i:nth-child(2){top:34%;animation-delay:-.4s}.dkan-prev-prism i:nth-child(3){top:50%;animation-delay:-.8s}.dkan-prev-prism i:nth-child(4){top:66%;animation-delay:-1.2s}.dkan-prev-prism i:nth-child(5){top:82%;animation-delay:-1.6s}.dkan-prev-prism i:nth-child(n+6){display:none}@keyframes dkan-prev-prism{0%,100%{opacity:.12;transform:translateX(-8px) rotate(-6deg)}50%{opacity:.72;transform:translateX(10px) rotate(-6deg)}}",
+	".dkan-prev-circuit i{height:1px;background:var(--dkan-phase);box-shadow:0 0 4px var(--dkan-phase);animation:dkan-prev-circuit 2.4s linear infinite}.dkan-prev-circuit i:nth-child(1){left:5%;top:30%;width:42%}.dkan-prev-circuit i:nth-child(2){left:47%;top:30%;width:1px;height:45%}.dkan-prev-circuit i:nth-child(3){left:47%;top:74%;width:38%}.dkan-prev-circuit i:nth-child(4){left:68%;top:15%;width:1px;height:60%}.dkan-prev-circuit i:nth-child(5){left:68%;top:15%;width:26%}.dkan-prev-circuit i:nth-child(6){left:12%;top:62%;width:35%}@keyframes dkan-prev-circuit{0%,100%{opacity:.18}50%{opacity:.9}}",
+	".dkan-prev-gravity i{left:50%;top:50%;width:18px;height:18px;margin:-9px;border:1px solid var(--dkan-phase);border-radius:50%;opacity:0;animation:dkan-prev-gravity 2.6s ease-out infinite}.dkan-prev-gravity i:nth-child(2){animation-delay:-.65s}.dkan-prev-gravity i:nth-child(3){animation-delay:-1.3s}.dkan-prev-gravity i:nth-child(4){animation-delay:-1.95s}.dkan-prev-gravity i:nth-child(n+5){display:none}@keyframes dkan-prev-gravity{0%{opacity:.8;transform:scale(.15)}100%{opacity:0;transform:scale(2.4)}}",
+	".dkan-prev-lantern i{bottom:-8px;width:6px;height:8px;border-radius:3px;background:#fbbf24;box-shadow:0 0 5px #f59e0b;animation:dkan-prev-lantern 3.2s linear infinite}.dkan-prev-lantern i:nth-child(1){left:12%}.dkan-prev-lantern i:nth-child(2){left:27%;animation-delay:-.6s}.dkan-prev-lantern i:nth-child(3){left:43%;animation-delay:-1.2s}.dkan-prev-lantern i:nth-child(4){left:61%;animation-delay:-1.8s}.dkan-prev-lantern i:nth-child(5){left:76%;animation-delay:-2.4s}.dkan-prev-lantern i:nth-child(6){left:90%;animation-delay:-2.8s}@keyframes dkan-prev-lantern{0%{opacity:0;transform:translateY(0)}20%{opacity:.9}100%{opacity:0;transform:translateY(-38px)}}",
 	".dkan-prev-bot{height:92px;justify-content:center;}",
 	".dkan-prev-bot .dkan-bot-scene{--dkan-bot-scale:1;transform:scale(.56);transform-origin:center;}",
 	// ===== 桌面伙伴：具象人物 + 紧凑双工位（尺寸可调，整卡可拖拽） =====
@@ -1577,7 +2050,7 @@ const css = [
 	"@keyframes dkan-search-head{0%,28%{transform:var(--dk3-head-turn) rotateZ(1deg)}48%,68%{transform:var(--dk3-head-turn) rotateZ(6deg) translate(1px,1px)}88%,100%{transform:var(--dk3-head-turn) rotateZ(2deg)}}",
 	"@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
 	// 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
-	"@media (prefers-reduced-motion:reduce){.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
+	"@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
 	// 通知子选项行
 	".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
 	".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
@@ -1623,7 +2096,7 @@ export const feature = {
 	name: "任务动画",
 	order: 130,
 	accent: "#f472b6",
-	description: "任务运行动画（流光细线/呼吸光点/轨道光环）与完成通知，两组开关独立、配置持久化",
+	description: "19 种任务运行动画与完成通知：速度随任务活动联动，两组开关独立、配置持久化",
 	css,
 	View: AnimationView,
 	HomeStat: AnimationStat,

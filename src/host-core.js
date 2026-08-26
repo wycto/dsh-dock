@@ -39,7 +39,10 @@ export const DockConfig = z.object({
 })
 
 /** 任务动画 effectMode 合法值（客户端动画模式）。 */
-export const ANIMATION_MODES = ['flow', 'breathe', 'ring', 'orbit', 'robot', 'matrix', 'stars', 'aurora']
+export const ANIMATION_MODES = [
+  'flow', 'breathe', 'ring', 'orbit', 'robot', 'matrix', 'stars', 'aurora', 'space',
+  'nebula', 'warp', 'radar', 'constellation', 'fireflies', 'ocean', 'prism', 'circuit', 'gravity', 'lantern',
+]
 
 /** 提示音 soundEffect 合法值（客户端音效库键名）。 */
 export const SOUND_EFFECTS = ['chime', 'ding', 'coin', 'bell', 'pulse', 'arp']
