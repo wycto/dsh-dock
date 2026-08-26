@@ -52,7 +52,7 @@ export const feature = {
 
     // ===== 定价与金额估算 =====
     // 定价表以「人民币元 / 百万 tokens」为基准(DeepSeek/智谱官方刊例即人民币), 金额先算 CNY,
-    // 对外 cost(USD) = CNY / usdCnyRate, 客户端/CSV 再按 cost × usdCnyRate 还原人民币。
+    // 对外记录的 cost 保持 USD，供旧版客户端兼容；当前客户端和 CSV 统一展示人民币。
     // usdCnyRate 与 pricing 均可被 settings.yaml 覆盖:
     //   dsh-dock-tokenlog:
     //     usdCnyRate: 7.2                    # USD↔CNY 汇率
@@ -649,7 +649,7 @@ export const feature = {
             if (method === 'export') {
               loadPricingConfig()
               const list = buildQuery(payload || {})
-              const header = ['time', 'provider', 'model', 'apiKey', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens', 'billedInput', 'cacheHitPercent', 'totalTokens', 'cost', 'costCny', 'effort', 'status', 'statusCode', 'errorCode', 'errorMsg', 'llmMs', 'sessionId', 'turn', 'step']
+              const header = ['time', 'provider', 'model', 'apiKey', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens', 'billedInput', 'cacheHitPercent', 'totalTokens', 'costCny', 'effort', 'status', 'statusCode', 'errorCode', 'errorMsg', 'llmMs', 'sessionId', 'turn', 'step']
               const esc = (v) => {
                 const s = String(v === undefined || v === null ? '' : v)
                 return /[,"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
