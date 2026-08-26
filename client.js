@@ -3921,7 +3921,7 @@ var feature6 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.7.0";
+var DOCK_VERSION = "0.7.1";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
