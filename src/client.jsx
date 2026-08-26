@@ -24,12 +24,13 @@ import { feature as fHeartbeat } from "../features/heartbeat/view.js";
 import { feature as fTheme } from "../features/theme/view.js";
 import { feature as fBalance } from "../features/balance/view.js";
 import { feature as fAnimation } from "../features/animation/view.jsx";
+import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.5.0";
+const DOCK_VERSION = "0.6.0";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation, fMobileRelay];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
@@ -172,7 +173,11 @@ const SHELL_CSS = [
 	// 弹层页脚：文字标签 + 开关 成组
 	".dockm-foot-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
 	".dockm-foot-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
-	".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
+".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
+	// 窄屏：功能坞是一级工作台而不是被压扁的桌面弹窗。全屏承接安全区，导航改横向，
+	// 禁用桌面拖拽/缩放，所有导航和关闭动作保持至少 44px 的可点击面积。
+	"@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:1fr;gap:10px}.dockh-card{padding:12px}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
+	"@media (prefers-reduced-motion:reduce){.dockm-backdrop,.dockm-dialog{animation:none}.dockm-nav-item,.dockm-close,.dockm-win,.dock-sw{transition:none}}",
 	".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
 	".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 	".dockh-foot{display:flex;align-items:center;gap:8px;}",
@@ -181,11 +186,16 @@ const SHELL_CSS = [
 	// 溢出兼容（两层防护，缺一不可）：
 	//  1) 宽度上限：宿主 .row 是 flex-wrap:wrap 且换行优先于收缩，chips 一长 tools 整行变宽，
 	//     右侧模型选择器/发送键被挤到第二行（左右错位）。宿主 .row 带 container-type:inline-size，
-	//     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定 280px。
+	//     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定值。
+	//     注意：旧上限 min(280px,36cqw) 仍偏宽——标准 780px 输入卡下（.row 内容约 762px），
+	//     add 钮(28)+工作区选择器(~214)+chips(280) 已与右侧模型选择器+发送键（~345px）合计超宽，
+	//     即便 chips 未截断 .row 也会换行把模型选择器/发送键挤到第二行。实测把上限收到 189px
+	//     （≈25cqw）并使 chips 内距收紧（padding 2px 6px、gap 2px）后，实测 4~6M 用量 + 余额
+	//     两 chip 可完整显示且不再换行；超限时仍被省略号截断，完整值在 title 悬浮提示里。
 	//  2) 截断：超限部分用省略号截断（完整数值在 title 悬浮提示里），防 chips 凸出输入卡圆角（悬空）。
-	".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:280px;}",
-	"@supports (width:1cqw){.dockchip-row{max-width:min(280px,36cqw);}}",
-	".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+	".dockchip-row{display:inline-flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:189px;}",
+	"@supports (width:1cqw){.dockchip-row{max-width:min(189px,25cqw);}}",
+	".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 6px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
 	".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
 	".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
 	".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
@@ -193,6 +203,13 @@ const SHELL_CSS = [
 ].join("\n");
 
 let dockCssTag = null;
+let initialCssSchedule = null;
+function cancelInitialCssSchedule() {
+	if (!initialCssSchedule || typeof window === "undefined") return;
+	if (initialCssSchedule.type === "idle" && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(initialCssSchedule.id);
+	if (initialCssSchedule.type === "timer") window.clearTimeout(initialCssSchedule.id);
+	initialCssSchedule = null;
+}
 function fullDockCss() {
 	const parts = [SHELL_CSS];
 	for (const f of BUILTIN_FEATURES) if (f.css) parts.push(f.css);
@@ -204,6 +221,7 @@ function fullDockCss() {
 // 外部功能注册携带样式时可重算更新（外部样式后到）。
 function ensureCss() {
 	if (typeof document === "undefined") return;
+	cancelInitialCssSchedule();
 	try {
 		if (!dockCssTag || !dockCssTag.isConnected) {
 			if (document.querySelector('style[data-plugin-css="dsh-dock"]')) {
@@ -217,6 +235,20 @@ function ensureCss() {
 		dockCssTag.textContent = fullDockCss();
 	} catch (e) {
 		console.error("[dsh-dock] ensureCss failed:", e && e.message ? e.message : String(e));
+	}
+}
+// 刷新页时宿主内容优先绘制：功能坞样式很大，首帧同步解析会让整页短暂停顿。
+// 首次注入延后到浏览器空闲期；之后的外部模块注册仍走 ensureCss() 立即更新。
+function scheduleInitialCss() {
+	if (typeof document === "undefined" || initialCssSchedule || (dockCssTag && dockCssTag.isConnected)) return;
+	const run = () => {
+		initialCssSchedule = null;
+		ensureCss();
+	};
+	if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+		initialCssSchedule = { type: "idle", id: window.requestIdleCallback(run, { timeout: 350 }) };
+	} else {
+		initialCssSchedule = { type: "timer", id: setTimeout(run, 48) };
 	}
 }
 
@@ -272,9 +304,14 @@ function DockModal() {
 	// lastGeom 记住本页生命周期内最后一次几何，重开弹层时还原
 	const [win, setWin] = react.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
 	const dlgRef = react.useRef(null);
+	const contentRef = react.useRef(null);
 	react.useEffect(() => {
 		if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
 	}, []);
+	// 切换左侧模块时总是从新页面顶部开始，避免把上一页的滚动位置带进小游戏等短页面。
+	react.useEffect(() => {
+		if (open && contentRef.current) contentRef.current.scrollTop = 0;
+	}, [active, open]);
 	function beginDrag(e, type) {
 		if (win.mode !== "normal" || e.button !== 0) return;
 		if (type === "move" && e.target && e.target.closest && e.target.closest("button,select,input")) return;
@@ -377,7 +414,7 @@ function DockModal() {
 							react.createElement("span", null, m.name),
 							m.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null,
 							m.external ? react.createElement("span", { className: "dockm-badge" }, "外部") : null))),
-				react.createElement("div", { className: "dockm-content" },
+				react.createElement("div", { className: "dockm-content", ref: contentRef },
 					react.createElement("div", { className: "dockm-content-head" },
 						react.createElement("div", { className: "dockm-name" },
 							isHome
@@ -589,7 +626,7 @@ const ctxRef = { current: null };
 
 export function apply(ctx) {
 	ctxRef.current = ctx;
-	ensureCss();
+	scheduleInitialCss();
 	initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
 	const slots = ctx.get("slots");
 	if (slots === undefined) return;
@@ -611,6 +648,21 @@ export function apply(ctx) {
 	slots.inject("conversation.input.left", () => slots.register(
 		{ name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "功能坞" },
 		(zone) => react.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))));
+	// 手机接力链接使用 fragment，避免配对码进入服务器日志或 Referer。插件加载后立即消费并
+	// 清掉 fragment，再自动打开对应功能；DSH 会话本身仍由宿主原生会话服务继续承接。
+	try {
+		if (typeof window !== "undefined") {
+			const match = window.location.hash.match(/(?:^#|&)dsh-mobile-relay=([^&]+)/);
+			if (match) {
+				const launch = decodeURIComponent(match[1]);
+				if (/^[A-Za-z0-9_-]+\.[A-F0-9]{10}$/i.test(launch)) {
+					sessionStorage.setItem("dsh-dock/mobile-relay/launch/v1", launch);
+					window.history.replaceState(null, "", window.location.pathname + window.location.search);
+					setTimeout(() => openPanel("mobile-relay"), 0);
+				}
+			}
+		}
+	} catch { /* 私密模式禁用 storage/history 时保持手动入口可用 */ }
 }
 
 export const inject = ["timer"];
