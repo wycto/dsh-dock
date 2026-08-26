@@ -11,6 +11,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -33,6 +36,2084 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// node_modules/qrcode/lib/can-promise.js
+var require_can_promise = __commonJS({
+  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+    module2.exports = function() {
+      return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/utils.js
+var require_utils = __commonJS({
+  "node_modules/qrcode/lib/core/utils.js"(exports) {
+    var toSJISFunction;
+    var CODEWORDS_COUNT = [
+      0,
+      // Not used
+      26,
+      44,
+      70,
+      100,
+      134,
+      172,
+      196,
+      242,
+      292,
+      346,
+      404,
+      466,
+      532,
+      581,
+      655,
+      733,
+      815,
+      901,
+      991,
+      1085,
+      1156,
+      1258,
+      1364,
+      1474,
+      1588,
+      1706,
+      1828,
+      1921,
+      2051,
+      2185,
+      2323,
+      2465,
+      2611,
+      2761,
+      2876,
+      3034,
+      3196,
+      3362,
+      3532,
+      3706
+    ];
+    exports.getSymbolSize = function getSymbolSize(version) {
+      if (!version) throw new Error('"version" cannot be null or undefined');
+      if (version < 1 || version > 40) throw new Error('"version" should be in range from 1 to 40');
+      return version * 4 + 17;
+    };
+    exports.getSymbolTotalCodewords = function getSymbolTotalCodewords(version) {
+      return CODEWORDS_COUNT[version];
+    };
+    exports.getBCHDigit = function(data) {
+      let digit = 0;
+      while (data !== 0) {
+        digit++;
+        data >>>= 1;
+      }
+      return digit;
+    };
+    exports.setToSJISFunction = function setToSJISFunction(f) {
+      if (typeof f !== "function") {
+        throw new Error('"toSJISFunc" is not a valid function.');
+      }
+      toSJISFunction = f;
+    };
+    exports.isKanjiModeEnabled = function() {
+      return typeof toSJISFunction !== "undefined";
+    };
+    exports.toSJIS = function toSJIS(kanji) {
+      return toSJISFunction(kanji);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/error-correction-level.js
+var require_error_correction_level = __commonJS({
+  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+    exports.L = { bit: 1 };
+    exports.M = { bit: 0 };
+    exports.Q = { bit: 3 };
+    exports.H = { bit: 2 };
+    function fromString(string) {
+      if (typeof string !== "string") {
+        throw new Error("Param is not a string");
+      }
+      const lcStr = string.toLowerCase();
+      switch (lcStr) {
+        case "l":
+        case "low":
+          return exports.L;
+        case "m":
+        case "medium":
+          return exports.M;
+        case "q":
+        case "quartile":
+          return exports.Q;
+        case "h":
+        case "high":
+          return exports.H;
+        default:
+          throw new Error("Unknown EC Level: " + string);
+      }
+    }
+    exports.isValid = function isValid(level) {
+      return level && typeof level.bit !== "undefined" && level.bit >= 0 && level.bit < 4;
+    };
+    exports.from = function from(value, defaultValue) {
+      if (exports.isValid(value)) {
+        return value;
+      }
+      try {
+        return fromString(value);
+      } catch (e) {
+        return defaultValue;
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/bit-buffer.js
+var require_bit_buffer = __commonJS({
+  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+    function BitBuffer() {
+      this.buffer = [];
+      this.length = 0;
+    }
+    BitBuffer.prototype = {
+      get: function(index) {
+        const bufIndex = Math.floor(index / 8);
+        return (this.buffer[bufIndex] >>> 7 - index % 8 & 1) === 1;
+      },
+      put: function(num, length) {
+        for (let i = 0; i < length; i++) {
+          this.putBit((num >>> length - i - 1 & 1) === 1);
+        }
+      },
+      getLengthInBits: function() {
+        return this.length;
+      },
+      putBit: function(bit) {
+        const bufIndex = Math.floor(this.length / 8);
+        if (this.buffer.length <= bufIndex) {
+          this.buffer.push(0);
+        }
+        if (bit) {
+          this.buffer[bufIndex] |= 128 >>> this.length % 8;
+        }
+        this.length++;
+      }
+    };
+    module2.exports = BitBuffer;
+  }
+});
+
+// node_modules/qrcode/lib/core/bit-matrix.js
+var require_bit_matrix = __commonJS({
+  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+    function BitMatrix(size) {
+      if (!size || size < 1) {
+        throw new Error("BitMatrix size must be defined and greater than 0");
+      }
+      this.size = size;
+      this.data = new Uint8Array(size * size);
+      this.reservedBit = new Uint8Array(size * size);
+    }
+    BitMatrix.prototype.set = function(row, col, value, reserved) {
+      const index = row * this.size + col;
+      this.data[index] = value;
+      if (reserved) this.reservedBit[index] = true;
+    };
+    BitMatrix.prototype.get = function(row, col) {
+      return this.data[row * this.size + col];
+    };
+    BitMatrix.prototype.xor = function(row, col, value) {
+      this.data[row * this.size + col] ^= value;
+    };
+    BitMatrix.prototype.isReserved = function(row, col) {
+      return this.reservedBit[row * this.size + col];
+    };
+    module2.exports = BitMatrix;
+  }
+});
+
+// node_modules/qrcode/lib/core/alignment-pattern.js
+var require_alignment_pattern = __commonJS({
+  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+    var getSymbolSize = require_utils().getSymbolSize;
+    exports.getRowColCoords = function getRowColCoords(version) {
+      if (version === 1) return [];
+      const posCount = Math.floor(version / 7) + 2;
+      const size = getSymbolSize(version);
+      const intervals = size === 145 ? 26 : Math.ceil((size - 13) / (2 * posCount - 2)) * 2;
+      const positions = [size - 7];
+      for (let i = 1; i < posCount - 1; i++) {
+        positions[i] = positions[i - 1] - intervals;
+      }
+      positions.push(6);
+      return positions.reverse();
+    };
+    exports.getPositions = function getPositions(version) {
+      const coords = [];
+      const pos = exports.getRowColCoords(version);
+      const posLength = pos.length;
+      for (let i = 0; i < posLength; i++) {
+        for (let j = 0; j < posLength; j++) {
+          if (i === 0 && j === 0 || // top-left
+          i === 0 && j === posLength - 1 || // bottom-left
+          i === posLength - 1 && j === 0) {
+            continue;
+          }
+          coords.push([pos[i], pos[j]]);
+        }
+      }
+      return coords;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/finder-pattern.js
+var require_finder_pattern = __commonJS({
+  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+    var getSymbolSize = require_utils().getSymbolSize;
+    var FINDER_PATTERN_SIZE = 7;
+    exports.getPositions = function getPositions(version) {
+      const size = getSymbolSize(version);
+      return [
+        // top-left
+        [0, 0],
+        // top-right
+        [size - FINDER_PATTERN_SIZE, 0],
+        // bottom-left
+        [0, size - FINDER_PATTERN_SIZE]
+      ];
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/mask-pattern.js
+var require_mask_pattern = __commonJS({
+  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+    exports.Patterns = {
+      PATTERN000: 0,
+      PATTERN001: 1,
+      PATTERN010: 2,
+      PATTERN011: 3,
+      PATTERN100: 4,
+      PATTERN101: 5,
+      PATTERN110: 6,
+      PATTERN111: 7
+    };
+    var PenaltyScores = {
+      N1: 3,
+      N2: 3,
+      N3: 40,
+      N4: 10
+    };
+    exports.isValid = function isValid(mask) {
+      return mask != null && mask !== "" && !isNaN(mask) && mask >= 0 && mask <= 7;
+    };
+    exports.from = function from(value) {
+      return exports.isValid(value) ? parseInt(value, 10) : void 0;
+    };
+    exports.getPenaltyN1 = function getPenaltyN1(data) {
+      const size = data.size;
+      let points = 0;
+      let sameCountCol = 0;
+      let sameCountRow = 0;
+      let lastCol = null;
+      let lastRow = null;
+      for (let row = 0; row < size; row++) {
+        sameCountCol = sameCountRow = 0;
+        lastCol = lastRow = null;
+        for (let col = 0; col < size; col++) {
+          let module3 = data.get(row, col);
+          if (module3 === lastCol) {
+            sameCountCol++;
+          } else {
+            if (sameCountCol >= 5) points += PenaltyScores.N1 + (sameCountCol - 5);
+            lastCol = module3;
+            sameCountCol = 1;
+          }
+          module3 = data.get(col, row);
+          if (module3 === lastRow) {
+            sameCountRow++;
+          } else {
+            if (sameCountRow >= 5) points += PenaltyScores.N1 + (sameCountRow - 5);
+            lastRow = module3;
+            sameCountRow = 1;
+          }
+        }
+        if (sameCountCol >= 5) points += PenaltyScores.N1 + (sameCountCol - 5);
+        if (sameCountRow >= 5) points += PenaltyScores.N1 + (sameCountRow - 5);
+      }
+      return points;
+    };
+    exports.getPenaltyN2 = function getPenaltyN2(data) {
+      const size = data.size;
+      let points = 0;
+      for (let row = 0; row < size - 1; row++) {
+        for (let col = 0; col < size - 1; col++) {
+          const last = data.get(row, col) + data.get(row, col + 1) + data.get(row + 1, col) + data.get(row + 1, col + 1);
+          if (last === 4 || last === 0) points++;
+        }
+      }
+      return points * PenaltyScores.N2;
+    };
+    exports.getPenaltyN3 = function getPenaltyN3(data) {
+      const size = data.size;
+      let points = 0;
+      let bitsCol = 0;
+      let bitsRow = 0;
+      for (let row = 0; row < size; row++) {
+        bitsCol = bitsRow = 0;
+        for (let col = 0; col < size; col++) {
+          bitsCol = bitsCol << 1 & 2047 | data.get(row, col);
+          if (col >= 10 && (bitsCol === 1488 || bitsCol === 93)) points++;
+          bitsRow = bitsRow << 1 & 2047 | data.get(col, row);
+          if (col >= 10 && (bitsRow === 1488 || bitsRow === 93)) points++;
+        }
+      }
+      return points * PenaltyScores.N3;
+    };
+    exports.getPenaltyN4 = function getPenaltyN4(data) {
+      let darkCount = 0;
+      const modulesCount = data.data.length;
+      for (let i = 0; i < modulesCount; i++) darkCount += data.data[i];
+      const k = Math.abs(Math.ceil(darkCount * 100 / modulesCount / 5) - 10);
+      return k * PenaltyScores.N4;
+    };
+    function getMaskAt(maskPattern, i, j) {
+      switch (maskPattern) {
+        case exports.Patterns.PATTERN000:
+          return (i + j) % 2 === 0;
+        case exports.Patterns.PATTERN001:
+          return i % 2 === 0;
+        case exports.Patterns.PATTERN010:
+          return j % 3 === 0;
+        case exports.Patterns.PATTERN011:
+          return (i + j) % 3 === 0;
+        case exports.Patterns.PATTERN100:
+          return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0;
+        case exports.Patterns.PATTERN101:
+          return i * j % 2 + i * j % 3 === 0;
+        case exports.Patterns.PATTERN110:
+          return (i * j % 2 + i * j % 3) % 2 === 0;
+        case exports.Patterns.PATTERN111:
+          return (i * j % 3 + (i + j) % 2) % 2 === 0;
+        default:
+          throw new Error("bad maskPattern:" + maskPattern);
+      }
+    }
+    exports.applyMask = function applyMask(pattern, data) {
+      const size = data.size;
+      for (let col = 0; col < size; col++) {
+        for (let row = 0; row < size; row++) {
+          if (data.isReserved(row, col)) continue;
+          data.xor(row, col, getMaskAt(pattern, row, col));
+        }
+      }
+    };
+    exports.getBestMask = function getBestMask(data, setupFormatFunc) {
+      const numPatterns = Object.keys(exports.Patterns).length;
+      let bestPattern = 0;
+      let lowerPenalty = Infinity;
+      for (let p = 0; p < numPatterns; p++) {
+        setupFormatFunc(p);
+        exports.applyMask(p, data);
+        const penalty = exports.getPenaltyN1(data) + exports.getPenaltyN2(data) + exports.getPenaltyN3(data) + exports.getPenaltyN4(data);
+        exports.applyMask(p, data);
+        if (penalty < lowerPenalty) {
+          lowerPenalty = penalty;
+          bestPattern = p;
+        }
+      }
+      return bestPattern;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/error-correction-code.js
+var require_error_correction_code = __commonJS({
+  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+    var ECLevel = require_error_correction_level();
+    var EC_BLOCKS_TABLE = [
+      // L  M  Q  H
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      1,
+      2,
+      2,
+      4,
+      1,
+      2,
+      4,
+      4,
+      2,
+      4,
+      4,
+      4,
+      2,
+      4,
+      6,
+      5,
+      2,
+      4,
+      6,
+      6,
+      2,
+      5,
+      8,
+      8,
+      4,
+      5,
+      8,
+      8,
+      4,
+      5,
+      8,
+      11,
+      4,
+      8,
+      10,
+      11,
+      4,
+      9,
+      12,
+      16,
+      4,
+      9,
+      16,
+      16,
+      6,
+      10,
+      12,
+      18,
+      6,
+      10,
+      17,
+      16,
+      6,
+      11,
+      16,
+      19,
+      6,
+      13,
+      18,
+      21,
+      7,
+      14,
+      21,
+      25,
+      8,
+      16,
+      20,
+      25,
+      8,
+      17,
+      23,
+      25,
+      9,
+      17,
+      23,
+      34,
+      9,
+      18,
+      25,
+      30,
+      10,
+      20,
+      27,
+      32,
+      12,
+      21,
+      29,
+      35,
+      12,
+      23,
+      34,
+      37,
+      12,
+      25,
+      34,
+      40,
+      13,
+      26,
+      35,
+      42,
+      14,
+      28,
+      38,
+      45,
+      15,
+      29,
+      40,
+      48,
+      16,
+      31,
+      43,
+      51,
+      17,
+      33,
+      45,
+      54,
+      18,
+      35,
+      48,
+      57,
+      19,
+      37,
+      51,
+      60,
+      19,
+      38,
+      53,
+      63,
+      20,
+      40,
+      56,
+      66,
+      21,
+      43,
+      59,
+      70,
+      22,
+      45,
+      62,
+      74,
+      24,
+      47,
+      65,
+      77,
+      25,
+      49,
+      68,
+      81
+    ];
+    var EC_CODEWORDS_TABLE = [
+      // L  M  Q  H
+      7,
+      10,
+      13,
+      17,
+      10,
+      16,
+      22,
+      28,
+      15,
+      26,
+      36,
+      44,
+      20,
+      36,
+      52,
+      64,
+      26,
+      48,
+      72,
+      88,
+      36,
+      64,
+      96,
+      112,
+      40,
+      72,
+      108,
+      130,
+      48,
+      88,
+      132,
+      156,
+      60,
+      110,
+      160,
+      192,
+      72,
+      130,
+      192,
+      224,
+      80,
+      150,
+      224,
+      264,
+      96,
+      176,
+      260,
+      308,
+      104,
+      198,
+      288,
+      352,
+      120,
+      216,
+      320,
+      384,
+      132,
+      240,
+      360,
+      432,
+      144,
+      280,
+      408,
+      480,
+      168,
+      308,
+      448,
+      532,
+      180,
+      338,
+      504,
+      588,
+      196,
+      364,
+      546,
+      650,
+      224,
+      416,
+      600,
+      700,
+      224,
+      442,
+      644,
+      750,
+      252,
+      476,
+      690,
+      816,
+      270,
+      504,
+      750,
+      900,
+      300,
+      560,
+      810,
+      960,
+      312,
+      588,
+      870,
+      1050,
+      336,
+      644,
+      952,
+      1110,
+      360,
+      700,
+      1020,
+      1200,
+      390,
+      728,
+      1050,
+      1260,
+      420,
+      784,
+      1140,
+      1350,
+      450,
+      812,
+      1200,
+      1440,
+      480,
+      868,
+      1290,
+      1530,
+      510,
+      924,
+      1350,
+      1620,
+      540,
+      980,
+      1440,
+      1710,
+      570,
+      1036,
+      1530,
+      1800,
+      570,
+      1064,
+      1590,
+      1890,
+      600,
+      1120,
+      1680,
+      1980,
+      630,
+      1204,
+      1770,
+      2100,
+      660,
+      1260,
+      1860,
+      2220,
+      720,
+      1316,
+      1950,
+      2310,
+      750,
+      1372,
+      2040,
+      2430
+    ];
+    exports.getBlocksCount = function getBlocksCount(version, errorCorrectionLevel) {
+      switch (errorCorrectionLevel) {
+        case ECLevel.L:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 0];
+        case ECLevel.M:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 1];
+        case ECLevel.Q:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 2];
+        case ECLevel.H:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 3];
+        default:
+          return void 0;
+      }
+    };
+    exports.getTotalCodewordsCount = function getTotalCodewordsCount(version, errorCorrectionLevel) {
+      switch (errorCorrectionLevel) {
+        case ECLevel.L:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 0];
+        case ECLevel.M:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 1];
+        case ECLevel.Q:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 2];
+        case ECLevel.H:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 3];
+        default:
+          return void 0;
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/galois-field.js
+var require_galois_field = __commonJS({
+  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
+    var EXP_TABLE = new Uint8Array(512);
+    var LOG_TABLE = new Uint8Array(256);
+    (function initTables() {
+      let x = 1;
+      for (let i = 0; i < 255; i++) {
+        EXP_TABLE[i] = x;
+        LOG_TABLE[x] = i;
+        x <<= 1;
+        if (x & 256) {
+          x ^= 285;
+        }
+      }
+      for (let i = 255; i < 512; i++) {
+        EXP_TABLE[i] = EXP_TABLE[i - 255];
+      }
+    })();
+    exports.log = function log(n) {
+      if (n < 1) throw new Error("log(" + n + ")");
+      return LOG_TABLE[n];
+    };
+    exports.exp = function exp(n) {
+      return EXP_TABLE[n];
+    };
+    exports.mul = function mul(x, y) {
+      if (x === 0 || y === 0) return 0;
+      return EXP_TABLE[LOG_TABLE[x] + LOG_TABLE[y]];
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/polynomial.js
+var require_polynomial = __commonJS({
+  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
+    var GF = require_galois_field();
+    exports.mul = function mul(p1, p2) {
+      const coeff = new Uint8Array(p1.length + p2.length - 1);
+      for (let i = 0; i < p1.length; i++) {
+        for (let j = 0; j < p2.length; j++) {
+          coeff[i + j] ^= GF.mul(p1[i], p2[j]);
+        }
+      }
+      return coeff;
+    };
+    exports.mod = function mod(divident, divisor) {
+      let result = new Uint8Array(divident);
+      while (result.length - divisor.length >= 0) {
+        const coeff = result[0];
+        for (let i = 0; i < divisor.length; i++) {
+          result[i] ^= GF.mul(divisor[i], coeff);
+        }
+        let offset = 0;
+        while (offset < result.length && result[offset] === 0) offset++;
+        result = result.slice(offset);
+      }
+      return result;
+    };
+    exports.generateECPolynomial = function generateECPolynomial(degree) {
+      let poly = new Uint8Array([1]);
+      for (let i = 0; i < degree; i++) {
+        poly = exports.mul(poly, new Uint8Array([1, GF.exp(i)]));
+      }
+      return poly;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/reed-solomon-encoder.js
+var require_reed_solomon_encoder = __commonJS({
+  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+    var Polynomial = require_polynomial();
+    function ReedSolomonEncoder(degree) {
+      this.genPoly = void 0;
+      this.degree = degree;
+      if (this.degree) this.initialize(this.degree);
+    }
+    ReedSolomonEncoder.prototype.initialize = function initialize(degree) {
+      this.degree = degree;
+      this.genPoly = Polynomial.generateECPolynomial(this.degree);
+    };
+    ReedSolomonEncoder.prototype.encode = function encode(data) {
+      if (!this.genPoly) {
+        throw new Error("Encoder not initialized");
+      }
+      const paddedData = new Uint8Array(data.length + this.degree);
+      paddedData.set(data);
+      const remainder = Polynomial.mod(paddedData, this.genPoly);
+      const start = this.degree - remainder.length;
+      if (start > 0) {
+        const buff = new Uint8Array(this.degree);
+        buff.set(remainder, start);
+        return buff;
+      }
+      return remainder;
+    };
+    module2.exports = ReedSolomonEncoder;
+  }
+});
+
+// node_modules/qrcode/lib/core/version-check.js
+var require_version_check = __commonJS({
+  "node_modules/qrcode/lib/core/version-check.js"(exports) {
+    exports.isValid = function isValid(version) {
+      return !isNaN(version) && version >= 1 && version <= 40;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/regex.js
+var require_regex = __commonJS({
+  "node_modules/qrcode/lib/core/regex.js"(exports) {
+    var numeric = "[0-9]+";
+    var alphanumeric = "[A-Z $%*+\\-./:]+";
+    var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
+    kanji = kanji.replace(/u/g, "\\u");
+    var byte = "(?:(?![A-Z0-9 $%*+\\-./:]|" + kanji + ")(?:.|[\r\n]))+";
+    exports.KANJI = new RegExp(kanji, "g");
+    exports.BYTE_KANJI = new RegExp("[^A-Z0-9 $%*+\\-./:]+", "g");
+    exports.BYTE = new RegExp(byte, "g");
+    exports.NUMERIC = new RegExp(numeric, "g");
+    exports.ALPHANUMERIC = new RegExp(alphanumeric, "g");
+    var TEST_KANJI = new RegExp("^" + kanji + "$");
+    var TEST_NUMERIC = new RegExp("^" + numeric + "$");
+    var TEST_ALPHANUMERIC = new RegExp("^[A-Z0-9 $%*+\\-./:]+$");
+    exports.testKanji = function testKanji(str) {
+      return TEST_KANJI.test(str);
+    };
+    exports.testNumeric = function testNumeric(str) {
+      return TEST_NUMERIC.test(str);
+    };
+    exports.testAlphanumeric = function testAlphanumeric(str) {
+      return TEST_ALPHANUMERIC.test(str);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/mode.js
+var require_mode = __commonJS({
+  "node_modules/qrcode/lib/core/mode.js"(exports) {
+    var VersionCheck = require_version_check();
+    var Regex = require_regex();
+    exports.NUMERIC = {
+      id: "Numeric",
+      bit: 1 << 0,
+      ccBits: [10, 12, 14]
+    };
+    exports.ALPHANUMERIC = {
+      id: "Alphanumeric",
+      bit: 1 << 1,
+      ccBits: [9, 11, 13]
+    };
+    exports.BYTE = {
+      id: "Byte",
+      bit: 1 << 2,
+      ccBits: [8, 16, 16]
+    };
+    exports.KANJI = {
+      id: "Kanji",
+      bit: 1 << 3,
+      ccBits: [8, 10, 12]
+    };
+    exports.MIXED = {
+      bit: -1
+    };
+    exports.getCharCountIndicator = function getCharCountIndicator(mode, version) {
+      if (!mode.ccBits) throw new Error("Invalid mode: " + mode);
+      if (!VersionCheck.isValid(version)) {
+        throw new Error("Invalid version: " + version);
+      }
+      if (version >= 1 && version < 10) return mode.ccBits[0];
+      else if (version < 27) return mode.ccBits[1];
+      return mode.ccBits[2];
+    };
+    exports.getBestModeForData = function getBestModeForData(dataStr) {
+      if (Regex.testNumeric(dataStr)) return exports.NUMERIC;
+      else if (Regex.testAlphanumeric(dataStr)) return exports.ALPHANUMERIC;
+      else if (Regex.testKanji(dataStr)) return exports.KANJI;
+      else return exports.BYTE;
+    };
+    exports.toString = function toString(mode) {
+      if (mode && mode.id) return mode.id;
+      throw new Error("Invalid mode");
+    };
+    exports.isValid = function isValid(mode) {
+      return mode && mode.bit && mode.ccBits;
+    };
+    function fromString(string) {
+      if (typeof string !== "string") {
+        throw new Error("Param is not a string");
+      }
+      const lcStr = string.toLowerCase();
+      switch (lcStr) {
+        case "numeric":
+          return exports.NUMERIC;
+        case "alphanumeric":
+          return exports.ALPHANUMERIC;
+        case "kanji":
+          return exports.KANJI;
+        case "byte":
+          return exports.BYTE;
+        default:
+          throw new Error("Unknown mode: " + string);
+      }
+    }
+    exports.from = function from(value, defaultValue) {
+      if (exports.isValid(value)) {
+        return value;
+      }
+      try {
+        return fromString(value);
+      } catch (e) {
+        return defaultValue;
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/version.js
+var require_version = __commonJS({
+  "node_modules/qrcode/lib/core/version.js"(exports) {
+    var Utils = require_utils();
+    var ECCode = require_error_correction_code();
+    var ECLevel = require_error_correction_level();
+    var Mode = require_mode();
+    var VersionCheck = require_version_check();
+    var G18 = 1 << 12 | 1 << 11 | 1 << 10 | 1 << 9 | 1 << 8 | 1 << 5 | 1 << 2 | 1 << 0;
+    var G18_BCH = Utils.getBCHDigit(G18);
+    function getBestVersionForDataLength(mode, length, errorCorrectionLevel) {
+      for (let currentVersion = 1; currentVersion <= 40; currentVersion++) {
+        if (length <= exports.getCapacity(currentVersion, errorCorrectionLevel, mode)) {
+          return currentVersion;
+        }
+      }
+      return void 0;
+    }
+    function getReservedBitsCount(mode, version) {
+      return Mode.getCharCountIndicator(mode, version) + 4;
+    }
+    function getTotalBitsFromDataArray(segments, version) {
+      let totalBits = 0;
+      segments.forEach(function(data) {
+        const reservedBits = getReservedBitsCount(data.mode, version);
+        totalBits += reservedBits + data.getBitsLength();
+      });
+      return totalBits;
+    }
+    function getBestVersionForMixedData(segments, errorCorrectionLevel) {
+      for (let currentVersion = 1; currentVersion <= 40; currentVersion++) {
+        const length = getTotalBitsFromDataArray(segments, currentVersion);
+        if (length <= exports.getCapacity(currentVersion, errorCorrectionLevel, Mode.MIXED)) {
+          return currentVersion;
+        }
+      }
+      return void 0;
+    }
+    exports.from = function from(value, defaultValue) {
+      if (VersionCheck.isValid(value)) {
+        return parseInt(value, 10);
+      }
+      return defaultValue;
+    };
+    exports.getCapacity = function getCapacity(version, errorCorrectionLevel, mode) {
+      if (!VersionCheck.isValid(version)) {
+        throw new Error("Invalid QR Code version");
+      }
+      if (typeof mode === "undefined") mode = Mode.BYTE;
+      const totalCodewords = Utils.getSymbolTotalCodewords(version);
+      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
+      const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
+      if (mode === Mode.MIXED) return dataTotalCodewordsBits;
+      const usableBits = dataTotalCodewordsBits - getReservedBitsCount(mode, version);
+      switch (mode) {
+        case Mode.NUMERIC:
+          return Math.floor(usableBits / 10 * 3);
+        case Mode.ALPHANUMERIC:
+          return Math.floor(usableBits / 11 * 2);
+        case Mode.KANJI:
+          return Math.floor(usableBits / 13);
+        case Mode.BYTE:
+        default:
+          return Math.floor(usableBits / 8);
+      }
+    };
+    exports.getBestVersionForData = function getBestVersionForData(data, errorCorrectionLevel) {
+      let seg;
+      const ecl = ECLevel.from(errorCorrectionLevel, ECLevel.M);
+      if (Array.isArray(data)) {
+        if (data.length > 1) {
+          return getBestVersionForMixedData(data, ecl);
+        }
+        if (data.length === 0) {
+          return 1;
+        }
+        seg = data[0];
+      } else {
+        seg = data;
+      }
+      return getBestVersionForDataLength(seg.mode, seg.getLength(), ecl);
+    };
+    exports.getEncodedBits = function getEncodedBits(version) {
+      if (!VersionCheck.isValid(version) || version < 7) {
+        throw new Error("Invalid QR Code version");
+      }
+      let d = version << 12;
+      while (Utils.getBCHDigit(d) - G18_BCH >= 0) {
+        d ^= G18 << Utils.getBCHDigit(d) - G18_BCH;
+      }
+      return version << 12 | d;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/format-info.js
+var require_format_info = __commonJS({
+  "node_modules/qrcode/lib/core/format-info.js"(exports) {
+    var Utils = require_utils();
+    var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
+    var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
+    var G15_BCH = Utils.getBCHDigit(G15);
+    exports.getEncodedBits = function getEncodedBits(errorCorrectionLevel, mask) {
+      const data = errorCorrectionLevel.bit << 3 | mask;
+      let d = data << 10;
+      while (Utils.getBCHDigit(d) - G15_BCH >= 0) {
+        d ^= G15 << Utils.getBCHDigit(d) - G15_BCH;
+      }
+      return (data << 10 | d) ^ G15_MASK;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/numeric-data.js
+var require_numeric_data = __commonJS({
+  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+    var Mode = require_mode();
+    function NumericData(data) {
+      this.mode = Mode.NUMERIC;
+      this.data = data.toString();
+    }
+    NumericData.getBitsLength = function getBitsLength(length) {
+      return 10 * Math.floor(length / 3) + (length % 3 ? length % 3 * 3 + 1 : 0);
+    };
+    NumericData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    NumericData.prototype.getBitsLength = function getBitsLength() {
+      return NumericData.getBitsLength(this.data.length);
+    };
+    NumericData.prototype.write = function write(bitBuffer) {
+      let i, group, value;
+      for (i = 0; i + 3 <= this.data.length; i += 3) {
+        group = this.data.substr(i, 3);
+        value = parseInt(group, 10);
+        bitBuffer.put(value, 10);
+      }
+      const remainingNum = this.data.length - i;
+      if (remainingNum > 0) {
+        group = this.data.substr(i);
+        value = parseInt(group, 10);
+        bitBuffer.put(value, remainingNum * 3 + 1);
+      }
+    };
+    module2.exports = NumericData;
+  }
+});
+
+// node_modules/qrcode/lib/core/alphanumeric-data.js
+var require_alphanumeric_data = __commonJS({
+  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+    var Mode = require_mode();
+    var ALPHA_NUM_CHARS = [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "N",
+      "O",
+      "P",
+      "Q",
+      "R",
+      "S",
+      "T",
+      "U",
+      "V",
+      "W",
+      "X",
+      "Y",
+      "Z",
+      " ",
+      "$",
+      "%",
+      "*",
+      "+",
+      "-",
+      ".",
+      "/",
+      ":"
+    ];
+    function AlphanumericData(data) {
+      this.mode = Mode.ALPHANUMERIC;
+      this.data = data;
+    }
+    AlphanumericData.getBitsLength = function getBitsLength(length) {
+      return 11 * Math.floor(length / 2) + 6 * (length % 2);
+    };
+    AlphanumericData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    AlphanumericData.prototype.getBitsLength = function getBitsLength() {
+      return AlphanumericData.getBitsLength(this.data.length);
+    };
+    AlphanumericData.prototype.write = function write(bitBuffer) {
+      let i;
+      for (i = 0; i + 2 <= this.data.length; i += 2) {
+        let value = ALPHA_NUM_CHARS.indexOf(this.data[i]) * 45;
+        value += ALPHA_NUM_CHARS.indexOf(this.data[i + 1]);
+        bitBuffer.put(value, 11);
+      }
+      if (this.data.length % 2) {
+        bitBuffer.put(ALPHA_NUM_CHARS.indexOf(this.data[i]), 6);
+      }
+    };
+    module2.exports = AlphanumericData;
+  }
+});
+
+// node_modules/qrcode/lib/core/byte-data.js
+var require_byte_data = __commonJS({
+  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+    var Mode = require_mode();
+    function ByteData(data) {
+      this.mode = Mode.BYTE;
+      if (typeof data === "string") {
+        this.data = new TextEncoder().encode(data);
+      } else {
+        this.data = new Uint8Array(data);
+      }
+    }
+    ByteData.getBitsLength = function getBitsLength(length) {
+      return length * 8;
+    };
+    ByteData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    ByteData.prototype.getBitsLength = function getBitsLength() {
+      return ByteData.getBitsLength(this.data.length);
+    };
+    ByteData.prototype.write = function(bitBuffer) {
+      for (let i = 0, l = this.data.length; i < l; i++) {
+        bitBuffer.put(this.data[i], 8);
+      }
+    };
+    module2.exports = ByteData;
+  }
+});
+
+// node_modules/qrcode/lib/core/kanji-data.js
+var require_kanji_data = __commonJS({
+  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+    var Mode = require_mode();
+    var Utils = require_utils();
+    function KanjiData(data) {
+      this.mode = Mode.KANJI;
+      this.data = data;
+    }
+    KanjiData.getBitsLength = function getBitsLength(length) {
+      return length * 13;
+    };
+    KanjiData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    KanjiData.prototype.getBitsLength = function getBitsLength() {
+      return KanjiData.getBitsLength(this.data.length);
+    };
+    KanjiData.prototype.write = function(bitBuffer) {
+      let i;
+      for (i = 0; i < this.data.length; i++) {
+        let value = Utils.toSJIS(this.data[i]);
+        if (value >= 33088 && value <= 40956) {
+          value -= 33088;
+        } else if (value >= 57408 && value <= 60351) {
+          value -= 49472;
+        } else {
+          throw new Error(
+            "Invalid SJIS character: " + this.data[i] + "\nMake sure your charset is UTF-8"
+          );
+        }
+        value = (value >>> 8 & 255) * 192 + (value & 255);
+        bitBuffer.put(value, 13);
+      }
+    };
+    module2.exports = KanjiData;
+  }
+});
+
+// node_modules/dijkstrajs/dijkstra.js
+var require_dijkstra = __commonJS({
+  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+    "use strict";
+    var dijkstra = {
+      single_source_shortest_paths: function(graph, s, d) {
+        var predecessors = {};
+        var costs = {};
+        costs[s] = 0;
+        var open = dijkstra.PriorityQueue.make();
+        open.push(s, 0);
+        var closest, u, v, cost_of_s_to_u, adjacent_nodes, cost_of_e, cost_of_s_to_u_plus_cost_of_e, cost_of_s_to_v, first_visit;
+        while (!open.empty()) {
+          closest = open.pop();
+          u = closest.value;
+          cost_of_s_to_u = closest.cost;
+          adjacent_nodes = graph[u] || {};
+          for (v in adjacent_nodes) {
+            if (adjacent_nodes.hasOwnProperty(v)) {
+              cost_of_e = adjacent_nodes[v];
+              cost_of_s_to_u_plus_cost_of_e = cost_of_s_to_u + cost_of_e;
+              cost_of_s_to_v = costs[v];
+              first_visit = typeof costs[v] === "undefined";
+              if (first_visit || cost_of_s_to_v > cost_of_s_to_u_plus_cost_of_e) {
+                costs[v] = cost_of_s_to_u_plus_cost_of_e;
+                open.push(v, cost_of_s_to_u_plus_cost_of_e);
+                predecessors[v] = u;
+              }
+            }
+          }
+        }
+        if (typeof d !== "undefined" && typeof costs[d] === "undefined") {
+          var msg = ["Could not find a path from ", s, " to ", d, "."].join("");
+          throw new Error(msg);
+        }
+        return predecessors;
+      },
+      extract_shortest_path_from_predecessor_list: function(predecessors, d) {
+        var nodes = [];
+        var u = d;
+        var predecessor;
+        while (u) {
+          nodes.push(u);
+          predecessor = predecessors[u];
+          u = predecessors[u];
+        }
+        nodes.reverse();
+        return nodes;
+      },
+      find_path: function(graph, s, d) {
+        var predecessors = dijkstra.single_source_shortest_paths(graph, s, d);
+        return dijkstra.extract_shortest_path_from_predecessor_list(
+          predecessors,
+          d
+        );
+      },
+      /**
+       * A very naive priority queue implementation.
+       */
+      PriorityQueue: {
+        make: function(opts) {
+          var T = dijkstra.PriorityQueue, t = {}, key;
+          opts = opts || {};
+          for (key in T) {
+            if (T.hasOwnProperty(key)) {
+              t[key] = T[key];
+            }
+          }
+          t.queue = [];
+          t.sorter = opts.sorter || T.default_sorter;
+          return t;
+        },
+        default_sorter: function(a, b) {
+          return a.cost - b.cost;
+        },
+        /**
+         * Add a new item to the queue and ensure the highest priority element
+         * is at the front of the queue.
+         */
+        push: function(value, cost) {
+          var item = { value, cost };
+          this.queue.push(item);
+          this.queue.sort(this.sorter);
+        },
+        /**
+         * Return the highest priority element in the queue.
+         */
+        pop: function() {
+          return this.queue.shift();
+        },
+        empty: function() {
+          return this.queue.length === 0;
+        }
+      }
+    };
+    if (typeof module2 !== "undefined") {
+      module2.exports = dijkstra;
+    }
+  }
+});
+
+// node_modules/qrcode/lib/core/segments.js
+var require_segments = __commonJS({
+  "node_modules/qrcode/lib/core/segments.js"(exports) {
+    var Mode = require_mode();
+    var NumericData = require_numeric_data();
+    var AlphanumericData = require_alphanumeric_data();
+    var ByteData = require_byte_data();
+    var KanjiData = require_kanji_data();
+    var Regex = require_regex();
+    var Utils = require_utils();
+    var dijkstra = require_dijkstra();
+    function getStringByteLength(str) {
+      return unescape(encodeURIComponent(str)).length;
+    }
+    function getSegments(regex, mode, str) {
+      const segments = [];
+      let result;
+      while ((result = regex.exec(str)) !== null) {
+        segments.push({
+          data: result[0],
+          index: result.index,
+          mode,
+          length: result[0].length
+        });
+      }
+      return segments;
+    }
+    function getSegmentsFromString(dataStr) {
+      const numSegs = getSegments(Regex.NUMERIC, Mode.NUMERIC, dataStr);
+      const alphaNumSegs = getSegments(Regex.ALPHANUMERIC, Mode.ALPHANUMERIC, dataStr);
+      let byteSegs;
+      let kanjiSegs;
+      if (Utils.isKanjiModeEnabled()) {
+        byteSegs = getSegments(Regex.BYTE, Mode.BYTE, dataStr);
+        kanjiSegs = getSegments(Regex.KANJI, Mode.KANJI, dataStr);
+      } else {
+        byteSegs = getSegments(Regex.BYTE_KANJI, Mode.BYTE, dataStr);
+        kanjiSegs = [];
+      }
+      const segs = numSegs.concat(alphaNumSegs, byteSegs, kanjiSegs);
+      return segs.sort(function(s1, s2) {
+        return s1.index - s2.index;
+      }).map(function(obj) {
+        return {
+          data: obj.data,
+          mode: obj.mode,
+          length: obj.length
+        };
+      });
+    }
+    function getSegmentBitsLength(length, mode) {
+      switch (mode) {
+        case Mode.NUMERIC:
+          return NumericData.getBitsLength(length);
+        case Mode.ALPHANUMERIC:
+          return AlphanumericData.getBitsLength(length);
+        case Mode.KANJI:
+          return KanjiData.getBitsLength(length);
+        case Mode.BYTE:
+          return ByteData.getBitsLength(length);
+      }
+    }
+    function mergeSegments(segs) {
+      return segs.reduce(function(acc, curr) {
+        const prevSeg = acc.length - 1 >= 0 ? acc[acc.length - 1] : null;
+        if (prevSeg && prevSeg.mode === curr.mode) {
+          acc[acc.length - 1].data += curr.data;
+          return acc;
+        }
+        acc.push(curr);
+        return acc;
+      }, []);
+    }
+    function buildNodes(segs) {
+      const nodes = [];
+      for (let i = 0; i < segs.length; i++) {
+        const seg = segs[i];
+        switch (seg.mode) {
+          case Mode.NUMERIC:
+            nodes.push([
+              seg,
+              { data: seg.data, mode: Mode.ALPHANUMERIC, length: seg.length },
+              { data: seg.data, mode: Mode.BYTE, length: seg.length }
+            ]);
+            break;
+          case Mode.ALPHANUMERIC:
+            nodes.push([
+              seg,
+              { data: seg.data, mode: Mode.BYTE, length: seg.length }
+            ]);
+            break;
+          case Mode.KANJI:
+            nodes.push([
+              seg,
+              { data: seg.data, mode: Mode.BYTE, length: getStringByteLength(seg.data) }
+            ]);
+            break;
+          case Mode.BYTE:
+            nodes.push([
+              { data: seg.data, mode: Mode.BYTE, length: getStringByteLength(seg.data) }
+            ]);
+        }
+      }
+      return nodes;
+    }
+    function buildGraph(nodes, version) {
+      const table = {};
+      const graph = { start: {} };
+      let prevNodeIds = ["start"];
+      for (let i = 0; i < nodes.length; i++) {
+        const nodeGroup = nodes[i];
+        const currentNodeIds = [];
+        for (let j = 0; j < nodeGroup.length; j++) {
+          const node = nodeGroup[j];
+          const key = "" + i + j;
+          currentNodeIds.push(key);
+          table[key] = { node, lastCount: 0 };
+          graph[key] = {};
+          for (let n = 0; n < prevNodeIds.length; n++) {
+            const prevNodeId = prevNodeIds[n];
+            if (table[prevNodeId] && table[prevNodeId].node.mode === node.mode) {
+              graph[prevNodeId][key] = getSegmentBitsLength(table[prevNodeId].lastCount + node.length, node.mode) - getSegmentBitsLength(table[prevNodeId].lastCount, node.mode);
+              table[prevNodeId].lastCount += node.length;
+            } else {
+              if (table[prevNodeId]) table[prevNodeId].lastCount = node.length;
+              graph[prevNodeId][key] = getSegmentBitsLength(node.length, node.mode) + 4 + Mode.getCharCountIndicator(node.mode, version);
+            }
+          }
+        }
+        prevNodeIds = currentNodeIds;
+      }
+      for (let n = 0; n < prevNodeIds.length; n++) {
+        graph[prevNodeIds[n]].end = 0;
+      }
+      return { map: graph, table };
+    }
+    function buildSingleSegment(data, modesHint) {
+      let mode;
+      const bestMode = Mode.getBestModeForData(data);
+      mode = Mode.from(modesHint, bestMode);
+      if (mode !== Mode.BYTE && mode.bit < bestMode.bit) {
+        throw new Error('"' + data + '" cannot be encoded with mode ' + Mode.toString(mode) + ".\n Suggested mode is: " + Mode.toString(bestMode));
+      }
+      if (mode === Mode.KANJI && !Utils.isKanjiModeEnabled()) {
+        mode = Mode.BYTE;
+      }
+      switch (mode) {
+        case Mode.NUMERIC:
+          return new NumericData(data);
+        case Mode.ALPHANUMERIC:
+          return new AlphanumericData(data);
+        case Mode.KANJI:
+          return new KanjiData(data);
+        case Mode.BYTE:
+          return new ByteData(data);
+      }
+    }
+    exports.fromArray = function fromArray(array) {
+      return array.reduce(function(acc, seg) {
+        if (typeof seg === "string") {
+          acc.push(buildSingleSegment(seg, null));
+        } else if (seg.data) {
+          acc.push(buildSingleSegment(seg.data, seg.mode));
+        }
+        return acc;
+      }, []);
+    };
+    exports.fromString = function fromString(data, version) {
+      const segs = getSegmentsFromString(data, Utils.isKanjiModeEnabled());
+      const nodes = buildNodes(segs);
+      const graph = buildGraph(nodes, version);
+      const path = dijkstra.find_path(graph.map, "start", "end");
+      const optimizedSegs = [];
+      for (let i = 1; i < path.length - 1; i++) {
+        optimizedSegs.push(graph.table[path[i]].node);
+      }
+      return exports.fromArray(mergeSegments(optimizedSegs));
+    };
+    exports.rawSplit = function rawSplit(data) {
+      return exports.fromArray(
+        getSegmentsFromString(data, Utils.isKanjiModeEnabled())
+      );
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/qrcode.js
+var require_qrcode = __commonJS({
+  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
+    var Utils = require_utils();
+    var ECLevel = require_error_correction_level();
+    var BitBuffer = require_bit_buffer();
+    var BitMatrix = require_bit_matrix();
+    var AlignmentPattern = require_alignment_pattern();
+    var FinderPattern = require_finder_pattern();
+    var MaskPattern = require_mask_pattern();
+    var ECCode = require_error_correction_code();
+    var ReedSolomonEncoder = require_reed_solomon_encoder();
+    var Version = require_version();
+    var FormatInfo = require_format_info();
+    var Mode = require_mode();
+    var Segments = require_segments();
+    function setupFinderPattern(matrix, version) {
+      const size = matrix.size;
+      const pos = FinderPattern.getPositions(version);
+      for (let i = 0; i < pos.length; i++) {
+        const row = pos[i][0];
+        const col = pos[i][1];
+        for (let r = -1; r <= 7; r++) {
+          if (row + r <= -1 || size <= row + r) continue;
+          for (let c = -1; c <= 7; c++) {
+            if (col + c <= -1 || size <= col + c) continue;
+            if (r >= 0 && r <= 6 && (c === 0 || c === 6) || c >= 0 && c <= 6 && (r === 0 || r === 6) || r >= 2 && r <= 4 && c >= 2 && c <= 4) {
+              matrix.set(row + r, col + c, true, true);
+            } else {
+              matrix.set(row + r, col + c, false, true);
+            }
+          }
+        }
+      }
+    }
+    function setupTimingPattern(matrix) {
+      const size = matrix.size;
+      for (let r = 8; r < size - 8; r++) {
+        const value = r % 2 === 0;
+        matrix.set(r, 6, value, true);
+        matrix.set(6, r, value, true);
+      }
+    }
+    function setupAlignmentPattern(matrix, version) {
+      const pos = AlignmentPattern.getPositions(version);
+      for (let i = 0; i < pos.length; i++) {
+        const row = pos[i][0];
+        const col = pos[i][1];
+        for (let r = -2; r <= 2; r++) {
+          for (let c = -2; c <= 2; c++) {
+            if (r === -2 || r === 2 || c === -2 || c === 2 || r === 0 && c === 0) {
+              matrix.set(row + r, col + c, true, true);
+            } else {
+              matrix.set(row + r, col + c, false, true);
+            }
+          }
+        }
+      }
+    }
+    function setupVersionInfo(matrix, version) {
+      const size = matrix.size;
+      const bits = Version.getEncodedBits(version);
+      let row, col, mod;
+      for (let i = 0; i < 18; i++) {
+        row = Math.floor(i / 3);
+        col = i % 3 + size - 8 - 3;
+        mod = (bits >> i & 1) === 1;
+        matrix.set(row, col, mod, true);
+        matrix.set(col, row, mod, true);
+      }
+    }
+    function setupFormatInfo(matrix, errorCorrectionLevel, maskPattern) {
+      const size = matrix.size;
+      const bits = FormatInfo.getEncodedBits(errorCorrectionLevel, maskPattern);
+      let i, mod;
+      for (i = 0; i < 15; i++) {
+        mod = (bits >> i & 1) === 1;
+        if (i < 6) {
+          matrix.set(i, 8, mod, true);
+        } else if (i < 8) {
+          matrix.set(i + 1, 8, mod, true);
+        } else {
+          matrix.set(size - 15 + i, 8, mod, true);
+        }
+        if (i < 8) {
+          matrix.set(8, size - i - 1, mod, true);
+        } else if (i < 9) {
+          matrix.set(8, 15 - i - 1 + 1, mod, true);
+        } else {
+          matrix.set(8, 15 - i - 1, mod, true);
+        }
+      }
+      matrix.set(size - 8, 8, 1, true);
+    }
+    function setupData(matrix, data) {
+      const size = matrix.size;
+      let inc = -1;
+      let row = size - 1;
+      let bitIndex = 7;
+      let byteIndex = 0;
+      for (let col = size - 1; col > 0; col -= 2) {
+        if (col === 6) col--;
+        while (true) {
+          for (let c = 0; c < 2; c++) {
+            if (!matrix.isReserved(row, col - c)) {
+              let dark = false;
+              if (byteIndex < data.length) {
+                dark = (data[byteIndex] >>> bitIndex & 1) === 1;
+              }
+              matrix.set(row, col - c, dark);
+              bitIndex--;
+              if (bitIndex === -1) {
+                byteIndex++;
+                bitIndex = 7;
+              }
+            }
+          }
+          row += inc;
+          if (row < 0 || size <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    }
+    function createData(version, errorCorrectionLevel, segments) {
+      const buffer = new BitBuffer();
+      segments.forEach(function(data) {
+        buffer.put(data.mode.bit, 4);
+        buffer.put(data.getLength(), Mode.getCharCountIndicator(data.mode, version));
+        data.write(buffer);
+      });
+      const totalCodewords = Utils.getSymbolTotalCodewords(version);
+      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
+      const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
+      if (buffer.getLengthInBits() + 4 <= dataTotalCodewordsBits) {
+        buffer.put(0, 4);
+      }
+      while (buffer.getLengthInBits() % 8 !== 0) {
+        buffer.putBit(0);
+      }
+      const remainingByte = (dataTotalCodewordsBits - buffer.getLengthInBits()) / 8;
+      for (let i = 0; i < remainingByte; i++) {
+        buffer.put(i % 2 ? 17 : 236, 8);
+      }
+      return createCodewords(buffer, version, errorCorrectionLevel);
+    }
+    function createCodewords(bitBuffer, version, errorCorrectionLevel) {
+      const totalCodewords = Utils.getSymbolTotalCodewords(version);
+      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
+      const dataTotalCodewords = totalCodewords - ecTotalCodewords;
+      const ecTotalBlocks = ECCode.getBlocksCount(version, errorCorrectionLevel);
+      const blocksInGroup2 = totalCodewords % ecTotalBlocks;
+      const blocksInGroup1 = ecTotalBlocks - blocksInGroup2;
+      const totalCodewordsInGroup1 = Math.floor(totalCodewords / ecTotalBlocks);
+      const dataCodewordsInGroup1 = Math.floor(dataTotalCodewords / ecTotalBlocks);
+      const dataCodewordsInGroup2 = dataCodewordsInGroup1 + 1;
+      const ecCount = totalCodewordsInGroup1 - dataCodewordsInGroup1;
+      const rs = new ReedSolomonEncoder(ecCount);
+      let offset = 0;
+      const dcData = new Array(ecTotalBlocks);
+      const ecData = new Array(ecTotalBlocks);
+      let maxDataSize = 0;
+      const buffer = new Uint8Array(bitBuffer.buffer);
+      for (let b = 0; b < ecTotalBlocks; b++) {
+        const dataSize = b < blocksInGroup1 ? dataCodewordsInGroup1 : dataCodewordsInGroup2;
+        dcData[b] = buffer.slice(offset, offset + dataSize);
+        ecData[b] = rs.encode(dcData[b]);
+        offset += dataSize;
+        maxDataSize = Math.max(maxDataSize, dataSize);
+      }
+      const data = new Uint8Array(totalCodewords);
+      let index = 0;
+      let i, r;
+      for (i = 0; i < maxDataSize; i++) {
+        for (r = 0; r < ecTotalBlocks; r++) {
+          if (i < dcData[r].length) {
+            data[index++] = dcData[r][i];
+          }
+        }
+      }
+      for (i = 0; i < ecCount; i++) {
+        for (r = 0; r < ecTotalBlocks; r++) {
+          data[index++] = ecData[r][i];
+        }
+      }
+      return data;
+    }
+    function createSymbol(data, version, errorCorrectionLevel, maskPattern) {
+      let segments;
+      if (Array.isArray(data)) {
+        segments = Segments.fromArray(data);
+      } else if (typeof data === "string") {
+        let estimatedVersion = version;
+        if (!estimatedVersion) {
+          const rawSegments = Segments.rawSplit(data);
+          estimatedVersion = Version.getBestVersionForData(rawSegments, errorCorrectionLevel);
+        }
+        segments = Segments.fromString(data, estimatedVersion || 40);
+      } else {
+        throw new Error("Invalid data");
+      }
+      const bestVersion = Version.getBestVersionForData(segments, errorCorrectionLevel);
+      if (!bestVersion) {
+        throw new Error("The amount of data is too big to be stored in a QR Code");
+      }
+      if (!version) {
+        version = bestVersion;
+      } else if (version < bestVersion) {
+        throw new Error(
+          "\nThe chosen QR Code version cannot contain this amount of data.\nMinimum version required to store current data is: " + bestVersion + ".\n"
+        );
+      }
+      const dataBits = createData(version, errorCorrectionLevel, segments);
+      const moduleCount = Utils.getSymbolSize(version);
+      const modules = new BitMatrix(moduleCount);
+      setupFinderPattern(modules, version);
+      setupTimingPattern(modules);
+      setupAlignmentPattern(modules, version);
+      setupFormatInfo(modules, errorCorrectionLevel, 0);
+      if (version >= 7) {
+        setupVersionInfo(modules, version);
+      }
+      setupData(modules, dataBits);
+      if (isNaN(maskPattern)) {
+        maskPattern = MaskPattern.getBestMask(
+          modules,
+          setupFormatInfo.bind(null, modules, errorCorrectionLevel)
+        );
+      }
+      MaskPattern.applyMask(maskPattern, modules);
+      setupFormatInfo(modules, errorCorrectionLevel, maskPattern);
+      return {
+        modules,
+        version,
+        errorCorrectionLevel,
+        maskPattern,
+        segments
+      };
+    }
+    exports.create = function create(data, options) {
+      if (typeof data === "undefined" || data === "") {
+        throw new Error("No input text");
+      }
+      let errorCorrectionLevel = ECLevel.M;
+      let version;
+      let mask;
+      if (typeof options !== "undefined") {
+        errorCorrectionLevel = ECLevel.from(options.errorCorrectionLevel, ECLevel.M);
+        version = Version.from(options.version);
+        mask = MaskPattern.from(options.maskPattern);
+        if (options.toSJISFunc) {
+          Utils.setToSJISFunction(options.toSJISFunc);
+        }
+      }
+      return createSymbol(data, version, errorCorrectionLevel, mask);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/renderer/utils.js
+var require_utils2 = __commonJS({
+  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
+    function hex2rgba(hex) {
+      if (typeof hex === "number") {
+        hex = hex.toString();
+      }
+      if (typeof hex !== "string") {
+        throw new Error("Color should be defined as hex string");
+      }
+      let hexCode = hex.slice().replace("#", "").split("");
+      if (hexCode.length < 3 || hexCode.length === 5 || hexCode.length > 8) {
+        throw new Error("Invalid hex color: " + hex);
+      }
+      if (hexCode.length === 3 || hexCode.length === 4) {
+        hexCode = Array.prototype.concat.apply([], hexCode.map(function(c) {
+          return [c, c];
+        }));
+      }
+      if (hexCode.length === 6) hexCode.push("F", "F");
+      const hexValue = parseInt(hexCode.join(""), 16);
+      return {
+        r: hexValue >> 24 & 255,
+        g: hexValue >> 16 & 255,
+        b: hexValue >> 8 & 255,
+        a: hexValue & 255,
+        hex: "#" + hexCode.slice(0, 6).join("")
+      };
+    }
+    exports.getOptions = function getOptions(options) {
+      if (!options) options = {};
+      if (!options.color) options.color = {};
+      const margin = typeof options.margin === "undefined" || options.margin === null || options.margin < 0 ? 4 : options.margin;
+      const width = options.width && options.width >= 21 ? options.width : void 0;
+      const scale = options.scale || 4;
+      return {
+        width,
+        scale: width ? 4 : scale,
+        margin,
+        color: {
+          dark: hex2rgba(options.color.dark || "#000000ff"),
+          light: hex2rgba(options.color.light || "#ffffffff")
+        },
+        type: options.type,
+        rendererOpts: options.rendererOpts || {}
+      };
+    };
+    exports.getScale = function getScale(qrSize, opts) {
+      return opts.width && opts.width >= qrSize + opts.margin * 2 ? opts.width / (qrSize + opts.margin * 2) : opts.scale;
+    };
+    exports.getImageWidth = function getImageWidth(qrSize, opts) {
+      const scale = exports.getScale(qrSize, opts);
+      return Math.floor((qrSize + opts.margin * 2) * scale);
+    };
+    exports.qrToImageData = function qrToImageData(imgData, qr, opts) {
+      const size = qr.modules.size;
+      const data = qr.modules.data;
+      const scale = exports.getScale(size, opts);
+      const symbolSize = Math.floor((size + opts.margin * 2) * scale);
+      const scaledMargin = opts.margin * scale;
+      const palette = [opts.color.light, opts.color.dark];
+      for (let i = 0; i < symbolSize; i++) {
+        for (let j = 0; j < symbolSize; j++) {
+          let posDst = (i * symbolSize + j) * 4;
+          let pxColor = opts.color.light;
+          if (i >= scaledMargin && j >= scaledMargin && i < symbolSize - scaledMargin && j < symbolSize - scaledMargin) {
+            const iSrc = Math.floor((i - scaledMargin) / scale);
+            const jSrc = Math.floor((j - scaledMargin) / scale);
+            pxColor = palette[data[iSrc * size + jSrc] ? 1 : 0];
+          }
+          imgData[posDst++] = pxColor.r;
+          imgData[posDst++] = pxColor.g;
+          imgData[posDst++] = pxColor.b;
+          imgData[posDst] = pxColor.a;
+        }
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/renderer/canvas.js
+var require_canvas = __commonJS({
+  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+    var Utils = require_utils2();
+    function clearCanvas(ctx, canvas, size) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!canvas.style) canvas.style = {};
+      canvas.height = size;
+      canvas.width = size;
+      canvas.style.height = size + "px";
+      canvas.style.width = size + "px";
+    }
+    function getCanvasElement() {
+      try {
+        return document.createElement("canvas");
+      } catch (e) {
+        throw new Error("You need to specify a canvas element");
+      }
+    }
+    exports.render = function render(qrData, canvas, options) {
+      let opts = options;
+      let canvasEl = canvas;
+      if (typeof opts === "undefined" && (!canvas || !canvas.getContext)) {
+        opts = canvas;
+        canvas = void 0;
+      }
+      if (!canvas) {
+        canvasEl = getCanvasElement();
+      }
+      opts = Utils.getOptions(opts);
+      const size = Utils.getImageWidth(qrData.modules.size, opts);
+      const ctx = canvasEl.getContext("2d");
+      const image = ctx.createImageData(size, size);
+      Utils.qrToImageData(image.data, qrData, opts);
+      clearCanvas(ctx, canvasEl, size);
+      ctx.putImageData(image, 0, 0);
+      return canvasEl;
+    };
+    exports.renderToDataURL = function renderToDataURL(qrData, canvas, options) {
+      let opts = options;
+      if (typeof opts === "undefined" && (!canvas || !canvas.getContext)) {
+        opts = canvas;
+        canvas = void 0;
+      }
+      if (!opts) opts = {};
+      const canvasEl = exports.render(qrData, canvas, opts);
+      const type = opts.type || "image/png";
+      const rendererOpts = opts.rendererOpts || {};
+      return canvasEl.toDataURL(type, rendererOpts.quality);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/renderer/svg-tag.js
+var require_svg_tag = __commonJS({
+  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+    var Utils = require_utils2();
+    function getColorAttrib(color, attrib) {
+      const alpha = color.a / 255;
+      const str = attrib + '="' + color.hex + '"';
+      return alpha < 1 ? str + " " + attrib + '-opacity="' + alpha.toFixed(2).slice(1) + '"' : str;
+    }
+    function svgCmd(cmd, x, y) {
+      let str = cmd + x;
+      if (typeof y !== "undefined") str += " " + y;
+      return str;
+    }
+    function qrToPath(data, size, margin) {
+      let path = "";
+      let moveBy = 0;
+      let newRow = false;
+      let lineLength = 0;
+      for (let i = 0; i < data.length; i++) {
+        const col = Math.floor(i % size);
+        const row = Math.floor(i / size);
+        if (!col && !newRow) newRow = true;
+        if (data[i]) {
+          lineLength++;
+          if (!(i > 0 && col > 0 && data[i - 1])) {
+            path += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
+            moveBy = 0;
+            newRow = false;
+          }
+          if (!(col + 1 < size && data[i + 1])) {
+            path += svgCmd("h", lineLength);
+            lineLength = 0;
+          }
+        } else {
+          moveBy++;
+        }
+      }
+      return path;
+    }
+    exports.render = function render(qrData, options, cb) {
+      const opts = Utils.getOptions(options);
+      const size = qrData.modules.size;
+      const data = qrData.modules.data;
+      const qrcodesize = size + opts.margin * 2;
+      const bg = !opts.color.light.a ? "" : "<path " + getColorAttrib(opts.color.light, "fill") + ' d="M0 0h' + qrcodesize + "v" + qrcodesize + 'H0z"/>';
+      const path = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
+      const viewBox = 'viewBox="0 0 ' + qrcodesize + " " + qrcodesize + '"';
+      const width = !opts.width ? "" : 'width="' + opts.width + '" height="' + opts.width + '" ';
+      const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path + "</svg>\n";
+      if (typeof cb === "function") {
+        cb(null, svgTag);
+      }
+      return svgTag;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/browser.js
+var require_browser = __commonJS({
+  "node_modules/qrcode/lib/browser.js"(exports) {
+    var canPromise = require_can_promise();
+    var QRCode2 = require_qrcode();
+    var CanvasRenderer = require_canvas();
+    var SvgRenderer = require_svg_tag();
+    function renderCanvas(renderFunc, canvas, text, opts, cb) {
+      const args = [].slice.call(arguments, 1);
+      const argsNum = args.length;
+      const isLastArgCb = typeof args[argsNum - 1] === "function";
+      if (!isLastArgCb && !canPromise()) {
+        throw new Error("Callback required as last argument");
+      }
+      if (isLastArgCb) {
+        if (argsNum < 2) {
+          throw new Error("Too few arguments provided");
+        }
+        if (argsNum === 2) {
+          cb = text;
+          text = canvas;
+          canvas = opts = void 0;
+        } else if (argsNum === 3) {
+          if (canvas.getContext && typeof cb === "undefined") {
+            cb = opts;
+            opts = void 0;
+          } else {
+            cb = opts;
+            opts = text;
+            text = canvas;
+            canvas = void 0;
+          }
+        }
+      } else {
+        if (argsNum < 1) {
+          throw new Error("Too few arguments provided");
+        }
+        if (argsNum === 1) {
+          text = canvas;
+          canvas = opts = void 0;
+        } else if (argsNum === 2 && !canvas.getContext) {
+          opts = text;
+          text = canvas;
+          canvas = void 0;
+        }
+        return new Promise(function(resolve, reject) {
+          try {
+            const data = QRCode2.create(text, opts);
+            resolve(renderFunc(data, canvas, opts));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+      try {
+        const data = QRCode2.create(text, opts);
+        cb(null, renderFunc(data, canvas, opts));
+      } catch (e) {
+        cb(e);
+      }
+    }
+    exports.create = QRCode2.create;
+    exports.toCanvas = renderCanvas.bind(null, CanvasRenderer.render);
+    exports.toDataURL = renderCanvas.bind(null, CanvasRenderer.renderToDataURL);
+    exports.toString = renderCanvas.bind(null, function(data, _, opts) {
+      return SvgRenderer.render(data, opts);
+    });
+  }
+});
+
 // src/client.jsx
 var client_exports = {};
 __export(client_exports, {
@@ -41,7 +2122,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react9 = __toESM(require("react"), 1);
+var import_react10 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -195,12 +2276,6 @@ function fmtCompact(n) {
   if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
   return String(Math.round(n));
 }
-function fmtCost(n) {
-  const v = Number(n) || 0;
-  if (v >= 10) return "$" + v.toFixed(2);
-  if (v >= 0.01) return "$" + v.toFixed(4);
-  return "$" + v.toFixed(6);
-}
 function fmtCostCny(usd, rate) {
   const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
   if (v >= 1e4) return "\xA5" + (v / 1e4).toFixed(2) + "\u4E07";
@@ -323,7 +2398,7 @@ function Detail({ rec, onClose, rate }) {
     ["\u8BA1\u8D39\u8F93\u5165", fmtNum(rec.billedInput)],
     ["\u7F13\u5B58\u547D\u4E2D\u7387", rec.cacheHitPercent + "%"],
     ["\u603B Token", fmtNum(rec.totalTokens)],
-    ["\u6D88\u8017\u91D1\u989D(\u4F30\u7B97)", fmtCost(rec.cost) + " \u2248 " + fmtCostCny(rec.cost, rateCny)],
+    ["\u6D88\u8017\u91D1\u989D(\u4F30\u7B97)", fmtCostCny(rec.cost, rateCny)],
     ["\u63A8\u7406\u5F3A\u5EA6", rec.effort || "\u2014"],
     ["\u8017\u65F6", fmtDuration(rec.llmMs)],
     ["Turn / Step", rec.turn + " / " + rec.step]
@@ -489,8 +2564,7 @@ function TokenLogView(props) {
     { v: fmtCompact(totals.cacheReadTokens), l: "\u7F13\u5B58\u547D\u4E2D" },
     { v: totals.cacheHitPct + "%", l: "\u7F13\u5B58\u547D\u4E2D\u7387" },
     { v: fmtCompact(totals.outputTokens), l: "\u8F93\u51FA" },
-    { v: fmtCost(totals.cost), l: "\u6D88\u8017\u91D1\u989D(\u4F30\u7B97)" },
-    { v: fmtCostCny(totals.cost, rateCny), l: "\u6D88\u8017\u91D1\u989D(\xA5)" },
+    { v: fmtCostCny(totals.cost, rateCny), l: "\u6D88\u8017\u91D1\u989D(\u4F30\u7B97\xB7\u4EBA\u6C11\u5E01)" },
     { v: fmtDuration(totals.llmMs), l: "\u7D2F\u8BA1\u8017\u65F6" + (totals.timed ? " (" + totals.timed + "\u6B65)" : "") }
   ] : [];
   const opts = (arr) => (arr || []).map((x) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: x, children: x || "(\u7A7A)" }, x || "(none)"));
@@ -503,7 +2577,6 @@ function TokenLogView(props) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.cacheHitPct + "%" }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.outputTokens) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.totalTokens) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCost(r.cost) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCostCny(r.cost, rateCny) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtDuration(r.llmMs) })
   ] }, r.key));
@@ -527,7 +2600,6 @@ function TokenLogView(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.outputTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.reasoningTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.totalTokens) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCost(r.cost) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCostCny(r.cost, rateCny) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.effort || "\u2014" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { children: [
@@ -565,8 +2637,7 @@ function TokenLogView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u547D\u4E2D\u7387" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u51FA" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u603BToken" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D(\xA5)" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8017\u65F6" })
       ] }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: summaryRows })
@@ -610,8 +2681,7 @@ function TokenLogView(props) {
           sortTh("\u8F93\u51FA", "outputTokens"),
           sortTh("\u63A8\u7406", "reasoningTokens"),
           sortTh("\u603B\u989D", "totalTokens"),
-          sortTh("\u91D1\u989D", "cost"),
-          sortTh("\u91D1\u989D(\xA5)", "cost"),
+          sortTh("\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09", "cost"),
           sortTh("\u5F3A\u5EA6", "effort"),
           sortTh("\u72B6\u6001", "status"),
           sortTh("\u8017\u65F6", "llmMs")
@@ -696,22 +2766,19 @@ function TokenLogHomeStat() {
     " \u6B21\u8C03\u7528 \xB7 ",
     fmtCompact(t.totalTokens),
     " Token \xB7 ",
-    fmtCost(t.cost),
-    "\uFF08",
-    fmtCostCny(t.cost, snap.rate),
-    "\uFF09"
+    fmtCostCny(t.cost, snap.rate)
   ] });
 }
 function TokenLogChip(props) {
   const sid = props && props.sessionId || props && props.session && props.session.sessionId || null;
-  const [snap, setSnap] = (0, import_react2.useState)({ totals: null, err: "" });
+  const [snap, setSnap] = (0, import_react2.useState)({ totals: null, rate: 7.2, err: "" });
   (0, import_react2.useEffect)(() => {
     if (!sid) return;
     let cancel = false;
     const load = () => rpcCall("query", { sessionId: sid }).then((d) => {
-      if (!cancel) setSnap({ totals: d && d.totals, err: "" });
+      if (!cancel) setSnap({ totals: d && d.totals, rate: d && d.rateUsdCny || 7.2, err: "" });
     }).catch((e) => {
-      if (!cancel) setSnap((s) => ({ totals: s.totals, err: String(e && e.message || e) }));
+      if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String(e && e.message || e) }));
     });
     load();
     const timer = setInterval(load, 1e4);
@@ -722,8 +2789,8 @@ function TokenLogChip(props) {
   }, [sid]);
   if (!sid) return null;
   const t = snap.totals;
-  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 $" + t.cost.toFixed(2) : "") : "\u26C1 \u2026";
-  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCost(t.cost) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
+  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCostCny(t.cost, snap.rate) : "") : "\u26C1 \u2026";
+  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCostCny(t.cost, snap.rate) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "button",
     {
@@ -1397,6 +3464,7 @@ var CURATED_ACCENTS = {
 var C_GRANTED = "#22d3ee";
 var C_TOPUP = "#fbbf24";
 var C_ERR = "#f87171";
+var USD_CNY_RATE = 7.2;
 function accentOf(id) {
   if (CURATED_ACCENTS[id]) return CURATED_ACCENTS[id];
   let h = 0;
@@ -1405,6 +3473,22 @@ function accentOf(id) {
   return ACCENT_PALETTE[h % ACCENT_PALETTE.length];
 }
 var fmt = (v) => v == null || v === "" ? "\u2014" : String(v);
+function cnyBalanceInfo(info) {
+  if (!info) return info;
+  if (info.currency === "CNY") return Object.assign({}, info, { currency: "\u4EBA\u6C11\u5E01" });
+  if (info.currency !== "USD") return info;
+  const convert = (value) => {
+    if (value == null) return value;
+    const n = Number(value);
+    return Number.isFinite(n) ? n * USD_CNY_RATE : value;
+  };
+  return Object.assign({}, info, {
+    currency: "\u4EBA\u6C11\u5E01\uFF08\u4F30\u7B97\uFF09",
+    totalBalance: convert(info.totalBalance),
+    grantedBalance: convert(info.grantedBalance),
+    toppedUpBalance: convert(info.toppedUpBalance)
+  });
+}
 var balanceStore = {
   snap: { data: null, loading: false, error: null },
   listeners: /* @__PURE__ */ new Set(),
@@ -1520,18 +3604,21 @@ function BalanceView(props) {
           balBody = import_react7.default.createElement(
             "div",
             { className: "dkb-mains" },
-            infos.map((i, idx) => import_react7.default.createElement(
-              "div",
-              { key: idx, className: "dkb-main" },
-              import_react7.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
-              import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
-              import_react7.default.createElement(
-                "span",
-                { className: "dkb-main-parts" },
-                i.grantedBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
-                i.toppedUpBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
-              )
-            ))
+            infos.map((rawInfo, idx) => {
+              const i = cnyBalanceInfo(rawInfo);
+              return import_react7.default.createElement(
+                "div",
+                { key: idx, className: "dkb-main" },
+                import_react7.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+                import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+                import_react7.default.createElement(
+                  "span",
+                  { className: "dkb-main-parts" },
+                  i.grantedBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
+                  i.toppedUpBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
+                )
+              );
+            })
           );
         } else if (b && b.status === "login-required" && b.consoleUrl) {
           balBody = import_react7.default.createElement(
@@ -1649,9 +3736,9 @@ function chipBalanceText(p) {
     const s2 = Number.isFinite(v2) ? v2 >= 1e4 ? (v2 / 1e4).toFixed(1) + "\u4E07" : String(Math.round(v2)) : fmt(b.remaining);
     return "\u4F59\u989D \u5269 " + s2 + (b.unit ? " " + b.unit : "");
   }
-  const info = Array.isArray(b.infos) && b.infos[0] ? b.infos[0] : null;
+  const info = cnyBalanceInfo(Array.isArray(b.infos) && b.infos[0] ? b.infos[0] : null);
   if (!info) return "\u4F59\u989D \u2026";
-  const cur = info.currency === "USD" ? "$" : "\xA5";
+  const cur = info.currency === "CNY" || info.currency === "\u4EBA\u6C11\u5E01\uFF08\u4F30\u7B97\uFF09" ? "\xA5" : "";
   const v = Number(info.totalBalance);
   const s = Number.isFinite(v) ? v >= 1e4 ? (v / 1e4).toFixed(2) + "\u4E07" : String(Math.round(v * 100) / 100) : fmt(info.totalBalance);
   return "\u4F59\u989D " + cur + s;
@@ -1763,8 +3850,20 @@ var EFFECT_MODES = [
   { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u771F\u4EBA\u5316\u53CC\u5DE5\u4F4D\uFF1A\u67E5\u8D44\u6599\u770B\u5DE6\u5C4F\u3001\u5199\u5165/\u6539\u4EE3\u7801\u79FB\u5230\u53F3\u5C4F\uFF1B\u5EA7\u6905\u548C\u8F6C\u5934\u968F\u5B9E\u65F6\u4EFB\u52A1\u8282\u594F\u52A0\u901F" },
   { id: "matrix", name: "\u4EE3\u7801\u96E8", desc: "\u5B57\u7B26\u6CBF\u5C4F\u5E55\u7F13\u843D\u5982\u6570\u636E\u6D41\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\uFF0C\u514B\u5236\u7684\u4F4E\u900F\u660E\u5EA6" },
   { id: "stars", name: "\u661F\u91CE", desc: "\u7EC6\u788E\u661F\u70B9\u7F13\u6162\u98D8\u79FB\u95EA\u70C1\uFF0C\u5B89\u9759\u8010\u770B\u7684\u80CC\u666F\u6C1B\u56F4" },
-  { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" }
+  { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" },
+  { id: "space", name: "\u661F\u9645\u8FDC\u5F81", desc: "\u4EFB\u52A1\u4E2D\u661F\u7403\u4E0E\u98DE\u8239\u5DE1\u822A\uFF1B\u5B8C\u6210\u540E\u8D27\u8FD0\u65D7\u8230\u643A\u5B9E\u9645\u8F93\u51FA\u91CF\u505C\u9760\u8F93\u5165\u6846" },
+  { id: "nebula", name: "\u661F\u4E91\u6F6E\u6C50", desc: "\u56DB\u56E2\u5F69\u8272\u661F\u4E91\u5728\u5C4F\u5E55\u8FB9\u7F18\u7F13\u6162\u6F6E\u6C50\uFF0C\u9636\u6BB5\u8272\u968F\u4EFB\u52A1\u6539\u53D8" },
+  { id: "warp", name: "\u66F2\u901F\u822A\u9053", desc: "\u5149\u675F\u4ECE\u5C4F\u5E55\u4E2D\u5FC3\u5411\u5916\u62C9\u4F38\uFF0C\u541E\u5410\u8D8A\u9AD8\u66F2\u901F\u8D8A\u5FEB" },
+  { id: "radar", name: "\u91CF\u5B50\u96F7\u8FBE", desc: "\u4E09\u5EA7\u8FB9\u7F18\u96F7\u8FBE\u6301\u7EED\u626B\u63CF\uFF0C\u4EFB\u52A1\u6D3B\u52A8\u5316\u4F5C\u8DF3\u52A8\u4FE1\u6807" },
+  { id: "constellation", name: "\u661F\u5EA7\u7F51\u7EDC", desc: "\u8282\u70B9\u4E0E\u8FDE\u7EBF\u9010\u6BB5\u70B9\u4EAE\uFF0C\u50CF\u4EFB\u52A1\u77E5\u8BC6\u56FE\u8C31\u5728\u751F\u957F" },
+  { id: "fireflies", name: "\u6570\u636E\u8424\u706B", desc: "\u8F7B\u76C8\u5149\u70B9\u5728\u7A7A\u767D\u533A\u6E38\u5F0B\uFF0C\u6D3B\u8DC3\u9636\u6BB5\u4F1A\u66F4\u660E\u4EAE" },
+  { id: "ocean", name: "\u6DF1\u6D77\u8109\u52A8", desc: "\u4F4E\u900F\u660E\u5EA6\u6CE2\u5C42\u4E0E\u6C14\u6CE1\u7F13\u6162\u4E0A\u6D6E\uFF0C\u5B89\u9759\u4F46\u5BCC\u6709\u751F\u547D\u611F" },
+  { id: "prism", name: "\u68F1\u955C\u5149\u8C31", desc: "\u5F69\u8272\u5149\u675F\u4ECE\u5C4F\u5E55\u8FB9\u7F18\u6298\u5C04\u7A7F\u884C\uFF0C\u5F62\u6210\u514B\u5236\u7684\u73BB\u7483\u5149\u611F" },
+  { id: "circuit", name: "\u795E\u7ECF\u7535\u8DEF", desc: "\u7535\u8DEF\u8DEF\u5F84\u4F9D\u6B21\u901A\u7535\uFF0C\u8109\u51B2\u901F\u5EA6\u8DDF\u968F\u4EE3\u7801\u4E0E\u5DE5\u5177\u6D3B\u52A8" },
+  { id: "gravity", name: "\u5F15\u529B\u6D9F\u6F2A", desc: "\u591A\u4E2A\u5F15\u529B\u6E90\u5411\u5916\u6269\u6563\u6CE2\u7EB9\uFF0C\u4EFB\u52A1\u8D8A\u5FEB\u6D9F\u6F2A\u8D8A\u7D27\u5BC6" },
+  { id: "lantern", name: "\u7075\u611F\u5929\u706F", desc: "\u5FAE\u578B\u7075\u611F\u706F\u4ECE\u5C4F\u5E55\u5E95\u90E8\u7F13\u6162\u5347\u8D77\uFF0C\u7559\u4E0B\u6E29\u6696\u5149\u8FF9" }
 ];
+var AMBIENT_EFFECT_MODES = /* @__PURE__ */ new Set(["matrix", "stars", "aurora", "space", "nebula", "warp", "radar", "constellation", "fireflies", "ocean", "prism", "circuit", "gravity", "lantern"]);
 var PHASE_LABELS = { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" };
 function phaseLabel(p) {
   return PHASE_LABELS[p] || "\u5DE5\u4F5C\u4E2D";
@@ -2102,29 +4201,69 @@ var MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
   const mode = props.mode;
   const speed = props.speed;
-  const matrix = (0, import_react8.useMemo)(() => makeBits(34, () => ({
-    l: Math.random() * 100,
-    d: 4 + Math.random() * 6,
-    delay: -Math.random() * 8,
-    o: 0.28 + Math.random() * 0.34,
-    s: 11 + Math.round(Math.random() * 4),
-    c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
-  })), []);
-  const stars = (0, import_react8.useMemo)(() => makeBits(80, () => ({
-    l: Math.random() * 100,
-    t: Math.random() * 100,
-    sz: 1.5 + Math.random() * 2,
-    d: 2 + Math.random() * 4,
-    delay: -Math.random() * 6,
-    dx: (Math.random() - 0.5) * 40,
-    dy: (Math.random() - 0.5) * 24
-  })), []);
+  const particles = (0, import_react8.useMemo)(() => {
+    if (mode === "matrix") return { matrix: makeBits(34, () => ({
+      l: Math.random() * 100,
+      d: 4 + Math.random() * 6,
+      delay: -Math.random() * 8,
+      o: 0.28 + Math.random() * 0.34,
+      s: 11 + Math.round(Math.random() * 4),
+      c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
+    })) };
+    if (mode === "stars") return { stars: makeBits(80, () => ({
+      l: Math.random() * 100,
+      t: Math.random() * 100,
+      sz: 1.5 + Math.random() * 2,
+      d: 2 + Math.random() * 4,
+      delay: -Math.random() * 6,
+      dx: (Math.random() - 0.5) * 40,
+      dy: (Math.random() - 0.5) * 24
+    })) };
+    if (mode === "space") return { dust: makeBits(22, () => ({
+      l: Math.random() * 100,
+      t: Math.random() * 82,
+      sz: 1 + Math.random() * 2.2,
+      d: 2.4 + Math.random() * 3.8,
+      delay: -Math.random() * 6
+    })) };
+    if (mode === "warp") return { warp: makeBits(28, () => ({
+      a: Math.random() * 360,
+      len: 54 + Math.random() * 130,
+      d: 1.8 + Math.random() * 2.4,
+      delay: -Math.random() * 4
+    })) };
+    if (mode === "fireflies") return { fireflies: makeBits(28, () => ({
+      l: 4 + Math.random() * 92,
+      t: 8 + Math.random() * 78,
+      sz: 3 + Math.random() * 5,
+      dx: -42 + Math.random() * 84,
+      dy: -32 + Math.random() * 64,
+      d: 4.8 + Math.random() * 5.4,
+      delay: -Math.random() * 8
+    })) };
+    if (mode === "ocean") return { bubbles: makeBits(18, () => ({
+      l: 3 + Math.random() * 94,
+      sz: 4 + Math.random() * 12,
+      d: 5 + Math.random() * 6,
+      delay: -Math.random() * 9,
+      drift: -34 + Math.random() * 68
+    })) };
+    if (mode === "lantern") return { lanterns: makeBits(18, () => ({
+      l: 4 + Math.random() * 92,
+      sz: 8 + Math.random() * 9,
+      d: 7 + Math.random() * 7,
+      delay: -Math.random() * 12,
+      drift: -48 + Math.random() * 96
+    })) };
+    return {};
+  }, [mode]);
+  const ambientStyle = { "--dkan-speed": speed, "--dkan-phase": phaseColor(props.phase) };
   if (mode === "matrix") {
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-matrix", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: matrix.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { left: p.l + "%", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", opacity: p.o, fontSize: p.s }, children: p.c }, i)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-matrix", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: particles.matrix.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { left: p.l + "%", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", opacity: p.o, fontSize: p.s }, children: p.c }, i)) });
   }
   if (mode === "stars") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-stars", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: [
-      stars.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-star", style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" } }, i)),
+      particles.stars.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-star", style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" } }, i)),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-moon" }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-meteor", style: { top: "12%", left: "72%", animationDelay: "0s" } }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-meteor", style: { top: "28%", left: "88%", animationDelay: "2.8s" } }),
@@ -2138,7 +4277,331 @@ function AmbientLayer(props) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
     ] });
   }
+  if (mode === "nebula") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-nebula", style: ambientStyle, "aria-hidden": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] });
+  }
+  if (mode === "warp") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-warp", style: ambientStyle, "aria-hidden": "true", children: particles.warp.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { "--a": p.a + "deg", "--len": p.len + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)) });
+  }
+  if (mode === "radar") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-radar", style: ambientStyle, "aria-hidden": "true", children: ["a", "b", "c"].map((id) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-radar-station " + id, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", {})
+    ] }, id)) });
+  }
+  if (mode === "constellation") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-constellation", style: ambientStyle, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { viewBox: "0 0 100 100", preserveAspectRatio: "none", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { pathLength: "1", d: "M6 68 L18 30 L31 48 L45 18 L58 42 L73 25 L91 58 L78 78 L58 42 L31 48 L18 76 L6 68" }),
+      [[6, 68], [18, 30], [31, 48], [45, 18], [58, 42], [73, 25], [91, 58], [78, 78], [18, 76]].map(([cx, cy], i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { cx, cy, r: i % 3 === 0 ? 1.1 : 0.7, style: { animationDelay: -i * 0.24 + "s" } }, i))
+    ] }) });
+  }
+  if (mode === "fireflies") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-fireflies", style: ambientStyle, "aria-hidden": "true", children: particles.fireflies.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, "--dx": p.dx + "px", "--dy": p.dy + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)) });
+  }
+  if (mode === "ocean") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-ocean", style: ambientStyle, "aria-hidden": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-ocean-waves", children: Array.from({ length: 5 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) }),
+      particles.bubbles.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { style: { left: p.l + "%", width: p.sz, height: p.sz, "--drift": p.drift + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i))
+    ] });
+  }
+  if (mode === "prism") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-prism", style: ambientStyle, "aria-hidden": "true", children: Array.from({ length: 7 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) });
+  }
+  if (mode === "circuit") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-circuit", style: ambientStyle, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { viewBox: "0 0 1000 600", preserveAspectRatio: "none", children: [
+      ["M0 92 H180 V210 H390 V128 H610 V260 H820 V104 H1000", "M0 486 H144 V358 H334 V470 H520 V338 H748 V448 H1000", "M82 0 V126 H264 V286 H472 V196 H694 V320 H914 V600", "M936 0 V148 H776 V278 H566 V410 H350 V548 H112 V600"].map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { pathLength: "1", d, style: { animationDelay: -i * 0.7 + "s" } }, i)),
+      [[180, 210], [390, 128], [610, 260], [144, 358], [520, 338], [264, 286], [694, 320], [566, 410]].map(([cx, cy], i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { cx, cy, r: "5" }, i))
+    ] }) });
+  }
+  if (mode === "gravity") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-gravity", style: ambientStyle, "aria-hidden": "true", children: ["a", "b", "c"].map((id) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-gravity-source " + id, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", {}),
+      Array.from({ length: 4 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { animationDelay: "calc(" + -i * 0.9 + "s / var(--dkan-speed,1))" } }, i))
+    ] }, id)) });
+  }
+  if (mode === "lantern") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-lantern", style: ambientStyle, "aria-hidden": "true", children: particles.lanterns.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", width: p.sz, height: p.sz * 1.28, "--drift": p.drift + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)) });
+  }
+  if (mode === "space") {
+    const taskCount = Math.max(1, Math.min(3, Array.isArray(props.tasks) ? props.tasks.length : 1));
+    const runnerCount = Math.max(6, Math.min(9, taskCount * 3));
+    const galaxies = props.galaxies;
+    if (!galaxies) return null;
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-space", style: {
+      "--dkan-speed": speed,
+      "--dkan-space-ships": taskCount,
+      "--dkan-alpha-x": galaxies.alpha.cx + "px",
+      "--dkan-alpha-y": galaxies.alpha.cy + "px",
+      "--dkan-beta-x": galaxies.beta.cx + "px",
+      "--dkan-beta-y": galaxies.beta.cy + "px",
+      "--dkan-gamma-x": galaxies.gamma.cx + "px",
+      "--dkan-gamma-y": galaxies.gamma.cy + "px"
+    }, "aria-hidden": "true", children: [
+      particles.dust.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-space-dust", style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)),
+      ["alpha", "beta", "gamma"].map((galaxy) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-space-system " + galaxy, style: { left: galaxies[galaxy].x, top: galaxies[galaxy].y, "--dkan-system-scale": galaxies[galaxy].scale }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-space-sun" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-orbit a", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-orbit b", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-orbit c", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}) })
+      ] }, galaxy)),
+      Array.from({ length: runnerCount }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-runner route-" + i % 3, style: { "--dkan-run-delay": -i * 1.8 + "s" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 1, empty: true }) }, i))
+    ] });
+  }
   return null;
+}
+function outputCargo(outputTokens) {
+  const tokens = Math.max(0, Number(outputTokens) || 0);
+  return { tokens, units: Math.max(1, Math.min(8, Math.ceil(tokens / 900))) };
+}
+function fallbackComposerDockPoint(side = "right") {
+  const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const vh = typeof window === "undefined" ? 900 : window.innerHeight;
+  return {
+    // 待命位贴近输入框右上；右侧远端只保留给旧的通用停靠计算。
+    x: side === "left" ? Math.max(304, Math.min(520, Math.round(vw * 0.18))) : side === "ready" ? Math.max(316, vw - 640) : Math.max(16, vw - 232),
+    y: Math.max(32, vh - 218)
+  };
+}
+function visibleRect(el) {
+  if (!el || typeof window === "undefined") return null;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight ? r : null;
+}
+var COMPOSER_SEND_SELECTOR = 'button[aria-label="Send message"],button[aria-label*="\u53D1\u9001"],button[data-testid*="send"],button[data-testid*="submit"],button[type="submit"]';
+function conversationComposer() {
+  if (typeof document === "undefined" || typeof window === "undefined") return null;
+  const sendButtons = document.querySelectorAll(COMPOSER_SEND_SELECTOR);
+  for (const button of sendButtons) {
+    let el = button.parentElement;
+    for (let depth = 0; el && depth < 9; depth += 1, el = el.parentElement) {
+      const r = visibleRect(el);
+      if (r && r.width >= 360 && r.height >= 72 && r.height <= 360 && r.top > window.innerHeight * 0.42) return { element: el, rect: r };
+    }
+  }
+  return null;
+}
+function conversationComposerRect() {
+  const composer = conversationComposer();
+  return composer ? composer.rect : null;
+}
+function composerPointFromRect(composer, side) {
+  return {
+    x: side === "ready" ? Math.max(composer.left + 16, composer.right - 210) : fallbackComposerDockPoint(side).x,
+    y: Math.max(22, composer.top - 92)
+  };
+}
+function composerDockPoint(side = "right") {
+  if (typeof document === "undefined" || typeof window === "undefined") return fallbackComposerDockPoint(side);
+  const composer = conversationComposerRect();
+  if (composer) return composerPointFromRect(composer, side);
+  const selectors = [
+    '[data-testid*="composer"]',
+    '[data-testid*="conversation-input"]',
+    '[data-slot*="conversation.input"]',
+    'textarea[placeholder*="Message"]',
+    'textarea[placeholder*="\u6D88\u606F"]',
+    "textarea",
+    '[contenteditable="true"][data-testid*="composer"]',
+    '[contenteditable="true"][aria-label*="\u6D88\u606F"]',
+    '[contenteditable="true"][data-slot*="conversation.input"]'
+  ];
+  const seen = /* @__PURE__ */ new Set();
+  const candidates = [];
+  for (const selector of selectors) {
+    for (const el of document.querySelectorAll(selector)) {
+      if (seen.has(el)) continue;
+      seen.add(el);
+      const r2 = el.getBoundingClientRect();
+      if (r2.width > 80 && r2.height > 16 && r2.bottom > window.innerHeight * 0.48) candidates.push({ el, r: r2 });
+    }
+  }
+  const best = candidates.sort((a, b) => b.r.bottom - a.r.bottom)[0];
+  if (!best) return fallbackComposerDockPoint(side);
+  const r = best.r;
+  const x = side === "ready" ? Math.max(r.left + 16, r.right - 210) : fallbackComposerDockPoint(side).x;
+  return {
+    // 纵向以真实输入控件上沿停靠，飞船底部和输入框保留间隙。
+    x,
+    y: Math.max(22, r.top - 92)
+  };
+}
+function useSpaceDocks(enabled) {
+  const [docks, setDocks] = (0, import_react8.useState)(null);
+  (0, import_react8.useEffect)(() => {
+    if (!enabled || typeof window === "undefined") {
+      setDocks(null);
+      return void 0;
+    }
+    let disposed = false;
+    let frame = 0;
+    let idle = 0;
+    let timer = 0;
+    let pollTimer = 0;
+    let retries = 0;
+    let pending = false;
+    let observedComposer = null;
+    let resizeObserver = null;
+    const samePoint = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
+    const bindComposerResize = (element) => {
+      if (!resizeObserver || observedComposer === element) return;
+      if (observedComposer) resizeObserver.unobserve(observedComposer);
+      observedComposer = element;
+      if (observedComposer) resizeObserver.observe(observedComposer);
+    };
+    const measure = () => {
+      if (disposed) return;
+      const found = conversationComposer();
+      if (!found) {
+        bindComposerResize(null);
+        setDocks(null);
+        if (retries++ < 20) schedule(140);
+        return;
+      }
+      retries = 0;
+      bindComposerResize(found.element);
+      const composer = found.rect;
+      const right = composerPointFromRect(composer, "right");
+      const next = {
+        right,
+        left: composerPointFromRect(composer, "left"),
+        ready: composerPointFromRect(composer, "ready")
+      };
+      setDocks((current) => current && samePoint(current.right, next.right) && samePoint(current.left, next.left) && samePoint(current.ready, next.ready) ? current : next);
+    };
+    function schedule(delay = 0, deferUntilIdle = false) {
+      if (disposed || pending) return;
+      pending = true;
+      const queueFrame = () => {
+        frame = window.requestAnimationFrame(() => {
+          pending = false;
+          measure();
+        });
+      };
+      if (delay > 0) timer = window.setTimeout(queueFrame, delay);
+      else if (deferUntilIdle && typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(queueFrame, { timeout: 350 });
+      else queueFrame();
+    }
+    ;
+    if (typeof window.ResizeObserver === "function") resizeObserver = new window.ResizeObserver(() => schedule());
+    const mutationObserver = typeof window.MutationObserver === "function" ? new window.MutationObserver((mutations) => {
+      const hasComposerChange = mutations.some((mutation) => Array.from(mutation.addedNodes).concat(Array.from(mutation.removedNodes)).some((node) => {
+        if (!node || node.nodeType !== 1) return false;
+        return node.matches && node.matches(COMPOSER_SEND_SELECTOR) || node.querySelector && node.querySelector(COMPOSER_SEND_SELECTOR);
+      }));
+      if (hasComposerChange) schedule(40);
+    }) : null;
+    if (mutationObserver && document.body) mutationObserver.observe(document.body, { childList: true, subtree: true });
+    schedule(0, true);
+    pollTimer = window.setInterval(() => schedule(), 700);
+    const onResize = () => {
+      if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
+      if (timer) window.clearTimeout(timer);
+      pending = false;
+      schedule();
+    };
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(frame);
+      if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
+      if (timer) window.clearTimeout(timer);
+      if (pollTimer) window.clearInterval(pollTimer);
+      if (mutationObserver) mutationObserver.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
+  }, [enabled]);
+  return docks;
+}
+function spaceGalaxyLayout() {
+  const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const vh = typeof window === "undefined" ? 900 : window.innerHeight;
+  const contentLeft = 316;
+  const make = (x, y, scale) => ({ x, y, scale, cx: x + 123, cy: y + 123 });
+  return {
+    alpha: make(Math.max(contentLeft + 420, vw - 360), 72, 0.5),
+    beta: make(contentLeft, Math.max(142, Math.min(232, vh * 0.18)), 0.48),
+    gamma: make(contentLeft + 18, Math.max(420, vh - 382), 0.48)
+  };
+}
+function freighterAnchorAt(point) {
+  return { x: Math.round(point.x - 88), y: Math.round(point.y - 32) };
+}
+function flightAngle(from, to) {
+  return Math.round(Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI);
+}
+function FreighterHull(props) {
+  const units = Math.max(1, Number(props.units) || 1);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-freighter", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("i", { className: "dkan-freighter-engine", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-wing left" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-wing right" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-fin" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-hull" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-canopy" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-nose" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-freighter-cargo" + (props.empty ? " empty" : ""), children: Array.from({ length: units }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) })
+  ] });
+}
+function DeliveryFreighter(props) {
+  const d = props.delivery;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-delivery", style: {
+    "--dkan-from-x": d.from.x + "px",
+    "--dkan-from-y": d.from.y + "px",
+    "--dkan-to-x": d.to.x + "px",
+    "--dkan-to-y": d.to.y + "px",
+    "--dkan-delivery-duration": d.duration + "ms"
+  }, "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-delivery-trail" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: d.units }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-delivery-label", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u5F52\u822A\u8D27\u8FD0\u8230" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+        "\u8F93\u51FA ",
+        fmtCompact2(d.tokens),
+        " Tokens \xB7 ",
+        d.units,
+        " \u8231"
+      ] })
+    ] })
+  ] });
+}
+function ReadyFreighter(props) {
+  const dock = props.dock || fallbackComposerDockPoint("ready");
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-ready-freighter", style: { left: dock.x, top: dock.y }, "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u5F85\u547D \xB7 \u7B49\u5F85\u4E0B\u4E00\u6761\u4EFB\u52A1" })
+  ] });
+}
+function MissionDeparture(props) {
+  const d = props.departure;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-departure", style: {
+    "--dkan-from-x": d.from.x + "px",
+    "--dkan-from-y": d.from.y + "px",
+    "--dkan-to-x": d.to.x + "px",
+    "--dkan-to-y": d.to.y + "px",
+    "--dkan-flight-angle": d.angle + "deg",
+    "--dkan-departure-duration": d.duration + "ms"
+  }, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }) });
+}
+function ProgrammingStuck(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-space-stuck", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-stuck-code", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      `{ }`
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u7F16\u7A0B\u7B49\u5F85\u4E2D" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("small", { children: truncate(props.task && props.task.title || "\u5DE5\u5177\u6682\u65E0\u65B0\u54CD\u5E94", 28) })
+  ] });
 }
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
@@ -2146,12 +4609,44 @@ function AnimationOverlay(props) {
   const [toasts, setToasts] = (0, import_react8.useState)([]);
   const [flourish, setFlourish] = (0, import_react8.useState)(null);
   const [bursts, setBursts] = (0, import_react8.useState)([]);
+  const [deliveries, setDeliveries] = (0, import_react8.useState)([]);
+  const [departures, setDepartures] = (0, import_react8.useState)([]);
   const prevActiveRef = (0, import_react8.useRef)(null);
   const burstIdRef = (0, import_react8.useRef)(0);
+  const deliveryIdRef = (0, import_react8.useRef)(0);
+  const departureTimersRef = (0, import_react8.useRef)(/* @__PURE__ */ new Map());
+  const lastImmediateDepartureRef = (0, import_react8.useRef)(0);
+  (0, import_react8.useEffect)(() => () => {
+    for (const timer of departureTimersRef.current.values()) clearTimeout(timer);
+    departureTimersRef.current.clear();
+  }, []);
   const pushBurst = (0, import_react8.useCallback)((type, x, y, bits) => {
     const id = ++burstIdRef.current;
     setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
     setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
+  }, []);
+  const launchMission = (0, import_react8.useCallback)(() => {
+    const cfg2 = animationStore.snap.status && animationStore.snap.status.config;
+    if (!cfg2 || !cfg2.animationEnabled || cfg2.effectMode !== "space") return false;
+    const id = ++deliveryIdRef.current;
+    const from = composerDockPoint("left");
+    const targetGalaxy = spaceGalaxyLayout().alpha;
+    const to = freighterAnchorAt({ x: targetGalaxy.cx, y: targetGalaxy.cy });
+    const departure = {
+      id,
+      from,
+      to,
+      angle: flightAngle(from, to),
+      duration: 8600
+    };
+    lastImmediateDepartureRef.current = Date.now();
+    setDeliveries([]);
+    setDepartures((prev) => prev.concat([departure]).slice(-3));
+    departureTimersRef.current.set(id, setTimeout(() => {
+      departureTimersRef.current.delete(id);
+      setDepartures((prev) => prev.filter((item) => item.id !== id));
+    }, departure.duration));
+    return true;
   }, []);
   (0, import_react8.useEffect)(() => {
     if (typeof document === "undefined") return;
@@ -2164,6 +4659,7 @@ function AnimationOverlay(props) {
       const sessionItem = t.closest('[role="treeitem"]');
       if (sendBtn) {
         pushBurst("plane", e.clientX, e.clientY);
+        launchMission();
       } else if (newSession) {
         pushBurst("spark", e.clientX, e.clientY, makeBits(10, () => ({
           dx: (Math.random() - 0.5) * 70,
@@ -2178,15 +4674,19 @@ function AnimationOverlay(props) {
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [pushBurst]);
+  }, [pushBurst, launchMission]);
   const taskCountRef = (0, import_react8.useRef)(0);
   (0, import_react8.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const n = st2.active.length;
-    if (n > taskCountRef.current) pushBurst("surge");
+    if (n > taskCountRef.current) {
+      pushBurst("surge");
+      const cfg2 = st2.config || {};
+      if (cfg2.animationEnabled && cfg2.effectMode === "space" && Date.now() - lastImmediateDepartureRef.current > 1e4) launchMission();
+    }
     taskCountRef.current = n;
-  }, [snap.status, pushBurst]);
+  }, [snap.status, pushBurst, launchMission]);
   (0, import_react8.useEffect)(() => {
     let stopped = false;
     let timer = null;
@@ -2227,6 +4727,18 @@ function AnimationOverlay(props) {
     const info = endInfo(reason);
     if (cfg2.animationEnabled) {
       setFlourish({ key: Date.now(), err: !success });
+      if (cfg2.effectMode === "space") {
+        const cargo = outputCargo(record && record.outputTokens || task.outputTokens);
+        const id = ++deliveryIdRef.current;
+        const taskSpeed = Math.max(0.9, Number(speed) || 1);
+        const duration = Math.round(Math.max(8e3, Math.min(9400, 1e4 / Math.sqrt(taskSpeed))));
+        const galaxies = spaceGalaxyLayout();
+        const returnGalaxy = galaxies[["alpha", "beta", "gamma"][Math.floor(Math.random() * 3)]];
+        const from = freighterAnchorAt({ x: returnGalaxy.cx, y: returnGalaxy.cy });
+        const to = composerDockPoint("left");
+        const delivery = Object.assign({ id, from, to, duration }, cargo);
+        setDeliveries([delivery]);
+      }
       if (success) {
         pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
           l: 4 + i / 18 * 92 + Math.random() * 3,
@@ -2309,6 +4821,10 @@ function AnimationOverlay(props) {
     speedRef.current = { ticks, at: t };
   }, [snap.status]);
   const ambientOn = animOn && !panelOpen;
+  const spaceModeOn = !!(cfg && cfg.animationEnabled && mode === "space" && !panelOpen);
+  const spaceDocks = useSpaceDocks(spaceModeOn);
+  const spaceGalaxies = spaceModeOn && spaceDocks ? spaceGalaxyLayout() : null;
+  const stuckTask = active.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18e3) || null;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
   const saveRobotScale = (0, import_react8.useCallback)((robotScale) => {
@@ -2421,7 +4937,10 @@ function AnimationOverlay(props) {
   if (!st) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     ambientOn && mode === "flow" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-line", style: speedStyle, "aria-hidden": "true" }) : null,
-    ambientOn && (mode === "matrix" || mode === "stars" || mode === "aurora") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AmbientLayer, { mode, speed: Number(speed).toFixed(2) }) : null,
+    ambientOn && AMBIENT_EFFECT_MODES.has(mode) && (mode !== "space" || spaceGalaxies) ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AmbientLayer, { mode, phase, speed: Number(speed).toFixed(2), tasks: active, galaxies: spaceGalaxies }) : null,
+    spaceModeOn && spaceDocks && active.length === 0 && deliveries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ReadyFreighter, { dock: spaceDocks.ready }) : null,
+    spaceModeOn && stuckTask ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ProgrammingStuck, { task: stuckTask }) : null,
+    !panelOpen ? departures.map((departure) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MissionDeparture, { departure }, departure.id)) : null,
     ambientOn && mode === "orbit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-orbit", style: speedStyle, "aria-hidden": "true" }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(BurstLayer, { bursts }),
     ambientOn && mode === "robot" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
@@ -2509,6 +5028,7 @@ function AnimationOverlay(props) {
       },
       flourish.key
     ) : null,
+    !panelOpen ? deliveries.map((delivery) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DeliveryFreighter, { delivery }, delivery.id)) : null,
     toasts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toasts", children: toasts.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Toast, { t, onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id)) }, t.id)) }) : null
   ] });
 }
@@ -2542,11 +5062,21 @@ function ModePreview({ id }) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
     ] });
   }
+  if (id === "space") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-prev dkan-prev-space", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("em", {})
+    ] });
+  }
   if (id === "aurora") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-prev dkan-prev-aurora", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
     ] });
+  }
+  if (["nebula", "warp", "radar", "constellation", "fireflies", "ocean", "prism", "circuit", "gravity", "lantern"].includes(id)) {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-new dkan-prev-" + id, children: Array.from({ length: id === "warp" ? 8 : 6 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) });
   }
   if (id === "robot") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-bot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase: "code" }) });
@@ -3073,12 +5603,66 @@ var css2 = [
   ".dkan-meteor{position:absolute;width:110px;height:2px;border-radius:2px;background:linear-gradient(90deg,#fff,color-mix(in srgb,#8ab6ff 60%,transparent) 40%,transparent);transform:rotate(35deg);transform-origin:left center;opacity:0;animation:dkan-meteor 8.4s linear infinite;}",
   '.dkan-meteor::before{content:"";position:absolute;left:-2px;top:-2px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px color-mix(in srgb,#cfe3ff 70%,transparent);}',
   "@keyframes dkan-meteor{0%{opacity:0;transform:rotate(35deg) translateX(0)}3%{opacity:1}10%{opacity:0;transform:rotate(35deg) translateX(46vh)}100%{opacity:0;transform:rotate(35deg) translateX(46vh)}}",
+  // 星际远征：星尘、行星轨道和任务飞船都只在任务运行时出现，统一由 --dkan-speed 加速。
+  ".dkan-space{background:radial-gradient(ellipse 34% 28% at 84% 11%,color-mix(in srgb,#426aaf 15%,transparent),transparent 72%),radial-gradient(ellipse 26% 22% at 14% 58%,color-mix(in srgb,#7c4dff 10%,transparent),transparent 74%);}",
+  ".dkan-space-dust{position:absolute;border-radius:50%;background:#dbeafe;box-shadow:0 0 5px color-mix(in srgb,#93c5fd 62%,transparent);opacity:.2;animation:dkan-space-dust ease-in-out infinite alternate;will-change:transform,opacity;}",
+  "@keyframes dkan-space-dust{0%{opacity:.14;transform:translate3d(0,0,0) scale(.7)}55%{opacity:.78}100%{opacity:.26;transform:translate3d(22px,-8px,0) scale(1.15)}}",
+  ".dkan-space-system{position:fixed;width:246px;height:246px;border-radius:50%;opacity:.78;transform:translateZ(0) scale(var(--dkan-system-scale,1));transform-origin:center;contain:layout paint style;}.dkan-space-system.alpha{opacity:.76}.dkan-space-system.beta{opacity:.68}.dkan-space-system.gamma{opacity:.64}",
+  ".dkan-space-sun{position:absolute;left:50%;top:50%;width:34px;height:34px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 32% 28%,#fff7c2 0 9%,#ffc85a 30%,#e76f2e 74%);box-shadow:0 0 12px 4px color-mix(in srgb,#ffc85a 58%,transparent),0 0 36px 12px color-mix(in srgb,#f97316 20%,transparent);}",
+  ".dkan-space-orbit{position:absolute;left:50%;top:50%;border:1px solid color-mix(in srgb,#93c5fd 28%,transparent);border-radius:50%;animation:dkan-space-orbit linear infinite;transform-origin:center;}",
+  ".dkan-space-orbit i{position:absolute;top:50%;left:-5px;width:10px;height:10px;border-radius:50%;transform:translateY(-50%);box-shadow:0 0 9px 2px currentColor;}",
+  ".dkan-space-orbit.a{width:82px;height:50px;margin:-25px 0 0 -41px;animation-duration:calc(5.4s / var(--dkan-speed,1));}.dkan-space-orbit.a i{color:#67e8f9;background:#22d3ee;}",
+  ".dkan-space-orbit.b{width:142px;height:86px;margin:-43px 0 0 -71px;animation-duration:calc(9.2s / var(--dkan-speed,1));animation-direction:reverse;}.dkan-space-orbit.b i{width:15px;height:15px;color:#c4b5fd;background:radial-gradient(circle at 30% 28%,#ede9fe,#8b5cf6 72%);}",
+  ".dkan-space-orbit.c{width:212px;height:130px;margin:-65px 0 0 -106px;animation-duration:calc(15.6s / var(--dkan-speed,1));}.dkan-space-orbit.c i{width:18px;height:18px;color:#fda4af;background:radial-gradient(circle at 32% 28%,#ffe4e6,#e11d48 74%);}",
+  "@keyframes dkan-space-orbit{to{transform:rotate(360deg)}}",
+  ".dkan-space-runner{position:fixed;left:0;top:0;width:108px;height:56px;opacity:0;animation-duration:calc(10.8s / var(--dkan-speed,1));animation-timing-function:linear;animation-iteration-count:infinite;animation-delay:var(--dkan-run-delay,0s);will-change:transform,opacity;contain:layout paint style;backface-visibility:hidden;}.dkan-space-runner .dkan-freighter{left:0;top:0;transform:translateZ(0) scale(.52);transform-origin:top left;filter:none}.dkan-space-runner .dkan-freighter-engine i{animation:none;opacity:.76;box-shadow:-6px 0 8px #22d3ee}.dkan-space-runner .dkan-freighter-nose{filter:none}.dkan-space-runner.route-0{animation-name:dkan-space-route-a}.dkan-space-runner.route-1{animation-name:dkan-space-route-b}.dkan-space-runner.route-2{animation-name:dkan-space-route-c}",
+  "@keyframes dkan-space-route-a{0%{opacity:0;transform:translate3d(var(--dkan-alpha-x),var(--dkan-alpha-y),0) rotate(151deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-beta-x),var(--dkan-beta-y),0) rotate(151deg)}}@keyframes dkan-space-route-b{0%{opacity:0;transform:translate3d(var(--dkan-beta-x),var(--dkan-beta-y),0) rotate(-90deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-gamma-x),var(--dkan-gamma-y),0) rotate(-90deg)}}@keyframes dkan-space-route-c{0%{opacity:0;transform:translate3d(var(--dkan-gamma-x),var(--dkan-gamma-y),0) rotate(-18deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-alpha-x),var(--dkan-alpha-y),0) rotate(-18deg)}}",
+  // 完成归航：一艘货运旗舰从航线飞到真实会话输入框上方，货舱逐格表达实际输出量。
+  ".dkan-delivery{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-delivery-flight var(--dkan-delivery-duration,8600ms) cubic-bezier(.22,.61,.36,1) forwards;}",
+  "@keyframes dkan-delivery-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(.5) rotate(-12deg)}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(.56) rotate(-10deg)}100%{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(1) rotate(0)}}",
+  ".dkan-delivery-trail{position:absolute;left:-132px;top:26px;width:154px;height:4px;border-radius:999px;background:linear-gradient(90deg,transparent,#34d399 48%,#d9f99d 78%,transparent);opacity:.9;animation:dkan-delivery-trail var(--dkan-delivery-duration,8600ms) linear forwards;}@keyframes dkan-delivery-trail{0%,82%{opacity:.9}100%{opacity:0}}.dkan-freighter{position:absolute;left:10px;top:10px;width:176px;height:45px;display:block;filter:drop-shadow(0 0 9px color-mix(in srgb,#7dd3fc 62%,transparent));}.dkan-delivery .dkan-freighter,.dkan-departure .dkan-freighter{filter:none}.dkan-delivery .dkan-freighter-engine i,.dkan-departure .dkan-freighter-engine i{animation:none;opacity:.76;box-shadow:-6px 0 8px #22d3ee}.dkan-delivery .dkan-freighter-nose,.dkan-departure .dkan-freighter-nose{filter:none}.dkan-freighter-hull{position:absolute;z-index:3;left:21px;top:7px;width:126px;height:31px;background:linear-gradient(150deg,#f8fbff 0%,#9cc8ff 30%,#385d91 72%,#1d3150);clip-path:polygon(0 30%,43% 0,83% 17%,100% 50%,83% 83%,43% 100%,0 70%,12% 50%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),inset -7px -5px 9px rgb(8 24 49 / .38);}.dkan-freighter-nose{position:absolute;z-index:4;right:10px;top:16px;width:28px;height:14px;background:linear-gradient(90deg,#a9d1ff,#e8f5ff);clip-path:polygon(0 0,100% 50%,0 100%,22% 50%);filter:drop-shadow(5px 0 5px color-mix(in srgb,#93c5fd 62%,transparent));}.dkan-freighter-canopy{position:absolute;z-index:5;left:77px;top:10px;width:39px;height:11px;border-radius:70% 48% 42% 32%;background:linear-gradient(135deg,#ecfeff 0%,#67e8f9 32%,#2563eb 75%);transform:skewX(-18deg);box-shadow:inset 0 2px 2px rgb(255 255 255 / .7),0 0 8px color-mix(in srgb,#67e8f9 42%,transparent);}.dkan-freighter-fin{position:absolute;z-index:2;left:48px;top:3px;width:24px;height:17px;background:linear-gradient(135deg,#31557f,#a7caf7);clip-path:polygon(0 100%,58% 0,100% 100%);}.dkan-freighter-wing{position:absolute;z-index:1;left:48px;width:60px;height:18px;background:linear-gradient(135deg,#24436d,#8ebaf4);}.dkan-freighter-wing.left{top:2px;clip-path:polygon(0 100%,100% 0,68% 100%)}.dkan-freighter-wing.right{top:26px;clip-path:polygon(0 0,68% 0,100% 100%)}",
+  ".dkan-freighter-cargo{position:absolute;z-index:6;left:37px;top:31px;width:74px;height:7px;display:flex;align-items:center;gap:2px;padding:1px 3px;border-radius:4px;background:#172842;border:1px solid color-mix(in srgb,#b8d8ff 48%,transparent);box-shadow:inset 0 1px 0 rgb(255 255 255 / .2);}.dkan-freighter-cargo i{display:block;flex:1;min-width:4px;height:5px;border-radius:1px;background:linear-gradient(135deg,#fef3c7,#f59e0b 58%,#b45309);box-shadow:0 0 4px color-mix(in srgb,#fbbf24 58%,transparent);}.dkan-freighter-cargo.empty i{background:linear-gradient(135deg,#dbeafe,#38bdf8 58%,#1d4ed8);box-shadow:0 0 4px color-mix(in srgb,#38bdf8 55%,transparent);}.dkan-freighter-engine{position:absolute;z-index:0;left:5px;top:19px;display:flex;gap:3px;align-items:center;height:11px;}.dkan-freighter-engine i{width:18px;height:5px;border-radius:60% 0 0 60%;background:linear-gradient(90deg,transparent,#67e8f9);box-shadow:-9px 0 12px #22d3ee;animation:dkan-engine .34s ease-in-out infinite alternate;}.dkan-freighter-engine i:nth-child(2){animation-delay:-.14s}",
+  "@keyframes dkan-engine{to{transform:scaleX(.55);opacity:.5}}",
+  ".dkan-delivery-label{position:absolute;left:21px;top:58px;display:flex;align-items:baseline;gap:6px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 30%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-delivery-label b{color:var(--dsw-alias-label-primary);font-weight:650}.dkan-delivery-label span{color:#7dd3fc;}",
+  "@media (max-width:1100px){.dkan-space-system,.dkan-space-runner{display:none}}",
+  ".dkan-ready-freighter{position:fixed;width:210px;height:88px;z-index:9994;pointer-events:none;filter:drop-shadow(0 10px 14px rgb(0 0 0 / .18));}.dkan-ready-freighter>span:last-child{position:absolute;left:21px;top:58px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 28%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 80%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-departure{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-departure-flight var(--dkan-departure-duration,8600ms) cubic-bezier(.42,0,.85,.45) forwards;}@keyframes dkan-departure-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}100%{opacity:0;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(.24) rotate(var(--dkan-flight-angle,0deg))}}",
+  ".dkan-space-stuck{position:fixed;left:50%;top:50%;width:244px;height:160px;z-index:9993;pointer-events:none;transform:translate(-50%,-50%);border:1px solid color-mix(in srgb,#f59e0b 48%,var(--dsw-alias-border-l1));border-radius:20px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgb(0 0 0 / .28),0 0 30px color-mix(in srgb,#f59e0b 15%,transparent);}.dkan-space-stuck .dkan-freighter{left:37px;top:11px;transform:scale(.9);transform-origin:top left;}.dkan-stuck-code{position:absolute;left:17px;right:17px;top:60px;height:36px;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,#f59e0b 18%,transparent),transparent);color:#fbbf24;font:700 14px/36px var(--ds-font-family-code,monospace);letter-spacing:.12em;text-align:center;overflow:hidden;}.dkan-stuck-code::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,#fef3c7 70%,transparent),transparent);transform:translateX(-110%);animation:dkan-stuck-scan 1.25s linear infinite;}.dkan-stuck-code i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 9px #f59e0b;animation:dkan-stuck-pulse .8s ease-in-out infinite alternate;}.dkan-space-stuck strong{position:absolute;left:0;right:0;top:108px;color:var(--dsw-alias-label-primary);font:650 13px/1.2 var(--ds-font-family,system-ui,sans-serif);text-align:center;}.dkan-space-stuck small{position:absolute;left:18px;right:18px;top:128px;color:var(--dsw-alias-label-secondary);font:11px/1.25 var(--ds-font-family,system-ui,sans-serif);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}@keyframes dkan-stuck-scan{to{transform:translateX(110%)}}@keyframes dkan-stuck-pulse{to{transform:scale(.55);opacity:.45}}",
   // 极光：顶部柔光带呼吸流动（加浓）
   ".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(50px);opacity:.32;animation:dkan-aurora ease-in-out infinite alternate;}",
   ".dkan-aurora i:nth-child(1){background:#4d9fff;}",
   ".dkan-aurora i:nth-child(2){background:#34d399;left:20%;animation-delay:-2s;}",
   ".dkan-aurora i:nth-child(3){background:#a78bfa;left:55%;animation-delay:-4s;}",
   "@keyframes dkan-aurora{0%{transform:translateX(-8%) scaleY(1)}100%{transform:translateX(10%) scaleY(1.3)}}",
+  // 星云潮汐：无动态模糊，柔边由径向渐变生成，移动只发生在合成层。
+  ".dkan-nebula{contain:strict}.dkan-nebula i{position:absolute;width:48vw;aspect-ratio:1;border-radius:50%;opacity:.22;background:radial-gradient(circle,color-mix(in srgb,var(--dkan-phase,#60a5fa) 48%,transparent),color-mix(in srgb,#8b5cf6 18%,transparent) 42%,transparent 70%);animation:dkan-nebula-drift calc(18s / var(--dkan-speed,1)) cubic-bezier(.45,0,.55,1) infinite alternate;will-change:transform,opacity}.dkan-nebula i:nth-child(1){left:-18%;top:-24%}.dkan-nebula i:nth-child(2){right:-18%;top:4%;background:radial-gradient(circle,color-mix(in srgb,#22d3ee 34%,transparent),color-mix(in srgb,#3b82f6 15%,transparent) 45%,transparent 72%);animation-delay:-5s}.dkan-nebula i:nth-child(3){left:4%;bottom:-34%;background:radial-gradient(circle,color-mix(in srgb,#f472b6 28%,transparent),color-mix(in srgb,#8b5cf6 14%,transparent) 48%,transparent 72%);animation-delay:-10s}.dkan-nebula i:nth-child(4){right:8%;bottom:-26%;width:36vw;animation-delay:-14s}",
+  "@keyframes dkan-nebula-drift{0%{opacity:.14;transform:translate3d(-3vw,-2vh,0) scale(.92)}100%{opacity:.3;transform:translate3d(5vw,4vh,0) scale(1.12)}}",
+  // 曲速航道：从视口中心放射的独立光束。
+  ".dkan-warp{background:radial-gradient(circle at center,color-mix(in srgb,var(--dkan-phase,#60a5fa) 10%,transparent),transparent 34%);contain:strict}.dkan-warp i{position:absolute;left:50%;top:50%;width:var(--len);height:1px;border-radius:999px;transform-origin:left center;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--dkan-phase,#60a5fa) 48%,transparent),#e0f2fe);opacity:0;animation-name:dkan-warp-ray;animation-timing-function:cubic-bezier(.3,.1,.8,1);animation-iteration-count:infinite;will-change:transform,opacity}",
+  "@keyframes dkan-warp-ray{0%{opacity:0;transform:rotate(var(--a)) translate3d(18px,0,0) scaleX(.05)}18%{opacity:.6}100%{opacity:0;transform:rotate(var(--a)) translate3d(58vw,0,0) scaleX(1.55)}}",
+  // 量子雷达：三个边缘站点各自扫描，避免占据会话正文中心。
+  ".dkan-radar{contain:strict}.dkan-radar-station{position:absolute;width:176px;height:176px;border-radius:50%;opacity:.44;background:repeating-radial-gradient(circle,color-mix(in srgb,var(--dkan-phase,#60a5fa) 28%,transparent) 0 1px,transparent 1px 29px);border:1px solid color-mix(in srgb,var(--dkan-phase,#60a5fa) 22%,transparent)}.dkan-radar-station.a{right:4%;top:8%}.dkan-radar-station.b{left:1%;top:38%;transform:scale(.72)}.dkan-radar-station.c{right:7%;bottom:9%;transform:scale(.58)}.dkan-radar-station i{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 76%,color-mix(in srgb,var(--dkan-phase,#60a5fa) 44%,transparent) 92%,transparent);animation:dkan-radar-sweep calc(4.8s / var(--dkan-speed,1)) linear infinite;will-change:transform}.dkan-radar-station b{position:absolute;left:67%;top:31%;width:7px;height:7px;border-radius:50%;background:var(--dkan-phase,#60a5fa);box-shadow:0 0 12px 4px color-mix(in srgb,var(--dkan-phase,#60a5fa) 58%,transparent);animation:dkan-radar-blip calc(2.4s / var(--dkan-speed,1)) ease-in-out infinite}",
+  "@keyframes dkan-radar-sweep{to{transform:rotate(360deg)}}@keyframes dkan-radar-blip{0%,70%,100%{opacity:.15;transform:scale(.65)}78%{opacity:1;transform:scale(1.25)}}",
+  // 星座网络：轻量 SVG 线网分段点亮。
+  ".dkan-constellation svg{position:absolute;left:8%;top:7%;width:86%;height:78%;overflow:visible}.dkan-constellation path{fill:none;stroke:color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent);stroke-width:.16;vector-effect:non-scaling-stroke;stroke-dasharray:.08 .025;animation:dkan-constellation-line calc(7s / var(--dkan-speed,1)) linear infinite}.dkan-constellation circle{fill:var(--dkan-phase,#60a5fa);filter:drop-shadow(0 0 2px var(--dkan-phase,#60a5fa));animation:dkan-constellation-star calc(2.8s / var(--dkan-speed,1)) ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}",
+  "@keyframes dkan-constellation-line{to{stroke-dashoffset:-1}}@keyframes dkan-constellation-star{0%{opacity:.28;transform:scale(.68)}100%{opacity:.92;transform:scale(1.22)}}",
+  // 数据萤火：二维漂移和明暗呼吸组合在同一个 transform 动画中。
+  ".dkan-fireflies{contain:strict}.dkan-fireflies i{position:absolute;border-radius:50%;background:color-mix(in srgb,var(--dkan-phase,#60a5fa) 78%,#fff);box-shadow:0 0 8px 2px color-mix(in srgb,var(--dkan-phase,#60a5fa) 46%,transparent);opacity:.2;animation-name:dkan-firefly;animation-timing-function:cubic-bezier(.45,0,.55,1);animation-iteration-count:infinite;animation-direction:alternate;will-change:transform,opacity}",
+  "@keyframes dkan-firefly{0%{opacity:.12;transform:translate3d(0,0,0) scale(.65)}48%{opacity:.86}100%{opacity:.26;transform:translate3d(var(--dx),var(--dy),0) scale(1.18)}}",
+  // 深海脉动：波层在底部横向漂移，气泡只做向上合成位移。
+  ".dkan-ocean{background:linear-gradient(0deg,color-mix(in srgb,#0284c7 12%,transparent),transparent 46%);contain:strict}.dkan-ocean-waves{position:absolute;left:-12%;right:-12%;bottom:0;height:42%}.dkan-ocean-waves i{position:absolute;left:0;width:112%;height:52%;border-top:1px solid color-mix(in srgb,#67e8f9 28%,transparent);border-radius:50%;animation:dkan-ocean-wave calc(9s / var(--dkan-speed,1)) ease-in-out infinite alternate;will-change:transform}.dkan-ocean-waves i:nth-child(1){top:2%}.dkan-ocean-waves i:nth-child(2){top:18%;animation-delay:-2s}.dkan-ocean-waves i:nth-child(3){top:34%;animation-delay:-4s}.dkan-ocean-waves i:nth-child(4){top:50%;animation-delay:-6s}.dkan-ocean-waves i:nth-child(5){top:66%;animation-delay:-8s}.dkan-ocean>b{position:absolute;bottom:-20px;border:1px solid color-mix(in srgb,#a5f3fc 54%,transparent);border-radius:50%;opacity:0;animation-name:dkan-ocean-bubble;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform,opacity}",
+  "@keyframes dkan-ocean-wave{to{transform:translate3d(7%,5px,0) scaleY(1.08)}}@keyframes dkan-ocean-bubble{0%{opacity:0;transform:translate3d(0,0,0) scale(.7)}14%{opacity:.58}100%{opacity:0;transform:translate3d(var(--drift),-82vh,0) scale(1.18)}}",
+  // 棱镜光谱：七条低透明度光带错峰穿过视口。
+  ".dkan-prism{contain:strict}.dkan-prism i{position:absolute;left:-32vw;width:160vw;height:2px;border-radius:999px;opacity:0;background:linear-gradient(90deg,transparent,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#6366f1,#a855f7,transparent);animation:dkan-prism-ray calc(8s / var(--dkan-speed,1)) cubic-bezier(.45,0,.55,1) infinite;will-change:transform,opacity}.dkan-prism i:nth-child(1){top:12%;animation-delay:0s}.dkan-prism i:nth-child(2){top:25%;animation-delay:-1.1s}.dkan-prism i:nth-child(3){top:38%;animation-delay:-2.2s}.dkan-prism i:nth-child(4){top:51%;animation-delay:-3.3s}.dkan-prism i:nth-child(5){top:64%;animation-delay:-4.4s}.dkan-prism i:nth-child(6){top:77%;animation-delay:-5.5s}.dkan-prism i:nth-child(7){top:90%;animation-delay:-6.6s}",
+  "@keyframes dkan-prism-ray{0%{opacity:0;transform:translate3d(-12vw,0,0) rotate(-7deg) scaleX(.7)}34%{opacity:.2}66%{opacity:.36}100%{opacity:0;transform:translate3d(20vw,0,0) rotate(-7deg) scaleX(1.05)}}",
+  // 神经电路：少量 SVG 路径的虚线脉冲，节点保持低透明度。
+  ".dkan-circuit svg{position:absolute;inset:5% 3% 9% 8%;width:89%;height:86%;overflow:visible}.dkan-circuit path{fill:none;stroke:color-mix(in srgb,var(--dkan-phase,#60a5fa) 40%,transparent);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:.045 .12;animation:dkan-circuit-pulse calc(5.6s / var(--dkan-speed,1)) linear infinite}.dkan-circuit circle{fill:var(--dkan-phase,#60a5fa);opacity:.58;filter:drop-shadow(0 0 4px var(--dkan-phase,#60a5fa));animation:dkan-circuit-node calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite alternate}",
+  "@keyframes dkan-circuit-pulse{to{stroke-dashoffset:-1}}@keyframes dkan-circuit-node{to{opacity:.16}}",
+  // 引力涟漪：三个边缘引力源按错峰节奏扩散。
+  ".dkan-gravity{contain:strict}.dkan-gravity-source{position:absolute;width:260px;height:260px}.dkan-gravity-source.a{right:2%;top:5%}.dkan-gravity-source.b{left:-4%;top:39%;transform:scale(.76)}.dkan-gravity-source.c{right:17%;bottom:-10%;transform:scale(.62)}.dkan-gravity-source b{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:var(--dkan-phase,#60a5fa);box-shadow:0 0 16px 5px color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent)}.dkan-gravity-source i{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px;border:1px solid color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent);border-radius:50%;opacity:0;animation:dkan-gravity-wave calc(4.6s / var(--dkan-speed,1)) cubic-bezier(.2,.55,.35,1) infinite;will-change:transform,opacity}",
+  "@keyframes dkan-gravity-wave{0%{opacity:.64;transform:scale(.3)}100%{opacity:0;transform:scale(9)}}",
+  // 灵感天灯：暖色灯体从屏幕底部缓慢升起，尾迹由伪元素提供。
+  ".dkan-lantern{contain:strict}.dkan-lantern i{position:absolute;bottom:-30px;border-radius:45% 45% 34% 34%;background:linear-gradient(150deg,#fff7c2 0%,#fbbf24 46%,#f97316 100%);box-shadow:0 0 10px 3px color-mix(in srgb,#fbbf24 36%,transparent);opacity:0;animation-name:dkan-lantern-rise;animation-timing-function:cubic-bezier(.34,.02,.6,1);animation-iteration-count:infinite;will-change:transform,opacity}.dkan-lantern i::after{content:'';position:absolute;left:42%;top:100%;width:16%;height:13px;background:linear-gradient(#f59e0b,transparent)}",
+  "@keyframes dkan-lantern-rise{0%{opacity:0;transform:translate3d(0,0,0) rotate(-3deg) scale(.72)}12%{opacity:.72}78%{opacity:.48}100%{opacity:0;transform:translate3d(var(--drift),-104vh,0) rotate(4deg) scale(1.04)}}",
   // ===== 交互反馈层 =====
   ".dkan-fxwrap{position:fixed;inset:0;z-index:9992;pointer-events:none;overflow:hidden;}",
   ".dkan-fx{position:absolute;}",
@@ -3184,11 +5768,24 @@ var css2 = [
   ".dkan-prev-stars i:nth-child(5){left:28%;top:70%;animation-delay:-.6s;}",
   ".dkan-prev-stars i:nth-child(6){left:70%;top:75%;animation-delay:-1s;}",
   "@keyframes dkan-prev-star{0%{opacity:.2}100%{opacity:.9}}",
+  // 预览：星际远征（行星、轨道与飞船）
+  ".dkan-prev-space i{position:absolute;left:49%;top:50%;width:9px;height:9px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;}.dkan-prev-space b{position:absolute;left:21%;top:23%;width:15px;height:8px;border:1px solid #93c5fd;border-radius:50%;animation:dkan-prev-space-orbit 2.4s linear infinite;}.dkan-prev-space b::after{content:'';position:absolute;left:-3px;top:0;width:5px;height:5px;border-radius:50%;background:#a78bfa;box-shadow:0 0 4px #a78bfa;}.dkan-prev-space em{position:absolute;left:5%;top:65%;width:19px;height:4px;border-radius:50% 0 0 50%;background:linear-gradient(90deg,#22d3ee,#dbeafe);animation:dkan-prev-space-ship 1.8s linear infinite;}.dkan-prev-space em::after{content:'';position:absolute;right:-7px;top:-3px;border-left:9px solid #93c5fd;border-top:5px solid transparent;border-bottom:5px solid transparent;}.dkan-prev-space{background:radial-gradient(ellipse at 78% 20%,color-mix(in srgb,#6366f1 18%,transparent),transparent 58%);}.dkan-prev-space i,.dkan-prev-space b,.dkan-prev-space em{font-style:normal;}.dkan-prev-space b{transform-origin:34px 11px;}@keyframes dkan-prev-space-orbit{to{transform:rotate(360deg)}}@keyframes dkan-prev-space-ship{to{transform:translateX(105px)}}",
   // 预览：极光（柔光带呼吸）
   ".dkan-prev-aurora i{position:absolute;top:-30%;width:60%;height:120%;border-radius:50%;filter:blur(8px);opacity:.35;animation:dkan-prev-aurora 2.4s ease-in-out infinite alternate;}",
   ".dkan-prev-aurora i:nth-child(1){left:5%;background:#4d9fff;}",
   ".dkan-prev-aurora i:nth-child(2){left:45%;background:#34d399;animation-delay:-1.2s;}",
   "@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
+  // 十种新增模式的缩微预览：复用主体运动语言，但把节点数和振幅压到卡片内。
+  ".dkan-prev-new{--dkan-phase:var(--dsw-alias-accent,#4d9fff)}.dkan-prev-new i{position:absolute;display:block}",
+  ".dkan-prev-nebula i{width:48px;height:48px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--dkan-phase) 48%,transparent),transparent 70%);animation:dkan-prev-nebula 3s ease-in-out infinite alternate}.dkan-prev-nebula i:nth-child(1){left:2%;top:-60%}.dkan-prev-nebula i:nth-child(2){right:4%;bottom:-65%;background:radial-gradient(circle,color-mix(in srgb,#a855f7 42%,transparent),transparent 70%);animation-delay:-1.4s}.dkan-prev-nebula i:nth-child(n+3){display:none}@keyframes dkan-prev-nebula{to{transform:translateX(24px) scale(1.18)}}",
+  ".dkan-prev-warp i{left:50%;top:50%;width:36px;height:1px;transform-origin:left;background:linear-gradient(90deg,transparent,var(--dkan-phase),#fff);animation:dkan-prev-warp 1.8s linear infinite;opacity:0}.dkan-prev-warp i:nth-child(1){--a:0deg}.dkan-prev-warp i:nth-child(2){--a:45deg;animation-delay:-.2s}.dkan-prev-warp i:nth-child(3){--a:90deg;animation-delay:-.4s}.dkan-prev-warp i:nth-child(4){--a:135deg;animation-delay:-.6s}.dkan-prev-warp i:nth-child(5){--a:180deg;animation-delay:-.8s}.dkan-prev-warp i:nth-child(6){--a:225deg;animation-delay:-1s}.dkan-prev-warp i:nth-child(7){--a:270deg;animation-delay:-1.2s}.dkan-prev-warp i:nth-child(8){--a:315deg;animation-delay:-1.4s}@keyframes dkan-prev-warp{0%{opacity:0;transform:rotate(var(--a)) translateX(2px) scaleX(.1)}35%{opacity:.8}100%{opacity:0;transform:rotate(var(--a)) translateX(40px) scaleX(1.3)}}",
+  ".dkan-prev-radar i{left:50%;top:50%;width:24px;height:24px;margin:-12px;border:1px solid color-mix(in srgb,var(--dkan-phase) 48%,transparent);border-radius:50%;animation:dkan-prev-radar 2.6s ease-out infinite;opacity:0}.dkan-prev-radar i:nth-child(2){animation-delay:-.85s}.dkan-prev-radar i:nth-child(3){animation-delay:-1.7s}.dkan-prev-radar i:nth-child(n+4){display:none}@keyframes dkan-prev-radar{0%{opacity:.8;transform:scale(.2)}100%{opacity:0;transform:scale(1.25)}}",
+  ".dkan-prev-constellation::after{content:'';position:absolute;left:12%;right:12%;top:50%;height:1px;background:linear-gradient(90deg,transparent,var(--dkan-phase),transparent);transform:rotate(-9deg)}.dkan-prev-constellation i,.dkan-prev-fireflies i{width:4px;height:4px;border-radius:50%;background:var(--dkan-phase);box-shadow:0 0 5px var(--dkan-phase);animation:dkan-prev-twinkle 1.8s ease-in-out infinite alternate}.dkan-prev-constellation i:nth-child(1),.dkan-prev-fireflies i:nth-child(1){left:12%;top:62%}.dkan-prev-constellation i:nth-child(2),.dkan-prev-fireflies i:nth-child(2){left:28%;top:26%;animation-delay:-.3s}.dkan-prev-constellation i:nth-child(3),.dkan-prev-fireflies i:nth-child(3){left:45%;top:52%;animation-delay:-.6s}.dkan-prev-constellation i:nth-child(4),.dkan-prev-fireflies i:nth-child(4){left:61%;top:18%;animation-delay:-.9s}.dkan-prev-constellation i:nth-child(5),.dkan-prev-fireflies i:nth-child(5){left:76%;top:58%;animation-delay:-1.2s}.dkan-prev-constellation i:nth-child(6),.dkan-prev-fireflies i:nth-child(6){left:88%;top:34%;animation-delay:-1.5s}@keyframes dkan-prev-twinkle{to{opacity:.2;transform:translateY(4px) scale(.65)}}",
+  ".dkan-prev-ocean i{left:-10%;width:120%;height:18px;border-top:1px solid color-mix(in srgb,#22d3ee 52%,transparent);border-radius:50%;animation:dkan-prev-wave 2.8s ease-in-out infinite alternate}.dkan-prev-ocean i:nth-child(1){top:15%}.dkan-prev-ocean i:nth-child(2){top:35%;animation-delay:-.5s}.dkan-prev-ocean i:nth-child(3){top:55%;animation-delay:-1s}.dkan-prev-ocean i:nth-child(4){top:75%;animation-delay:-1.5s}.dkan-prev-ocean i:nth-child(n+5){display:none}@keyframes dkan-prev-wave{to{transform:translateX(12px) scaleY(1.2)}}",
+  ".dkan-prev-prism i{left:-10%;width:120%;height:1px;background:linear-gradient(90deg,transparent,#ef4444,#fbbf24,#22c55e,#22d3ee,#8b5cf6,transparent);transform:rotate(-6deg);animation:dkan-prev-prism 2.8s ease-in-out infinite}.dkan-prev-prism i:nth-child(1){top:18%}.dkan-prev-prism i:nth-child(2){top:34%;animation-delay:-.4s}.dkan-prev-prism i:nth-child(3){top:50%;animation-delay:-.8s}.dkan-prev-prism i:nth-child(4){top:66%;animation-delay:-1.2s}.dkan-prev-prism i:nth-child(5){top:82%;animation-delay:-1.6s}.dkan-prev-prism i:nth-child(n+6){display:none}@keyframes dkan-prev-prism{0%,100%{opacity:.12;transform:translateX(-8px) rotate(-6deg)}50%{opacity:.72;transform:translateX(10px) rotate(-6deg)}}",
+  ".dkan-prev-circuit i{height:1px;background:var(--dkan-phase);box-shadow:0 0 4px var(--dkan-phase);animation:dkan-prev-circuit 2.4s linear infinite}.dkan-prev-circuit i:nth-child(1){left:5%;top:30%;width:42%}.dkan-prev-circuit i:nth-child(2){left:47%;top:30%;width:1px;height:45%}.dkan-prev-circuit i:nth-child(3){left:47%;top:74%;width:38%}.dkan-prev-circuit i:nth-child(4){left:68%;top:15%;width:1px;height:60%}.dkan-prev-circuit i:nth-child(5){left:68%;top:15%;width:26%}.dkan-prev-circuit i:nth-child(6){left:12%;top:62%;width:35%}@keyframes dkan-prev-circuit{0%,100%{opacity:.18}50%{opacity:.9}}",
+  ".dkan-prev-gravity i{left:50%;top:50%;width:18px;height:18px;margin:-9px;border:1px solid var(--dkan-phase);border-radius:50%;opacity:0;animation:dkan-prev-gravity 2.6s ease-out infinite}.dkan-prev-gravity i:nth-child(2){animation-delay:-.65s}.dkan-prev-gravity i:nth-child(3){animation-delay:-1.3s}.dkan-prev-gravity i:nth-child(4){animation-delay:-1.95s}.dkan-prev-gravity i:nth-child(n+5){display:none}@keyframes dkan-prev-gravity{0%{opacity:.8;transform:scale(.15)}100%{opacity:0;transform:scale(2.4)}}",
+  ".dkan-prev-lantern i{bottom:-8px;width:6px;height:8px;border-radius:3px;background:#fbbf24;box-shadow:0 0 5px #f59e0b;animation:dkan-prev-lantern 3.2s linear infinite}.dkan-prev-lantern i:nth-child(1){left:12%}.dkan-prev-lantern i:nth-child(2){left:27%;animation-delay:-.6s}.dkan-prev-lantern i:nth-child(3){left:43%;animation-delay:-1.2s}.dkan-prev-lantern i:nth-child(4){left:61%;animation-delay:-1.8s}.dkan-prev-lantern i:nth-child(5){left:76%;animation-delay:-2.4s}.dkan-prev-lantern i:nth-child(6){left:90%;animation-delay:-2.8s}@keyframes dkan-prev-lantern{0%{opacity:0;transform:translateY(0)}20%{opacity:.9}100%{opacity:0;transform:translateY(-38px)}}",
   ".dkan-prev-bot{height:92px;justify-content:center;}",
   ".dkan-prev-bot .dkan-bot-scene{--dkan-bot-scale:1;transform:scale(.56);transform-origin:center;}",
   // ===== 桌面伙伴：具象人物 + 紧凑双工位（尺寸可调，整卡可拖拽） =====
@@ -3352,7 +5949,7 @@ var css2 = [
   "@keyframes dkan-search-head{0%,28%{transform:var(--dk3-head-turn) rotateZ(1deg)}48%,68%{transform:var(--dk3-head-turn) rotateZ(6deg) translate(1px,1px)}88%,100%{transform:var(--dk3-head-turn) rotateZ(2deg)}}",
   "@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
   // 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
-  "@media (prefers-reduced-motion:reduce){.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
+  "@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
   // 通知子选项行
   ".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
   ".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
@@ -3397,16 +5994,466 @@ var feature6 = {
   name: "\u4EFB\u52A1\u52A8\u753B",
   order: 130,
   accent: "#f472b6",
-  description: "\u4EFB\u52A1\u8FD0\u884C\u52A8\u753B\uFF08\u6D41\u5149\u7EC6\u7EBF/\u547C\u5438\u5149\u70B9/\u8F68\u9053\u5149\u73AF\uFF09\u4E0E\u5B8C\u6210\u901A\u77E5\uFF0C\u4E24\u7EC4\u5F00\u5173\u72EC\u7ACB\u3001\u914D\u7F6E\u6301\u4E45\u5316",
+  description: "19 \u79CD\u4EFB\u52A1\u8FD0\u884C\u52A8\u753B\u4E0E\u5B8C\u6210\u901A\u77E5\uFF1A\u901F\u5EA6\u968F\u4EFB\u52A1\u6D3B\u52A8\u8054\u52A8\uFF0C\u4E24\u7EC4\u5F00\u5173\u72EC\u7ACB\u3001\u914D\u7F6E\u6301\u4E45\u5316",
   css: css2,
   View: AnimationView,
   HomeStat: AnimationStat,
   Overlay: AnimationOverlay
 };
 
+// features/mobile-relay/view.jsx
+var import_react9 = require("react");
+var import_qrcode = __toESM(require_browser(), 1);
+var import_jsx_runtime3 = require("react/jsx-runtime");
+var DEVICE_KEY = "dsh-dock/mobile-relay/device/v1";
+var SESSION_KEY = "dsh-dock/mobile-relay/session/v1";
+var LAUNCH_KEY = "dsh-dock/mobile-relay/launch/v1";
+function rpc(method, payload) {
+  return fetch("/dsh-dock/mobile-relay/" + method, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload || {})
+  }).then(async (res) => {
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && body && body.ok) return body.data;
+    if (res.status === 404 || res.status === 405) throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u4ECD\u662F\u65E7\u7248\u672C\uFF0C\u8BF7\u91CD\u542F dsh web \u540E\u518D\u5F00\u542F\u5C40\u57DF\u7F51\u8FDE\u63A5");
+    throw new Error(body && body.error && body.error.message || "\u8BF7\u6C42\u5931\u8D25\uFF08" + res.status + "\uFF09");
+  });
+}
+function deviceId() {
+  let id = "";
+  try {
+    id = localStorage.getItem(DEVICE_KEY) || "";
+  } catch {
+  }
+  if (!id) {
+    id = globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    try {
+      localStorage.setItem(DEVICE_KEY, id);
+    } catch {
+    }
+  }
+  return id;
+}
+function readSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function saveSession(value) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
+  } catch {
+  }
+}
+function clearSession() {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+  }
+}
+function fmtDuration2(ms) {
+  const sec = Math.max(0, Math.floor((ms || 0) / 1e3));
+  const min = Math.floor(sec / 60);
+  const rest = sec % 60;
+  return min > 0 ? min + " \u5206 " + String(rest).padStart(2, "0") + " \u79D2" : rest + " \u79D2";
+}
+function fmtTime3(value) {
+  return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+}
+function phaseLabel2(phase) {
+  return { think: "\u6B63\u5728\u601D\u8003", write: "\u6B63\u5728\u8F93\u51FA", code: "\u6B63\u5728\u5F00\u53D1", search: "\u6B63\u5728\u67E5\u8D44\u6599" }[phase] || "\u8FDB\u884C\u4E2D";
+}
+function copy(value) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(value);
+  return Promise.reject(new Error("\u5F53\u524D\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u590D\u5236\uFF0C\u8BF7\u957F\u6309\u6216\u624B\u52A8\u590D\u5236"));
+}
+function RelayIcon({ name, size = 18 }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
+  if (name === "phone") return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x: "7", y: "2.5", width: "10", height: "19", rx: "2.2" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "M10 18.5h4" })
+  ] });
+  if (name === "link") return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "M10.5 13.5a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1.15 1.14" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "M13.5 10.5a4 4 0 0 0-5.66-.01l-2 2a4 4 0 0 0 5.66 5.66l1.15-1.14" })
+  ] });
+  if (name === "copy") return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x: "8", y: "8", width: "11", height: "12", rx: "1.5" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" })
+  ] });
+  if (name === "check") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "m5 12 4.2 4.2L19 6.5" }) });
+  if (name === "arrow") return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "M5 12h13" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "m14 7 5 5-5 5" })
+  ] });
+  if (name === "close") return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "m6 6 12 12M18 6 6 18" }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("circle", { cx: "12", cy: "12", r: "8" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "M12 8v4l2.5 2" })
+  ] });
+}
+function useCompact() {
+  const [compact, setCompact] = (0, import_react9.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
+  (0, import_react9.useEffect)(() => {
+    const media = window.matchMedia("(max-width: 680px)");
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return compact;
+}
+function MobileRelayView() {
+  const compact = useCompact();
+  const [session, setSession] = (0, import_react9.useState)(readSession);
+  const [pair, setPair] = (0, import_react9.useState)(null);
+  const [network, setNetwork] = (0, import_react9.useState)(null);
+  const [port, setPort] = (0, import_react9.useState)(3081);
+  const [selectedAddress, setSelectedAddress] = (0, import_react9.useState)("");
+  const [qrDataUrl, setQrDataUrl] = (0, import_react9.useState)("");
+  const [note, setNote] = (0, import_react9.useState)("");
+  const [busy, setBusy] = (0, import_react9.useState)("");
+  const [notice, setNotice] = (0, import_react9.useState)("");
+  const [error, setError] = (0, import_react9.useState)("");
+  const mobile = session && session.role === "mobile";
+  const setCurrent = (0, import_react9.useCallback)((next) => {
+    setSession(next);
+    next ? saveSession(next) : clearSession();
+  }, []);
+  (0, import_react9.useEffect)(() => {
+    if (session) return;
+    rpc("network").then((data) => {
+      setNetwork(data);
+      if (data && data.defaultPort) setPort(data.defaultPort);
+      const first = data && data.addresses && data.addresses[0];
+      if (first) setSelectedAddress(first.address);
+    }).catch((e) => setError(e && e.message ? e.message : String(e)));
+  }, [session]);
+  const refresh = (0, import_react9.useCallback)(async (candidate = session) => {
+    if (!candidate) return;
+    try {
+      const result = await rpc("status", candidate);
+      setPair(result.pair);
+      setError("");
+    } catch (e) {
+      const message = e && e.message ? e.message : String(e);
+      setError(message);
+      if (/过期|未完成配对/.test(message)) setCurrent(null);
+    }
+  }, [session, setCurrent]);
+  (0, import_react9.useEffect)(() => {
+    if (session) refresh(session);
+  }, [session, refresh]);
+  (0, import_react9.useEffect)(() => {
+    if (!session) return;
+    const timer = setInterval(() => refresh(session), 2500);
+    return () => clearInterval(timer);
+  }, [session, refresh]);
+  (0, import_react9.useEffect)(() => {
+    if (session) return;
+    let launch = "";
+    try {
+      launch = sessionStorage.getItem(LAUNCH_KEY) || "";
+    } catch {
+    }
+    if (!launch) return;
+    try {
+      sessionStorage.removeItem(LAUNCH_KEY);
+    } catch {
+    }
+    const [pairId, code] = launch.split(".");
+    if (!pairId || !code) return;
+    setBusy("join");
+    rpc("join", { pairId, code, deviceId: deviceId(), label: "\u624B\u673A\u7AEF" }).then((data) => {
+      setCurrent({ pairId, secret: data.secret, role: "mobile", deviceId: deviceId() });
+      setPair(data.pair);
+      setNotice("\u5DF2\u8FDE\u63A5\u5230\u7535\u8111\u7AEF\uFF0C\u4EFB\u52A1\u72B6\u6001\u4F1A\u6301\u7EED\u540C\u6B65\u3002");
+    }).catch((e) => setError(e && e.message ? e.message : String(e))).finally(() => setBusy(""));
+  }, [session, setCurrent]);
+  const mobileLink = (0, import_react9.useMemo)(() => {
+    if (!session || !session.gatewayToken || !session.gatewayAddress || !session.gatewayPort) return "";
+    return "http://" + session.gatewayAddress + ":" + session.gatewayPort + "/__dsh_mobile/connect#" + session.gatewayToken;
+  }, [session]);
+  (0, import_react9.useEffect)(() => {
+    let active = true;
+    if (!mobileLink) {
+      setQrDataUrl("");
+      return () => {
+        active = false;
+      };
+    }
+    import_qrcode.default.toDataURL(mobileLink, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 260,
+      color: { dark: "#111827", light: "#ffffff" }
+    }).then((value) => {
+      if (active) setQrDataUrl(value);
+    }).catch((e) => {
+      if (active) setError("\u4E8C\u7EF4\u7801\u751F\u6210\u5931\u8D25\uFF1A" + (e && e.message ? e.message : String(e)));
+    });
+    return () => {
+      active = false;
+    };
+  }, [mobileLink]);
+  async function start() {
+    setError("");
+    setNotice("");
+    const numericPort = Number(port);
+    if (!selectedAddress) {
+      setError("\u6CA1\u6709\u68C0\u6D4B\u5230\u53EF\u7528\u7684\u5C40\u57DF\u7F51 IPv4 \u5730\u5740\uFF0C\u8BF7\u5148\u8FDE\u63A5 Wi-Fi \u6216\u6709\u7EBF\u7F51\u7EDC\u3002");
+      return;
+    }
+    if (!Number.isInteger(numericPort) || numericPort < 1024 || numericPort > 65535) {
+      setError("\u5C40\u57DF\u7F51\u7AEF\u53E3\u9700\u4E3A 1024 \u5230 65535 \u4E4B\u95F4\u7684\u6574\u6570\u3002");
+      return;
+    }
+    setBusy("start");
+    try {
+      const data = await rpc("start", { deviceId: deviceId(), port: numericPort });
+      const next = {
+        pairId: data.pairId,
+        secret: data.secret,
+        code: data.code,
+        role: "desktop",
+        deviceId: deviceId(),
+        gatewayToken: data.gatewayToken,
+        gatewayPort: data.gateway.port,
+        gatewayAddress: selectedAddress
+      };
+      setCurrent(next);
+      setPair(data.pair);
+      setNotice("\u53D7\u4FDD\u62A4\u7684\u5C40\u57DF\u7F51\u53CD\u5411\u4EE3\u7406\u5DF2\u5F00\u542F\u3002\u624B\u673A\u626B\u7801\u5373\u53EF\u8FDB\u5165\u540C\u4E00 DSH\u3002");
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function sendNote(event) {
+    event.preventDefault();
+    if (!session || !note.trim()) return;
+    setBusy("note");
+    setError("");
+    try {
+      const data = await rpc("note", Object.assign({}, session, { note }));
+      setPair(data.pair);
+      setNote("");
+      setNotice("\u63A5\u529B\u5907\u6CE8\u5DF2\u540C\u6B65\u3002");
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function end() {
+    if (!session) return;
+    setBusy("end");
+    try {
+      await rpc("end", session);
+      setCurrent(null);
+      setPair(null);
+      setNotice("\u624B\u673A\u8FDE\u63A5\u5DF2\u5173\u95ED\u3002");
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  function copyLink() {
+    copy(mobileLink).then(() => setNotice("\u8FDE\u63A5\u94FE\u63A5\u5DF2\u590D\u5236\u3002")).catch((e) => setError(e.message));
+  }
+  if (!session) return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-hero", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dmr-hero-icon", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RelayIcon, { name: "phone", size: 22 }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "\u628A\u5F00\u53D1\u4EFB\u52A1\u63A5\u5230\u624B\u673A" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: "\u4E3B DSH \u7EE7\u7EED\u4EC5\u9650\u672C\u673A\uFF1B\u5F00\u542F\u5C40\u57DF\u7F51\u53CD\u5411\u4EE3\u7406\u540E\uFF0C\u901A\u8FC7\u4E00\u6B21\u6027\u4E8C\u7EF4\u7801\u5B89\u5168\u63A5\u5165\u3002" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("ol", { className: "dmr-steps", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u786E\u8BA4 IP \u4E0E\u7AEF\u53E3" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: "\u81EA\u52A8\u8BC6\u522B\u7535\u8111\u5C40\u57DF\u7F51 IPv4\uFF0C\u9ED8\u8BA4\u4F7F\u7528\u72EC\u7ACB\u7AEF\u53E3 3081\u3002" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u5F00\u542F\u53CD\u5411\u4EE3\u7406" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: "\u4EE3\u7406 HTTP \u4E0E WebSocket\uFF0C\u672A\u8BA4\u8BC1\u8BBE\u5907\u65E0\u6CD5\u8BBF\u95EE\u3002" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u624B\u673A\u626B\u7801\u63A5\u529B" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: "\u626B\u7801\u8FDB\u5165\u539F\u4F1A\u8BDD\uFF0C\u7535\u8111\u7AEF\u540C\u6B65\u770B\u5230\u5F00\u53D1\u8FDB\u5EA6\u3002" })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-network-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u5C40\u57DF\u7F51 IP" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("select", { value: selectedAddress, onChange: (e) => setSelectedAddress(e.target.value), disabled: !network || !network.addresses || !network.addresses.length, children: network && network.addresses && network.addresses.length ? network.addresses.map((item) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("option", { value: item.address, children: [
+          item.address,
+          " \xB7 ",
+          item.interface
+        ] }, item.interface + item.address)) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "", children: network ? "\u672A\u68C0\u6D4B\u5230\u5730\u5740" : "\u6B63\u5728\u68C0\u6D4B\u7F51\u7EDC\u2026" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: "\u624B\u673A\u9700\u4E0E\u7535\u8111\u4F4D\u4E8E\u53EF\u4E92\u8BBF\u7684\u540C\u4E00\u5C40\u57DF\u7F51\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u76D1\u542C\u7AEF\u53E3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", "aria-describedby": "dmr-port-help" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { id: "dmr-port-help", children: "\u4E3B\u670D\u52A1\u4ECD\u4E3A 127.0.0.1:3080\uFF1B\u624B\u673A\u5165\u53E3\u5EFA\u8BAE\u4F7F\u7528 3081\u3002" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-security", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u5B89\u5168\u8BF4\u660E" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: "\u94FE\u63A5\u76F8\u5F53\u4E8E\u4E34\u65F6\u767B\u5F55\u51ED\u636E\uFF0C\u53EA\u53D1\u7ED9\u81EA\u5DF1\u7684\u624B\u673A\u3002\u9A8C\u8BC1\u4EE4\u724C 10 \u5206\u949F\u540E\u5931\u6548\uFF1B\u5173\u95ED\u8FDE\u63A5\u4F1A\u7ACB\u5373\u64A4\u9500\u624B\u673A\u4F1A\u8BDD\u5E76\u505C\u6B62\u7AEF\u53E3\u76D1\u542C\u3002" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dmr-primary", onClick: start, disabled: busy === "start" || !selectedAddress, children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u53CD\u5411\u4EE3\u7406\u2026" : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RelayIcon, { name: "link" }),
+      "\u5F00\u542F\u53CD\u5411\u4EE3\u7406\u5E76\u751F\u6210\u4E8C\u7EF4\u7801"
+    ] }) }),
+    error && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-message error", role: "alert", children: error }),
+    notice && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-message success", "aria-live": "polite", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RelayIcon, { name: "check" }),
+      notice
+    ] })
+  ] });
+  const onlineMobiles = pair && pair.devices ? pair.devices.filter((device) => device.role === "mobile") : [];
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-status-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dmr-eyebrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", {}),
+          " ",
+          mobile ? "\u5DF2\u8FDE\u63A5\u5230\u7535\u8111" : "\u624B\u673A\u8FDE\u63A5\u5DF2\u5F00\u542F"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: mobile ? "\u53EF\u4EE5\u5728\u8FD9\u91CC\u7EE7\u7EED\u5F00\u53D1" : "\u7B49\u5F85\u624B\u673A\u63A5\u5165" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: mobile ? "\u4EFB\u52A1\u72B6\u6001\u548C\u63A5\u529B\u5907\u6CE8\u4F1A\u81EA\u52A8\u540C\u6B65\u3002\u7EE7\u7EED\u5F00\u53D1\u8BF7\u56DE\u5230\u5F53\u524D DSH \u4F1A\u8BDD\u8F93\u5165\u533A\u3002" : "\u5C06\u4E0B\u9762\u7684\u5B89\u5168\u94FE\u63A5\u53D1\u5230\u624B\u673A\uFF1B\u8FDE\u63A5\u5728 " + fmtTime3(pair && pair.expiresAt) + " \u524D\u6709\u6548\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dmr-icon-button", onClick: end, disabled: busy === "end", title: "\u5173\u95ED\u624B\u673A\u8FDE\u63A5", "aria-label": "\u5173\u95ED\u624B\u673A\u8FDE\u63A5", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RelayIcon, { name: "close" }) })
+    ] }),
+    !mobile && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-share-layout", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-qr-card", children: [
+        qrDataUrl ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("img", { src: qrDataUrl, alt: "\u624B\u673A\u63A5\u529B\u4E00\u6B21\u6027\u8FDE\u63A5\u4E8C\u7EF4\u7801", width: "260", height: "260" }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-qr-loading", "aria-live": "polite", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u4F7F\u7528\u624B\u673A\u76F8\u673A\u626B\u7801" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: "\u624B\u673A\u4E0E\u7535\u8111\u9700\u5728\u540C\u4E00\u5C40\u57DF\u7F51" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-share-detail", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dmr-eyebrow", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", {}),
+            " \u53CD\u5411\u4EE3\u7406\u5DF2\u8FD0\u884C"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("h4", { children: [
+            session.gatewayAddress,
+            ":",
+            session.gatewayPort,
+            " \u2192 127.0.0.1:3080"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-link", title: mobileLink, children: mobileLink || "\u5C40\u57DF\u7F51\u5165\u53E3\u672A\u5C31\u7EEA" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-share-actions", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLink, disabled: !mobileLink, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RelayIcon, { name: "copy" }),
+          "\u590D\u5236\u8FDE\u63A5\u94FE\u63A5"
+        ] }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: "\u4E8C\u7EF4\u7801\u548C\u94FE\u63A5\u53EA\u53EF\u6210\u529F\u9A8C\u8BC1\u4E00\u6B21\uFF0C10 \u5206\u949F\u540E\u5931\u6548\u3002\u5982\u9700\u53E6\u4E00\u53F0\u624B\u673A\uFF0C\u8BF7\u5173\u95ED\u540E\u91CD\u65B0\u5F00\u542F\u3002" })
+      ] })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-overview", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-overview-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u8BBE\u5907\u72B6\u6001" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: mobile ? "\u624B\u673A\u5DF2\u63A5\u529B" : onlineMobiles.length ? onlineMobiles.length + " \u53F0\u624B\u673A\u5728\u7EBF" : "\u7B49\u5F85\u624B\u673A" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: mobile ? "\u4FDD\u6301\u6B64\u9875\u9762\u6253\u5F00\u5373\u53EF\u540C\u6B65\u72B6\u6001" : onlineMobiles.length ? "\u72B6\u6001\u6BCF 2.5 \u79D2\u5237\u65B0" : "\u8FDE\u63A5\u7801\u4EC5\u5728\u5F53\u524D\u914D\u5BF9\u7A97\u53E3\u6709\u6548" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-overview-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u8FDB\u884C\u4E2D\u7684\u4EFB\u52A1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: pair && pair.tasks ? pair.tasks.length : "\u2014" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: pair && pair.tasks && pair.tasks.length ? "\u4E0E DSH \u5F53\u524D\u4F1A\u8BDD\u5171\u7528\u540C\u4E00\u4EFB\u52A1" : "\u5F00\u59CB\u4EFB\u52A1\u540E\u4F1A\u81EA\u52A8\u663E\u793A\u5728\u8FD9\u91CC" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-section-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h4", { children: "\u5B9E\u65F6\u4EFB\u52A1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dmr-text-button", onClick: () => refresh(), disabled: busy, children: "\u5237\u65B0" })
+      ] }),
+      pair && pair.tasks && pair.tasks.length ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-task-list", children: pair.tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("article", { className: "dmr-task", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dmr-phase " + task.phase, children: phaseLabel2(task.phase) }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: task.title }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("small", { children: [
+            "\u5DF2\u8FD0\u884C ",
+            fmtDuration2(task.elapsed),
+            " \xB7 \u6700\u8FD1\u6D3B\u52A8 ",
+            fmtTime3(task.lastActivityAt)
+          ] })
+        ] })
+      ] }, task.sessionId)) }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-empty", children: "\u5F53\u524D\u6CA1\u6709\u6B63\u5728\u8FD0\u884C\u7684\u4EFB\u52A1\u3002\u542F\u52A8\u4EFB\u52A1\u540E\uFF0C\u624B\u673A\u548C\u7535\u8111\u90FD\u4F1A\u770B\u5230\u540C\u4E00\u4EFD\u72B6\u6001\u3002" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("form", { className: "dmr-note", onSubmit: sendNote, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-section-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h4", { children: "\u63A5\u529B\u5907\u6CE8" }),
+        pair && pair.noteAt ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("small", { children: [
+          pair.noteFrom,
+          " \xB7 ",
+          fmtTime3(pair.noteAt)
+        ] }) : null
+      ] }),
+      pair && pair.note ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("blockquote", { children: pair.note }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: "\u628A\u5F53\u524D\u8FDB\u5EA6\u3001\u4E0B\u4E00\u6B65\u6216\u9700\u8981\u6CE8\u610F\u7684\u4E8B\u9879\u7559\u7ED9\u53E6\u4E00\u53F0\u8BBE\u5907\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("label", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "sr-only", children: "\u63A5\u529B\u5907\u6CE8" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("textarea", { value: note, onChange: (e) => setNote(e.target.value), maxLength: "1200", placeholder: mobile ? "\u4F8B\u5982\uFF1A\u6211\u5DF2\u5728\u624B\u673A\u67E5\u770B\u5230\u6784\u5EFA\u9519\u8BEF\uFF0C\u4E0B\u4E00\u6B65\u8BF7\u5728\u7535\u8111\u8FD0\u884C\u6D4B\u8BD5\u3002" : "\u4F8B\u5982\uFF1A\u5DF2\u7ECF\u5B8C\u6210\u63A5\u53E3\u4FEE\u6539\uFF0C\u624B\u673A\u7AEF\u7EE7\u7EED\u68C0\u67E5\u9875\u9762\u4EA4\u4E92\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "dmr-secondary", disabled: !note.trim() || busy === "note", children: busy === "note" ? "\u6B63\u5728\u540C\u6B65\u2026" : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RelayIcon, { name: "arrow" }),
+        "\u540C\u6B65\u5907\u6CE8"
+      ] }) })
+    ] }),
+    error && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dmr-message error", role: "alert", children: error }),
+    notice && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dmr-message success", "aria-live": "polite", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RelayIcon, { name: "check" }),
+      notice
+    ] })
+  ] });
+}
+function MobileRelayHomeStat() {
+  const [summary, setSummary] = (0, import_react9.useState)("\u53EF\u5728\u624B\u673A\u7EE7\u7EED\u5F53\u524D\u4EFB\u52A1");
+  (0, import_react9.useEffect)(() => {
+    const session = readSession();
+    if (!session) return;
+    rpc("status", session).then((data) => {
+      const p = data.pair;
+      setSummary((p.tasks || []).length ? p.tasks.length + " \u4E2A\u4EFB\u52A1\u540C\u6B65\u4E2D" : "\u624B\u673A\u5DF2\u8FDE\u63A5\uFF0C\u7B49\u5F85\u4EFB\u52A1");
+    }).catch(() => setSummary("\u8FDE\u63A5\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u914D\u5BF9"));
+  }, []);
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: summary });
+}
+var feature7 = {
+  id: "mobile-relay",
+  name: "\u624B\u673A\u63A5\u529B",
+  order: 80,
+  accent: "#38bdf8",
+  description: "\u5B89\u5168\u53CD\u5411\u4EE3\u7406\u4E0E\u626B\u7801\u63A5\u529B\uFF0C\u540C\u6B65\u5F53\u524D\u4EFB\u52A1\u72B6\u6001\u548C\u5907\u6CE8",
+  defaultEnabled: true,
+  css: `
+.dmr{--dmr-accent:#38bdf8;--dmr-accent-soft:color-mix(in srgb,var(--dmr-accent) 13%,transparent);display:flex;flex-direction:column;gap:16px;max-width:720px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dmr h3,.dmr h4,.dmr p{margin:0}.dmr h3{font-size:17px;line-height:1.25;letter-spacing:-.01em}.dmr h4{font-size:13px}.dmr-hero,.dmr-status-head{display:flex;align-items:flex-start;gap:12px}.dmr-hero>div,.dmr-status-head>div{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-hero-icon{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:14px;background:var(--dmr-accent-soft);color:var(--dmr-accent);border:1px solid color-mix(in srgb,var(--dmr-accent) 35%,var(--dsw-alias-border-l1))}.dmr-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}.dmr-steps li{display:flex;gap:9px;padding:11px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:12px}.dmr-steps li>span{width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;font-size:11px;font-weight:700;color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-steps div{display:flex;flex-direction:column;gap:3px;min-width:0}.dmr-steps strong{font-size:12px}.dmr-steps small{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}.dmr-field{display:flex;flex-direction:column;gap:6px;font-weight:600}.dmr-field input,.dmr-field select,.dmr-note textarea{box-sizing:border-box;width:100%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:10px 12px;min-height:44px;font:inherit;outline:none;transition:border-color .18s ease,box-shadow .18s ease}.dmr-field input:focus,.dmr-field select:focus,.dmr-note textarea:focus{border-color:var(--dmr-accent);box-shadow:0 0 0 3px var(--dmr-accent-soft)}.dmr-field small{font-weight:400}.dmr-network-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(150px,.6fr);gap:12px}.dmr-security{padding:12px 13px;border:1px solid color-mix(in srgb,#f59e0b 38%,var(--dsw-alias-border-l1));border-radius:12px;background:color-mix(in srgb,#f59e0b 8%,transparent)}.dmr-security strong{display:block;margin-bottom:4px;color:#f59e0b;font-size:12px}.dmr-security p{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.55}.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button{font:inherit;touch-action:manipulation;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease,opacity .18s ease}.dmr-primary,.dmr-secondary{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:9px 13px;font-weight:600}.dmr-primary{align-self:flex-start;border:1px solid var(--dmr-accent);background:var(--dmr-accent);color:#062238}.dmr-primary:hover{filter:brightness(1.05)}.dmr-secondary{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}.dmr-secondary:hover{border-color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-primary:active,.dmr-secondary:active,.dmr-icon-button:active{transform:scale(.98)}.dmr-primary:disabled,.dmr-secondary:disabled,.dmr-text-button:disabled,.dmr-icon-button:disabled{cursor:not-allowed;opacity:.5}.dmr-message{display:flex;align-items:flex-start;gap:7px;padding:10px 12px;border-radius:10px;font-size:12px}.dmr-message.success{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent)}.dmr-message.error{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}.dmr-status-head{justify-content:space-between}.dmr-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--dmr-accent)}.dmr-eyebrow i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px var(--dmr-accent-soft)}.dmr-icon-button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-secondary)}.dmr-icon-button:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor}.dmr-share{display:flex;flex-direction:column;gap:9px;padding:13px;border:1px solid color-mix(in srgb,var(--dmr-accent) 32%,var(--dsw-alias-border-l1));border-radius:13px;background:var(--dmr-accent-soft)}.dmr-share-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:center}.dmr-qr-card{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border-radius:12px;background:#fff;color:#111827;text-align:center}.dmr-qr-card img{display:block;width:176px;height:176px;max-width:100%;object-fit:contain}.dmr-qr-card strong{font-size:12px}.dmr-qr-card small{color:#4b5563;font-size:10px}.dmr-qr-loading{display:grid;place-items:center;width:176px;height:176px;color:#64748b;font-size:12px}.dmr-share-detail{min-width:0;display:flex;flex-direction:column;gap:10px}.dmr-share-detail>div:first-child{display:flex;flex-direction:column;gap:4px}.dmr-link{padding:10px 11px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:var(--dsw-alias-label-secondary)}.dmr-share-actions{display:flex;gap:8px;flex-wrap:wrap}.dmr-share-actions .dmr-primary{align-self:auto}.dmr-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dmr-overview-card{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dmr-overview-card>span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-overview-card strong{font-size:16px;letter-spacing:-.01em}.dmr-section{display:flex;flex-direction:column;gap:9px}.dmr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.dmr-section-head small{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-text-button{border:0;background:transparent;color:var(--dmr-accent);padding:8px;min-height:36px;font-weight:600}.dmr-task-list{display:flex;flex-direction:column;gap:8px}.dmr-task{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dmr-task>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.dmr-task strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dmr-phase{flex:none;border-radius:999px;padding:3px 8px;font-size:11px;background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-phase.write{color:var(--dsw-alias-state-success-primary)}.dmr-phase.code{color:#f59e0b}.dmr-phase.search{color:#14b8a6}.dmr-empty{padding:18px 12px;text-align:center;border:1px dashed var(--dsw-alias-border-l2);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}.dmr-note{display:flex;flex-direction:column;gap:9px;padding-top:2px}.dmr-note blockquote{margin:0;padding:10px 12px;border-left:3px solid var(--dmr-accent);border-radius:0 9px 9px 0;background:var(--dmr-accent-soft);white-space:pre-wrap;font-size:12px}.dmr-note textarea{min-height:88px;resize:vertical;line-height:1.5}.dmr-note .dmr-secondary{align-self:flex-start}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media (max-width:680px){.dmr{gap:14px;font-size:14px}.dmr h3{font-size:18px}.dmr-steps{grid-template-columns:1fr;gap:8px}.dmr-steps li{padding:10px}.dmr-steps small,.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{font-size:12px}.dmr-network-grid{grid-template-columns:1fr;gap:10px}.dmr-field input,.dmr-field select{font-size:16px}.dmr-primary,.dmr-secondary{width:100%;font-size:14px}.dmr-share-layout{grid-template-columns:1fr;gap:12px}.dmr-qr-card{width:min(240px,100%);margin:0 auto}.dmr-qr-card img,.dmr-qr-loading{width:210px;height:210px}.dmr-share-actions{flex-direction:column}.dmr-share-actions .dmr-primary{width:100%}.dmr-overview{gap:8px}.dmr-overview-card{padding:11px}.dmr-status-head{gap:8px}.dmr-link{font-size:11px}.dmr-note textarea{font-size:16px;min-height:104px}.dmr-note .dmr-secondary{align-self:stretch}.dmr-compact .dmr-hero-icon{width:40px;height:40px;border-radius:13px}}@media (prefers-reduced-motion:reduce){.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button,.dmr-field input,.dmr-field select,.dmr-note textarea{transition:none}}
+`,
+  View: MobileRelayView,
+  HomeStat: MobileRelayHomeStat
+};
+
 // src/client.jsx
-var DOCK_VERSION = "0.5.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6];
+var DOCK_VERSION = "0.6.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -3536,6 +6583,10 @@ var SHELL_CSS = [
   ".dockm-foot-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
   ".dockm-foot-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
   ".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
+  // 窄屏：功能坞是一级工作台而不是被压扁的桌面弹窗。全屏承接安全区，导航改横向，
+  // 禁用桌面拖拽/缩放，所有导航和关闭动作保持至少 44px 的可点击面积。
+  "@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:1fr;gap:10px}.dockh-card{padding:12px}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
+  "@media (prefers-reduced-motion:reduce){.dockm-backdrop,.dockm-dialog{animation:none}.dockm-nav-item,.dockm-close,.dockm-win,.dock-sw{transition:none}}",
   ".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
   ".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
   ".dockh-foot{display:flex;align-items:center;gap:8px;}",
@@ -3544,17 +6595,29 @@ var SHELL_CSS = [
   // 溢出兼容（两层防护，缺一不可）：
   //  1) 宽度上限：宿主 .row 是 flex-wrap:wrap 且换行优先于收缩，chips 一长 tools 整行变宽，
   //     右侧模型选择器/发送键被挤到第二行（左右错位）。宿主 .row 带 container-type:inline-size，
-  //     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定 280px。
+  //     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定值。
+  //     注意：旧上限 min(280px,36cqw) 仍偏宽——标准 780px 输入卡下（.row 内容约 762px），
+  //     add 钮(28)+工作区选择器(~214)+chips(280) 已与右侧模型选择器+发送键（~345px）合计超宽，
+  //     即便 chips 未截断 .row 也会换行把模型选择器/发送键挤到第二行。实测把上限收到 189px
+  //     （≈25cqw）并使 chips 内距收紧（padding 2px 6px、gap 2px）后，实测 4~6M 用量 + 余额
+  //     两 chip 可完整显示且不再换行；超限时仍被省略号截断，完整值在 title 悬浮提示里。
   //  2) 截断：超限部分用省略号截断（完整数值在 title 悬浮提示里），防 chips 凸出输入卡圆角（悬空）。
-  ".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:280px;}",
-  "@supports (width:1cqw){.dockchip-row{max-width:min(280px,36cqw);}}",
-  ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+  ".dockchip-row{display:inline-flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:189px;}",
+  "@supports (width:1cqw){.dockchip-row{max-width:min(189px,25cqw);}}",
+  ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 6px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
   ".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
   ".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
   ".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
   ".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
 ].join("\n");
 var dockCssTag = null;
+var initialCssSchedule = null;
+function cancelInitialCssSchedule() {
+  if (!initialCssSchedule || typeof window === "undefined") return;
+  if (initialCssSchedule.type === "idle" && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(initialCssSchedule.id);
+  if (initialCssSchedule.type === "timer") window.clearTimeout(initialCssSchedule.id);
+  initialCssSchedule = null;
+}
 function fullDockCss() {
   const parts = [SHELL_CSS];
   for (const f of BUILTIN_FEATURES) if (f.css) parts.push(f.css);
@@ -3563,6 +6626,7 @@ function fullDockCss() {
 }
 function ensureCss() {
   if (typeof document === "undefined") return;
+  cancelInitialCssSchedule();
   try {
     if (!dockCssTag || !dockCssTag.isConnected) {
       if (document.querySelector('style[data-plugin-css="dsh-dock"]')) {
@@ -3578,9 +6642,21 @@ function ensureCss() {
     console.error("[dsh-dock] ensureCss failed:", e && e.message ? e.message : String(e));
   }
 }
+function scheduleInitialCss() {
+  if (typeof document === "undefined" || initialCssSchedule || dockCssTag && dockCssTag.isConnected) return;
+  const run = () => {
+    initialCssSchedule = null;
+    ensureCss();
+  };
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    initialCssSchedule = { type: "idle", id: window.requestIdleCallback(run, { timeout: 350 }) };
+  } else {
+    initialCssSchedule = { type: "timer", id: setTimeout(run, 48) };
+  }
+}
 function useExternalVersion() {
-  const [, bump] = import_react9.default.useReducer((n) => n + 1, 0);
-  import_react9.default.useEffect(() => {
+  const [, bump] = import_react10.default.useReducer((n) => n + 1, 0);
+  import_react10.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -3590,42 +6666,46 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react9.default.createElement(
+  return import_react10.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react9.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react9.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react9.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react9.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react10.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react10.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react10.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react10.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react9.default.useState(panelNav.open);
-  import_react9.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react9.default.createElement("button", {
+  const [open, setOpen] = import_react10.default.useState(panelNav.open);
+  import_react10.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react10.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
     title: "\u529F\u80FD\u575E",
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react9.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react9.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react10.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react10.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react9.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react9.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react10.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react10.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react10.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react9.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react9.default.useRef(null);
-  import_react9.default.useEffect(() => {
+  const [win, setWin] = import_react10.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react10.default.useRef(null);
+  const contentRef = import_react10.default.useRef(null);
+  import_react10.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
+  import_react10.default.useEffect(() => {
+    if (open && contentRef.current) contentRef.current.scrollTop = 0;
+  }, [active, open]);
   function beginDrag(e, type) {
     if (win.mode !== "normal" || e.button !== 0) return;
     if (type === "move" && e.target && e.target.closest && e.target.closest("button,select,input")) return;
@@ -3661,13 +6741,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react9.default.createElement(
+  const viewNode = mod && View ? import_react10.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react9.default.createElement(
-      mod.external ? FeatureBoundary : import_react9.default.Fragment,
+    import_react10.default.createElement(
+      mod.external ? FeatureBoundary : import_react10.default.Fragment,
       null,
-      import_react9.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react10.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -3681,10 +6761,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react9.default.createElement(
+  return import_react10.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react9.default.createElement(
+    import_react10.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -3692,41 +6772,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react9.default.createElement(
+      import_react10.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react9.default.createElement(DockIcon, null),
-        import_react9.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react9.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react9.default.createElement(
+        import_react10.default.createElement(DockIcon, null),
+        import_react10.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react10.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react10.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react9.default.createElement("button", {
+          import_react10.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react9.default.createElement("button", {
+          import_react10.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react9.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react10.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react9.default.createElement(
+      import_react10.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react9.default.createElement(
+        import_react10.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react9.default.createElement(
+          import_react10.default.createElement(
             "button",
             {
               type: "button",
@@ -3734,10 +6814,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)),
-            import_react9.default.createElement("span", null, "\u9996\u9875")
+            import_react10.default.createElement("span", { className: "dockm-navhome" }, import_react10.default.createElement(DockIcon, null)),
+            import_react10.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react9.default.createElement(
+          MODULES.map((m) => import_react10.default.createElement(
             "button",
             {
               type: "button",
@@ -3745,42 +6825,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react9.default.createElement("span", null, m.name),
-            m.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react10.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react10.default.createElement("span", null, m.name),
+            m.planned ? import_react10.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react10.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react9.default.createElement(
+        import_react10.default.createElement(
           "div",
-          { className: "dockm-content" },
-          import_react9.default.createElement(
+          { className: "dockm-content", ref: contentRef },
+          import_react10.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react9.default.createElement(
+            import_react10.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)) : import_react9.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react10.default.createElement("span", { className: "dockm-navhome" }, import_react10.default.createElement(DockIcon, null)) : import_react10.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react10.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react10.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react9.default.createElement(
+            import_react10.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react9.default.createElement("div", { className: "dockm-view" }, import_react9.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react9.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react9.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react9.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react9.default.createElement(
+          isHome ? import_react10.default.createElement("div", { className: "dockm-view" }, import_react10.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react10.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react10.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react10.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react10.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react9.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react9.default.createElement(
+            import_react10.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react10.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react9.default.createElement("button", {
+              import_react10.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react10.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -3793,11 +6873,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react9.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react10.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react9.default.createElement("button", {
+              import_react10.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react10.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -3813,30 +6893,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react9.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react10.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react10.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react9.default.createElement(
+  return import_react10.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react9.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react9.default.createElement(
-        m.external ? FeatureBoundary : import_react9.default.Fragment,
+      const statNode = m.planned ? import_react10.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react10.default.createElement(
+        m.external ? FeatureBoundary : import_react10.default.Fragment,
         null,
-        import_react9.default.createElement(Stat, { ctx })
-      ) : import_react9.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react9.default.createElement(
+        import_react10.default.createElement(Stat, { ctx })
+      ) : import_react10.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react10.default.createElement(
         "div",
         {
           key: m.id,
@@ -3851,21 +6931,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react9.default.createElement(
+        import_react10.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react9.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react9.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react10.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react10.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react10.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react9.default.createElement(
+          import_react10.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react9.default.createElement("span", { className: "dockh-sdot" }),
-            import_react9.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react10.default.createElement("span", { className: "dockh-sdot" }),
+            import_react10.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react9.default.createElement("button", {
+          m.planned ? null : import_react10.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -3880,12 +6960,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react9.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react9.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react9.default.createElement(
+        import_react10.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react10.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react10.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react9.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react10.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -3893,16 +6973,16 @@ function HomeView(props) {
 }
 function DockPanel() {
   const ctx = ctxRef.current;
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react10.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react9.default.createElement(
+  return import_react10.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react9.default.createElement(
+    import_react10.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -3911,25 +6991,25 @@ function DockPanel() {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react9.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react10.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react9.default.createElement(
-          f.external ? FeatureBoundary : import_react9.default.Fragment,
+        import_react10.default.createElement(
+          f.external ? FeatureBoundary : import_react10.default.Fragment,
           null,
-          import_react9.default.createElement(View, { ctx, feature: f })
+          import_react10.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
-      return import_react9.default.createElement(
+      return import_react10.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react9.default.createElement(
+        import_react10.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react9.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react9.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react9.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react9.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react9.default.createElement("button", {
+          import_react10.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react10.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react10.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react10.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react10.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -3938,11 +7018,11 @@ function DockPanel() {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react9.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react10.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react9.default.createElement("button", {
+            import_react10.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react10.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -3956,19 +7036,19 @@ function DockPanel() {
             })
           ) : null
         ),
-        f.planned ? import_react9.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react9.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react10.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react10.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
-  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react10.default.useReducer((n) => n + 1, 0);
+  import_react10.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react9.default.createElement(f.Chip, {
+    items.push(import_react10.default.createElement(f.Chip, {
       key: f.id,
       ctx: props.ctx,
       feature: f,
@@ -3978,51 +7058,65 @@ function DockChips(props) {
     }));
   }
   if (items.length === 0) return null;
-  return import_react9.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react10.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react10.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react10.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react9.default.createElement(
+    items.push(import_react10.default.createElement(
       FeatureBoundary,
       { key: f.id },
-      import_react9.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react10.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react9.default.createElement(import_react9.default.Fragment, null, items);
+  return import_react10.default.createElement(import_react10.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
   ctxRef.current = ctx;
-  ensureCss();
+  scheduleInitialCss();
   initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
   const slots = ctx.get("slots");
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react9.default.createElement(DockEntry, props)
+    (props) => import_react10.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react9.default.createElement(DockModal, null)
+    () => import_react10.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react9.default.createElement(FeatureOverlays, null)
+    () => import_react10.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react9.default.createElement(DockPanel, null)
+    () => import_react10.default.createElement(DockPanel, null)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react9.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react10.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
+  try {
+    if (typeof window !== "undefined") {
+      const match = window.location.hash.match(/(?:^#|&)dsh-mobile-relay=([^&]+)/);
+      if (match) {
+        const launch = decodeURIComponent(match[1]);
+        if (/^[A-Za-z0-9_-]+\.[A-F0-9]{10}$/i.test(launch)) {
+          sessionStorage.setItem("dsh-dock/mobile-relay/launch/v1", launch);
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          setTimeout(() => openPanel("mobile-relay"), 0);
+        }
+      }
+    }
+  } catch {
+  }
 }
 var inject = ["timer"];
 
