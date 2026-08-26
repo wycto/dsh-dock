@@ -26,7 +26,7 @@ import { feature as fBalance } from "../features/balance/view.js";
 import { feature as fAnimation } from "../features/animation/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.7.0";
+const DOCK_VERSION = "0.7.1";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation];
