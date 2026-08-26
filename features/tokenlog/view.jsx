@@ -37,13 +37,7 @@ function fmtCompact(n) {
 	if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
 	return String(Math.round(n));
 }
-function fmtCost(n) {
-	const v = Number(n) || 0;
-	if (v >= 10) return "$" + v.toFixed(2);
-	if (v >= 0.01) return "$" + v.toFixed(4);
-	return "$" + v.toFixed(6);
-}
-// 人民币金额: USD 按汇率换算, 默认 7.2(host 返回 rateUsdCny 可覆盖)
+// 金额记录在 RPC 中以 USD 传输；界面统一按人民币显示。
 function fmtCostCny(usd, rate) {
 	const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
 	if (v >= 10000) return "¥" + (v / 10000).toFixed(2) + "万";
@@ -170,7 +164,7 @@ function Detail({ rec, onClose, rate }) {
 		["计费输入", fmtNum(rec.billedInput)],
 		["缓存命中率", rec.cacheHitPercent + "%"],
 		["总 Token", fmtNum(rec.totalTokens)],
-		["消耗金额(估算)", fmtCost(rec.cost) + " ≈ " + fmtCostCny(rec.cost, rateCny)],
+		["消耗金额(估算)", fmtCostCny(rec.cost, rateCny)],
 		["推理强度", rec.effort || "—"],
 		["耗时", fmtDuration(rec.llmMs)],
 		["Turn / Step", rec.turn + " / " + rec.step],
@@ -350,8 +344,7 @@ export function TokenLogView(props) {
 		{ v: fmtCompact(totals.cacheReadTokens), l: "缓存命中" },
 		{ v: totals.cacheHitPct + "%", l: "缓存命中率" },
 		{ v: fmtCompact(totals.outputTokens), l: "输出" },
-		{ v: fmtCost(totals.cost), l: "消耗金额(估算)" },
-		{ v: fmtCostCny(totals.cost, rateCny), l: "消耗金额(¥)" },
+		{ v: fmtCostCny(totals.cost, rateCny), l: "消耗金额(估算·人民币)" },
 		{ v: fmtDuration(totals.llmMs), l: "累计耗时" + (totals.timed ? " (" + totals.timed + "步)" : "") },
 	] : [];
 
@@ -368,7 +361,6 @@ export function TokenLogView(props) {
 			<td>{r.key}</td><td>{fmtNum(r.calls)}</td><td>{fmtCompact(r.inputTokens)}</td>
 			<td>{fmtCompact(r.cacheReadTokens)}</td><td>{r.cacheHitPct + "%"}</td><td>{fmtCompact(r.outputTokens)}</td>
 			<td>{fmtCompact(r.totalTokens)}</td>
-			<td>{fmtCost(r.cost)}</td>
 			<td>{fmtCostCny(r.cost, rateCny)}</td>
 			<td>{fmtDuration(r.llmMs)}</td>
 		</tr>
@@ -394,7 +386,6 @@ export function TokenLogView(props) {
 				<td>{fmtNum(r.outputTokens)}</td>
 				<td>{fmtNum(r.reasoningTokens)}</td>
 				<td>{fmtNum(r.totalTokens)}</td>
-				<td>{fmtCost(r.cost)}</td>
 				<td>{fmtCostCny(r.cost, rateCny)}</td>
 				<td>{r.effort || "—"}</td>
 				<td>
@@ -418,7 +409,7 @@ export function TokenLogView(props) {
 		<div key="sumtab" className="dtok-table-wrap">
 			<table className="dtok-table">
 				<thead><tr>
-					<th>维度</th><th>调用</th><th>输入</th><th>缓存</th><th>命中率</th><th>输出</th><th>总Token</th><th>金额</th><th>金额(¥)</th><th>耗时</th>
+					<th>维度</th><th>调用</th><th>输入</th><th>缓存</th><th>命中率</th><th>输出</th><th>总Token</th><th>金额（人民币）</th><th>耗时</th>
 				</tr></thead>
 				<tbody>{summaryRows}</tbody>
 			</table>
@@ -451,7 +442,7 @@ export function TokenLogView(props) {
 					<thead><tr>
 						{sortTh("时间", "time")}{sortTh("会话ID", "sessionId")}{sortTh("提供商", "provider")}{sortTh("模型", "model")}
 						{sortTh("输入", "inputTokens")}{sortTh("缓存", "cacheReadTokens")}{sortTh("命中%", "cacheHitPercent")}{sortTh("输出", "outputTokens")}
-						{sortTh("推理", "reasoningTokens")}{sortTh("总额", "totalTokens")}{sortTh("金额", "cost")}{sortTh("金额(¥)", "cost")}{sortTh("强度", "effort")}
+						{sortTh("推理", "reasoningTokens")}{sortTh("总额", "totalTokens")}{sortTh("金额（人民币）", "cost")}{sortTh("强度", "effort")}
 						{sortTh("状态", "status")}{sortTh("耗时", "llmMs")}
 					</tr></thead>
 					<tbody>{detailRows}</tbody>
@@ -521,32 +512,32 @@ function TokenLogHomeStat() {
 	}, []);
 	if (!snap.totals) return <span>{snap.err ? "用量查询失败（点击进入查看）" : "正在拉取今日用量…"}</span>;
 	const t = snap.totals;
-	return <span>今日 {fmtNum(t.calls)} 次调用 · {fmtCompact(t.totalTokens)} Token · {fmtCost(t.cost)}（{fmtCostCny(t.cost, snap.rate)}）</span>;
+	return <span>今日 {fmtNum(t.calls)} 次调用 · {fmtCompact(t.totalTokens)} Token · {fmtCostCny(t.cost, snap.rate)}</span>;
 }
 
 // ---------- 会话输入区 chip：显示当前会话总 Token（10s 静默刷新），点击打开功能坞并按该会话筛选 ----------
 export function TokenLogChip(props) {
 	const sid = (props && props.sessionId) || (props && props.session && props.session.sessionId) || null;
-	const [snap, setSnap] = useState({ totals: null, err: "" });
+	const [snap, setSnap] = useState({ totals: null, rate: 7.2, err: "" });
 	useEffect(() => {
 		if (!sid) return;
 		let cancel = false;
 		const load = () => rpcCall("query", { sessionId: sid })
-			.then((d) => { if (!cancel) setSnap({ totals: d && d.totals, err: "" }); })
-			.catch((e) => { if (!cancel) setSnap((s) => ({ totals: s.totals, err: String((e && e.message) || e) })); });
+			.then((d) => { if (!cancel) setSnap({ totals: d && d.totals, rate: (d && d.rateUsdCny) || 7.2, err: "" }); })
+			.catch((e) => { if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String((e && e.message) || e) })); });
 		load();
 		const timer = setInterval(load, 10000);
 		return () => { cancel = true; clearInterval(timer); };
 	}, [sid]);
 	if (!sid) return null;
 	const t = snap.totals;
-	// chip 文案用紧凑金额（2 位小数）：fmtCost 对小金额输出 6 位小数，chip 里太长会撑爆输入卡工具行；
+	// chip 文案用紧凑人民币金额（2 位小数），避免撑爆输入卡工具行；
 	// 完整金额在 title 悬浮提示里。
 	const label = snap.err && !t
 		? (snap.err.includes("重启") ? "用量·需重启宿主" : "用量·失败")
-		: (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · $" + t.cost.toFixed(2) : "") : "⛁ …");
+		: (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · " + fmtCostCny(t.cost, snap.rate) : "") : "⛁ …");
 	const title = t
-		? "本会话 " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCost(t.cost) + "（估算）\n点击在功能坞查看用量记录"
+		? "本会话 " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCostCny(t.cost, snap.rate) + "（估算）\n点击在功能坞查看用量记录"
 		: (snap.err ? snap.err + "\n" : "") + "点击在功能坞查看用量记录";
 	return (
 		<button type="button" className={"dockchip" + (snap.err && !t ? " err" : "")} title={title} aria-label="会话用量"

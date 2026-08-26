@@ -19,6 +19,8 @@ const C_GRANTED = '#22d3ee';
 const C_TOPUP = '#fbbf24';
 const C_OK = '#34d399';
 const C_ERR = '#f87171';
+// 余额接口有些 Provider 仅返回美元。功能坞统一以人民币展示，汇率与用量模块默认值保持一致。
+const USD_CNY_RATE = 7.2;
 
 function accentOf(id) {
 	if (CURATED_ACCENTS[id]) return CURATED_ACCENTS[id];
@@ -28,6 +30,22 @@ function accentOf(id) {
 	return ACCENT_PALETTE[h % ACCENT_PALETTE.length];
 }
 const fmt = (v) => (v == null || v === '' ? '—' : String(v));
+function cnyBalanceInfo(info) {
+	if (!info) return info;
+	if (info.currency === 'CNY') return Object.assign({}, info, { currency: '人民币' });
+	if (info.currency !== 'USD') return info;
+	const convert = (value) => {
+		if (value == null) return value;
+		const n = Number(value);
+		return Number.isFinite(n) ? n * USD_CNY_RATE : value;
+	};
+	return Object.assign({}, info, {
+		currency: '人民币（估算）',
+		totalBalance: convert(info.totalBalance),
+		grantedBalance: convert(info.grantedBalance),
+		toppedUpBalance: convert(info.toppedUpBalance),
+	});
+}
 
 // ---- 共享快照：弹层/设置页/首页总揽共用一份数据与刷新 ----
 const balanceStore = {
@@ -123,12 +141,15 @@ function BalanceView(props) {
 				} else if (b && b.status === "ok") {
 					const infos = Array.isArray(b.infos) ? b.infos : [];
 					balBody = react.createElement("div", { className: "dkb-mains" },
-						infos.map((i, idx) => react.createElement("div", { key: idx, className: "dkb-main" },
+						infos.map((rawInfo, idx) => {
+							const i = cnyBalanceInfo(rawInfo);
+							return react.createElement("div", { key: idx, className: "dkb-main" },
 							react.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
 							react.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
 							react.createElement("span", { className: "dkb-main-parts" },
 								i.grantedBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "赠送 " + fmt(i.grantedBalance)) : null,
-								i.toppedUpBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "充值 " + fmt(i.toppedUpBalance)) : null))));
+								i.toppedUpBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "充值 " + fmt(i.toppedUpBalance)) : null));
+						}));
 				} else if (b && b.status === "login-required" && b.consoleUrl) {
 					balBody = react.createElement("div", { className: "dkb-main" },
 						react.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "去控制台查看余额 →"));
@@ -238,9 +259,9 @@ function chipBalanceText(p) {
 			: fmt(b.remaining);
 		return "余额 剩 " + s + (b.unit ? " " + b.unit : "");
 	}
-	const info = Array.isArray(b.infos) && b.infos[0] ? b.infos[0] : null;
+	const info = cnyBalanceInfo(Array.isArray(b.infos) && b.infos[0] ? b.infos[0] : null);
 	if (!info) return "余额 …";
-	const cur = info.currency === "USD" ? "$" : "¥";
+	const cur = info.currency === "CNY" || info.currency === "人民币（估算）" ? "¥" : "";
 	const v = Number(info.totalBalance);
 	const s = Number.isFinite(v) ? (v >= 10000 ? (v / 10000).toFixed(2) + "万" : String(Math.round(v * 100) / 100)) : fmt(info.totalBalance);
 	return "余额 " + cur + s;

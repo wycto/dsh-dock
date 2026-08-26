@@ -195,12 +195,6 @@ function fmtCompact(n) {
   if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
   return String(Math.round(n));
 }
-function fmtCost(n) {
-  const v = Number(n) || 0;
-  if (v >= 10) return "$" + v.toFixed(2);
-  if (v >= 0.01) return "$" + v.toFixed(4);
-  return "$" + v.toFixed(6);
-}
 function fmtCostCny(usd, rate) {
   const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
   if (v >= 1e4) return "\xA5" + (v / 1e4).toFixed(2) + "\u4E07";
@@ -323,7 +317,7 @@ function Detail({ rec, onClose, rate }) {
     ["\u8BA1\u8D39\u8F93\u5165", fmtNum(rec.billedInput)],
     ["\u7F13\u5B58\u547D\u4E2D\u7387", rec.cacheHitPercent + "%"],
     ["\u603B Token", fmtNum(rec.totalTokens)],
-    ["\u6D88\u8017\u91D1\u989D(\u4F30\u7B97)", fmtCost(rec.cost) + " \u2248 " + fmtCostCny(rec.cost, rateCny)],
+    ["\u6D88\u8017\u91D1\u989D(\u4F30\u7B97)", fmtCostCny(rec.cost, rateCny)],
     ["\u63A8\u7406\u5F3A\u5EA6", rec.effort || "\u2014"],
     ["\u8017\u65F6", fmtDuration(rec.llmMs)],
     ["Turn / Step", rec.turn + " / " + rec.step]
@@ -489,8 +483,7 @@ function TokenLogView(props) {
     { v: fmtCompact(totals.cacheReadTokens), l: "\u7F13\u5B58\u547D\u4E2D" },
     { v: totals.cacheHitPct + "%", l: "\u7F13\u5B58\u547D\u4E2D\u7387" },
     { v: fmtCompact(totals.outputTokens), l: "\u8F93\u51FA" },
-    { v: fmtCost(totals.cost), l: "\u6D88\u8017\u91D1\u989D(\u4F30\u7B97)" },
-    { v: fmtCostCny(totals.cost, rateCny), l: "\u6D88\u8017\u91D1\u989D(\xA5)" },
+    { v: fmtCostCny(totals.cost, rateCny), l: "\u6D88\u8017\u91D1\u989D(\u4F30\u7B97\xB7\u4EBA\u6C11\u5E01)" },
     { v: fmtDuration(totals.llmMs), l: "\u7D2F\u8BA1\u8017\u65F6" + (totals.timed ? " (" + totals.timed + "\u6B65)" : "") }
   ] : [];
   const opts = (arr) => (arr || []).map((x) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: x, children: x || "(\u7A7A)" }, x || "(none)"));
@@ -503,7 +496,6 @@ function TokenLogView(props) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.cacheHitPct + "%" }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.outputTokens) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.totalTokens) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCost(r.cost) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCostCny(r.cost, rateCny) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtDuration(r.llmMs) })
   ] }, r.key));
@@ -527,7 +519,6 @@ function TokenLogView(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.outputTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.reasoningTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.totalTokens) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCost(r.cost) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCostCny(r.cost, rateCny) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.effort || "\u2014" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { children: [
@@ -565,8 +556,7 @@ function TokenLogView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u547D\u4E2D\u7387" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u51FA" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u603BToken" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D(\xA5)" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8017\u65F6" })
       ] }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: summaryRows })
@@ -610,8 +600,7 @@ function TokenLogView(props) {
           sortTh("\u8F93\u51FA", "outputTokens"),
           sortTh("\u63A8\u7406", "reasoningTokens"),
           sortTh("\u603B\u989D", "totalTokens"),
-          sortTh("\u91D1\u989D", "cost"),
-          sortTh("\u91D1\u989D(\xA5)", "cost"),
+          sortTh("\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09", "cost"),
           sortTh("\u5F3A\u5EA6", "effort"),
           sortTh("\u72B6\u6001", "status"),
           sortTh("\u8017\u65F6", "llmMs")
@@ -696,22 +685,19 @@ function TokenLogHomeStat() {
     " \u6B21\u8C03\u7528 \xB7 ",
     fmtCompact(t.totalTokens),
     " Token \xB7 ",
-    fmtCost(t.cost),
-    "\uFF08",
-    fmtCostCny(t.cost, snap.rate),
-    "\uFF09"
+    fmtCostCny(t.cost, snap.rate)
   ] });
 }
 function TokenLogChip(props) {
   const sid = props && props.sessionId || props && props.session && props.session.sessionId || null;
-  const [snap, setSnap] = (0, import_react2.useState)({ totals: null, err: "" });
+  const [snap, setSnap] = (0, import_react2.useState)({ totals: null, rate: 7.2, err: "" });
   (0, import_react2.useEffect)(() => {
     if (!sid) return;
     let cancel = false;
     const load = () => rpcCall("query", { sessionId: sid }).then((d) => {
-      if (!cancel) setSnap({ totals: d && d.totals, err: "" });
+      if (!cancel) setSnap({ totals: d && d.totals, rate: d && d.rateUsdCny || 7.2, err: "" });
     }).catch((e) => {
-      if (!cancel) setSnap((s) => ({ totals: s.totals, err: String(e && e.message || e) }));
+      if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String(e && e.message || e) }));
     });
     load();
     const timer = setInterval(load, 1e4);
@@ -722,8 +708,8 @@ function TokenLogChip(props) {
   }, [sid]);
   if (!sid) return null;
   const t = snap.totals;
-  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 $" + t.cost.toFixed(2) : "") : "\u26C1 \u2026";
-  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCost(t.cost) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
+  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCostCny(t.cost, snap.rate) : "") : "\u26C1 \u2026";
+  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCostCny(t.cost, snap.rate) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "button",
     {
@@ -1397,6 +1383,7 @@ var CURATED_ACCENTS = {
 var C_GRANTED = "#22d3ee";
 var C_TOPUP = "#fbbf24";
 var C_ERR = "#f87171";
+var USD_CNY_RATE = 7.2;
 function accentOf(id) {
   if (CURATED_ACCENTS[id]) return CURATED_ACCENTS[id];
   let h = 0;
@@ -1405,6 +1392,22 @@ function accentOf(id) {
   return ACCENT_PALETTE[h % ACCENT_PALETTE.length];
 }
 var fmt = (v) => v == null || v === "" ? "\u2014" : String(v);
+function cnyBalanceInfo(info) {
+  if (!info) return info;
+  if (info.currency === "CNY") return Object.assign({}, info, { currency: "\u4EBA\u6C11\u5E01" });
+  if (info.currency !== "USD") return info;
+  const convert = (value) => {
+    if (value == null) return value;
+    const n = Number(value);
+    return Number.isFinite(n) ? n * USD_CNY_RATE : value;
+  };
+  return Object.assign({}, info, {
+    currency: "\u4EBA\u6C11\u5E01\uFF08\u4F30\u7B97\uFF09",
+    totalBalance: convert(info.totalBalance),
+    grantedBalance: convert(info.grantedBalance),
+    toppedUpBalance: convert(info.toppedUpBalance)
+  });
+}
 var balanceStore = {
   snap: { data: null, loading: false, error: null },
   listeners: /* @__PURE__ */ new Set(),
@@ -1520,18 +1523,21 @@ function BalanceView(props) {
           balBody = import_react7.default.createElement(
             "div",
             { className: "dkb-mains" },
-            infos.map((i, idx) => import_react7.default.createElement(
-              "div",
-              { key: idx, className: "dkb-main" },
-              import_react7.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
-              import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
-              import_react7.default.createElement(
-                "span",
-                { className: "dkb-main-parts" },
-                i.grantedBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
-                i.toppedUpBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
-              )
-            ))
+            infos.map((rawInfo, idx) => {
+              const i = cnyBalanceInfo(rawInfo);
+              return import_react7.default.createElement(
+                "div",
+                { key: idx, className: "dkb-main" },
+                import_react7.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+                import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+                import_react7.default.createElement(
+                  "span",
+                  { className: "dkb-main-parts" },
+                  i.grantedBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
+                  i.toppedUpBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
+                )
+              );
+            })
           );
         } else if (b && b.status === "login-required" && b.consoleUrl) {
           balBody = import_react7.default.createElement(
@@ -1649,9 +1655,9 @@ function chipBalanceText(p) {
     const s2 = Number.isFinite(v2) ? v2 >= 1e4 ? (v2 / 1e4).toFixed(1) + "\u4E07" : String(Math.round(v2)) : fmt(b.remaining);
     return "\u4F59\u989D \u5269 " + s2 + (b.unit ? " " + b.unit : "");
   }
-  const info = Array.isArray(b.infos) && b.infos[0] ? b.infos[0] : null;
+  const info = cnyBalanceInfo(Array.isArray(b.infos) && b.infos[0] ? b.infos[0] : null);
   if (!info) return "\u4F59\u989D \u2026";
-  const cur = info.currency === "USD" ? "$" : "\xA5";
+  const cur = info.currency === "CNY" || info.currency === "\u4EBA\u6C11\u5E01\uFF08\u4F30\u7B97\uFF09" ? "\xA5" : "";
   const v = Number(info.totalBalance);
   const s = Number.isFinite(v) ? v >= 1e4 ? (v / 1e4).toFixed(2) + "\u4E07" : String(Math.round(v * 100) / 100) : fmt(info.totalBalance);
   return "\u4F59\u989D " + cur + s;
@@ -1763,8 +1769,20 @@ var EFFECT_MODES = [
   { id: "robot", name: "\u684C\u9762\u4F19\u4F34", desc: "\u771F\u4EBA\u5316\u53CC\u5DE5\u4F4D\uFF1A\u67E5\u8D44\u6599\u770B\u5DE6\u5C4F\u3001\u5199\u5165/\u6539\u4EE3\u7801\u79FB\u5230\u53F3\u5C4F\uFF1B\u5EA7\u6905\u548C\u8F6C\u5934\u968F\u5B9E\u65F6\u4EFB\u52A1\u8282\u594F\u52A0\u901F" },
   { id: "matrix", name: "\u4EE3\u7801\u96E8", desc: "\u5B57\u7B26\u6CBF\u5C4F\u5E55\u7F13\u843D\u5982\u6570\u636E\u6D41\uFF0C\u901F\u5EA6\u968F\u4EFB\u52A1\u541E\u5410\uFF0C\u514B\u5236\u7684\u4F4E\u900F\u660E\u5EA6" },
   { id: "stars", name: "\u661F\u91CE", desc: "\u7EC6\u788E\u661F\u70B9\u7F13\u6162\u98D8\u79FB\u95EA\u70C1\uFF0C\u5B89\u9759\u8010\u770B\u7684\u80CC\u666F\u6C1B\u56F4" },
-  { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" }
+  { id: "aurora", name: "\u6781\u5149", desc: "\u5C4F\u5E55\u9876\u90E8\u67D4\u5149\u5E26\u7F13\u6162\u547C\u5438\u6D41\u52A8\uFF0C\u50CF\u6781\u5149\u62C2\u8FC7" },
+  { id: "space", name: "\u661F\u9645\u8FDC\u5F81", desc: "\u4EFB\u52A1\u4E2D\u661F\u7403\u4E0E\u98DE\u8239\u5DE1\u822A\uFF1B\u5B8C\u6210\u540E\u8D27\u8FD0\u65D7\u8230\u643A\u5B9E\u9645\u8F93\u51FA\u91CF\u505C\u9760\u8F93\u5165\u6846" },
+  { id: "nebula", name: "\u661F\u4E91\u6F6E\u6C50", desc: "\u56DB\u56E2\u5F69\u8272\u661F\u4E91\u5728\u5C4F\u5E55\u8FB9\u7F18\u7F13\u6162\u6F6E\u6C50\uFF0C\u9636\u6BB5\u8272\u968F\u4EFB\u52A1\u6539\u53D8" },
+  { id: "warp", name: "\u66F2\u901F\u822A\u9053", desc: "\u5149\u675F\u4ECE\u5C4F\u5E55\u4E2D\u5FC3\u5411\u5916\u62C9\u4F38\uFF0C\u541E\u5410\u8D8A\u9AD8\u66F2\u901F\u8D8A\u5FEB" },
+  { id: "radar", name: "\u91CF\u5B50\u96F7\u8FBE", desc: "\u4E09\u5EA7\u8FB9\u7F18\u96F7\u8FBE\u6301\u7EED\u626B\u63CF\uFF0C\u4EFB\u52A1\u6D3B\u52A8\u5316\u4F5C\u8DF3\u52A8\u4FE1\u6807" },
+  { id: "constellation", name: "\u661F\u5EA7\u7F51\u7EDC", desc: "\u8282\u70B9\u4E0E\u8FDE\u7EBF\u9010\u6BB5\u70B9\u4EAE\uFF0C\u50CF\u4EFB\u52A1\u77E5\u8BC6\u56FE\u8C31\u5728\u751F\u957F" },
+  { id: "fireflies", name: "\u6570\u636E\u8424\u706B", desc: "\u8F7B\u76C8\u5149\u70B9\u5728\u7A7A\u767D\u533A\u6E38\u5F0B\uFF0C\u6D3B\u8DC3\u9636\u6BB5\u4F1A\u66F4\u660E\u4EAE" },
+  { id: "ocean", name: "\u6DF1\u6D77\u8109\u52A8", desc: "\u4F4E\u900F\u660E\u5EA6\u6CE2\u5C42\u4E0E\u6C14\u6CE1\u7F13\u6162\u4E0A\u6D6E\uFF0C\u5B89\u9759\u4F46\u5BCC\u6709\u751F\u547D\u611F" },
+  { id: "prism", name: "\u68F1\u955C\u5149\u8C31", desc: "\u5F69\u8272\u5149\u675F\u4ECE\u5C4F\u5E55\u8FB9\u7F18\u6298\u5C04\u7A7F\u884C\uFF0C\u5F62\u6210\u514B\u5236\u7684\u73BB\u7483\u5149\u611F" },
+  { id: "circuit", name: "\u795E\u7ECF\u7535\u8DEF", desc: "\u7535\u8DEF\u8DEF\u5F84\u4F9D\u6B21\u901A\u7535\uFF0C\u8109\u51B2\u901F\u5EA6\u8DDF\u968F\u4EE3\u7801\u4E0E\u5DE5\u5177\u6D3B\u52A8" },
+  { id: "gravity", name: "\u5F15\u529B\u6D9F\u6F2A", desc: "\u591A\u4E2A\u5F15\u529B\u6E90\u5411\u5916\u6269\u6563\u6CE2\u7EB9\uFF0C\u4EFB\u52A1\u8D8A\u5FEB\u6D9F\u6F2A\u8D8A\u7D27\u5BC6" },
+  { id: "lantern", name: "\u7075\u611F\u5929\u706F", desc: "\u5FAE\u578B\u7075\u611F\u706F\u4ECE\u5C4F\u5E55\u5E95\u90E8\u7F13\u6162\u5347\u8D77\uFF0C\u7559\u4E0B\u6E29\u6696\u5149\u8FF9" }
 ];
+var AMBIENT_EFFECT_MODES = /* @__PURE__ */ new Set(["matrix", "stars", "aurora", "space", "nebula", "warp", "radar", "constellation", "fireflies", "ocean", "prism", "circuit", "gravity", "lantern"]);
 var PHASE_LABELS = { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" };
 function phaseLabel(p) {
   return PHASE_LABELS[p] || "\u5DE5\u4F5C\u4E2D";
@@ -2102,29 +2120,69 @@ var MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
   const mode = props.mode;
   const speed = props.speed;
-  const matrix = (0, import_react8.useMemo)(() => makeBits(34, () => ({
-    l: Math.random() * 100,
-    d: 4 + Math.random() * 6,
-    delay: -Math.random() * 8,
-    o: 0.28 + Math.random() * 0.34,
-    s: 11 + Math.round(Math.random() * 4),
-    c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
-  })), []);
-  const stars = (0, import_react8.useMemo)(() => makeBits(80, () => ({
-    l: Math.random() * 100,
-    t: Math.random() * 100,
-    sz: 1.5 + Math.random() * 2,
-    d: 2 + Math.random() * 4,
-    delay: -Math.random() * 6,
-    dx: (Math.random() - 0.5) * 40,
-    dy: (Math.random() - 0.5) * 24
-  })), []);
+  const particles = (0, import_react8.useMemo)(() => {
+    if (mode === "matrix") return { matrix: makeBits(34, () => ({
+      l: Math.random() * 100,
+      d: 4 + Math.random() * 6,
+      delay: -Math.random() * 8,
+      o: 0.28 + Math.random() * 0.34,
+      s: 11 + Math.round(Math.random() * 4),
+      c: MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)] + MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]
+    })) };
+    if (mode === "stars") return { stars: makeBits(80, () => ({
+      l: Math.random() * 100,
+      t: Math.random() * 100,
+      sz: 1.5 + Math.random() * 2,
+      d: 2 + Math.random() * 4,
+      delay: -Math.random() * 6,
+      dx: (Math.random() - 0.5) * 40,
+      dy: (Math.random() - 0.5) * 24
+    })) };
+    if (mode === "space") return { dust: makeBits(22, () => ({
+      l: Math.random() * 100,
+      t: Math.random() * 82,
+      sz: 1 + Math.random() * 2.2,
+      d: 2.4 + Math.random() * 3.8,
+      delay: -Math.random() * 6
+    })) };
+    if (mode === "warp") return { warp: makeBits(28, () => ({
+      a: Math.random() * 360,
+      len: 54 + Math.random() * 130,
+      d: 1.8 + Math.random() * 2.4,
+      delay: -Math.random() * 4
+    })) };
+    if (mode === "fireflies") return { fireflies: makeBits(28, () => ({
+      l: 4 + Math.random() * 92,
+      t: 8 + Math.random() * 78,
+      sz: 3 + Math.random() * 5,
+      dx: -42 + Math.random() * 84,
+      dy: -32 + Math.random() * 64,
+      d: 4.8 + Math.random() * 5.4,
+      delay: -Math.random() * 8
+    })) };
+    if (mode === "ocean") return { bubbles: makeBits(18, () => ({
+      l: 3 + Math.random() * 94,
+      sz: 4 + Math.random() * 12,
+      d: 5 + Math.random() * 6,
+      delay: -Math.random() * 9,
+      drift: -34 + Math.random() * 68
+    })) };
+    if (mode === "lantern") return { lanterns: makeBits(18, () => ({
+      l: 4 + Math.random() * 92,
+      sz: 8 + Math.random() * 9,
+      d: 7 + Math.random() * 7,
+      delay: -Math.random() * 12,
+      drift: -48 + Math.random() * 96
+    })) };
+    return {};
+  }, [mode]);
+  const ambientStyle = { "--dkan-speed": speed, "--dkan-phase": phaseColor(props.phase) };
   if (mode === "matrix") {
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-matrix", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: matrix.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { left: p.l + "%", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", opacity: p.o, fontSize: p.s }, children: p.c }, i)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-matrix", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: particles.matrix.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { left: p.l + "%", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", opacity: p.o, fontSize: p.s }, children: p.c }, i)) });
   }
   if (mode === "stars") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-stars", style: { "--dkan-speed": speed }, "aria-hidden": "true", children: [
-      stars.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-star", style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" } }, i)),
+      particles.stars.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-star", style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s", "--dx": p.dx + "px", "--dy": p.dy + "px" } }, i)),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-moon" }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-meteor", style: { top: "12%", left: "72%", animationDelay: "0s" } }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-meteor", style: { top: "28%", left: "88%", animationDelay: "2.8s" } }),
@@ -2138,7 +2196,331 @@ function AmbientLayer(props) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
     ] });
   }
+  if (mode === "nebula") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-nebula", style: ambientStyle, "aria-hidden": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] });
+  }
+  if (mode === "warp") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-warp", style: ambientStyle, "aria-hidden": "true", children: particles.warp.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { "--a": p.a + "deg", "--len": p.len + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)) });
+  }
+  if (mode === "radar") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-radar", style: ambientStyle, "aria-hidden": "true", children: ["a", "b", "c"].map((id) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-radar-station " + id, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", {})
+    ] }, id)) });
+  }
+  if (mode === "constellation") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-constellation", style: ambientStyle, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { viewBox: "0 0 100 100", preserveAspectRatio: "none", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { pathLength: "1", d: "M6 68 L18 30 L31 48 L45 18 L58 42 L73 25 L91 58 L78 78 L58 42 L31 48 L18 76 L6 68" }),
+      [[6, 68], [18, 30], [31, 48], [45, 18], [58, 42], [73, 25], [91, 58], [78, 78], [18, 76]].map(([cx, cy], i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { cx, cy, r: i % 3 === 0 ? 1.1 : 0.7, style: { animationDelay: -i * 0.24 + "s" } }, i))
+    ] }) });
+  }
+  if (mode === "fireflies") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-fireflies", style: ambientStyle, "aria-hidden": "true", children: particles.fireflies.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, "--dx": p.dx + "px", "--dy": p.dy + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)) });
+  }
+  if (mode === "ocean") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-ocean", style: ambientStyle, "aria-hidden": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-ocean-waves", children: Array.from({ length: 5 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) }),
+      particles.bubbles.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { style: { left: p.l + "%", width: p.sz, height: p.sz, "--drift": p.drift + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i))
+    ] });
+  }
+  if (mode === "prism") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-prism", style: ambientStyle, "aria-hidden": "true", children: Array.from({ length: 7 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) });
+  }
+  if (mode === "circuit") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-circuit", style: ambientStyle, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { viewBox: "0 0 1000 600", preserveAspectRatio: "none", children: [
+      ["M0 92 H180 V210 H390 V128 H610 V260 H820 V104 H1000", "M0 486 H144 V358 H334 V470 H520 V338 H748 V448 H1000", "M82 0 V126 H264 V286 H472 V196 H694 V320 H914 V600", "M936 0 V148 H776 V278 H566 V410 H350 V548 H112 V600"].map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { pathLength: "1", d, style: { animationDelay: -i * 0.7 + "s" } }, i)),
+      [[180, 210], [390, 128], [610, 260], [144, 358], [520, 338], [264, 286], [694, 320], [566, 410]].map(([cx, cy], i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { cx, cy, r: "5" }, i))
+    ] }) });
+  }
+  if (mode === "gravity") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-gravity", style: ambientStyle, "aria-hidden": "true", children: ["a", "b", "c"].map((id) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-gravity-source " + id, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", {}),
+      Array.from({ length: 4 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { animationDelay: "calc(" + -i * 0.9 + "s / var(--dkan-speed,1))" } }, i))
+    ] }, id)) });
+  }
+  if (mode === "lantern") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-amb dkan-lantern", style: ambientStyle, "aria-hidden": "true", children: particles.lanterns.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { style: { left: p.l + "%", width: p.sz, height: p.sz * 1.28, "--drift": p.drift + "px", animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)) });
+  }
+  if (mode === "space") {
+    const taskCount = Math.max(1, Math.min(3, Array.isArray(props.tasks) ? props.tasks.length : 1));
+    const runnerCount = Math.max(6, Math.min(9, taskCount * 3));
+    const galaxies = props.galaxies;
+    if (!galaxies) return null;
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-amb dkan-space", style: {
+      "--dkan-speed": speed,
+      "--dkan-space-ships": taskCount,
+      "--dkan-alpha-x": galaxies.alpha.cx + "px",
+      "--dkan-alpha-y": galaxies.alpha.cy + "px",
+      "--dkan-beta-x": galaxies.beta.cx + "px",
+      "--dkan-beta-y": galaxies.beta.cy + "px",
+      "--dkan-gamma-x": galaxies.gamma.cx + "px",
+      "--dkan-gamma-y": galaxies.gamma.cy + "px"
+    }, "aria-hidden": "true", children: [
+      particles.dust.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-space-dust", style: { left: p.l + "%", top: p.t + "%", width: p.sz, height: p.sz, animationDuration: "calc(" + p.d + "s / var(--dkan-speed,1))", animationDelay: p.delay + "s" } }, i)),
+      ["alpha", "beta", "gamma"].map((galaxy) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-space-system " + galaxy, style: { left: galaxies[galaxy].x, top: galaxies[galaxy].y, "--dkan-system-scale": galaxies[galaxy].scale }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-space-sun" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-orbit a", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-orbit b", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-orbit c", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}) })
+      ] }, galaxy)),
+      Array.from({ length: runnerCount }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-space-runner route-" + i % 3, style: { "--dkan-run-delay": -i * 1.8 + "s" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 1, empty: true }) }, i))
+    ] });
+  }
   return null;
+}
+function outputCargo(outputTokens) {
+  const tokens = Math.max(0, Number(outputTokens) || 0);
+  return { tokens, units: Math.max(1, Math.min(8, Math.ceil(tokens / 900))) };
+}
+function fallbackComposerDockPoint(side = "right") {
+  const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const vh = typeof window === "undefined" ? 900 : window.innerHeight;
+  return {
+    // 待命位贴近输入框右上；右侧远端只保留给旧的通用停靠计算。
+    x: side === "left" ? Math.max(304, Math.min(520, Math.round(vw * 0.18))) : side === "ready" ? Math.max(316, vw - 640) : Math.max(16, vw - 232),
+    y: Math.max(32, vh - 218)
+  };
+}
+function visibleRect(el) {
+  if (!el || typeof window === "undefined") return null;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight ? r : null;
+}
+var COMPOSER_SEND_SELECTOR = 'button[aria-label="Send message"],button[aria-label*="\u53D1\u9001"],button[data-testid*="send"],button[data-testid*="submit"],button[type="submit"]';
+function conversationComposer() {
+  if (typeof document === "undefined" || typeof window === "undefined") return null;
+  const sendButtons = document.querySelectorAll(COMPOSER_SEND_SELECTOR);
+  for (const button of sendButtons) {
+    let el = button.parentElement;
+    for (let depth = 0; el && depth < 9; depth += 1, el = el.parentElement) {
+      const r = visibleRect(el);
+      if (r && r.width >= 360 && r.height >= 72 && r.height <= 360 && r.top > window.innerHeight * 0.42) return { element: el, rect: r };
+    }
+  }
+  return null;
+}
+function conversationComposerRect() {
+  const composer = conversationComposer();
+  return composer ? composer.rect : null;
+}
+function composerPointFromRect(composer, side) {
+  return {
+    x: side === "ready" ? Math.max(composer.left + 16, composer.right - 210) : fallbackComposerDockPoint(side).x,
+    y: Math.max(22, composer.top - 92)
+  };
+}
+function composerDockPoint(side = "right") {
+  if (typeof document === "undefined" || typeof window === "undefined") return fallbackComposerDockPoint(side);
+  const composer = conversationComposerRect();
+  if (composer) return composerPointFromRect(composer, side);
+  const selectors = [
+    '[data-testid*="composer"]',
+    '[data-testid*="conversation-input"]',
+    '[data-slot*="conversation.input"]',
+    'textarea[placeholder*="Message"]',
+    'textarea[placeholder*="\u6D88\u606F"]',
+    "textarea",
+    '[contenteditable="true"][data-testid*="composer"]',
+    '[contenteditable="true"][aria-label*="\u6D88\u606F"]',
+    '[contenteditable="true"][data-slot*="conversation.input"]'
+  ];
+  const seen = /* @__PURE__ */ new Set();
+  const candidates = [];
+  for (const selector of selectors) {
+    for (const el of document.querySelectorAll(selector)) {
+      if (seen.has(el)) continue;
+      seen.add(el);
+      const r2 = el.getBoundingClientRect();
+      if (r2.width > 80 && r2.height > 16 && r2.bottom > window.innerHeight * 0.48) candidates.push({ el, r: r2 });
+    }
+  }
+  const best = candidates.sort((a, b) => b.r.bottom - a.r.bottom)[0];
+  if (!best) return fallbackComposerDockPoint(side);
+  const r = best.r;
+  const x = side === "ready" ? Math.max(r.left + 16, r.right - 210) : fallbackComposerDockPoint(side).x;
+  return {
+    // 纵向以真实输入控件上沿停靠，飞船底部和输入框保留间隙。
+    x,
+    y: Math.max(22, r.top - 92)
+  };
+}
+function useSpaceDocks(enabled) {
+  const [docks, setDocks] = (0, import_react8.useState)(null);
+  (0, import_react8.useEffect)(() => {
+    if (!enabled || typeof window === "undefined") {
+      setDocks(null);
+      return void 0;
+    }
+    let disposed = false;
+    let frame = 0;
+    let idle = 0;
+    let timer = 0;
+    let pollTimer = 0;
+    let retries = 0;
+    let pending = false;
+    let observedComposer = null;
+    let resizeObserver = null;
+    const samePoint = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
+    const bindComposerResize = (element) => {
+      if (!resizeObserver || observedComposer === element) return;
+      if (observedComposer) resizeObserver.unobserve(observedComposer);
+      observedComposer = element;
+      if (observedComposer) resizeObserver.observe(observedComposer);
+    };
+    const measure = () => {
+      if (disposed) return;
+      const found = conversationComposer();
+      if (!found) {
+        bindComposerResize(null);
+        setDocks(null);
+        if (retries++ < 20) schedule(140);
+        return;
+      }
+      retries = 0;
+      bindComposerResize(found.element);
+      const composer = found.rect;
+      const right = composerPointFromRect(composer, "right");
+      const next = {
+        right,
+        left: composerPointFromRect(composer, "left"),
+        ready: composerPointFromRect(composer, "ready")
+      };
+      setDocks((current) => current && samePoint(current.right, next.right) && samePoint(current.left, next.left) && samePoint(current.ready, next.ready) ? current : next);
+    };
+    function schedule(delay = 0, deferUntilIdle = false) {
+      if (disposed || pending) return;
+      pending = true;
+      const queueFrame = () => {
+        frame = window.requestAnimationFrame(() => {
+          pending = false;
+          measure();
+        });
+      };
+      if (delay > 0) timer = window.setTimeout(queueFrame, delay);
+      else if (deferUntilIdle && typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(queueFrame, { timeout: 350 });
+      else queueFrame();
+    }
+    ;
+    if (typeof window.ResizeObserver === "function") resizeObserver = new window.ResizeObserver(() => schedule());
+    const mutationObserver = typeof window.MutationObserver === "function" ? new window.MutationObserver((mutations) => {
+      const hasComposerChange = mutations.some((mutation) => Array.from(mutation.addedNodes).concat(Array.from(mutation.removedNodes)).some((node) => {
+        if (!node || node.nodeType !== 1) return false;
+        return node.matches && node.matches(COMPOSER_SEND_SELECTOR) || node.querySelector && node.querySelector(COMPOSER_SEND_SELECTOR);
+      }));
+      if (hasComposerChange) schedule(40);
+    }) : null;
+    if (mutationObserver && document.body) mutationObserver.observe(document.body, { childList: true, subtree: true });
+    schedule(0, true);
+    pollTimer = window.setInterval(() => schedule(), 700);
+    const onResize = () => {
+      if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
+      if (timer) window.clearTimeout(timer);
+      pending = false;
+      schedule();
+    };
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(frame);
+      if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
+      if (timer) window.clearTimeout(timer);
+      if (pollTimer) window.clearInterval(pollTimer);
+      if (mutationObserver) mutationObserver.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
+  }, [enabled]);
+  return docks;
+}
+function spaceGalaxyLayout() {
+  const vw = typeof window === "undefined" ? 1280 : window.innerWidth;
+  const vh = typeof window === "undefined" ? 900 : window.innerHeight;
+  const contentLeft = 316;
+  const make = (x, y, scale) => ({ x, y, scale, cx: x + 123, cy: y + 123 });
+  return {
+    alpha: make(Math.max(contentLeft + 420, vw - 360), 72, 0.5),
+    beta: make(contentLeft, Math.max(142, Math.min(232, vh * 0.18)), 0.48),
+    gamma: make(contentLeft + 18, Math.max(420, vh - 382), 0.48)
+  };
+}
+function freighterAnchorAt(point) {
+  return { x: Math.round(point.x - 88), y: Math.round(point.y - 32) };
+}
+function flightAngle(from, to) {
+  return Math.round(Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI);
+}
+function FreighterHull(props) {
+  const units = Math.max(1, Number(props.units) || 1);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-freighter", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("i", { className: "dkan-freighter-engine", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-wing left" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-wing right" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-fin" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-hull" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-canopy" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", { className: "dkan-freighter-nose" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-freighter-cargo" + (props.empty ? " empty" : ""), children: Array.from({ length: units }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) })
+  ] });
+}
+function DeliveryFreighter(props) {
+  const d = props.delivery;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-delivery", style: {
+    "--dkan-from-x": d.from.x + "px",
+    "--dkan-from-y": d.from.y + "px",
+    "--dkan-to-x": d.to.x + "px",
+    "--dkan-to-y": d.to.y + "px",
+    "--dkan-delivery-duration": d.duration + "ms"
+  }, "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-delivery-trail" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: d.units }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-delivery-label", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u5F52\u822A\u8D27\u8FD0\u8230" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+        "\u8F93\u51FA ",
+        fmtCompact2(d.tokens),
+        " Tokens \xB7 ",
+        d.units,
+        " \u8231"
+      ] })
+    ] })
+  ] });
+}
+function ReadyFreighter(props) {
+  const dock = props.dock || fallbackComposerDockPoint("ready");
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-ready-freighter", style: { left: dock.x, top: dock.y }, "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u5F85\u547D \xB7 \u7B49\u5F85\u4E0B\u4E00\u6761\u4EFB\u52A1" })
+  ] });
+}
+function MissionDeparture(props) {
+  const d = props.departure;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-departure", style: {
+    "--dkan-from-x": d.from.x + "px",
+    "--dkan-from-y": d.from.y + "px",
+    "--dkan-to-x": d.to.x + "px",
+    "--dkan-to-y": d.to.y + "px",
+    "--dkan-flight-angle": d.angle + "deg",
+    "--dkan-departure-duration": d.duration + "ms"
+  }, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }) });
+}
+function ProgrammingStuck(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-space-stuck", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-stuck-code", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      `{ }`
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u7F16\u7A0B\u7B49\u5F85\u4E2D" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("small", { children: truncate(props.task && props.task.title || "\u5DE5\u5177\u6682\u65E0\u65B0\u54CD\u5E94", 28) })
+  ] });
 }
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
@@ -2146,12 +2528,44 @@ function AnimationOverlay(props) {
   const [toasts, setToasts] = (0, import_react8.useState)([]);
   const [flourish, setFlourish] = (0, import_react8.useState)(null);
   const [bursts, setBursts] = (0, import_react8.useState)([]);
+  const [deliveries, setDeliveries] = (0, import_react8.useState)([]);
+  const [departures, setDepartures] = (0, import_react8.useState)([]);
   const prevActiveRef = (0, import_react8.useRef)(null);
   const burstIdRef = (0, import_react8.useRef)(0);
+  const deliveryIdRef = (0, import_react8.useRef)(0);
+  const departureTimersRef = (0, import_react8.useRef)(/* @__PURE__ */ new Map());
+  const lastImmediateDepartureRef = (0, import_react8.useRef)(0);
+  (0, import_react8.useEffect)(() => () => {
+    for (const timer of departureTimersRef.current.values()) clearTimeout(timer);
+    departureTimersRef.current.clear();
+  }, []);
   const pushBurst = (0, import_react8.useCallback)((type, x, y, bits) => {
     const id = ++burstIdRef.current;
     setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
     setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
+  }, []);
+  const launchMission = (0, import_react8.useCallback)(() => {
+    const cfg2 = animationStore.snap.status && animationStore.snap.status.config;
+    if (!cfg2 || !cfg2.animationEnabled || cfg2.effectMode !== "space") return false;
+    const id = ++deliveryIdRef.current;
+    const from = composerDockPoint("left");
+    const targetGalaxy = spaceGalaxyLayout().alpha;
+    const to = freighterAnchorAt({ x: targetGalaxy.cx, y: targetGalaxy.cy });
+    const departure = {
+      id,
+      from,
+      to,
+      angle: flightAngle(from, to),
+      duration: 8600
+    };
+    lastImmediateDepartureRef.current = Date.now();
+    setDeliveries([]);
+    setDepartures((prev) => prev.concat([departure]).slice(-3));
+    departureTimersRef.current.set(id, setTimeout(() => {
+      departureTimersRef.current.delete(id);
+      setDepartures((prev) => prev.filter((item) => item.id !== id));
+    }, departure.duration));
+    return true;
   }, []);
   (0, import_react8.useEffect)(() => {
     if (typeof document === "undefined") return;
@@ -2164,6 +2578,7 @@ function AnimationOverlay(props) {
       const sessionItem = t.closest('[role="treeitem"]');
       if (sendBtn) {
         pushBurst("plane", e.clientX, e.clientY);
+        launchMission();
       } else if (newSession) {
         pushBurst("spark", e.clientX, e.clientY, makeBits(10, () => ({
           dx: (Math.random() - 0.5) * 70,
@@ -2178,15 +2593,19 @@ function AnimationOverlay(props) {
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [pushBurst]);
+  }, [pushBurst, launchMission]);
   const taskCountRef = (0, import_react8.useRef)(0);
   (0, import_react8.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const n = st2.active.length;
-    if (n > taskCountRef.current) pushBurst("surge");
+    if (n > taskCountRef.current) {
+      pushBurst("surge");
+      const cfg2 = st2.config || {};
+      if (cfg2.animationEnabled && cfg2.effectMode === "space" && Date.now() - lastImmediateDepartureRef.current > 1e4) launchMission();
+    }
     taskCountRef.current = n;
-  }, [snap.status, pushBurst]);
+  }, [snap.status, pushBurst, launchMission]);
   (0, import_react8.useEffect)(() => {
     let stopped = false;
     let timer = null;
@@ -2227,6 +2646,18 @@ function AnimationOverlay(props) {
     const info = endInfo(reason);
     if (cfg2.animationEnabled) {
       setFlourish({ key: Date.now(), err: !success });
+      if (cfg2.effectMode === "space") {
+        const cargo = outputCargo(record && record.outputTokens || task.outputTokens);
+        const id = ++deliveryIdRef.current;
+        const taskSpeed = Math.max(0.9, Number(speed) || 1);
+        const duration = Math.round(Math.max(8e3, Math.min(9400, 1e4 / Math.sqrt(taskSpeed))));
+        const galaxies = spaceGalaxyLayout();
+        const returnGalaxy = galaxies[["alpha", "beta", "gamma"][Math.floor(Math.random() * 3)]];
+        const from = freighterAnchorAt({ x: returnGalaxy.cx, y: returnGalaxy.cy });
+        const to = composerDockPoint("left");
+        const delivery = Object.assign({ id, from, to, duration }, cargo);
+        setDeliveries([delivery]);
+      }
       if (success) {
         pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
           l: 4 + i / 18 * 92 + Math.random() * 3,
@@ -2309,6 +2740,10 @@ function AnimationOverlay(props) {
     speedRef.current = { ticks, at: t };
   }, [snap.status]);
   const ambientOn = animOn && !panelOpen;
+  const spaceModeOn = !!(cfg && cfg.animationEnabled && mode === "space" && !panelOpen);
+  const spaceDocks = useSpaceDocks(spaceModeOn);
+  const spaceGalaxies = spaceModeOn && spaceDocks ? spaceGalaxyLayout() : null;
+  const stuckTask = active.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18e3) || null;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
   const saveRobotScale = (0, import_react8.useCallback)((robotScale) => {
@@ -2421,7 +2856,10 @@ function AnimationOverlay(props) {
   if (!st) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     ambientOn && mode === "flow" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-line", style: speedStyle, "aria-hidden": "true" }) : null,
-    ambientOn && (mode === "matrix" || mode === "stars" || mode === "aurora") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AmbientLayer, { mode, speed: Number(speed).toFixed(2) }) : null,
+    ambientOn && AMBIENT_EFFECT_MODES.has(mode) && (mode !== "space" || spaceGalaxies) ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AmbientLayer, { mode, phase, speed: Number(speed).toFixed(2), tasks: active, galaxies: spaceGalaxies }) : null,
+    spaceModeOn && spaceDocks && active.length === 0 && deliveries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ReadyFreighter, { dock: spaceDocks.ready }) : null,
+    spaceModeOn && stuckTask ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ProgrammingStuck, { task: stuckTask }) : null,
+    !panelOpen ? departures.map((departure) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MissionDeparture, { departure }, departure.id)) : null,
     ambientOn && mode === "orbit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-orbit", style: speedStyle, "aria-hidden": "true" }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(BurstLayer, { bursts }),
     ambientOn && mode === "robot" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
@@ -2509,6 +2947,7 @@ function AnimationOverlay(props) {
       },
       flourish.key
     ) : null,
+    !panelOpen ? deliveries.map((delivery) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DeliveryFreighter, { delivery }, delivery.id)) : null,
     toasts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toasts", children: toasts.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Toast, { t, onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id)) }, t.id)) }) : null
   ] });
 }
@@ -2542,11 +2981,21 @@ function ModePreview({ id }) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
     ] });
   }
+  if (id === "space") {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-prev dkan-prev-space", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("em", {})
+    ] });
+  }
   if (id === "aurora") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-prev dkan-prev-aurora", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
     ] });
+  }
+  if (["nebula", "warp", "radar", "constellation", "fireflies", "ocean", "prism", "circuit", "gravity", "lantern"].includes(id)) {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-new dkan-prev-" + id, children: Array.from({ length: id === "warp" ? 8 : 6 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}, i)) });
   }
   if (id === "robot") {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-prev dkan-prev-bot", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RobotScene, { phase: "code" }) });
@@ -3073,12 +3522,66 @@ var css2 = [
   ".dkan-meteor{position:absolute;width:110px;height:2px;border-radius:2px;background:linear-gradient(90deg,#fff,color-mix(in srgb,#8ab6ff 60%,transparent) 40%,transparent);transform:rotate(35deg);transform-origin:left center;opacity:0;animation:dkan-meteor 8.4s linear infinite;}",
   '.dkan-meteor::before{content:"";position:absolute;left:-2px;top:-2px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px color-mix(in srgb,#cfe3ff 70%,transparent);}',
   "@keyframes dkan-meteor{0%{opacity:0;transform:rotate(35deg) translateX(0)}3%{opacity:1}10%{opacity:0;transform:rotate(35deg) translateX(46vh)}100%{opacity:0;transform:rotate(35deg) translateX(46vh)}}",
+  // 星际远征：星尘、行星轨道和任务飞船都只在任务运行时出现，统一由 --dkan-speed 加速。
+  ".dkan-space{background:radial-gradient(ellipse 34% 28% at 84% 11%,color-mix(in srgb,#426aaf 15%,transparent),transparent 72%),radial-gradient(ellipse 26% 22% at 14% 58%,color-mix(in srgb,#7c4dff 10%,transparent),transparent 74%);}",
+  ".dkan-space-dust{position:absolute;border-radius:50%;background:#dbeafe;box-shadow:0 0 5px color-mix(in srgb,#93c5fd 62%,transparent);opacity:.2;animation:dkan-space-dust ease-in-out infinite alternate;will-change:transform,opacity;}",
+  "@keyframes dkan-space-dust{0%{opacity:.14;transform:translate3d(0,0,0) scale(.7)}55%{opacity:.78}100%{opacity:.26;transform:translate3d(22px,-8px,0) scale(1.15)}}",
+  ".dkan-space-system{position:fixed;width:246px;height:246px;border-radius:50%;opacity:.78;transform:translateZ(0) scale(var(--dkan-system-scale,1));transform-origin:center;contain:layout paint style;}.dkan-space-system.alpha{opacity:.76}.dkan-space-system.beta{opacity:.68}.dkan-space-system.gamma{opacity:.64}",
+  ".dkan-space-sun{position:absolute;left:50%;top:50%;width:34px;height:34px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 32% 28%,#fff7c2 0 9%,#ffc85a 30%,#e76f2e 74%);box-shadow:0 0 12px 4px color-mix(in srgb,#ffc85a 58%,transparent),0 0 36px 12px color-mix(in srgb,#f97316 20%,transparent);}",
+  ".dkan-space-orbit{position:absolute;left:50%;top:50%;border:1px solid color-mix(in srgb,#93c5fd 28%,transparent);border-radius:50%;animation:dkan-space-orbit linear infinite;transform-origin:center;}",
+  ".dkan-space-orbit i{position:absolute;top:50%;left:-5px;width:10px;height:10px;border-radius:50%;transform:translateY(-50%);box-shadow:0 0 9px 2px currentColor;}",
+  ".dkan-space-orbit.a{width:82px;height:50px;margin:-25px 0 0 -41px;animation-duration:calc(5.4s / var(--dkan-speed,1));}.dkan-space-orbit.a i{color:#67e8f9;background:#22d3ee;}",
+  ".dkan-space-orbit.b{width:142px;height:86px;margin:-43px 0 0 -71px;animation-duration:calc(9.2s / var(--dkan-speed,1));animation-direction:reverse;}.dkan-space-orbit.b i{width:15px;height:15px;color:#c4b5fd;background:radial-gradient(circle at 30% 28%,#ede9fe,#8b5cf6 72%);}",
+  ".dkan-space-orbit.c{width:212px;height:130px;margin:-65px 0 0 -106px;animation-duration:calc(15.6s / var(--dkan-speed,1));}.dkan-space-orbit.c i{width:18px;height:18px;color:#fda4af;background:radial-gradient(circle at 32% 28%,#ffe4e6,#e11d48 74%);}",
+  "@keyframes dkan-space-orbit{to{transform:rotate(360deg)}}",
+  ".dkan-space-runner{position:fixed;left:0;top:0;width:108px;height:56px;opacity:0;animation-duration:calc(10.8s / var(--dkan-speed,1));animation-timing-function:linear;animation-iteration-count:infinite;animation-delay:var(--dkan-run-delay,0s);will-change:transform,opacity;contain:layout paint style;backface-visibility:hidden;}.dkan-space-runner .dkan-freighter{left:0;top:0;transform:translateZ(0) scale(.52);transform-origin:top left;filter:none}.dkan-space-runner .dkan-freighter-engine i{animation:none;opacity:.76;box-shadow:-6px 0 8px #22d3ee}.dkan-space-runner .dkan-freighter-nose{filter:none}.dkan-space-runner.route-0{animation-name:dkan-space-route-a}.dkan-space-runner.route-1{animation-name:dkan-space-route-b}.dkan-space-runner.route-2{animation-name:dkan-space-route-c}",
+  "@keyframes dkan-space-route-a{0%{opacity:0;transform:translate3d(var(--dkan-alpha-x),var(--dkan-alpha-y),0) rotate(151deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-beta-x),var(--dkan-beta-y),0) rotate(151deg)}}@keyframes dkan-space-route-b{0%{opacity:0;transform:translate3d(var(--dkan-beta-x),var(--dkan-beta-y),0) rotate(-90deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-gamma-x),var(--dkan-gamma-y),0) rotate(-90deg)}}@keyframes dkan-space-route-c{0%{opacity:0;transform:translate3d(var(--dkan-gamma-x),var(--dkan-gamma-y),0) rotate(-18deg)}7%,86%{opacity:.9}100%{opacity:0;transform:translate3d(var(--dkan-alpha-x),var(--dkan-alpha-y),0) rotate(-18deg)}}",
+  // 完成归航：一艘货运旗舰从航线飞到真实会话输入框上方，货舱逐格表达实际输出量。
+  ".dkan-delivery{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-delivery-flight var(--dkan-delivery-duration,8600ms) cubic-bezier(.22,.61,.36,1) forwards;}",
+  "@keyframes dkan-delivery-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(.5) rotate(-12deg)}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(.56) rotate(-10deg)}100%{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(1) rotate(0)}}",
+  ".dkan-delivery-trail{position:absolute;left:-132px;top:26px;width:154px;height:4px;border-radius:999px;background:linear-gradient(90deg,transparent,#34d399 48%,#d9f99d 78%,transparent);opacity:.9;animation:dkan-delivery-trail var(--dkan-delivery-duration,8600ms) linear forwards;}@keyframes dkan-delivery-trail{0%,82%{opacity:.9}100%{opacity:0}}.dkan-freighter{position:absolute;left:10px;top:10px;width:176px;height:45px;display:block;filter:drop-shadow(0 0 9px color-mix(in srgb,#7dd3fc 62%,transparent));}.dkan-delivery .dkan-freighter,.dkan-departure .dkan-freighter{filter:none}.dkan-delivery .dkan-freighter-engine i,.dkan-departure .dkan-freighter-engine i{animation:none;opacity:.76;box-shadow:-6px 0 8px #22d3ee}.dkan-delivery .dkan-freighter-nose,.dkan-departure .dkan-freighter-nose{filter:none}.dkan-freighter-hull{position:absolute;z-index:3;left:21px;top:7px;width:126px;height:31px;background:linear-gradient(150deg,#f8fbff 0%,#9cc8ff 30%,#385d91 72%,#1d3150);clip-path:polygon(0 30%,43% 0,83% 17%,100% 50%,83% 83%,43% 100%,0 70%,12% 50%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .7),inset -7px -5px 9px rgb(8 24 49 / .38);}.dkan-freighter-nose{position:absolute;z-index:4;right:10px;top:16px;width:28px;height:14px;background:linear-gradient(90deg,#a9d1ff,#e8f5ff);clip-path:polygon(0 0,100% 50%,0 100%,22% 50%);filter:drop-shadow(5px 0 5px color-mix(in srgb,#93c5fd 62%,transparent));}.dkan-freighter-canopy{position:absolute;z-index:5;left:77px;top:10px;width:39px;height:11px;border-radius:70% 48% 42% 32%;background:linear-gradient(135deg,#ecfeff 0%,#67e8f9 32%,#2563eb 75%);transform:skewX(-18deg);box-shadow:inset 0 2px 2px rgb(255 255 255 / .7),0 0 8px color-mix(in srgb,#67e8f9 42%,transparent);}.dkan-freighter-fin{position:absolute;z-index:2;left:48px;top:3px;width:24px;height:17px;background:linear-gradient(135deg,#31557f,#a7caf7);clip-path:polygon(0 100%,58% 0,100% 100%);}.dkan-freighter-wing{position:absolute;z-index:1;left:48px;width:60px;height:18px;background:linear-gradient(135deg,#24436d,#8ebaf4);}.dkan-freighter-wing.left{top:2px;clip-path:polygon(0 100%,100% 0,68% 100%)}.dkan-freighter-wing.right{top:26px;clip-path:polygon(0 0,68% 0,100% 100%)}",
+  ".dkan-freighter-cargo{position:absolute;z-index:6;left:37px;top:31px;width:74px;height:7px;display:flex;align-items:center;gap:2px;padding:1px 3px;border-radius:4px;background:#172842;border:1px solid color-mix(in srgb,#b8d8ff 48%,transparent);box-shadow:inset 0 1px 0 rgb(255 255 255 / .2);}.dkan-freighter-cargo i{display:block;flex:1;min-width:4px;height:5px;border-radius:1px;background:linear-gradient(135deg,#fef3c7,#f59e0b 58%,#b45309);box-shadow:0 0 4px color-mix(in srgb,#fbbf24 58%,transparent);}.dkan-freighter-cargo.empty i{background:linear-gradient(135deg,#dbeafe,#38bdf8 58%,#1d4ed8);box-shadow:0 0 4px color-mix(in srgb,#38bdf8 55%,transparent);}.dkan-freighter-engine{position:absolute;z-index:0;left:5px;top:19px;display:flex;gap:3px;align-items:center;height:11px;}.dkan-freighter-engine i{width:18px;height:5px;border-radius:60% 0 0 60%;background:linear-gradient(90deg,transparent,#67e8f9);box-shadow:-9px 0 12px #22d3ee;animation:dkan-engine .34s ease-in-out infinite alternate;}.dkan-freighter-engine i:nth-child(2){animation-delay:-.14s}",
+  "@keyframes dkan-engine{to{transform:scaleX(.55);opacity:.5}}",
+  ".dkan-delivery-label{position:absolute;left:21px;top:58px;display:flex;align-items:baseline;gap:6px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 30%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-delivery-label b{color:var(--dsw-alias-label-primary);font-weight:650}.dkan-delivery-label span{color:#7dd3fc;}",
+  "@media (max-width:1100px){.dkan-space-system,.dkan-space-runner{display:none}}",
+  ".dkan-ready-freighter{position:fixed;width:210px;height:88px;z-index:9994;pointer-events:none;filter:drop-shadow(0 10px 14px rgb(0 0 0 / .18));}.dkan-ready-freighter>span:last-child{position:absolute;left:21px;top:58px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 28%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 80%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-departure{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-departure-flight var(--dkan-departure-duration,8600ms) cubic-bezier(.42,0,.85,.45) forwards;}@keyframes dkan-departure-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}100%{opacity:0;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(.24) rotate(var(--dkan-flight-angle,0deg))}}",
+  ".dkan-space-stuck{position:fixed;left:50%;top:50%;width:244px;height:160px;z-index:9993;pointer-events:none;transform:translate(-50%,-50%);border:1px solid color-mix(in srgb,#f59e0b 48%,var(--dsw-alias-border-l1));border-radius:20px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgb(0 0 0 / .28),0 0 30px color-mix(in srgb,#f59e0b 15%,transparent);}.dkan-space-stuck .dkan-freighter{left:37px;top:11px;transform:scale(.9);transform-origin:top left;}.dkan-stuck-code{position:absolute;left:17px;right:17px;top:60px;height:36px;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,#f59e0b 18%,transparent),transparent);color:#fbbf24;font:700 14px/36px var(--ds-font-family-code,monospace);letter-spacing:.12em;text-align:center;overflow:hidden;}.dkan-stuck-code::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,#fef3c7 70%,transparent),transparent);transform:translateX(-110%);animation:dkan-stuck-scan 1.25s linear infinite;}.dkan-stuck-code i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 9px #f59e0b;animation:dkan-stuck-pulse .8s ease-in-out infinite alternate;}.dkan-space-stuck strong{position:absolute;left:0;right:0;top:108px;color:var(--dsw-alias-label-primary);font:650 13px/1.2 var(--ds-font-family,system-ui,sans-serif);text-align:center;}.dkan-space-stuck small{position:absolute;left:18px;right:18px;top:128px;color:var(--dsw-alias-label-secondary);font:11px/1.25 var(--ds-font-family,system-ui,sans-serif);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}@keyframes dkan-stuck-scan{to{transform:translateX(110%)}}@keyframes dkan-stuck-pulse{to{transform:scale(.55);opacity:.45}}",
   // 极光：顶部柔光带呼吸流动（加浓）
   ".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(50px);opacity:.32;animation:dkan-aurora ease-in-out infinite alternate;}",
   ".dkan-aurora i:nth-child(1){background:#4d9fff;}",
   ".dkan-aurora i:nth-child(2){background:#34d399;left:20%;animation-delay:-2s;}",
   ".dkan-aurora i:nth-child(3){background:#a78bfa;left:55%;animation-delay:-4s;}",
   "@keyframes dkan-aurora{0%{transform:translateX(-8%) scaleY(1)}100%{transform:translateX(10%) scaleY(1.3)}}",
+  // 星云潮汐：无动态模糊，柔边由径向渐变生成，移动只发生在合成层。
+  ".dkan-nebula{contain:strict}.dkan-nebula i{position:absolute;width:48vw;aspect-ratio:1;border-radius:50%;opacity:.22;background:radial-gradient(circle,color-mix(in srgb,var(--dkan-phase,#60a5fa) 48%,transparent),color-mix(in srgb,#8b5cf6 18%,transparent) 42%,transparent 70%);animation:dkan-nebula-drift calc(18s / var(--dkan-speed,1)) cubic-bezier(.45,0,.55,1) infinite alternate;will-change:transform,opacity}.dkan-nebula i:nth-child(1){left:-18%;top:-24%}.dkan-nebula i:nth-child(2){right:-18%;top:4%;background:radial-gradient(circle,color-mix(in srgb,#22d3ee 34%,transparent),color-mix(in srgb,#3b82f6 15%,transparent) 45%,transparent 72%);animation-delay:-5s}.dkan-nebula i:nth-child(3){left:4%;bottom:-34%;background:radial-gradient(circle,color-mix(in srgb,#f472b6 28%,transparent),color-mix(in srgb,#8b5cf6 14%,transparent) 48%,transparent 72%);animation-delay:-10s}.dkan-nebula i:nth-child(4){right:8%;bottom:-26%;width:36vw;animation-delay:-14s}",
+  "@keyframes dkan-nebula-drift{0%{opacity:.14;transform:translate3d(-3vw,-2vh,0) scale(.92)}100%{opacity:.3;transform:translate3d(5vw,4vh,0) scale(1.12)}}",
+  // 曲速航道：从视口中心放射的独立光束。
+  ".dkan-warp{background:radial-gradient(circle at center,color-mix(in srgb,var(--dkan-phase,#60a5fa) 10%,transparent),transparent 34%);contain:strict}.dkan-warp i{position:absolute;left:50%;top:50%;width:var(--len);height:1px;border-radius:999px;transform-origin:left center;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--dkan-phase,#60a5fa) 48%,transparent),#e0f2fe);opacity:0;animation-name:dkan-warp-ray;animation-timing-function:cubic-bezier(.3,.1,.8,1);animation-iteration-count:infinite;will-change:transform,opacity}",
+  "@keyframes dkan-warp-ray{0%{opacity:0;transform:rotate(var(--a)) translate3d(18px,0,0) scaleX(.05)}18%{opacity:.6}100%{opacity:0;transform:rotate(var(--a)) translate3d(58vw,0,0) scaleX(1.55)}}",
+  // 量子雷达：三个边缘站点各自扫描，避免占据会话正文中心。
+  ".dkan-radar{contain:strict}.dkan-radar-station{position:absolute;width:176px;height:176px;border-radius:50%;opacity:.44;background:repeating-radial-gradient(circle,color-mix(in srgb,var(--dkan-phase,#60a5fa) 28%,transparent) 0 1px,transparent 1px 29px);border:1px solid color-mix(in srgb,var(--dkan-phase,#60a5fa) 22%,transparent)}.dkan-radar-station.a{right:4%;top:8%}.dkan-radar-station.b{left:1%;top:38%;transform:scale(.72)}.dkan-radar-station.c{right:7%;bottom:9%;transform:scale(.58)}.dkan-radar-station i{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 76%,color-mix(in srgb,var(--dkan-phase,#60a5fa) 44%,transparent) 92%,transparent);animation:dkan-radar-sweep calc(4.8s / var(--dkan-speed,1)) linear infinite;will-change:transform}.dkan-radar-station b{position:absolute;left:67%;top:31%;width:7px;height:7px;border-radius:50%;background:var(--dkan-phase,#60a5fa);box-shadow:0 0 12px 4px color-mix(in srgb,var(--dkan-phase,#60a5fa) 58%,transparent);animation:dkan-radar-blip calc(2.4s / var(--dkan-speed,1)) ease-in-out infinite}",
+  "@keyframes dkan-radar-sweep{to{transform:rotate(360deg)}}@keyframes dkan-radar-blip{0%,70%,100%{opacity:.15;transform:scale(.65)}78%{opacity:1;transform:scale(1.25)}}",
+  // 星座网络：轻量 SVG 线网分段点亮。
+  ".dkan-constellation svg{position:absolute;left:8%;top:7%;width:86%;height:78%;overflow:visible}.dkan-constellation path{fill:none;stroke:color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent);stroke-width:.16;vector-effect:non-scaling-stroke;stroke-dasharray:.08 .025;animation:dkan-constellation-line calc(7s / var(--dkan-speed,1)) linear infinite}.dkan-constellation circle{fill:var(--dkan-phase,#60a5fa);filter:drop-shadow(0 0 2px var(--dkan-phase,#60a5fa));animation:dkan-constellation-star calc(2.8s / var(--dkan-speed,1)) ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}",
+  "@keyframes dkan-constellation-line{to{stroke-dashoffset:-1}}@keyframes dkan-constellation-star{0%{opacity:.28;transform:scale(.68)}100%{opacity:.92;transform:scale(1.22)}}",
+  // 数据萤火：二维漂移和明暗呼吸组合在同一个 transform 动画中。
+  ".dkan-fireflies{contain:strict}.dkan-fireflies i{position:absolute;border-radius:50%;background:color-mix(in srgb,var(--dkan-phase,#60a5fa) 78%,#fff);box-shadow:0 0 8px 2px color-mix(in srgb,var(--dkan-phase,#60a5fa) 46%,transparent);opacity:.2;animation-name:dkan-firefly;animation-timing-function:cubic-bezier(.45,0,.55,1);animation-iteration-count:infinite;animation-direction:alternate;will-change:transform,opacity}",
+  "@keyframes dkan-firefly{0%{opacity:.12;transform:translate3d(0,0,0) scale(.65)}48%{opacity:.86}100%{opacity:.26;transform:translate3d(var(--dx),var(--dy),0) scale(1.18)}}",
+  // 深海脉动：波层在底部横向漂移，气泡只做向上合成位移。
+  ".dkan-ocean{background:linear-gradient(0deg,color-mix(in srgb,#0284c7 12%,transparent),transparent 46%);contain:strict}.dkan-ocean-waves{position:absolute;left:-12%;right:-12%;bottom:0;height:42%}.dkan-ocean-waves i{position:absolute;left:0;width:112%;height:52%;border-top:1px solid color-mix(in srgb,#67e8f9 28%,transparent);border-radius:50%;animation:dkan-ocean-wave calc(9s / var(--dkan-speed,1)) ease-in-out infinite alternate;will-change:transform}.dkan-ocean-waves i:nth-child(1){top:2%}.dkan-ocean-waves i:nth-child(2){top:18%;animation-delay:-2s}.dkan-ocean-waves i:nth-child(3){top:34%;animation-delay:-4s}.dkan-ocean-waves i:nth-child(4){top:50%;animation-delay:-6s}.dkan-ocean-waves i:nth-child(5){top:66%;animation-delay:-8s}.dkan-ocean>b{position:absolute;bottom:-20px;border:1px solid color-mix(in srgb,#a5f3fc 54%,transparent);border-radius:50%;opacity:0;animation-name:dkan-ocean-bubble;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform,opacity}",
+  "@keyframes dkan-ocean-wave{to{transform:translate3d(7%,5px,0) scaleY(1.08)}}@keyframes dkan-ocean-bubble{0%{opacity:0;transform:translate3d(0,0,0) scale(.7)}14%{opacity:.58}100%{opacity:0;transform:translate3d(var(--drift),-82vh,0) scale(1.18)}}",
+  // 棱镜光谱：七条低透明度光带错峰穿过视口。
+  ".dkan-prism{contain:strict}.dkan-prism i{position:absolute;left:-32vw;width:160vw;height:2px;border-radius:999px;opacity:0;background:linear-gradient(90deg,transparent,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#6366f1,#a855f7,transparent);animation:dkan-prism-ray calc(8s / var(--dkan-speed,1)) cubic-bezier(.45,0,.55,1) infinite;will-change:transform,opacity}.dkan-prism i:nth-child(1){top:12%;animation-delay:0s}.dkan-prism i:nth-child(2){top:25%;animation-delay:-1.1s}.dkan-prism i:nth-child(3){top:38%;animation-delay:-2.2s}.dkan-prism i:nth-child(4){top:51%;animation-delay:-3.3s}.dkan-prism i:nth-child(5){top:64%;animation-delay:-4.4s}.dkan-prism i:nth-child(6){top:77%;animation-delay:-5.5s}.dkan-prism i:nth-child(7){top:90%;animation-delay:-6.6s}",
+  "@keyframes dkan-prism-ray{0%{opacity:0;transform:translate3d(-12vw,0,0) rotate(-7deg) scaleX(.7)}34%{opacity:.2}66%{opacity:.36}100%{opacity:0;transform:translate3d(20vw,0,0) rotate(-7deg) scaleX(1.05)}}",
+  // 神经电路：少量 SVG 路径的虚线脉冲，节点保持低透明度。
+  ".dkan-circuit svg{position:absolute;inset:5% 3% 9% 8%;width:89%;height:86%;overflow:visible}.dkan-circuit path{fill:none;stroke:color-mix(in srgb,var(--dkan-phase,#60a5fa) 40%,transparent);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:.045 .12;animation:dkan-circuit-pulse calc(5.6s / var(--dkan-speed,1)) linear infinite}.dkan-circuit circle{fill:var(--dkan-phase,#60a5fa);opacity:.58;filter:drop-shadow(0 0 4px var(--dkan-phase,#60a5fa));animation:dkan-circuit-node calc(2.2s / var(--dkan-speed,1)) ease-in-out infinite alternate}",
+  "@keyframes dkan-circuit-pulse{to{stroke-dashoffset:-1}}@keyframes dkan-circuit-node{to{opacity:.16}}",
+  // 引力涟漪：三个边缘引力源按错峰节奏扩散。
+  ".dkan-gravity{contain:strict}.dkan-gravity-source{position:absolute;width:260px;height:260px}.dkan-gravity-source.a{right:2%;top:5%}.dkan-gravity-source.b{left:-4%;top:39%;transform:scale(.76)}.dkan-gravity-source.c{right:17%;bottom:-10%;transform:scale(.62)}.dkan-gravity-source b{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:var(--dkan-phase,#60a5fa);box-shadow:0 0 16px 5px color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent)}.dkan-gravity-source i{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px;border:1px solid color-mix(in srgb,var(--dkan-phase,#60a5fa) 42%,transparent);border-radius:50%;opacity:0;animation:dkan-gravity-wave calc(4.6s / var(--dkan-speed,1)) cubic-bezier(.2,.55,.35,1) infinite;will-change:transform,opacity}",
+  "@keyframes dkan-gravity-wave{0%{opacity:.64;transform:scale(.3)}100%{opacity:0;transform:scale(9)}}",
+  // 灵感天灯：暖色灯体从屏幕底部缓慢升起，尾迹由伪元素提供。
+  ".dkan-lantern{contain:strict}.dkan-lantern i{position:absolute;bottom:-30px;border-radius:45% 45% 34% 34%;background:linear-gradient(150deg,#fff7c2 0%,#fbbf24 46%,#f97316 100%);box-shadow:0 0 10px 3px color-mix(in srgb,#fbbf24 36%,transparent);opacity:0;animation-name:dkan-lantern-rise;animation-timing-function:cubic-bezier(.34,.02,.6,1);animation-iteration-count:infinite;will-change:transform,opacity}.dkan-lantern i::after{content:'';position:absolute;left:42%;top:100%;width:16%;height:13px;background:linear-gradient(#f59e0b,transparent)}",
+  "@keyframes dkan-lantern-rise{0%{opacity:0;transform:translate3d(0,0,0) rotate(-3deg) scale(.72)}12%{opacity:.72}78%{opacity:.48}100%{opacity:0;transform:translate3d(var(--drift),-104vh,0) rotate(4deg) scale(1.04)}}",
   // ===== 交互反馈层 =====
   ".dkan-fxwrap{position:fixed;inset:0;z-index:9992;pointer-events:none;overflow:hidden;}",
   ".dkan-fx{position:absolute;}",
@@ -3184,11 +3687,24 @@ var css2 = [
   ".dkan-prev-stars i:nth-child(5){left:28%;top:70%;animation-delay:-.6s;}",
   ".dkan-prev-stars i:nth-child(6){left:70%;top:75%;animation-delay:-1s;}",
   "@keyframes dkan-prev-star{0%{opacity:.2}100%{opacity:.9}}",
+  // 预览：星际远征（行星、轨道与飞船）
+  ".dkan-prev-space i{position:absolute;left:49%;top:50%;width:9px;height:9px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;}.dkan-prev-space b{position:absolute;left:21%;top:23%;width:15px;height:8px;border:1px solid #93c5fd;border-radius:50%;animation:dkan-prev-space-orbit 2.4s linear infinite;}.dkan-prev-space b::after{content:'';position:absolute;left:-3px;top:0;width:5px;height:5px;border-radius:50%;background:#a78bfa;box-shadow:0 0 4px #a78bfa;}.dkan-prev-space em{position:absolute;left:5%;top:65%;width:19px;height:4px;border-radius:50% 0 0 50%;background:linear-gradient(90deg,#22d3ee,#dbeafe);animation:dkan-prev-space-ship 1.8s linear infinite;}.dkan-prev-space em::after{content:'';position:absolute;right:-7px;top:-3px;border-left:9px solid #93c5fd;border-top:5px solid transparent;border-bottom:5px solid transparent;}.dkan-prev-space{background:radial-gradient(ellipse at 78% 20%,color-mix(in srgb,#6366f1 18%,transparent),transparent 58%);}.dkan-prev-space i,.dkan-prev-space b,.dkan-prev-space em{font-style:normal;}.dkan-prev-space b{transform-origin:34px 11px;}@keyframes dkan-prev-space-orbit{to{transform:rotate(360deg)}}@keyframes dkan-prev-space-ship{to{transform:translateX(105px)}}",
   // 预览：极光（柔光带呼吸）
   ".dkan-prev-aurora i{position:absolute;top:-30%;width:60%;height:120%;border-radius:50%;filter:blur(8px);opacity:.35;animation:dkan-prev-aurora 2.4s ease-in-out infinite alternate;}",
   ".dkan-prev-aurora i:nth-child(1){left:5%;background:#4d9fff;}",
   ".dkan-prev-aurora i:nth-child(2){left:45%;background:#34d399;animation-delay:-1.2s;}",
   "@keyframes dkan-prev-aurora{0%{transform:translateX(-10%)}100%{transform:translateX(15%)}}",
+  // 十种新增模式的缩微预览：复用主体运动语言，但把节点数和振幅压到卡片内。
+  ".dkan-prev-new{--dkan-phase:var(--dsw-alias-accent,#4d9fff)}.dkan-prev-new i{position:absolute;display:block}",
+  ".dkan-prev-nebula i{width:48px;height:48px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--dkan-phase) 48%,transparent),transparent 70%);animation:dkan-prev-nebula 3s ease-in-out infinite alternate}.dkan-prev-nebula i:nth-child(1){left:2%;top:-60%}.dkan-prev-nebula i:nth-child(2){right:4%;bottom:-65%;background:radial-gradient(circle,color-mix(in srgb,#a855f7 42%,transparent),transparent 70%);animation-delay:-1.4s}.dkan-prev-nebula i:nth-child(n+3){display:none}@keyframes dkan-prev-nebula{to{transform:translateX(24px) scale(1.18)}}",
+  ".dkan-prev-warp i{left:50%;top:50%;width:36px;height:1px;transform-origin:left;background:linear-gradient(90deg,transparent,var(--dkan-phase),#fff);animation:dkan-prev-warp 1.8s linear infinite;opacity:0}.dkan-prev-warp i:nth-child(1){--a:0deg}.dkan-prev-warp i:nth-child(2){--a:45deg;animation-delay:-.2s}.dkan-prev-warp i:nth-child(3){--a:90deg;animation-delay:-.4s}.dkan-prev-warp i:nth-child(4){--a:135deg;animation-delay:-.6s}.dkan-prev-warp i:nth-child(5){--a:180deg;animation-delay:-.8s}.dkan-prev-warp i:nth-child(6){--a:225deg;animation-delay:-1s}.dkan-prev-warp i:nth-child(7){--a:270deg;animation-delay:-1.2s}.dkan-prev-warp i:nth-child(8){--a:315deg;animation-delay:-1.4s}@keyframes dkan-prev-warp{0%{opacity:0;transform:rotate(var(--a)) translateX(2px) scaleX(.1)}35%{opacity:.8}100%{opacity:0;transform:rotate(var(--a)) translateX(40px) scaleX(1.3)}}",
+  ".dkan-prev-radar i{left:50%;top:50%;width:24px;height:24px;margin:-12px;border:1px solid color-mix(in srgb,var(--dkan-phase) 48%,transparent);border-radius:50%;animation:dkan-prev-radar 2.6s ease-out infinite;opacity:0}.dkan-prev-radar i:nth-child(2){animation-delay:-.85s}.dkan-prev-radar i:nth-child(3){animation-delay:-1.7s}.dkan-prev-radar i:nth-child(n+4){display:none}@keyframes dkan-prev-radar{0%{opacity:.8;transform:scale(.2)}100%{opacity:0;transform:scale(1.25)}}",
+  ".dkan-prev-constellation::after{content:'';position:absolute;left:12%;right:12%;top:50%;height:1px;background:linear-gradient(90deg,transparent,var(--dkan-phase),transparent);transform:rotate(-9deg)}.dkan-prev-constellation i,.dkan-prev-fireflies i{width:4px;height:4px;border-radius:50%;background:var(--dkan-phase);box-shadow:0 0 5px var(--dkan-phase);animation:dkan-prev-twinkle 1.8s ease-in-out infinite alternate}.dkan-prev-constellation i:nth-child(1),.dkan-prev-fireflies i:nth-child(1){left:12%;top:62%}.dkan-prev-constellation i:nth-child(2),.dkan-prev-fireflies i:nth-child(2){left:28%;top:26%;animation-delay:-.3s}.dkan-prev-constellation i:nth-child(3),.dkan-prev-fireflies i:nth-child(3){left:45%;top:52%;animation-delay:-.6s}.dkan-prev-constellation i:nth-child(4),.dkan-prev-fireflies i:nth-child(4){left:61%;top:18%;animation-delay:-.9s}.dkan-prev-constellation i:nth-child(5),.dkan-prev-fireflies i:nth-child(5){left:76%;top:58%;animation-delay:-1.2s}.dkan-prev-constellation i:nth-child(6),.dkan-prev-fireflies i:nth-child(6){left:88%;top:34%;animation-delay:-1.5s}@keyframes dkan-prev-twinkle{to{opacity:.2;transform:translateY(4px) scale(.65)}}",
+  ".dkan-prev-ocean i{left:-10%;width:120%;height:18px;border-top:1px solid color-mix(in srgb,#22d3ee 52%,transparent);border-radius:50%;animation:dkan-prev-wave 2.8s ease-in-out infinite alternate}.dkan-prev-ocean i:nth-child(1){top:15%}.dkan-prev-ocean i:nth-child(2){top:35%;animation-delay:-.5s}.dkan-prev-ocean i:nth-child(3){top:55%;animation-delay:-1s}.dkan-prev-ocean i:nth-child(4){top:75%;animation-delay:-1.5s}.dkan-prev-ocean i:nth-child(n+5){display:none}@keyframes dkan-prev-wave{to{transform:translateX(12px) scaleY(1.2)}}",
+  ".dkan-prev-prism i{left:-10%;width:120%;height:1px;background:linear-gradient(90deg,transparent,#ef4444,#fbbf24,#22c55e,#22d3ee,#8b5cf6,transparent);transform:rotate(-6deg);animation:dkan-prev-prism 2.8s ease-in-out infinite}.dkan-prev-prism i:nth-child(1){top:18%}.dkan-prev-prism i:nth-child(2){top:34%;animation-delay:-.4s}.dkan-prev-prism i:nth-child(3){top:50%;animation-delay:-.8s}.dkan-prev-prism i:nth-child(4){top:66%;animation-delay:-1.2s}.dkan-prev-prism i:nth-child(5){top:82%;animation-delay:-1.6s}.dkan-prev-prism i:nth-child(n+6){display:none}@keyframes dkan-prev-prism{0%,100%{opacity:.12;transform:translateX(-8px) rotate(-6deg)}50%{opacity:.72;transform:translateX(10px) rotate(-6deg)}}",
+  ".dkan-prev-circuit i{height:1px;background:var(--dkan-phase);box-shadow:0 0 4px var(--dkan-phase);animation:dkan-prev-circuit 2.4s linear infinite}.dkan-prev-circuit i:nth-child(1){left:5%;top:30%;width:42%}.dkan-prev-circuit i:nth-child(2){left:47%;top:30%;width:1px;height:45%}.dkan-prev-circuit i:nth-child(3){left:47%;top:74%;width:38%}.dkan-prev-circuit i:nth-child(4){left:68%;top:15%;width:1px;height:60%}.dkan-prev-circuit i:nth-child(5){left:68%;top:15%;width:26%}.dkan-prev-circuit i:nth-child(6){left:12%;top:62%;width:35%}@keyframes dkan-prev-circuit{0%,100%{opacity:.18}50%{opacity:.9}}",
+  ".dkan-prev-gravity i{left:50%;top:50%;width:18px;height:18px;margin:-9px;border:1px solid var(--dkan-phase);border-radius:50%;opacity:0;animation:dkan-prev-gravity 2.6s ease-out infinite}.dkan-prev-gravity i:nth-child(2){animation-delay:-.65s}.dkan-prev-gravity i:nth-child(3){animation-delay:-1.3s}.dkan-prev-gravity i:nth-child(4){animation-delay:-1.95s}.dkan-prev-gravity i:nth-child(n+5){display:none}@keyframes dkan-prev-gravity{0%{opacity:.8;transform:scale(.15)}100%{opacity:0;transform:scale(2.4)}}",
+  ".dkan-prev-lantern i{bottom:-8px;width:6px;height:8px;border-radius:3px;background:#fbbf24;box-shadow:0 0 5px #f59e0b;animation:dkan-prev-lantern 3.2s linear infinite}.dkan-prev-lantern i:nth-child(1){left:12%}.dkan-prev-lantern i:nth-child(2){left:27%;animation-delay:-.6s}.dkan-prev-lantern i:nth-child(3){left:43%;animation-delay:-1.2s}.dkan-prev-lantern i:nth-child(4){left:61%;animation-delay:-1.8s}.dkan-prev-lantern i:nth-child(5){left:76%;animation-delay:-2.4s}.dkan-prev-lantern i:nth-child(6){left:90%;animation-delay:-2.8s}@keyframes dkan-prev-lantern{0%{opacity:0;transform:translateY(0)}20%{opacity:.9}100%{opacity:0;transform:translateY(-38px)}}",
   ".dkan-prev-bot{height:92px;justify-content:center;}",
   ".dkan-prev-bot .dkan-bot-scene{--dkan-bot-scale:1;transform:scale(.56);transform-origin:center;}",
   // ===== 桌面伙伴：具象人物 + 紧凑双工位（尺寸可调，整卡可拖拽） =====
@@ -3352,7 +3868,7 @@ var css2 = [
   "@keyframes dkan-search-head{0%,28%{transform:var(--dk3-head-turn) rotateZ(1deg)}48%,68%{transform:var(--dk3-head-turn) rotateZ(6deg) translate(1px,1px)}88%,100%{transform:var(--dk3-head-turn) rotateZ(2deg)}}",
   "@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
   // 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
-  "@media (prefers-reduced-motion:reduce){.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
+  "@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
   // 通知子选项行
   ".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
   ".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
@@ -3397,7 +3913,7 @@ var feature6 = {
   name: "\u4EFB\u52A1\u52A8\u753B",
   order: 130,
   accent: "#f472b6",
-  description: "\u4EFB\u52A1\u8FD0\u884C\u52A8\u753B\uFF08\u6D41\u5149\u7EC6\u7EBF/\u547C\u5438\u5149\u70B9/\u8F68\u9053\u5149\u73AF\uFF09\u4E0E\u5B8C\u6210\u901A\u77E5\uFF0C\u4E24\u7EC4\u5F00\u5173\u72EC\u7ACB\u3001\u914D\u7F6E\u6301\u4E45\u5316",
+  description: "19 \u79CD\u4EFB\u52A1\u8FD0\u884C\u52A8\u753B\u4E0E\u5B8C\u6210\u901A\u77E5\uFF1A\u901F\u5EA6\u968F\u4EFB\u52A1\u6D3B\u52A8\u8054\u52A8\uFF0C\u4E24\u7EC4\u5F00\u5173\u72EC\u7ACB\u3001\u914D\u7F6E\u6301\u4E45\u5316",
   css: css2,
   View: AnimationView,
   HomeStat: AnimationStat,
@@ -3405,7 +3921,7 @@ var feature6 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.5.0";
+var DOCK_VERSION = "0.7.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
@@ -3536,6 +4052,10 @@ var SHELL_CSS = [
   ".dockm-foot-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
   ".dockm-foot-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
   ".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
+  // 窄屏：功能坞是一级工作台而不是被压扁的桌面弹窗。全屏承接安全区，导航改横向，
+  // 禁用桌面拖拽/缩放，所有导航和关闭动作保持至少 44px 的可点击面积。
+  "@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:1fr;gap:10px}.dockh-card{padding:12px}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
+  "@media (prefers-reduced-motion:reduce){.dockm-backdrop,.dockm-dialog{animation:none}.dockm-nav-item,.dockm-close,.dockm-win,.dock-sw{transition:none}}",
   ".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
   ".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
   ".dockh-foot{display:flex;align-items:center;gap:8px;}",
@@ -3544,17 +4064,29 @@ var SHELL_CSS = [
   // 溢出兼容（两层防护，缺一不可）：
   //  1) 宽度上限：宿主 .row 是 flex-wrap:wrap 且换行优先于收缩，chips 一长 tools 整行变宽，
   //     右侧模型选择器/发送键被挤到第二行（左右错位）。宿主 .row 带 container-type:inline-size，
-  //     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定 280px。
+  //     用容器单位 cqw 让上限随输入卡宽度自适应（窄卡少占、宽卡多占）；不支持 cqw 的老内核退回固定值。
+  //     注意：旧上限 min(280px,36cqw) 仍偏宽——标准 780px 输入卡下（.row 内容约 762px），
+  //     add 钮(28)+工作区选择器(~214)+chips(280) 已与右侧模型选择器+发送键（~345px）合计超宽，
+  //     即便 chips 未截断 .row 也会换行把模型选择器/发送键挤到第二行。实测把上限收到 189px
+  //     （≈25cqw）并使 chips 内距收紧（padding 2px 6px、gap 2px）后，实测 4~6M 用量 + 余额
+  //     两 chip 可完整显示且不再换行；超限时仍被省略号截断，完整值在 title 悬浮提示里。
   //  2) 截断：超限部分用省略号截断（完整数值在 title 悬浮提示里），防 chips 凸出输入卡圆角（悬空）。
-  ".dockchip-row{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:280px;}",
-  "@supports (width:1cqw){.dockchip-row{max-width:min(280px,36cqw);}}",
-  ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 8px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+  ".dockchip-row{display:inline-flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:189px;}",
+  "@supports (width:1cqw){.dockchip-row{max-width:min(189px,25cqw);}}",
+  ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 6px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
   ".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
   ".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
   ".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
   ".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
 ].join("\n");
 var dockCssTag = null;
+var initialCssSchedule = null;
+function cancelInitialCssSchedule() {
+  if (!initialCssSchedule || typeof window === "undefined") return;
+  if (initialCssSchedule.type === "idle" && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(initialCssSchedule.id);
+  if (initialCssSchedule.type === "timer") window.clearTimeout(initialCssSchedule.id);
+  initialCssSchedule = null;
+}
 function fullDockCss() {
   const parts = [SHELL_CSS];
   for (const f of BUILTIN_FEATURES) if (f.css) parts.push(f.css);
@@ -3563,6 +4095,7 @@ function fullDockCss() {
 }
 function ensureCss() {
   if (typeof document === "undefined") return;
+  cancelInitialCssSchedule();
   try {
     if (!dockCssTag || !dockCssTag.isConnected) {
       if (document.querySelector('style[data-plugin-css="dsh-dock"]')) {
@@ -3576,6 +4109,18 @@ function ensureCss() {
     dockCssTag.textContent = fullDockCss();
   } catch (e) {
     console.error("[dsh-dock] ensureCss failed:", e && e.message ? e.message : String(e));
+  }
+}
+function scheduleInitialCss() {
+  if (typeof document === "undefined" || initialCssSchedule || dockCssTag && dockCssTag.isConnected) return;
+  const run = () => {
+    initialCssSchedule = null;
+    ensureCss();
+  };
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    initialCssSchedule = { type: "idle", id: window.requestIdleCallback(run, { timeout: 350 }) };
+  } else {
+    initialCssSchedule = { type: "timer", id: setTimeout(run, 48) };
   }
 }
 function useExternalVersion() {
@@ -3623,9 +4168,13 @@ function DockModal() {
   useExternalVersion();
   const [win, setWin] = import_react9.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
   const dlgRef = import_react9.default.useRef(null);
+  const contentRef = import_react9.default.useRef(null);
   import_react9.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
+  import_react9.default.useEffect(() => {
+    if (open && contentRef.current) contentRef.current.scrollTop = 0;
+  }, [active, open]);
   function beginDrag(e, type) {
     if (win.mode !== "normal" || e.button !== 0) return;
     if (type === "move" && e.target && e.target.closest && e.target.closest("button,select,input")) return;
@@ -3753,7 +4302,7 @@ function DockModal() {
         ),
         import_react9.default.createElement(
           "div",
-          { className: "dockm-content" },
+          { className: "dockm-content", ref: contentRef },
           import_react9.default.createElement(
             "div",
             { className: "dockm-content-head" },
@@ -3999,7 +4548,7 @@ function FeatureOverlays() {
 var ctxRef = { current: null };
 function apply(ctx) {
   ctxRef.current = ctx;
-  ensureCss();
+  scheduleInitialCss();
   initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
   const slots = ctx.get("slots");
   if (slots === void 0) return;
