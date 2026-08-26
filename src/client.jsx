@@ -24,13 +24,12 @@ import { feature as fHeartbeat } from "../features/heartbeat/view.js";
 import { feature as fTheme } from "../features/theme/view.js";
 import { feature as fBalance } from "../features/balance/view.js";
 import { feature as fAnimation } from "../features/animation/view.jsx";
-import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.6.0";
+const DOCK_VERSION = "0.7.0";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation, fMobileRelay];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
@@ -648,21 +647,6 @@ export function apply(ctx) {
 	slots.inject("conversation.input.left", () => slots.register(
 		{ name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "功能坞" },
 		(zone) => react.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))));
-	// 手机接力链接使用 fragment，避免配对码进入服务器日志或 Referer。插件加载后立即消费并
-	// 清掉 fragment，再自动打开对应功能；DSH 会话本身仍由宿主原生会话服务继续承接。
-	try {
-		if (typeof window !== "undefined") {
-			const match = window.location.hash.match(/(?:^#|&)dsh-mobile-relay=([^&]+)/);
-			if (match) {
-				const launch = decodeURIComponent(match[1]);
-				if (/^[A-Za-z0-9_-]+\.[A-F0-9]{10}$/i.test(launch)) {
-					sessionStorage.setItem("dsh-dock/mobile-relay/launch/v1", launch);
-					window.history.replaceState(null, "", window.location.pathname + window.location.search);
-					setTimeout(() => openPanel("mobile-relay"), 0);
-				}
-			}
-		}
-	} catch { /* 私密模式禁用 storage/history 时保持手动入口可用 */ }
 }
 
 export const inject = ["timer"];
