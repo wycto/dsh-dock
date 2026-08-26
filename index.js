@@ -19,6 +19,7 @@ import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
 import { feature as fTokenlog } from './features/tokenlog/host.js'
 import { feature as fAnimation } from './features/animation/host.js'
+import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 
 export const name = 'dsh-dock'
 
@@ -38,6 +39,7 @@ export function apply(ctx) {
     fBalance,
     fTokenlog,
     fAnimation,
+    fMobileRelay,
   ]
 
   const state = new Map()
