@@ -41,7 +41,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react9 = __toESM(require("react"), 1);
+var import_react19 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -2330,16 +2330,16 @@ function composerDockPoint(side = "right") {
     '[contenteditable="true"][data-slot*="conversation.input"]'
   ];
   const seen = /* @__PURE__ */ new Set();
-  const candidates = [];
+  const candidates2 = [];
   for (const selector of selectors) {
     for (const el of document.querySelectorAll(selector)) {
       if (seen.has(el)) continue;
       seen.add(el);
       const r2 = el.getBoundingClientRect();
-      if (r2.width > 80 && r2.height > 16 && r2.bottom > window.innerHeight * 0.48) candidates.push({ el, r: r2 });
+      if (r2.width > 80 && r2.height > 16 && r2.bottom > window.innerHeight * 0.48) candidates2.push({ el, r: r2 });
     }
   }
-  const best = candidates.sort((a, b) => b.r.bottom - a.r.bottom)[0];
+  const best = candidates2.sort((a, b) => b.r.bottom - a.r.bottom)[0];
   if (!best) return fallbackComposerDockPoint(side);
   const r = best.r;
   const x = side === "ready" ? Math.max(r.left + 16, r.right - 210) : fallbackComposerDockPoint(side).x;
@@ -3920,9 +3920,3462 @@ var feature6 = {
   Overlay: AnimationOverlay
 };
 
+// features/games/view.jsx
+var import_react18 = require("react");
+
+// features/games/games/shared.jsx
+var import_react9 = require("react");
+function isTypingTarget(event) {
+  const tag = event.target && event.target.tagName || "";
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (event.target && event.target.isContentEditable) return true;
+  return false;
+}
+function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
+  const pausedRef = (0, import_react9.useRef)(!!paused);
+  pausedRef.current = !!paused;
+  (0, import_react9.useEffect)(() => {
+    if (pausedRef.current) return;
+    const el = stageRef && stageRef.current;
+    if (!el) return;
+    const t = setTimeout(() => {
+      try {
+        el.focus({ preventScroll: true });
+      } catch {
+      }
+    }, 60);
+    return () => clearTimeout(t);
+  }, [paused]);
+  (0, import_react9.useEffect)(() => {
+    const inStage = (event) => {
+      const el = stageRef && stageRef.current;
+      return !!el && (el === event.target || el.contains(event.target));
+    };
+    const handleDown = (event) => {
+      if (pausedRef.current) return;
+      if (isTypingTarget(event)) return;
+      if (inStage(event)) return;
+      if (typeof onKeyDown === "function") onKeyDown(event);
+    };
+    const handleUp = (event) => {
+      if (pausedRef.current) return;
+      if (isTypingTarget(event)) return;
+      if (inStage(event)) return;
+      if (typeof onKeyUp === "function") onKeyUp(event);
+    };
+    window.addEventListener("keydown", handleDown);
+    window.addEventListener("keyup", handleUp);
+    return () => {
+      window.removeEventListener("keydown", handleDown);
+      window.removeEventListener("keyup", handleUp);
+    };
+  }, [onKeyDown, onKeyUp]);
+}
+function focusStage(stageRef) {
+  if (stageRef && stageRef.current) {
+    try {
+      stageRef.current.focus({ preventScroll: true });
+    } catch {
+    }
+  }
+}
+var _ctx = null;
+function audioCtx() {
+  if (typeof window === "undefined") return null;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  try {
+    if (!_ctx) _ctx = new AC();
+    if (_ctx.state === "suspended") _ctx.resume().catch(() => {
+    });
+    return _ctx;
+  } catch {
+    return null;
+  }
+}
+var SFX_DEFS = {
+  move: { f: 240, t: "square", d: 0.035, g: 0.07 },
+  rotate: { f: 340, t: "square", d: 0.05, g: 0.08 },
+  lock: { f: 150, t: "triangle", d: 0.08, g: 0.15 },
+  step: { f: 190, t: "triangle", d: 0.03, g: 0.06 },
+  push: { f: 115, t: "triangle", d: 0.07, g: 0.14 },
+  stone: { f: 520, t: "triangle", d: 0.05, g: 0.13, f2: 430 },
+  capture: { f: 175, t: "square", d: 0.09, g: 0.15, f2: 105 },
+  check: { t: "square", g: 0.12, d: 0.24, seq: [[660, 0], [660, 0.14]] },
+  eat: { f: 620, t: "square", d: 0.06, g: 0.11, f2: 920 },
+  bounce: { f: 420, t: "square", d: 0.03, g: 0.07 },
+  brick: { f: 740, t: "square", d: 0.05, g: 0.1, f2: 500 },
+  clear: { t: "sine", g: 0.15, d: 0.28, seq: [[523, 0], [659, 0.09], [784, 0.18], [1047, 0.27]] },
+  win: { t: "sine", g: 0.14, d: 0.34, seq: [[523, 0], [659, 0.11], [784, 0.22], [1047, 0.33], [784, 0.47], [1047, 0.56]] },
+  over: { t: "sawtooth", g: 0.11, d: 0.38, seq: [[392, 0], [311, 0.13], [233, 0.27], [185, 0.44]] }
+};
+function playSfx(name) {
+  const def = SFX_DEFS[name];
+  const ac = def && audioCtx();
+  if (!ac) return;
+  const t0 = ac.currentTime;
+  const events = def.seq || [[def.f, 0]];
+  for (const [freq, dt] of events) {
+    let osc, gain;
+    try {
+      osc = ac.createOscillator();
+      gain = ac.createGain();
+      osc.type = def.t || "square";
+      osc.frequency.setValueAtTime(freq, t0 + dt);
+      if (def.f2) osc.frequency.exponentialRampToValueAtTime(Math.max(30, def.f2), t0 + dt + def.d);
+      gain.gain.setValueAtTime(1e-4, t0 + dt);
+      gain.gain.exponentialRampToValueAtTime(def.g, t0 + dt + 8e-3);
+      gain.gain.exponentialRampToValueAtTime(1e-4, t0 + dt + def.d);
+      osc.connect(gain).connect(ac.destination);
+      osc.start(t0 + dt);
+      osc.stop(t0 + dt + def.d + 0.03);
+    } catch {
+      if (osc) try {
+        osc.stop();
+      } catch {
+      }
+    }
+  }
+}
+
+// features/games/games/tetris.jsx
+var import_react10 = require("react");
+var import_jsx_runtime3 = require("react/jsx-runtime");
+var COLS = 10;
+var ROWS = 20;
+var SHAPES = [
+  { color: "#22d3ee", mat: [[1, 1, 1, 1]] },
+  { color: "#facc15", mat: [[1, 1], [1, 1]] },
+  { color: "#c084fc", mat: [[0, 1, 0], [1, 1, 1]] },
+  { color: "#4ade80", mat: [[0, 1, 1], [1, 1, 0]] },
+  { color: "#f87171", mat: [[1, 1, 0], [0, 1, 1]] },
+  { color: "#60a5fa", mat: [[1, 0, 0], [1, 1, 1]] },
+  { color: "#fb923c", mat: [[0, 0, 1], [1, 1, 1]] }
+];
+function rotateCW(mat) {
+  return mat[0].map((_, col) => mat.map((row) => row[col]).reverse());
+}
+function rotations(shape) {
+  const list = [shape.mat];
+  let cur = shape.mat;
+  for (let i = 0; i < 3; i += 1) {
+    cur = rotateCW(cur);
+    if (!list.some((m) => JSON.stringify(m) === JSON.stringify(cur))) list.push(cur);
+  }
+  return list;
+}
+var PIECES = SHAPES.map((s) => ({ color: s.color, rots: rotations(s) }));
+var TETRIS_GRID = (() => {
+  const lines = [];
+  let k = 0;
+  for (let i = 1; i < 10; i += 1) lines.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: i * 100, y1: 0, x2: i * 100, y2: 2e3 }, k++));
+  for (let j = 1; j < 20; j += 1) lines.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: 0, y1: j * 100, x2: 1e3, y2: j * 100 }, k++));
+  return lines;
+})();
+function emptyBoard() {
+  return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+}
+function collides(board, mat, x, y) {
+  for (let r = 0; r < mat.length; r += 1) {
+    for (let c = 0; c < mat[r].length; c += 1) {
+      if (!mat[r][c]) continue;
+      const bx = x + c, by = y + r;
+      if (bx < 0 || bx >= COLS || by >= ROWS || by >= 0 && board[by][bx]) return true;
+    }
+  }
+  return false;
+}
+function merge(board, mat, x, y, color) {
+  const next = board.map((row) => row.slice());
+  for (let r = 0; r < mat.length; r += 1) {
+    for (let c = 0; c < mat[r].length; c += 1) {
+      if (mat[r][c] && y + r >= 0) next[y + r][x + c] = color;
+    }
+  }
+  return next;
+}
+function clearLines(board) {
+  const kept = board.filter((row) => row.some((cell) => !cell));
+  const cleared = ROWS - kept.length;
+  while (kept.length < ROWS) kept.unshift(Array(COLS).fill(null));
+  return { board: kept, cleared };
+}
+function seedBag() {
+  const bag = SHAPES.map((_, i) => i);
+  for (let i = bag.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag;
+}
+var PIECE_SEQ = 0;
+function makePiece(type, x, y) {
+  const p = PIECES[type];
+  return { id: ++PIECE_SEQ, type, rot: 0, x, y: y != null ? y : -1, mat: p.rots[0], color: p.color };
+}
+function initial() {
+  const bag = seedBag();
+  const piece = makePiece(bag.pop(), 3);
+  const next = bag.pop();
+  return { board: emptyBoard(), piece, next, bag, score: 0, lines: 0, level: 1, over: false };
+}
+function spawnFrom(state) {
+  let bag = state.bag && state.bag.length ? state.bag.slice() : seedBag();
+  const type = state.next != null ? state.next : bag.pop();
+  let next = bag.length ? bag.pop() : null;
+  if (next == null) {
+    bag = seedBag();
+    next = bag.pop();
+  }
+  const piece = makePiece(type, 3);
+  const over = collides(state.board, piece.mat, piece.x, piece.y) || state.over;
+  return Object.assign({}, state, { bag, next, piece, over });
+}
+function advance(state) {
+  if (state.over) return state;
+  const p = state.piece;
+  if (!collides(state.board, p.mat, p.x, p.y + 1)) {
+    return Object.assign({}, state, { piece: Object.assign({}, p, { y: p.y + 1 }), score: state.score + 1 });
+  }
+  const merged = merge(state.board, p.mat, p.x, p.y, p.color);
+  playSfx("lock");
+  const cleared = clearLines(merged);
+  if (cleared.cleared) playSfx(cleared.cleared >= 4 ? "win" : "clear");
+  const lines = state.lines + cleared.cleared;
+  const level = Math.floor(lines / 10) + 1;
+  const base = [0, 100, 300, 500, 800][cleared.cleared] || 800;
+  const scored = Object.assign({}, state, {
+    board: cleared.board,
+    lines,
+    level,
+    score: state.score + base * state.level
+  });
+  return spawnFrom(scored);
+}
+function hardDrop(state) {
+  if (state.over) return state;
+  let y = state.piece.y, dist = 0;
+  while (!collides(state.board, state.piece.mat, state.piece.x, y + 1)) {
+    y += 1;
+    dist += 1;
+  }
+  const p = Object.assign({}, state.piece, { y });
+  const merged = merge(state.board, p.mat, p.x, p.y, p.color);
+  playSfx("lock");
+  const cleared = clearLines(merged);
+  if (cleared.cleared) playSfx(cleared.cleared >= 4 ? "win" : "clear");
+  const lines = state.lines + cleared.cleared;
+  const level = Math.floor(lines / 10) + 1;
+  const base = [0, 100, 300, 500, 800][cleared.cleared] || 800;
+  const scored = Object.assign({}, state, {
+    board: cleared.board,
+    lines,
+    level,
+    score: state.score + base * state.level + dist * 2
+  });
+  return spawnFrom(scored);
+}
+var KEY_ACTIONS = {
+  "ArrowLeft": "left",
+  "a": "left",
+  "A": "left",
+  "ArrowRight": "right",
+  "d": "right",
+  "D": "right",
+  // 下键 = 快速下滑（一格一格连降，松开即停；空格/回车才是直落到底）。
+  "ArrowDown": "down",
+  "s": "down",
+  "S": "down",
+  "ArrowUp": "cw",
+  "x": "cw",
+  "X": "cw",
+  "z": "ccw",
+  "Z": "ccw",
+  " ": "drop",
+  "Enter": "drop"
+};
+function TetrisGame(props) {
+  const [state, setState] = (0, import_react10.useState)(initial);
+  const [manualPause, setManualPause] = (0, import_react10.useState)(false);
+  const pausedRef = (0, import_react10.useRef)(!!(props && props.paused));
+  pausedRef.current = !!(props && props.paused) || manualPause;
+  const stageRef = (0, import_react10.useRef)(null);
+  const act = (0, import_react10.useCallback)((action) => setState((s) => {
+    if (pausedRef.current) return s;
+    if (action === "left") {
+      playSfx("move");
+      const x2 = s.piece.x - 1;
+      if (collides(s.board, s.piece.mat, x2, s.piece.y)) return s;
+      return Object.assign({}, s, { piece: Object.assign({}, s.piece, { x: x2 }) });
+    }
+    if (action === "right") {
+      playSfx("move");
+      const x2 = s.piece.x + 1;
+      if (collides(s.board, s.piece.mat, x2, s.piece.y)) return s;
+      return Object.assign({}, s, { piece: Object.assign({}, s.piece, { x: x2 }) });
+    }
+    if (action === "down") return advance(s);
+    if (action === "drop") return hardDrop(s);
+    if (action === "cw" || action === "ccw") {
+      playSfx("rotate");
+      return rotatePiece(s, action === "cw" ? 1 : -1);
+    }
+    return s;
+  }), []);
+  const softRef = (0, import_react10.useRef)(null);
+  const stateRef = (0, import_react10.useRef)(state);
+  stateRef.current = state;
+  const holdIdRef = (0, import_react10.useRef)(null);
+  const stopSoft = (0, import_react10.useCallback)(() => {
+    if (softRef.current) {
+      clearInterval(softRef.current);
+      softRef.current = null;
+    }
+  }, []);
+  (0, import_react10.useEffect)(() => {
+    if (state.over || manualPause || props.paused) stopSoft();
+    return stopSoft;
+  }, [state.over, manualPause, props.paused, stopSoft]);
+  const onKeyDown = (0, import_react10.useCallback)((event) => {
+    const action = KEY_ACTIONS[event.key];
+    if (action) {
+      event.preventDefault();
+      if (action === "down") {
+        const pieceId = stateRef.current.piece && stateRef.current.piece.id;
+        act("down");
+        if (!softRef.current && !pausedRef.current) {
+          holdIdRef.current = pieceId;
+          softRef.current = setInterval(() => {
+            const cur = stateRef.current;
+            if (pausedRef.current || cur.over || !cur.piece || cur.piece.id !== holdIdRef.current) {
+              stopSoft();
+              return;
+            }
+            act("down");
+          }, 45);
+        }
+        return;
+      }
+      act(action);
+      return;
+    }
+    if (event.key.toLowerCase() === "p") {
+      event.preventDefault();
+      setManualPause((p) => !p);
+    } else if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      setState(initial());
+      setManualPause(false);
+    }
+  }, [act, stopSoft]);
+  const onKeyUp = (0, import_react10.useCallback)((event) => {
+    if (KEY_ACTIONS[event.key] === "down") stopSoft();
+  }, [stopSoft]);
+  (0, import_react10.useEffect)(() => {
+    if (state.over) playSfx("over");
+  }, [state.over]);
+  (0, import_react10.useEffect)(() => {
+    if (pausedRef.current || state.over) return;
+    const speed = Math.max(80, 720 - (state.level - 1) * 70);
+    const timer = setInterval(() => act("down"), speed);
+    return () => clearInterval(timer);
+  }, [state.level, state.over, act, props.paused, manualPause]);
+  useGameControls(stageRef, pausedRef.current, onKeyDown, onKeyUp);
+  const display = state.board.map((row) => row.slice());
+  if (!state.over) {
+    const m = state.piece.mat;
+    for (let r = 0; r < m.length; r += 1) {
+      for (let c = 0; c < m[r].length; c += 1) {
+        if (m[r][c]) {
+          const by = state.piece.y + r, bx = state.piece.x + c;
+          if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) display[by][bx] = state.piece.color;
+        }
+      }
+    }
+  }
+  const nextType = state.next != null ? state.next : 0;
+  const nextMat = PIECES[nextType].rots[0];
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("section", { className: "dgame-game", "aria-label": "\u4FC4\u7F57\u65AF\u65B9\u5757", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "\u4FC4\u7F57\u65AF\u65B9\u5757" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: "\u62FC\u6EE1\u4E00\u884C\u5373\u6D88\u9664\uFF0C\u901F\u5EA6\u968F\u7B49\u7EA7\u52A0\u5FEB\uFF1B\u65B9\u5757\u5806\u5230\u9876\u7AEF\u5C31\u7ED3\u675F\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+          "\u5F97\u5206 ",
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: state.score })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+          "\u7B49\u7EA7 ",
+          state.level,
+          " \xB7 \u6D88\u884C ",
+          state.lines
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-board", ref: stageRef, tabIndex: 0, onKeyDown, onKeyUp, onBlur: stopSoft, onClick: () => focusStage(stageRef), "aria-label": "\u4FC4\u7F57\u65AF\u65B9\u5757\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u4E0E\u7A7A\u683C\u63A7\u5236", children: [
+        display.map((row, rr) => row.map((cell, cc) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: "dgame-tetris-cell", style: cell ? { background: cell, boxShadow: "0 0 8px " + cell + "aa, inset 0 0 4px rgba(255,255,255,.5)" } : void 0 }, rr + "-" + cc))),
+        state.over ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-over", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u65B9\u5757\u5806\u5230\u9876\u4E86" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", onClick: () => setState(initial()), children: "\u518D\u6765\u4E00\u5C40" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { className: "dgame-tetris-lines", viewBox: "0 0 1000 2000", preserveAspectRatio: "none", "aria-hidden": "true", children: TETRIS_GRID }),
+        !state.over && (props.paused || manualPause) ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-over", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u5DF2\u6682\u505C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", onClick: () => setManualPause(false), children: "\u7EE7\u7EED\uFF08P\uFF09" })
+        ] }) : null
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-side", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-next", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u4E0B\u4E00\u4E2A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dgame-tetris-nextbox", children: nextMat.map((row, r) => row.map((cell, c) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: "dgame-tetris-cell", style: cell ? { background: PIECES[nextType].color } : void 0 }, r + "-" + c))) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-keys", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("b", { children: "\u64CD\u4F5C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u2190/\u2192 \u79FB\u52A8 \xB7 \u2193 \u5FEB\u901F\u4E0B\u6ED1 \xB7 \u2191/X \u65CB\u8F6C \xB7 Z \u53CD\u5411 \xB7 \u7A7A\u683C \u76F4\u843D \xB7 P \u6682\u505C \xB7 R \u91CD\u5F00" })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", "aria-label": "\u5DE6\u79FB", onClick: () => act("left"), children: "\u2190 \u5DE6\u79FB" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u65B9\u5411\u952E / X\u3001Z\u3001\u7A7A\u683C\u3001P" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { type: "button", "aria-label": "\u53F3\u79FB", onClick: () => act("right"), children: [
+        "\u53F3\u79FB ",
+        "->"
+      ] })
+    ] })
+  ] });
+}
+function rotatePiece(state, dir) {
+  const rots = PIECES[state.piece.type].rots;
+  const len = rots.length;
+  const nextRot = ((state.piece.rot + dir) % len + len) % len;
+  const mat = rots[nextRot];
+  const kicks = [0, -1, 1, -2, 2, -1 - (state.piece.y < 0 ? 1 : 0), 1 + (state.piece.y < 0 ? 1 : 0), -1, 1];
+  for (const kx of kicks) {
+    if (!collides(state.board, mat, state.piece.x + kx, state.piece.y)) {
+      return Object.assign({}, state, { piece: Object.assign({}, state.piece, { rot: nextRot, x: state.piece.x + kx, mat }) });
+    }
+  }
+  return state;
+}
+function TetrisPreview() {
+  const COLORS2 = { I: "I", O: "O", T: "T", S: "S", Z: "Z", J: "J", L: "L" };
+  const ROWS3 = [
+    "..........",
+    "....TT....",
+    "..........",
+    ".......Z..",
+    "..OO.S.Z..",
+    "SS..LSOZZ.",
+    "JJSLLSOZZI",
+    "JJSLLOSOII"
+  ];
+  const isFall = (r) => r === 1;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dgcov-prev dgcov-prev-tetris", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dgp-tet-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: COLORS2[ch] ? "c" + COLORS2[ch] + (isFall(r) ? " fall" : "") : "" }, r + "-" + c))) }) });
+}
+var tetrisGame = { Game: TetrisGame, Preview: TetrisPreview, css: `
+.dgame-tetris{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;align-self:center;width:fit-content;max-width:100%;margin-inline:auto;justify-content:center}.dgame-tetris-board{position:relative;flex:none;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(20,1fr);width:min(100%,188px);aspect-ratio:10/20;border:1px solid color-mix(in srgb,rgb(34 211 238) 35%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#0c1024,#131a3d);padding:0;box-shadow:inset 0 0 30px rgb(0 0 0/.45)}.dgame-tetris-board:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(34 211 238) 40%,transparent)}.dgame-tetris-cell{display:block;background:transparent;border-radius:2px;margin:1px}.dgame-tetris-nextbox{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);width:60px;height:32px}.dgame-tetris-side{flex:1 1 96px;display:flex;flex-direction:column;gap:9px;min-width:0;max-width:220px;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-tetris-side b{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-tetris-side span{font-size:11px}.dgame-tetris-nextbox .dgame-tetris-cell{margin:1px}.dgame-tetris-keys span{display:block;line-height:1.6;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}.dgame-tetris-next{display:flex;flex-direction:column;gap:5px;align-items:center}.dgame-tetris-next span{color:var(--dsw-alias-label-secondary)}.dgame-tetris-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.dgame-tetris-lines line{stroke:#60a5fa;stroke-opacity:.12;stroke-width:2}@media (max-width:680px){.dgame-tetris{width:100%;gap:8px}.dgame-tetris-board{width:min(100%,170px)}}
+` };
+
+// features/games/games/sokoban.jsx
+var import_react11 = require("react");
+var import_jsx_runtime4 = require("react/jsx-runtime");
+var LEVELS = [
+  ["######", "#    #", "#@$ .#", "#    #", "######"],
+  ["######", "# @  #", "# $  #", "# .  #", "######"],
+  ["#######", "# @   #", "# $$  #", "# ..  #", "#######"],
+  ["######", "#@   #", "# $  #", "#  . #", "#    #", "######"],
+  ["#######", "# @   #", "# $   #", "#  $ .#", "#   . #", "#######"],
+  ["########", "#      #", "# $ $  #", "# . .  #", "#   @  #", "########"],
+  // —— 扩充关：由易到难（已用求解器验证全部可解）——
+  ["########", "#  ##  #", "#@ $ . #", "#  ##  #", "########"],
+  ["########", "#  @   #", "# $$$  #", "# ...  #", "#      #", "########"],
+  ["########", "#@     #", "# $ $  #", "#  #   #", "# . #. #", "########"],
+  ["########", "#    @ #", "# $$   #", "#  ..# #", "#      #", "########"],
+  ["########", "#@     #", "# $ $  #", "#      #", "# .# . #", "########"],
+  ["#########", "#       #", "# $ $ $ #", "#  ...  #", "#   @   #", "#       #", "#########"],
+  ["#########", "#   @   #", "# $#$$  #", "#  ...  #", "#  ##   #", "#########"],
+  ["#########", "#@  #   #", "# $   $ #", "# ###   #", "#  . .  #", "#########"],
+  ["#########", "#     ###", "# $$ #  #", "# .. #@ #", "# $$ #  #", "# ..    #", "#########"]
+];
+function cloneGrid(grid) {
+  return grid.map((row) => row.slice());
+}
+function parse(rows) {
+  return rows.map((row) => row.split(""));
+}
+function findPlayer(grid) {
+  for (let r = 0; r < grid.length; r += 1) {
+    for (let c = 0; c < grid[r].length; c += 1) {
+      if (grid[r][c] === "@" || grid[r][c] === "+") return { r, c };
+    }
+  }
+  return { r: 0, c: 0 };
+}
+function isTarget(ch) {
+  return ch === "." || ch === "*" || ch === "+";
+}
+function isBox(ch) {
+  return ch === "$" || ch === "*";
+}
+function won(grid) {
+  for (const row of grid) for (const ch of row) if (ch === "$") return false;
+  return true;
+}
+function makeInitial(levelIndex) {
+  const grid = parse(LEVELS[levelIndex]);
+  return { grid, moves: 0, pushes: 0, level: levelIndex, wonNew: false, history: [] };
+}
+function step(state, dr, dc) {
+  if (state.wonNew) return state;
+  const grid = cloneGrid(state.grid);
+  const p = findPlayer(grid);
+  const nr = p.r + dr, nc = p.c + dc;
+  if (nr < 0 || nr >= grid.length || nc < 0 || nc >= grid[0].length) return state;
+  const target = grid[nr][nc];
+  if (target === "#") return state;
+  grid[p.r][p.c] = isTarget(grid[p.r][p.c]) ? "." : " ";
+  if (isBox(target)) {
+    const br = nr + dr, bc = nc + dc;
+    if (br < 0 || br >= grid.length || bc < 0 || bc >= grid[0].length) return state;
+    const beyond = grid[br][bc];
+    if (beyond === "#" || isBox(beyond)) return state;
+    playSfx("push");
+    grid[br][bc] = isTarget(beyond) ? "*" : "$";
+    grid[nr][nc] = isTarget(target) ? "+" : "@";
+    return Object.assign({}, state, {
+      grid,
+      moves: state.moves + 1,
+      pushes: state.pushes + 1,
+      wonNew: won(grid),
+      history: state.history.concat([{ grid: state.grid, moves: state.moves, pushes: state.pushes }])
+    });
+  }
+  grid[nr][nc] = isTarget(target) ? "+" : "@";
+  playSfx("step");
+  return Object.assign({}, state, {
+    grid,
+    moves: state.moves + 1,
+    wonNew: won(grid),
+    history: state.history.concat([{ grid: state.grid, moves: state.moves, pushes: state.pushes }])
+  });
+}
+function undo(state) {
+  if (!state.history.length) return state;
+  const prev = state.history[state.history.length - 1];
+  return Object.assign({}, state, {
+    grid: cloneGrid(prev.grid),
+    moves: prev.moves,
+    pushes: prev.pushes,
+    history: state.history.slice(0, -1),
+    wonNew: false
+  });
+}
+var DIRS = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
+function SokobanGame(props) {
+  const [level, setLevel] = (0, import_react11.useState)(0);
+  const [state, setState] = (0, import_react11.useState)(() => makeInitial(0));
+  const stageRef = (0, import_react11.useRef)(null);
+  const levelRef = (0, import_react11.useRef)(level);
+  levelRef.current = level;
+  const move = (0, import_react11.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
+  const prevWon = (0, import_react11.useRef)(false);
+  (0, import_react11.useEffect)(() => {
+    if (state.wonNew && !prevWon.current) playSfx("win");
+    prevWon.current = state.wonNew;
+  }, [state.wonNew]);
+  const nextLevel = (0, import_react11.useCallback)(() => {
+    const n = (levelRef.current + 1) % LEVELS.length;
+    setLevel(n);
+    setState(makeInitial(n));
+  }, []);
+  const pickLevel = (0, import_react11.useCallback)((i) => {
+    setLevel(i);
+    setState(makeInitial(i));
+  }, []);
+  const reset = (0, import_react11.useCallback)(() => setState(makeInitial(levelRef.current)), []);
+  const onKeyDown = (0, import_react11.useCallback)((event) => {
+    const d = DIRS[event.key];
+    if (d) {
+      event.preventDefault();
+      move(d[0], d[1]);
+      return;
+    }
+    if (event.key.toLowerCase() === "u") {
+      event.preventDefault();
+      setState((s) => undo(s));
+    } else if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      reset();
+    } else if (event.key === "Enter" && state.wonNew) {
+      event.preventDefault();
+      nextLevel();
+    }
+  }, [move, state.wonNew, reset, nextLevel]);
+  useGameControls(stageRef, props.paused, onKeyDown);
+  const grid = state.grid;
+  const rows = grid.length, cols = grid[0].length;
+  const width = "min(" + cols * 26 + "px, 100%, calc((100vh - 250px) * " + cols + " / " + rows + "))";
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "dgame-game", "aria-label": "\u63A8\u7BB1\u5B50", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: "\u63A8\u7BB1\u5B50" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: "\u7528\u65B9\u5411\u952E\u628A\u7BB1\u5B50\u63A8\u5230\u76EE\u6807\u683C\u5B50\u4E0A\uFF1B\u5168\u90E8\u5230\u4F4D\u5373\u8FC7\u5173\uFF08U \u64A4\u9500\u3001R \u91CD\u7F6E\uFF09\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+          "\u6B65\u6570 ",
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: state.moves })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+          "\u63A8\u7BB1 ",
+          state.pushes
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-sokoban-levels", role: "tablist", "aria-label": "\u9009\u62E9\u5173\u5361", children: [
+      LEVELS.map((_, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", role: "tab", "aria-selected": i === level, className: i === level ? "on" : "", onClick: () => pickLevel(i), children: i + 1 }) }, i)),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => setState((s) => undo(s)), children: "\u64A4\u9500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u7F6E" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-sokoban-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), style: { width, gridTemplateColumns: "repeat(" + cols + ",1fr)", gridTemplateRows: "repeat(" + rows + ",1fr)", aspectRatio: cols + " / " + rows }, "aria-label": "\u63A8\u7BB1\u5B50\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u79FB\u52A8\uFF0CU \u64A4\u9500\uFF0CR \u91CD\u7F6E", children: [
+      grid.map((row, r) => row.map((ch, c) => {
+        let cls = "dgame-soko-cell";
+        if (ch === "#") cls += " wall";
+        else if (ch === "." || ch === "*" || ch === "+") cls += " target";
+        if (ch === "$" || ch === "*") cls += " box";
+        if (ch === "@" || ch === "+") cls += " player";
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("i", { className: cls, "aria-hidden": "true" }, r + "-" + c);
+      })),
+      state.wonNew ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("strong", { children: [
+          "\u5168\u641E\u5B9A\uFF01\u7B2C ",
+          level + 1,
+          " \u5173\u901A\u8FC7"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: nextLevel, children: level + 1 < LEVELS.length ? "\u4E0B\u4E00\u5173" : "\u91CD\u65B0\u5F00\u59CB" })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => move(-1, 0), children: "\u2191" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 U \u64A4\u9500 \xB7 R \u91CD\u7F6E" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0B", onClick: () => move(1, 0), children: "\u2193" })
+    ] })
+  ] });
+}
+function SokobanPreview() {
+  const ROWS3 = [
+    "#######",
+    "#     #",
+    "# .$@ #",
+    "# .*  #",
+    "#######"
+  ];
+  const cls = { "#": "wall", " ": "floor", ".": "target", "$": "box", "*": "boxT", "@": "player", "+": "player" };
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dgcov-prev dgcov-prev-soko", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dgp-soko-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("i", { className: "dgp-soko-" + cls[ch] }, r + "-" + c))) }) });
+}
+var sokobanGame = { Game: SokobanGame, Preview: SokobanPreview, css: `
+.dgame-sokoban-stage{position:relative;display:grid;align-self:center;gap:0;padding:6px;border:1px solid color-mix(in srgb,rgb(250 204 21) 32%,var(--dsw-alias-border-l1));border-radius:8px;background:linear-gradient(180deg,#181420,#14101f);outline:none;box-shadow:inset 0 0 26px rgb(0 0 0/.4)}.dgame-sokoban-stage:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(250 204 21) 30%,transparent)}.dgame-soko-cell{position:relative;display:block;min-width:0;min-height:0}.dgame-soko-cell.wall{background:linear-gradient(180deg,#3a3350,#241f3a);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.4)}.dgame-soko-cell.target::before{content:'';position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fde68a,#f59e0b 70%);box-shadow:0 0 8px color-mix(in srgb,#f59e0b 55%,transparent);opacity:.9}.dgame-soko-cell.box::after{content:'';position:absolute;inset:12%;border-radius:5px;background:linear-gradient(135deg,#d4a24a,#8a5a1c);box-shadow:0 2px 5px rgb(0 0 0/.45),inset 0 1px 0 rgba(255,255,255,.4);border:1px solid color-mix(in srgb,#fde68a 45%,transparent)}.dgame-soko-cell.box.target::after{background:linear-gradient(135deg,#34d399,#0f766e);border-color:#a7f3d0}.dgame-soko-cell.player::before{content:'';position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e0f2fe,#38bdf8 70%);box-shadow:0 0 9px color-mix(in srgb,#38bdf8 70%,transparent)}.dgame-sokoban-levels{display:flex;gap:6px;align-items:center;align-self:center;flex-wrap:wrap;width:min(100%,340px);justify-content:center}.dgame-sokoban-levels button{min-width:30px;height:28px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;cursor:pointer;transition:all .15s ease}.dgame-sokoban-levels button.on{color:#fde68a;border-color:color-mix(in srgb,#f59e0b 60%,transparent);background:color-mix(in srgb,#f59e0b 18%,transparent)}.dgame-sokoban-levels button:hover{border-color:var(--dgame-accent);color:var(--dsw-alias-label-primary)}
+` };
+
+// features/games/games/gomoku.jsx
+var import_react12 = require("react");
+var import_jsx_runtime5 = require("react/jsx-runtime");
+var GOMOKU_LINES = (() => {
+  const P = (n) => n * 100 + 50;
+  const parts = [/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("rect", { x: P(0), y: P(0), width: 1400, height: 1400, strokeWidth: 6.5, fill: "none" }, "frame")];
+  let k = 0;
+  for (let i = 1; i <= 13; i += 1) {
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(i), y1: P(0), x2: P(i), y2: P(14) }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(0), y1: P(i), x2: P(14), y2: P(i) }, k++));
+  }
+  for (const [r, c] of [[3, 3], [3, 11], [7, 7], [11, 3], [11, 11]]) {
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("circle", { className: "dgame-gomoku-star", cx: P(c), cy: P(r), r: 15 }, k++));
+  }
+  return parts;
+})();
+var SIZE = 15;
+var DIRS2 = [[0, 1], [1, 0], [1, 1], [1, -1]];
+function emptyBoard2() {
+  return Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+}
+function inBoard(r, c) {
+  return r >= 0 && r < SIZE && c >= 0 && c < SIZE;
+}
+function lineScore(board, r, c, color) {
+  let total = 0;
+  for (const [dr, dc] of DIRS2) {
+    let count = 1;
+    let rr = r + dr, cc = c + dc;
+    let openEnds = 0;
+    while (inBoard(rr, cc) && board[rr][cc] === color) {
+      count += 1;
+      rr += dr;
+      cc += dc;
+    }
+    if (inBoard(rr, cc) && board[rr][cc] === null) openEnds += 1;
+    rr = r - dr;
+    cc = c - dc;
+    while (inBoard(rr, cc) && board[rr][cc] === color) {
+      count += 1;
+      rr -= dr;
+      cc -= dc;
+    }
+    if (inBoard(rr, cc) && board[rr][cc] === null) openEnds += 1;
+    total += patternScore(count, openEnds);
+  }
+  return total;
+}
+function patternScore(count, openEnds) {
+  if (count >= 5) return 1e7;
+  if (openEnds === 0) return 0;
+  if (count === 4) return openEnds === 2 ? 1e6 : 1e5;
+  if (count === 3) return openEnds === 2 ? 1e4 : 1e3;
+  if (count === 2) return openEnds === 2 ? 200 : 20;
+  if (count === 1) return openEnds === 2 ? 10 : 1;
+  return 0;
+}
+function winLine(board, r, c, color) {
+  for (const [dr, dc] of DIRS2) {
+    const cells = [[r, c]];
+    let rr = r + dr, cc = c + dc;
+    while (inBoard(rr, cc) && board[rr][cc] === color) {
+      cells.push([rr, cc]);
+      rr += dr;
+      cc += dc;
+    }
+    rr = r - dr;
+    cc = c - dc;
+    while (inBoard(rr, cc) && board[rr][cc] === color) {
+      cells.push([rr, cc]);
+      rr -= dr;
+      cc -= dc;
+    }
+    if (cells.length >= 5) return cells;
+  }
+  return null;
+}
+function boardFull(board) {
+  for (const row of board) for (const cell of row) if (!cell) return false;
+  return true;
+}
+function candidates(board) {
+  const set = [];
+  const seen = /* @__PURE__ */ new Set();
+  let hasStone = false;
+  for (let r = 0; r < SIZE; r += 1) {
+    for (let c = 0; c < SIZE; c += 1) {
+      if (!board[r][c]) continue;
+      hasStone = true;
+      for (let dr = -2; dr <= 2; dr += 1) {
+        for (let dc = -2; dc <= 2; dc += 1) {
+          const rr = r + dr, cc = c + dc;
+          if (inBoard(rr, cc) && !board[rr][cc] && !seen.has(rr * SIZE + cc)) {
+            seen.add(rr * SIZE + cc);
+            set.push([rr, cc]);
+          }
+        }
+      }
+    }
+  }
+  if (!hasStone) return [[7, 7], [7, 8], [8, 7]];
+  return set;
+}
+function aiMove(board) {
+  const cands = candidates(board);
+  let best = null, bestScore = -1;
+  for (const [r, c] of cands) {
+    const attack = lineScore(board, r, c, "w");
+    const defend = lineScore(board, r, c, "b");
+    const score = attack + defend * 0.92;
+    if (score > bestScore) {
+      bestScore = score;
+      best = [r, c];
+    }
+  }
+  return best || [7, 7];
+}
+function GomokuGame(props) {
+  const [board, setBoard] = (0, import_react12.useState)(emptyBoard2);
+  const [turn, setTurn] = (0, import_react12.useState)("b");
+  const [winner, setWinner] = (0, import_react12.useState)(null);
+  const [winCells, setWinCells] = (0, import_react12.useState)(null);
+  const [showResult, setShowResult] = (0, import_react12.useState)(false);
+  const [last, setLast] = (0, import_react12.useState)(null);
+  const [history, setHistory] = (0, import_react12.useState)([]);
+  const [thinking, setThinking] = (0, import_react12.useState)(false);
+  const boardRef = (0, import_react12.useRef)(board);
+  const stageRef = (0, import_react12.useRef)(null);
+  boardRef.current = board;
+  const turnRef = (0, import_react12.useRef)(turn);
+  turnRef.current = turn;
+  const winRef = (0, import_react12.useRef)(winner);
+  winRef.current = winner;
+  const finish = (0, import_react12.useCallback)((b, r, c, color) => {
+    const line = winLine(b, r, c, color);
+    if (line) {
+      setWinner(color);
+      setWinCells(line);
+      setShowResult(true);
+      playSfx(color === "b" ? "win" : "over");
+    } else if (boardFull(b)) {
+      setWinner("draw");
+      setWinCells(null);
+      setShowResult(true);
+      playSfx("clear");
+    } else playSfx("stone");
+  }, []);
+  const place = (0, import_react12.useCallback)((r, c, color) => {
+    if (boardRef.current[r][c]) return false;
+    const next = boardRef.current.map((row) => row.slice());
+    next[r][c] = color;
+    setBoard(next);
+    boardRef.current = next;
+    setLast({ r, c });
+    setHistory((h) => h.concat([{ r, c, color }]));
+    finish(next, r, c, color);
+    return true;
+  }, [finish]);
+  (0, import_react12.useEffect)(() => {
+    if (turn !== "w" || winner || props.paused) return;
+    setThinking(true);
+    const t = setTimeout(() => {
+      const [r, c] = aiMove(boardRef.current);
+      place(r, c, "w");
+      setTurn("b");
+      setThinking(false);
+    }, 260);
+    return () => clearTimeout(t);
+  }, [turn, winner, props.paused, place]);
+  const onCell = (0, import_react12.useCallback)((r, c) => {
+    if (winRef.current || turnRef.current !== "b" || thinking || boardRef.current[r][c]) return;
+    place(r, c, "b");
+    setTurn("w");
+  }, [thinking, place]);
+  const reset = (0, import_react12.useCallback)(() => {
+    setBoard(emptyBoard2());
+    setTurn("b");
+    setWinner(null);
+    setWinCells(null);
+    setShowResult(false);
+    setLast(null);
+    setHistory([]);
+    setThinking(false);
+  }, []);
+  const undo2 = (0, import_react12.useCallback)(() => {
+    if (thinking || history.length < 2) return;
+    const h = history.slice(0, -2);
+    const next = emptyBoard2();
+    for (const m of h) next[m.r][m.c] = m.color;
+    setBoard(next);
+    boardRef.current = next;
+    setHistory(h);
+    setTurn("b");
+    setWinner(null);
+    setWinCells(null);
+    setShowResult(false);
+    setLast(h.length ? h[h.length - 1] : null);
+  }, [history, thinking]);
+  const onKeyDown = (0, import_react12.useCallback)((event) => {
+    if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      reset();
+    } else if (event.key.toLowerCase() === "u") {
+      event.preventDefault();
+      undo2();
+    }
+  }, [reset, undo2]);
+  useGameControls(stageRef, props.paused, onKeyDown);
+  const statusText = winner === "b" ? "\u4F60\u8D62\u4E86 \xB7 \u4E94\u5B50\u8FDE\u73E0" : winner === "w" ? "AI \u8D62\u4E86 \xB7 \u518D\u8BD5\u4E00\u6B21" : winner === "draw" ? "\u548C\u68CB \xB7 \u68CB\u76D8\u5DF2\u6EE1" : turn === "b" ? "\u8F6E\u5230\u4F60\u843D\u5B50\uFF08\u9ED1\uFF09" : "AI \u601D\u8003\u4E2D\u2026\uFF08\u767D\uFF09";
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "dgame-game", "aria-label": "\u4E94\u5B50\u68CB", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { children: "\u4E94\u5B50\u68CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: "\u4F60\u6267\u9ED1\u5148\u624B\uFF0CAI \u6267\u767D\uFF1B\u5148\u5728\u6A2A\u7AD6\u659C\u4EFB\u4E00\u7EBF\u8FDE\u6210\u4E94\u5B50\u8005\u80DC\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "\u56DE\u5408" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { className: "dg-gomoku-status", children: statusText }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u5F00" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-gomoku-board", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), role: "grid", "aria-label": "\u5341\u4E94\u8DEF\u4E94\u5B50\u68CB\u68CB\u76D8", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("svg", { className: "dgame-gomoku-lines", viewBox: "0 0 1500 1500", preserveAspectRatio: "none", "aria-hidden": "true", children: GOMOKU_LINES }),
+      board.map((row, r) => row.map((cell, c) => {
+        const isWin = winCells && winCells.some(([wr, wc]) => wr === r && wc === c);
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "button",
+          {
+            type: "button",
+            role: "gridcell",
+            className: "dgame-gomoku-cell" + (cell ? " filled " + cell : "") + (last && last.r === r && last.c === c ? " last" : "") + (isWin ? " wincell" : ""),
+            "aria-label": "\u7B2C" + (r + 1) + "\u884C\u7B2C" + (c + 1) + "\u5217" + (cell === "b" ? " \u9ED1\u5B50" : cell === "w" ? " \u767D\u5B50" : " \u7A7A\u683C"),
+            onClick: () => {
+              focusStage(stageRef);
+              onCell(r, c);
+            },
+            children: cell ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("i", { className: "dgame-gomoku-stone " + (cell === "b" ? "black" : "white") }) : null
+          },
+          r + "-" + c
+        );
+      })),
+      winner && showResult ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "dgame-gomoku-result", role: "status", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-gomoku-result-card " + winner, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "dgame-gomoku-result-icon", "aria-hidden": "true", children: winner === "b" ? "\u{1F389}" : winner === "w" ? "\u{1F916}" : "\u{1F91D}" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: winner === "b" ? "\u4F60\u8D62\u4E86\uFF01" : winner === "w" ? "AI \u8D62\u4E86" : "\u548C\u68CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: winner === "b" ? "\u4E94\u5B50\u8FDE\u73E0\uFF0C\u6F02\u4EAE\uFF01" : winner === "w" ? "\u518D\u63A5\u518D\u5389\uFF0C\u5377\u571F\u91CD\u6765\u3002" : "\u68CB\u76D8\u5DF2\u6EE1\uFF0C\u5E73\u5206\u79CB\u8272\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-gomoku-result-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: (e) => {
+            e.stopPropagation();
+            setShowResult(false);
+          }, children: "\u67E5\u770B\u68CB\u76D8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: (e) => {
+            e.stopPropagation();
+            reset();
+          }, children: "\u518D\u6765\u4E00\u5C40" })
+        ] })
+      ] }) }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: statusText }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u5F00" })
+    ] })
+  ] });
+}
+function GomokuPreview() {
+  const P = (n) => n * 100 + 50;
+  const stones = [[3, 3, "b"], [6, 3, "w"], [4, 4, "w"], [5, 5, "b"], [2, 6, "w"], [6, 6, "b"]];
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "dgcov-prev dgcov-prev-gomoku", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("svg", { viewBox: "0 0 900 900", preserveAspectRatio: "xMidYMid slice", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 800, fill: "none", strokeWidth: 11 }),
+    [1, 2, 3, 4, 5, 6, 7].map((i) => [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(i), y1: P(0), x2: P(i), y2: P(8) }, "v" + i),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(0), y1: P(i), x2: P(8), y2: P(i) }, "h" + i)
+    ]),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("circle", { className: "dgp-star", cx: P(4), cy: P(4), r: 16 }),
+    stones.map(([r, c, col], i) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("circle", { className: "dgp-stone-" + col, cx: P(c), cy: P(r), r: 40 }, i))
+  ] }) });
+}
+var gomokuGame = { Game: GomokuGame, Preview: GomokuPreview, css: `
+.dgame-gomoku-board{position:relative;display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);align-self:center;width:min(100%,min(90vw,330px));aspect-ratio:1/1;padding:12px;border-radius:12px;border:1px solid color-mix(in srgb,#7c4f16 65%,transparent);box-shadow:0 12px 32px rgb(0 0 0/.5),inset 0 1px 0 rgba(255,236,200,.55),inset 0 -3px 9px rgba(90,50,10,.35),inset 3px 0 8px rgba(255,224,170,.28),inset -3px 0 8px rgba(120,70,20,.25);outline:none;background:repeating-linear-gradient(94deg,rgba(124,79,22,.05) 0 2px,transparent 2px 11px),repeating-linear-gradient(87deg,rgba(255,238,196,.05) 0 2px,transparent 2px 14px),radial-gradient(120% 110% at 30% 10%,#edc97f,#dcae62 52%,#cc9a52 80%,#bb8844)}.dgame-gomoku-lines{position:absolute;inset:12px;pointer-events:none}.dgame-gomoku-lines line{stroke:#66431a;stroke-width:3;fill:none}.dgame-gomoku-star{fill:#66431a}.dgame-gomoku-cell{position:relative;z-index:1;background:transparent;border:none;cursor:pointer;padding:0;margin:0;outline:none;min-width:0;min-height:0}.dgame-gomoku-cell:focus-visible::after{content:'';position:absolute;inset:8%;border:2px solid rgba(255,255,255,.7);border-radius:50%}.dgame-gomoku-stone{position:absolute;inset:10%;border-radius:50%;display:block}.dgame-gomoku-stone.black{background:radial-gradient(circle at 34% 30%,#4b5563,#111827 68%);box-shadow:0 2px 5px rgb(0 0 0/.5),inset 0 1px 1px rgba(255,255,255,.25)}.dgame-gomoku-stone.white{background:radial-gradient(circle at 34% 30%,#ffffff,#cbd5e1 70%);box-shadow:0 2px 5px rgb(0 0 0/.4),inset 0 1px 1px rgba(255,255,255,.9)}.dgame-gomoku-cell.last .dgame-gomoku-stone::after{content:'';position:absolute;inset:32%;border-radius:50%;background:rgba(255,80,80,.9)}.dg-gomoku-status{font-size:12px;color:var(--dsw-alias-label-tertiary)}
+.dgame-gomoku-cell.wincell .dgame-gomoku-stone{animation:dg-gomoku-win 1s ease-in-out infinite;z-index:1}
+@keyframes dg-gomoku-win{0%,100%{box-shadow:0 2px 5px rgb(0 0 0/.5),0 0 0 0 rgba(255,214,102,.85)}50%{box-shadow:0 2px 5px rgb(0 0 0/.5),0 0 0 6px rgba(255,214,102,0)}}
+.dgame-gomoku-result{position:absolute;inset:-1px;z-index:5;display:grid;place-items:center;background:rgba(10,10,20,.55);backdrop-filter:blur(2px);border-radius:8px;animation:dg-gomoku-fade .25s ease-out}
+.dgame-gomoku-result-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 26px;border-radius:14px;background:linear-gradient(160deg,#241f38,#171427);border:1px solid color-mix(in srgb,var(--dgame-accent,#a78bfa) 45%,transparent);box-shadow:0 12px 40px rgb(0 0 0/.55),0 0 0 4px rgba(167,139,250,.08);animation:dg-gomoku-pop .35s cubic-bezier(.22,1.6,.36,1);text-align:center}
+.dgame-gomoku-result-card strong{font-size:18px;color:#fff}
+.dgame-gomoku-result-card.b strong{color:#fbbf24}.dgame-gomoku-result-card.w strong{color:#e5e7eb}.dgame-gomoku-result-card.draw strong{color:#cbd5e1}
+.dgame-gomoku-result-icon{font-size:28px;line-height:1;animation:dg-gomoku-bounce 1.2s ease-in-out infinite}
+.dgame-gomoku-result-card p{margin:0;font-size:12px;color:var(--dsw-alias-label-tertiary,#9ca3af)}
+.dgame-gomoku-result-actions{display:flex;gap:10px;margin-top:6px}
+.dgame-gomoku-result-actions button{padding:6px 14px;border-radius:8px;border:1px solid color-mix(in srgb,var(--dgame-accent,#a78bfa) 40%,transparent);background:rgba(167,139,250,.14);color:#ede9fe;font-size:13px;cursor:pointer}
+.dgame-gomoku-result-actions button:hover{background:rgba(167,139,250,.28)}
+@keyframes dg-gomoku-fade{from{opacity:0}to{opacity:1}}
+@keyframes dg-gomoku-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes dg-gomoku-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+` };
+
+// features/games/games/xiangqi.jsx
+var import_react13 = require("react");
+
+// features/games/xiangqi-core.js
+var ROWS2 = 10;
+var COLS2 = 9;
+function pieceChar(p) {
+  const map = {
+    g: { r: "\u5E25", b: "\u5C07" },
+    a: { r: "\u4ED5", b: "\u58EB" },
+    e: { r: "\u76F8", b: "\u8C61" },
+    h: { r: "\u99AC", b: "\u99AC" },
+    k: { r: "\u8ECA", b: "\u8ECA" },
+    c: { r: "\u70AE", b: "\u70AE" },
+    p: { r: "\u5175", b: "\u5352" }
+  };
+  return map[p.t] && map[p.t][p.c];
+}
+var VALUE = { g: 1e5, k: 900, c: 450, h: 400, e: 200, a: 200, p: 100 };
+function initialBoard() {
+  const b = Array.from({ length: ROWS2 }, () => Array(COLS2).fill(null));
+  const back = ["k", "h", "e", "a", "g", "a", "e", "h", "k"];
+  back.forEach((t, c) => {
+    b[0][c] = { t, c: "b" };
+  });
+  b[2][1] = { t: "c", c: "b" };
+  b[2][7] = { t: "c", c: "b" };
+  [0, 2, 4, 6, 8].forEach((c) => {
+    b[3][c] = { t: "p", c: "b" };
+  });
+  back.forEach((t, c) => {
+    b[9][c] = { t, c: "r" };
+  });
+  b[7][1] = { t: "c", c: "r" };
+  b[7][7] = { t: "c", c: "r" };
+  [0, 2, 4, 6, 8].forEach((c) => {
+    b[6][c] = { t: "p", c: "r" };
+  });
+  return b;
+}
+function cloneBoard(b) {
+  return b.map((row) => row.slice());
+}
+function posKey(board) {
+  let s = "";
+  for (const row of board) for (const p of row) s += p ? p.t + p.c : ".";
+  return s;
+}
+function inBounds(r, c) {
+  return r >= 0 && r < ROWS2 && c >= 0 && c < COLS2;
+}
+function inPalace(r, c, color) {
+  if (c < 3 || c > 5) return false;
+  return color === "r" ? r >= 7 && r <= 9 : r >= 0 && r <= 2;
+}
+function ownSide(r, color) {
+  return color === "r" ? r >= 5 : r <= 4;
+}
+function crossedRiver(r, color) {
+  return color === "r" ? r <= 4 : r >= 5;
+}
+function countBetween(board, r, c, tr, tc, dr, dc) {
+  let n = 0, rr = r + dr, cc = c + dc;
+  while (!(rr === tr && cc === tc)) {
+    if (rr < 0 || rr >= ROWS2 || cc < 0 || cc >= COLS2) return -1;
+    if (board[rr][cc]) n += 1;
+    rr += dr;
+    cc += dc;
+  }
+  return n;
+}
+function attacks(board, r, c, tr, tc) {
+  const p = board[r][c];
+  if (!p) return false;
+  const dr = Math.sign(tr - r), dc = Math.sign(tc - c);
+  const t = board[tr][tc];
+  if (p.t === "k") {
+    if (r !== tr && c !== tc) return false;
+    return countBetween(board, r, c, tr, tc, dr, dc) === 0;
+  }
+  if (p.t === "c") {
+    if (r !== tr && c !== tc) return false;
+    if (dr === 0 && dc === 0) return false;
+    return countBetween(board, r, c, tr, tc, dr, dc) === 1 && !!t;
+  }
+  if (p.t === "h") {
+    const adr = Math.abs(tr - r), adc = Math.abs(tc - c);
+    if (!(adr === 2 && adc === 1 || adr === 1 && adc === 2)) return false;
+    const legR = adr === 2 ? r + dr : r;
+    const legC = adc === 2 ? c + dc : c;
+    return !board[legR][legC];
+  }
+  if (p.t === "g") {
+    return Math.abs(tr - r) + Math.abs(tc - c) === 1 && inPalace(tr, tc, p.c);
+  }
+  if (p.t === "a") {
+    return Math.abs(tr - r) === 1 && Math.abs(tc - c) === 1 && inPalace(tr, tc, p.c);
+  }
+  if (p.t === "e") {
+    const adr = Math.abs(tr - r), adc = Math.abs(tc - c);
+    if (!(adr === 2 && adc === 2)) return false;
+    if (!ownSide(tr, p.c)) return false;
+    const eyeR = r + dr, eyeC = c + dc;
+    return !board[eyeR][eyeC];
+  }
+  if (p.t === "p") {
+    const forward = p.c === "r" ? r - 1 : r + 1;
+    if (tr === forward && tc === c) return true;
+    if (crossedRiver(r, p.c) && tr === r && Math.abs(tc - c) === 1) return true;
+    return false;
+  }
+  return false;
+}
+function findGeneral(board, color) {
+  for (let r = 0; r < ROWS2; r += 1) {
+    for (let c = 0; c < COLS2; c += 1) {
+      const p = board[r][c];
+      if (p && p.t === "g" && p.c === color) return { r, c };
+    }
+  }
+  return null;
+}
+function pseudoMoves(board, r, c) {
+  const p = board[r][c];
+  if (!p) return [];
+  const out = [];
+  const push = (nr, nc) => {
+    if (inBounds(nr, nc)) out.push([nr, nc]);
+  };
+  const clear = (nr, nc) => !board[nr][nc];
+  const enemy = (nr, nc) => {
+    const q = board[nr][nc];
+    return q && q.c !== p.c;
+  };
+  if (p.t === "g") {
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dr, dc]) => {
+      const nr = r + dr, nc = c + dc;
+      if (inPalace(nr, nc, p.c) && (clear(nr, nc) || enemy(nr, nc))) push(nr, nc);
+    });
+  }
+  if (p.t === "a") {
+    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([dr, dc]) => {
+      const nr = r + dr, nc = c + dc;
+      if (inPalace(nr, nc, p.c) && (clear(nr, nc) || enemy(nr, nc))) push(nr, nc);
+    });
+  }
+  if (p.t === "e") {
+    [[-2, -2], [-2, 2], [2, -2], [2, 2]].forEach(([dr, dc]) => {
+      const nr = r + dr, nc = c + dc, er = r + dr / 2, ec = c + dc / 2;
+      if (inBounds(nr, nc) && ownSide(nr, p.c) && !board[er][ec] && (clear(nr, nc) || enemy(nr, nc))) push(nr, nc);
+    });
+  }
+  if (p.t === "h") {
+    [[-2, -1], [-2, 1], [2, -1], [2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2]].forEach(([dr, dc]) => {
+      const nr = r + dr, nc = c + dc;
+      const legR = Math.abs(dr) === 2 ? r + dr / 2 : r;
+      const legC = Math.abs(dc) === 2 ? c + dc / 2 : c;
+      if (inBounds(nr, nc) && !board[legR][legC] && (clear(nr, nc) || enemy(nr, nc))) push(nr, nc);
+    });
+  }
+  if (p.t === "k" || p.t === "c") {
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dr, dc]) => {
+      let rr = r + dr, cc = c + dc, jumped = false;
+      while (inBounds(rr, cc)) {
+        const q = board[rr][cc];
+        if (p.t === "k") {
+          if (!q) push(rr, cc);
+          else {
+            if (q.c !== p.c) push(rr, cc);
+            break;
+          }
+        } else {
+          if (!q && !jumped) push(rr, cc);
+          else if (q && !jumped) jumped = true;
+          else if (q && jumped) {
+            if (q.c !== p.c) push(rr, cc);
+            break;
+          }
+        }
+        rr += dr;
+        cc += dc;
+      }
+    });
+  }
+  if (p.t === "p") {
+    const forward = p.c === "r" ? -1 : 1;
+    [[forward, 0], [0, -1], [0, 1]].forEach(([dr, dc]) => {
+      const nr = r + dr, nc = c + dc;
+      if (!inBounds(nr, nc) || dc !== 0 && !crossedRiver(r, p.c)) return;
+      if (clear(nr, nc) || enemy(nr, nc)) push(nr, nc);
+    });
+  }
+  return out;
+}
+function applyMove(board, fr, fc, tr, tc) {
+  const nb = cloneBoard(board);
+  nb[tr][tc] = nb[fr][fc];
+  nb[fr][fc] = null;
+  return nb;
+}
+function inCheck(board, color) {
+  const g = findGeneral(board, color);
+  if (!g) return true;
+  const enemy = color === "r" ? "b" : "r";
+  for (let r = 0; r < ROWS2; r += 1) {
+    const p = board[r][g.c];
+    if (p && p.t === "g" && p.c === enemy) {
+      let clear = true;
+      const lo = Math.min(r, g.r), hi = Math.max(r, g.r);
+      for (let i = lo + 1; i < hi; i += 1) if (board[i][g.c]) {
+        clear = false;
+        break;
+      }
+      if (clear) return true;
+    }
+  }
+  for (let r = 0; r < ROWS2; r += 1) {
+    for (let c = 0; c < COLS2; c += 1) {
+      const p = board[r][c];
+      if (p && p.c === enemy && attacks(board, r, c, g.r, g.c)) return true;
+    }
+  }
+  return false;
+}
+function legalMoves(board, color) {
+  const out = [];
+  for (let r = 0; r < ROWS2; r += 1) {
+    for (let c = 0; c < COLS2; c += 1) {
+      const p = board[r][c];
+      if (!p || p.c !== color) continue;
+      for (const [nr, nc] of pseudoMoves(board, r, c)) {
+        const nb = applyMove(board, r, c, nr, nc);
+        if (!inCheck(nb, color)) out.push([r, c, nr, nc]);
+      }
+    }
+  }
+  return out;
+}
+function hasLegalMoves(board, color) {
+  return legalMoves(board, color).length > 0;
+}
+function evaluatePosition(board) {
+  let score = 0;
+  for (let r = 0; r < ROWS2; r += 1) {
+    for (let c = 0; c < COLS2; c += 1) {
+      const p = board[r][c];
+      if (!p) continue;
+      let v = VALUE[p.t];
+      if (p.t === "p") v += crossedRiver(r, p.c) ? 50 : 0;
+      score += p.c === "b" ? v : -v;
+    }
+  }
+  return score;
+}
+function evalFrom(board, color) {
+  const e = evaluatePosition(board);
+  return color === "b" ? e : -e;
+}
+function negamax(board, color, depth, alpha, beta) {
+  const moves = legalMoves(board, color);
+  if (moves.length === 0) {
+    return color === "b" ? -1e6 + (10 - depth) : 1e6 - (10 - depth);
+  }
+  if (depth === 0) return evalFrom(board, color);
+  const enemy = color === "r" ? "b" : "r";
+  const ordered = orderMoves(board, moves);
+  let best = -Infinity;
+  for (const m of ordered) {
+    const nb = applyMove(board, m[0], m[1], m[2], m[3]);
+    const score = -negamax(nb, enemy, depth - 1, -beta, -alpha);
+    if (score > best) best = score;
+    if (best > alpha) alpha = best;
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+function orderMoves(board, moves) {
+  const scored = moves.map((m) => {
+    let s = 0;
+    const target = board[m[2]][m[3]];
+    if (target) s += VALUE[target.t] * 10;
+    return { m, s };
+  });
+  scored.sort((a, b) => b.s - a.s);
+  return scored.map((o) => o.m);
+}
+function bestMove(board, color, depth, avoid) {
+  const moves = legalMoves(board, color);
+  if (!moves.length) return null;
+  const enemy = color === "r" ? "b" : "r";
+  const ordered = orderMoves(board, moves);
+  let pool;
+  if (avoid && avoid.size) {
+    const seenCount = (m) => avoid.get(posKey(applyMove(board, m[0], m[1], m[2], m[3]))) || 0;
+    const minSeen = Math.min(...ordered.map(seenCount));
+    pool = minSeen === 0 ? ordered.filter((m) => seenCount(m) === 0).map((m) => ({ m, pen: 0 })) : ordered.map((m) => ({ m, pen: seenCount(m) * 60 })).sort((a, b) => a.pen - b.pen);
+  } else {
+    pool = ordered.map((m) => ({ m, pen: 0 }));
+  }
+  if (depth <= 1) {
+    return pickAmongBest(pool.map(({ m, pen }) => ({ m, s: evalFrom(applyMove(board, m[0], m[1], m[2], m[3]), color) - pen })));
+  }
+  let bestScore = -Infinity;
+  let alpha = -Infinity;
+  const scored = [];
+  for (const { m, pen } of pool) {
+    const nb = applyMove(board, m[0], m[1], m[2], m[3]);
+    const s = -negamax(nb, enemy, depth - 1, -Infinity, -alpha) - pen;
+    scored.push({ m, s });
+    if (s > bestScore) {
+      bestScore = s;
+      alpha = Math.max(alpha, bestScore - TIE_EPSILON);
+    }
+  }
+  return pickAmongBest(scored);
+}
+var TIE_EPSILON = 12;
+function pickAmongBest(scored) {
+  let bestScore = -Infinity;
+  for (const o of scored) if (o.s > bestScore) bestScore = o.s;
+  const ties = scored.filter((o) => o.s >= bestScore - TIE_EPSILON);
+  return ties[Math.floor(Math.random() * ties.length)].m;
+}
+
+// features/games/games/xiangqi.jsx
+var import_jsx_runtime6 = require("react/jsx-runtime");
+var XIANGQI_LINES = (() => {
+  const P = (n) => n * 100 + 50;
+  const parts = [];
+  let k = 0;
+  parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 900, strokeWidth: 7, fill: "none" }, "frame"));
+  for (let r = 1; r <= 8; r += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(r), x2: P(8), y2: P(r) }, k++));
+  for (let c = 1; c <= 7; c += 1) {
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(0), x2: P(c), y2: P(4) }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(5), x2: P(c), y2: P(9) }, k++));
+  }
+  parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: `M${P(3)} ${P(0)}L${P(5)} ${P(2)}M${P(5)} ${P(0)}L${P(3)} ${P(2)}M${P(3)} ${P(7)}L${P(5)} ${P(9)}M${P(5)} ${P(7)}L${P(3)} ${P(9)}` }, k++));
+  const t = 14, o = 16;
+  const marks = [[1, 2], [7, 2], [1, 7], [7, 7], [0, 3], [2, 3], [4, 3], [6, 3], [8, 3], [0, 6], [2, 6], [4, 6], [6, 6], [8, 6]];
+  for (const [c, r] of marks) {
+    const seg = [];
+    if (c > 0) seg.push(
+      `M${P(c) - o - t} ${P(r) - o}H${P(c) - o}V${P(r) - o - t}`,
+      `M${P(c) - o - t} ${P(r) + o}H${P(c) - o}V${P(r) + o + t}`
+    );
+    if (c < 8) seg.push(
+      `M${P(c) + o} ${P(r) - o}H${P(c) + o + t}V${P(r) - o - t}`,
+      `M${P(c) + o} ${P(r) + o}H${P(c) + o + t}V${P(r) + o + t}`
+    );
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { className: "dgame-xiangqi-mark", strokeWidth: 2.6, d: seg.join("") }, k++));
+  }
+  return parts;
+})();
+function XiangqiGame(props) {
+  const [board, setBoard] = (0, import_react13.useState)(initialBoard);
+  const [turn, setTurn] = (0, import_react13.useState)("r");
+  const [sel, setSel] = (0, import_react13.useState)(null);
+  const [targets, setTargets] = (0, import_react13.useState)([]);
+  const [over, setOver] = (0, import_react13.useState)(null);
+  const [check, setCheck] = (0, import_react13.useState)(false);
+  const [last, setLast] = (0, import_react13.useState)(null);
+  const [thinking, setThinking] = (0, import_react13.useState)(false);
+  const [history, setHistory] = (0, import_react13.useState)([]);
+  const [repKeys, setRepKeys] = (0, import_react13.useState)(() => [posKey(initialBoard())]);
+  const pushKey = (0, import_react13.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
+  const stageRef = (0, import_react13.useRef)(null);
+  const boardRef = (0, import_react13.useRef)(board);
+  boardRef.current = board;
+  const turnRef = (0, import_react13.useRef)(turn);
+  turnRef.current = turn;
+  const overRef = (0, import_react13.useRef)(over);
+  overRef.current = over;
+  const thinkingRef = (0, import_react13.useRef)(thinking);
+  thinkingRef.current = thinking;
+  const historyRef = (0, import_react13.useRef)(history);
+  historyRef.current = history;
+  const restart = (0, import_react13.useCallback)(() => {
+    const b = initialBoard();
+    boardRef.current = b;
+    setBoard(b);
+    setTurn("r");
+    setSel(null);
+    setTargets([]);
+    setOver(null);
+    setCheck(false);
+    setLast(null);
+    setThinking(false);
+    setHistory([]);
+    setRepKeys([posKey(b)]);
+  }, []);
+  const undo2 = (0, import_react13.useCallback)(() => {
+    if (thinkingRef.current || overRef.current || turnRef.current !== "r") return;
+    const h = historyRef.current;
+    if (h.length < 2) return;
+    const hist = h.slice(0, -2);
+    const b = hist.length ? cloneBoard(hist[hist.length - 1]) : initialBoard();
+    boardRef.current = b;
+    setBoard(b);
+    setHistory(hist);
+    setSel(null);
+    setTargets([]);
+    setLast(null);
+    setOver(null);
+    setCheck(inCheck(b, "r"));
+    setRepKeys(hist.map(posKey).concat(posKey(b)));
+  }, []);
+  const moveRed = (0, import_react13.useCallback)((tr, tc) => {
+    if (turnRef.current !== "r" || overRef.current || !sel) return;
+    const fr = sel[0], fc = sel[1];
+    if (boardRef.current[tr][tc]) playSfx("capture");
+    else playSfx("step");
+    const nb = applyMove(boardRef.current, fr, fc, tr, tc);
+    setHistory((h) => [...h, boardRef.current]);
+    boardRef.current = nb;
+    pushKey(nb);
+    setBoard(nb);
+    setSel(null);
+    setTargets([]);
+    setLast([tr, tc]);
+    setTurn("b");
+    if (!hasLegalMoves(nb, "b")) {
+      setOver("r");
+      setCheck(false);
+    } else setCheck(inCheck(nb, "b"));
+  }, [sel, pushKey]);
+  const select = (0, import_react13.useCallback)((r, c) => {
+    if (overRef.current || turnRef.current !== "r" || thinkingRef.current) return;
+    const p = boardRef.current[r][c];
+    if (p && p.c === "r") {
+      setSel([r, c]);
+      const list = legalMoves(boardRef.current, "r").filter((m) => m[0] === r && m[1] === c).map((m) => [m[2], m[3]]);
+      setTargets(list);
+      return;
+    }
+    if (sel && targets.some(([tr, tc]) => tr === r && tc === c)) {
+      moveRed(r, c);
+      return;
+    }
+    setSel(null);
+    setTargets([]);
+  }, [sel, targets, moveRed]);
+  (0, import_react13.useEffect)(() => {
+    if (turn !== "b" || over || props.paused) return;
+    const t = setTimeout(() => {
+      const seenCounts = /* @__PURE__ */ new Map();
+      for (const k of repKeys) seenCounts.set(k, (seenCounts.get(k) || 0) + 1);
+      const mv = bestMove(boardRef.current, "b", 3, seenCounts);
+      if (mv) {
+        const [fr, fc, tr, tc] = mv;
+        if (boardRef.current[tr][tc]) playSfx("capture");
+        else playSfx("step");
+        const nb = applyMove(boardRef.current, fr, fc, tr, tc);
+        setHistory((h) => [...h, boardRef.current]);
+        boardRef.current = nb;
+        pushKey(nb);
+        setBoard(nb);
+        setLast([tr, tc]);
+        setTurn("r");
+        if (!hasLegalMoves(nb, "r")) {
+          setOver("b");
+          setCheck(false);
+        } else setCheck(inCheck(nb, "r"));
+      } else setOver("r");
+      setThinking(false);
+    }, 90);
+    setThinking(true);
+    return () => clearTimeout(t);
+  }, [turn, over, props.paused, repKeys, pushKey]);
+  const onKeyDown = (0, import_react13.useCallback)((event) => {
+    if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      restart();
+    } else if (event.key.toLowerCase() === "u") {
+      event.preventDefault();
+      undo2();
+    }
+  }, [restart, undo2]);
+  useGameControls(stageRef, props.paused, onKeyDown);
+  const status = over === "r" ? "\u7EA2\u65B9\u80DC \xB7 \u606D\u559C" : over === "b" ? "\u9ED1\u65B9\u80DC \xB7 AI \u8D62" : thinking ? "AI \u601D\u8003\u4E2D\u2026" : check ? "\u5C06\u519B\uFF01" : turn === "r" ? "\u8F6E\u5230\u4F60\uFF08\u7EA2\u65B9\uFF09" : "\u8F6E\u5230 AI\uFF08\u9ED1\u65B9\uFF09";
+  const prevCheck = (0, import_react13.useRef)(false);
+  (0, import_react13.useEffect)(() => {
+    if (over === "r") playSfx("win");
+    else if (over === "b") playSfx("over");
+    else if (!thinking && check && !prevCheck.current) playSfx("check");
+    prevCheck.current = !thinking && check;
+  }, [check, thinking, over]);
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "dgame-game", "aria-label": "\u8C61\u68CB", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h3", { children: "\u4E2D\u56FD\u8C61\u68CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { children: "\u4F60\u6267\u7EA2\u5148\u884C\uFF0CAI \u6267\u9ED1\uFF1B\u5403\u6389\u5BF9\u65B9\u5C06/\u5E05\u5373\u80DC\u3002\u70B9\u51FB\u9009\u4E2D\u7EA2\u5B50\uFF0C\u518D\u70B9\u9AD8\u4EAE\u843D\u70B9\u8D70\u68CB\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "\u5F53\u524D" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { className: "dg-gomoku-status", children: status }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: restart, children: "\u91CD\u5F00" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-xiangqi-board", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), role: "grid", "aria-label": "\u4E2D\u56FD\u8C61\u68CB\u68CB\u76D8", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("svg", { className: "dgame-xiangqi-lines", viewBox: "0 0 900 1000", preserveAspectRatio: "none", "aria-hidden": "true", children: [
+        XIANGQI_LINES,
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgame-xiangqi-rivertext", x: 230, y: 505, children: "\u695A \u6CB3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgame-xiangqi-rivertext", x: 670, y: 505, children: "\u6F22 \u754C" })
+      ] }),
+      board.map((row, r) => row.map((p, c) => {
+        const isSel = sel && sel[0] === r && sel[1] === c;
+        const isTargetMark = targets.some(([tr, tc]) => tr === r && tc === c);
+        const isLast = last && last[0] === r && last[1] === c;
+        return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "button",
+          {
+            type: "button",
+            role: "gridcell",
+            className: "dgame-xiangqi-cell" + (isSel ? " sel" : "") + (isTargetMark ? " target" : "") + (isLast ? " last" : ""),
+            "aria-label": "\u7B2C" + (r + 1) + "\u884C\u7B2C" + (c + 1) + "\u5217" + (p ? pieceChar(p) : " \u7A7A"),
+            onClick: () => {
+              focusStage(stageRef);
+              select(r, c);
+            },
+            children: p ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-pc " + p.c, children: pieceChar(p) }) : isTargetMark ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-dot", "aria-hidden": "true" }) : null
+          },
+          r + "-" + c
+        );
+      }))
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+        status,
+        " \xB7 R \u91CD\u5F00 \xB7 U \u64A4\u9500"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: restart, children: "\u91CD\u5F00" })
+    ] })
+  ] });
+}
+function XiangqiPreview() {
+  const P = (n) => n * 100 + 50;
+  const pc = (c, r, ch, col) => [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("circle", { cx: P(c), cy: P(r), r: 44, className: "dgp-xq-pc-" + col }, "pc" + c + r),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { x: P(c), y: P(r) + 2, className: "dgp-xq-tx-" + col, children: ch }, "tx" + c + r)
+  ];
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgcov-prev dgcov-prev-xiangqi", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("svg", { viewBox: "0 0 900 1000", preserveAspectRatio: "xMidYMid slice", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 900, fill: "none", strokeWidth: 11 }),
+    [1, 2, 3, 4, 5, 6, 7, 8].map((r) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(r), x2: P(8), y2: P(r) }, "h" + r)),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(0), x2: P(0), y2: P(9) }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(8), y1: P(0), x2: P(8), y2: P(9) }),
+    [1, 2, 3, 4, 5, 6, 7].map((c) => [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(0), x2: P(c), y2: P(4) }, "vt" + c),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(5), x2: P(c), y2: P(9) }, "vb" + c)
+    ]),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: `M${P(3)} ${P(0)}L${P(5)} ${P(2)}M${P(5)} ${P(0)}L${P(3)} ${P(2)}M${P(3)} ${P(7)}L${P(5)} ${P(9)}M${P(5)} ${P(7)}L${P(3)} ${P(9)}` }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgp-xq-river", x: 235, y: 500, children: "\u695A\u6CB3" }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgp-xq-river", x: 665, y: 500, children: "\u6F22\u754C" }),
+    pc(4, 0, "\u5C07", "b"),
+    pc(1, 2, "\u70AE", "b"),
+    pc(5, 3, "\u5352", "b"),
+    pc(3, 6, "\u5175", "r"),
+    pc(7, 7, "\u70AE", "r"),
+    pc(4, 9, "\u5E25", "r")
+  ] }) });
+}
+var xiangqiGame = { Game: XiangqiGame, Preview: XiangqiPreview, css: `
+.dgame-xiangqi-board{position:relative;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(10,1fr);align-self:center;width:min(100%,min(90vw,340px));aspect-ratio:9/10;padding:13px;border-radius:12px;border:1px solid color-mix(in srgb,#7c4f16 65%,transparent);box-shadow:0 12px 32px rgb(0 0 0/.5),inset 0 1px 0 rgba(255,236,200,.55),inset 0 -3px 9px rgba(90,50,10,.35),inset 3px 0 8px rgba(255,224,170,.28),inset -3px 0 8px rgba(120,70,20,.25);outline:none;background:repeating-linear-gradient(94deg,rgba(124,79,22,.05) 0 2px,transparent 2px 11px),repeating-linear-gradient(87deg,rgba(255,238,196,.05) 0 2px,transparent 2px 14px),radial-gradient(130% 105% at 26% 8%,#f0cd86,#ddb067 48%,#cb9a51 78%,#bb8844)}.dgame-xiangqi-lines{position:absolute;inset:13px;pointer-events:none}.dgame-xiangqi-lines line,.dgame-xiangqi-lines path{stroke:#66431a;stroke-width:3.4;fill:none;stroke-linecap:square}.dgame-xiangqi-lines .dgame-xiangqi-mark{stroke-width:2.6}.dgame-xiangqi-rivertext{fill:rgba(102,67,26,.7);font-family:KaiTi,"Kaiti SC","STKaiti","FangSong",serif;font-size:46px;letter-spacing:7px;text-anchor:middle;dominant-baseline:central}.dgame-xiangqi-board:focus-visible{box-shadow:0 0 0 3px rgba(0,0,0,.25)}.dgame-xiangqi-cell{position:relative;z-index:1;background:transparent;border:none;cursor:pointer;padding:0;margin:0;outline:none;display:grid;place-items:center;min-width:0;min-height:0}.dgame-xiangqi-cell.target .dgame-xiangqi-dot{width:12px;height:12px;border-radius:50%;background:rgba(34,211,238,.6);box-shadow:0 0 10px rgba(34,211,238,.65),0 0 0 2px rgba(255,255,255,.28)}.dgame-xiangqi-cell.target .dgame-xiangqi-pc{box-shadow:0 0 0 2px rgba(248,113,113,.85),0 0 10px rgba(248,113,113,.5),0 2px 4px rgb(0 0 0/.4),inset 0 0 0 1.5px rgba(96,62,18,.5),inset 0 1px 2px rgba(255,255,255,.95),inset 0 -2px 3px rgba(120,80,20,.4)}.dgame-xiangqi-cell.sel .dgame-xiangqi-pc::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:2.5px solid rgba(251,191,36,.95);box-shadow:0 0 12px rgba(251,191,36,.6)}.dgame-xiangqi-cell.last .dgame-xiangqi-pc::after{content:'';position:absolute;right:5%;bottom:5%;width:5px;height:5px;border-radius:50%;background:#ef4444;box-shadow:0 0 4px rgba(239,68,68,.8)}.dgame-xiangqi-pc{position:relative;display:grid;place-items:center;z-index:1;width:min(80%,30px);aspect-ratio:1/1;border-radius:50%;box-sizing:border-box;font-family:KaiTi,"Kaiti SC","STKaiti","FangSong","SimSun",serif;font-size:clamp(12px,1.4vw,15px);font-weight:700;line-height:1;background:radial-gradient(circle at 34% 28%,#fff3d4,#eedaa6 46%,#d8b675 72%,#bd9650);box-shadow:0 2px 4px rgb(0 0 0/.45),inset 0 0 0 1.5px rgba(96,62,18,.5),inset 0 1px 2px rgba(255,255,255,.95),inset 0 -2px 3px rgba(120,80,20,.4)}.dgame-xiangqi-pc.r{color:#b91c1c;text-shadow:0 1px 0 rgba(255,255,255,.5)}.dgame-xiangqi-pc.b{color:#1f2937;text-shadow:0 1px 0 rgba(255,255,255,.35)}
+` };
+
+// features/games/games/snake.jsx
+var import_react14 = require("react");
+var import_jsx_runtime7 = require("react/jsx-runtime");
+var SIZE2 = 16;
+var DIRS3 = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
+var OPPOSITE = { "-1,0": [1, 0], "1,0": [-1, 0], "0,1": [0, -1], "0,-1": [0, 1] };
+var SPEED_MODES = {
+  slow: { label: "\u6162\u901F", stepMs: 4, base: 320, min: 180 },
+  normal: { label: "\u4E2D\u901F", stepMs: 3, base: 220, min: 120 },
+  fast: { label: "\u5FEB\u901F", stepMs: 2, base: 140, min: 80 }
+};
+function loadSpeedMode() {
+  try {
+    return SPEED_MODES[localStorage.getItem("dsh-dock.snake.speed")] ? localStorage.getItem("dsh-dock.snake.speed") : "slow";
+  } catch {
+    return "slow";
+  }
+}
+function randFood(snake) {
+  while (true) {
+    const r = Math.floor(Math.random() * SIZE2), c = Math.floor(Math.random() * SIZE2);
+    if (!snake.some((s) => s.r === r && s.c === c)) return { r, c };
+  }
+}
+function initial2() {
+  const snake = [{ r: 7, c: 5 }, { r: 7, c: 4 }, { r: 7, c: 3 }];
+  return { snake, dir: [0, 1], food: randFood(snake), score: 0, over: false, started: false };
+}
+function step2(state, dir) {
+  const head = state.snake[0];
+  const nr = head.r + dir[0], nc = head.c + dir[1];
+  const body = state.snake.slice(0, -1);
+  if (nr < 0 || nr >= SIZE2 || nc < 0 || nc >= SIZE2 || body.some((s) => s.r === nr && s.c === nc)) {
+    return Object.assign({}, state, { over: true });
+  }
+  const ate = state.food.r === nr && state.food.c === nc;
+  let snake = [{ r: nr, c: nc }, ...state.snake];
+  if (ate) {
+    playSfx("eat");
+    const food = randFood(snake);
+    return Object.assign({}, state, { snake, food, score: state.score + 1 });
+  }
+  snake.pop();
+  return Object.assign({}, state, { snake });
+}
+function SnakeGame(props) {
+  const [state, setState] = (0, import_react14.useState)(initial2);
+  const [paused, setPaused] = (0, import_react14.useState)(false);
+  const [speedMode, setSpeedMode] = (0, import_react14.useState)(loadSpeedMode);
+  const stageRef = (0, import_react14.useRef)(null);
+  const dirRef = (0, import_react14.useRef)(state.dir);
+  const overRef = (0, import_react14.useRef)(state.over);
+  overRef.current = state.over;
+  const pausedRef = (0, import_react14.useRef)(!!(props && props.paused) || paused);
+  pausedRef.current = !!(props && props.paused) || paused;
+  const start = (0, import_react14.useCallback)(() => {
+    const init = initial2();
+    init.started = true;
+    dirRef.current = init.dir;
+    setState(init);
+    setPaused(false);
+  }, []);
+  const begin = (0, import_react14.useCallback)(() => {
+    setState((s) => s.started || s.over ? s : Object.assign({}, s, { started: true }));
+  }, []);
+  const changeDir = (0, import_react14.useCallback)((nv) => {
+    if (overRef.current || pausedRef.current) return;
+    const cur = dirRef.current;
+    const opp = OPPOSITE[cur[0] + "," + cur[1]];
+    if (opp && opp[0] === nv[0] && opp[1] === nv[1]) return;
+    dirRef.current = nv;
+    begin();
+  }, [begin]);
+  (0, import_react14.useEffect)(() => {
+    if (state.over) playSfx("over");
+  }, [state.over]);
+  (0, import_react14.useEffect)(() => {
+    if (!state.started || state.over || pausedRef.current) return;
+    const mode = SPEED_MODES[speedMode] || SPEED_MODES.slow;
+    const speed = Math.max(mode.min, mode.base - state.score * mode.stepMs);
+    const timer = setInterval(() => setState((s) => s.over || !s.started || pausedRef.current ? s : step2(s, dirRef.current)), speed);
+    return () => clearInterval(timer);
+  }, [state.started, state.over, state.score, props.paused, paused, speedMode]);
+  const pickSpeed = (0, import_react14.useCallback)((m) => {
+    setSpeedMode(m);
+    try {
+      localStorage.setItem("dsh-dock.snake.speed", m);
+    } catch {
+    }
+  }, []);
+  const onKeyDown = (0, import_react14.useCallback)((event) => {
+    const d = DIRS3[event.key];
+    if (d) {
+      event.preventDefault();
+      changeDir(d);
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (overRef.current || !state.started || pausedRef.current) start();
+      else setPaused((p) => !p);
+      return;
+    }
+    if (event.key.toLowerCase() === "p") {
+      event.preventDefault();
+      setPaused((p) => !p);
+    } else if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      start();
+    }
+  }, [changeDir, start, state.started]);
+  useGameControls(stageRef, pausedRef.current, onKeyDown);
+  const cells = [];
+  for (let r = 0; r < SIZE2; r += 1) {
+    for (let c = 0; c < SIZE2; c += 1) {
+      const idx = state.snake.findIndex((s) => s.r === r && s.c === c);
+      const isFood = state.food.r === r && state.food.c === c;
+      let cls = "dgame-snake-cell";
+      if (idx >= 0) cls += " bob" + (idx === 0 ? " head" : idx < 4 ? " body2" : "");
+      if (isFood) cls += " food";
+      cells.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { className: cls, "aria-hidden": "true" }, r + "-" + c));
+    }
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "dgame-game", "aria-label": "\u8D2A\u5403\u86C7", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h3", { children: "\u8D2A\u5403\u86C7" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("p", { children: "\u56DE\u8F66\u5F00\u59CB/\u6682\u505C\uFF0C\u65B9\u5411\u952E\u63A7\u5236\u79FB\u52A8\uFF1B\u5403\u5230\u98DF\u7269\u53D8\u957F\u5E76\u7F13\u6162\u63D0\u901F\uFF0C\u649E\u5899\u6216\u54AC\u5230\u81EA\u5DF1\u5C31\u7ED3\u675F\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
+          "\u957F\u5EA6 ",
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: state.score + 3 })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
+          "\u5F97\u5206 ",
+          state.score
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-snake-speeds", role: "radiogroup", "aria-label": "\u6E38\u620F\u901F\u5EA6", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u901F\u5EA6" }),
+      Object.entries(SPEED_MODES).map(([m, cfg]) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", role: "radio", "aria-checked": speedMode === m, className: speedMode === m ? "on" : "", onClick: () => pickSpeed(m), children: cfg.label }, m))
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-snake-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), "aria-label": "\u8D2A\u5403\u86C7\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u63A7\u5236\u79FB\u52A8\uFF0C\u56DE\u8F66\u5F00\u59CB", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "dgame-snake-grid", children: cells }),
+      state.over ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("strong", { children: [
+          "\u649E\u4E0A\u4E86 \xB7 \u5F97 ",
+          state.score,
+          " \u5206"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: start, children: "\u91CD\u65B0\u5F00\u59CB" })
+      ] }) : null,
+      !state.started && !state.over ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: "\u6309 Enter \u6216\u65B9\u5411\u952E\u5F00\u59CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: start, children: "\u5F00\u59CB\u6E38\u620F" })
+      ] }) : null,
+      state.started && !state.over && pausedRef.current ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: "\u5DF2\u6682\u505C" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: () => setPaused(false), children: "\u7EE7\u7EED\uFF08P\uFF09" })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => changeDir([-1, 0]), children: "\u2191" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 \u56DE\u8F66 \u5F00\u59CB/\u6682\u505C \xB7 R \u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0B", onClick: () => changeDir([1, 0]), children: "\u2193" })
+    ] })
+  ] });
+}
+function SnakePreview() {
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "dgcov-prev dgcov-prev-snake", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "12%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "24%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "36%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "48%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "60%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("b", {})
+  ] });
+}
+var snakeGame = { Game: SnakeGame, Preview: SnakePreview, css: `
+.dgame-snake-speeds{display:flex;gap:6px;align-items:center;align-self:center;justify-content:center}
+.dgame-snake-speeds span{font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.dgame-snake-speeds button{min-width:44px;height:26px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;cursor:pointer;transition:all .15s ease}
+.dgame-snake-speeds button.on{color:#bbf7d0;border-color:color-mix(in srgb,#4ade80 55%,transparent);background:color-mix(in srgb,#4ade80 16%,transparent)}
+.dgame-snake-speeds button:hover{border-color:#4ade80;color:var(--dsw-alias-label-primary)}
+.dgame-snake-stage{position:relative;align-self:center;width:min(100%,300px);aspect-ratio:1/1;border:1px solid color-mix(in srgb,rgb(74 222 128) 32%,var(--dsw-alias-border-l1));border-radius:10px;overflow:hidden;outline:none;background:radial-gradient(circle at 50% -10%,color-mix(in srgb,#166534 30%,transparent),transparent 55%),#0a1420}.dgame-snake-stage:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(74 222 128) 35%,transparent)}.dgame-snake-grid{display:grid;grid-template-columns:repeat(16,1fr);grid-template-rows:repeat(16,1fr);width:100%;height:100%}.dgame-snake-cell{position:relative}.dgame-snake-cell.food::after{content:'';position:absolute;inset:22%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fecaca,#ef4444 70%);box-shadow:0 0 9px color-mix(in srgb,#ef4444 70%,transparent)}.dgame-snake-cell.bob::after{content:'';position:absolute;inset:20%;border-radius:26%;background:linear-gradient(135deg,#4ade80,#16a34a)}.dgame-snake-cell.head::after{background:linear-gradient(135deg,#bbf7d0,#22c55e);border-radius:30% 30% 28% 28%;box-shadow:0 1px 6px color-mix(in srgb,#22c55e 60%,transparent)}.dgame-snake-cell.head::before{content:'';position:absolute;left:30%;top:30%;width:9%;height:9%;border-radius:50%;background:#0b1b12}.dgame-snake-cell.body2::after{background:linear-gradient(135deg,#34d399,#0d9f6e)}
+` };
+
+// features/games/games/breakout.jsx
+var import_react15 = require("react");
+var import_jsx_runtime8 = require("react/jsx-runtime");
+var W = 320;
+var H = 360;
+var BRICK_COLS = 8;
+var BRICK_ROWS = 5;
+var BRICK_GAP = 4;
+var BRICK_TOP = 22;
+var BRICK_H = 18;
+var PADDLE_W = 60;
+var PADDLE_H = 11;
+var PADDLE_BOTTOM = 20;
+var BALL_R = 5.5;
+var SPEED = 3.4;
+var COLORS = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8"];
+function makeBricks(level) {
+  const bricks = [];
+  const bw = (W - BRICK_GAP * (BRICK_COLS + 1)) / BRICK_COLS;
+  for (let r = 0; r < BRICK_ROWS; r += 1) {
+    for (let c = 0; c < BRICK_COLS; c += 1) {
+      bricks.push({
+        x: BRICK_GAP + c * (bw + BRICK_GAP),
+        y: BRICK_TOP + r * (BRICK_H + BRICK_GAP),
+        w: bw,
+        h: BRICK_H,
+        color: COLORS[(r + level) % COLORS.length],
+        alive: true
+      });
+    }
+  }
+  return bricks;
+}
+function draw(ctx, g) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#0b1024";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#1b2bb0";
+  for (const s of g.stars) {
+    ctx.globalAlpha = s.a;
+    ctx.fillRect(s.x, s.y, 1.5, 1.5);
+  }
+  ctx.globalAlpha = 1;
+  for (const b of g.bricks) {
+    if (!b.alive) continue;
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    roundRect(ctx, b.x, b.y, b.w, b.h, 4);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.25)";
+    roundRect(ctx, b.x, b.y, b.w, b.h / 2.4, 4);
+    ctx.fill();
+  }
+  ctx.fillStyle = "#a5f3fc";
+  roundRect(ctx, g.paddle.x, g.paddle.y, PADDLE_W, PADDLE_H, 5);
+  ctx.fill();
+  ctx.fillStyle = "#fef3c7";
+  ctx.beginPath();
+  ctx.arc(g.ball.x, g.ball.y, BALL_R, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(254,243,199,.5)";
+  ctx.beginPath();
+  ctx.arc(g.ball.x, g.ball.y, BALL_R + 2.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function collideRect(x, y, r, bx, by, bw, bh) {
+  const cx = Math.max(bx, Math.min(x, bx + bw));
+  const cy = Math.max(by, Math.min(y, by + bh));
+  const dx = x - cx, dy = y - cy;
+  return dx * dx + dy * dy < r * r;
+}
+function BreakoutGame(props) {
+  const canvasRef = (0, import_react15.useRef)(null);
+  const [score, setScore] = (0, import_react15.useState)(0);
+  const [lives, setLives] = (0, import_react15.useState)(3);
+  const [level, setLevel] = (0, import_react15.useState)(1);
+  const [status, setStatus] = (0, import_react15.useState)("play");
+  const keys = (0, import_react15.useRef)({});
+  const pausedRef = (0, import_react15.useRef)(!!(props && props.paused));
+  pausedRef.current = !!(props && props.paused);
+  const game = (0, import_react15.useRef)(null);
+  const scoreRef = (0, import_react15.useRef)(0);
+  scoreRef.current = score;
+  const statusRef = (0, import_react15.useRef)("play");
+  statusRef.current = status;
+  const livesRef = (0, import_react15.useRef)(3);
+  livesRef.current = lives;
+  const start = (0, import_react15.useCallback)((lvl) => {
+    const bricks = makeBricks(lvl);
+    game.current = {
+      stars: Array.from({ length: 46 }, () => ({ x: Math.random() * W, y: Math.random() * H, a: 0.25 + Math.random() * 0.5 })),
+      bricks,
+      paddle: { x: (W - PADDLE_W) / 2, y: H - PADDLE_BOTTOM - PADDLE_H },
+      ball: { x: W / 2, y: H - PADDLE_BOTTOM - PADDLE_H - BALL_R - 1, vx: (Math.random() > 0.5 ? 1 : -1) * SPEED, vy: -SPEED },
+      speed: SPEED * (1 + (lvl - 1) * 0.09)
+    };
+  }, []);
+  (0, import_react15.useEffect)(() => {
+    start(1);
+    setScore(0);
+    setLives(3);
+    setStatus("play");
+  }, [start]);
+  const launchBall = (0, import_react15.useCallback)(() => {
+    const g = game.current;
+    if (!g) return;
+    g.ball.vx = (Math.random() > 0.5 ? 1 : -1) * SPEED;
+    g.ball.vy = -SPEED;
+    g.launched = true;
+  }, []);
+  const resetBall = (0, import_react15.useCallback)(() => {
+    const g = game.current;
+    if (g) {
+      g.ball.x = W / 2;
+      g.ball.y = H - PADDLE_BOTTOM - PADDLE_H - BALL_R - 1;
+      g.ball.vx = 0;
+      g.ball.vy = 0;
+      g.launched = false;
+    }
+  }, []);
+  (0, import_react15.useEffect)(() => {
+    const frame = () => {
+      const g = game.current;
+      const ctx = canvasRef.current && canvasRef.current.getContext("2d");
+      if (!g || !ctx) return;
+      if (pausedRef.current || statusRef.current !== "play") {
+        draw(ctx, g);
+        return;
+      }
+      if (keys.current.left) g.paddle.x -= 5.5;
+      if (keys.current.right) g.paddle.x += 5.5;
+      g.paddle.x = Math.max(0, Math.min(W - PADDLE_W, g.paddle.x));
+      const b = g.ball;
+      if (!b.launched) {
+        b.x = g.paddle.x + PADDLE_W / 2;
+        b.y = g.paddle.y - BALL_R - 1;
+      } else {
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x - BALL_R < 0) {
+          b.x = BALL_R;
+          b.vx = Math.abs(b.vx);
+        }
+        if (b.x + BALL_R > W) {
+          b.x = W - BALL_R;
+          b.vx = -Math.abs(b.vx);
+        }
+        if (b.y - BALL_R < 0) {
+          b.y = BALL_R;
+          b.vy = Math.abs(b.vy);
+        }
+        if (b.vy > 0 && b.y + BALL_R >= g.paddle.y && b.y - BALL_R <= g.paddle.y + PADDLE_H && b.x >= g.paddle.x - BALL_R && b.x <= g.paddle.x + PADDLE_W + BALL_R) {
+          playSfx("bounce");
+          const rel = (b.x - (g.paddle.x + PADDLE_W / 2)) / (PADDLE_W / 2);
+          const ang = rel * 0.6;
+          const sp = Math.hypot(b.vx, b.vy);
+          b.vx = sp * Math.sin(ang);
+          b.vy = -Math.abs(sp * Math.cos(ang));
+          b.y = g.paddle.y - BALL_R - 1;
+        }
+        const maxSpeed = g.speed * 1.6;
+        for (const br of g.bricks) {
+          if (!br.alive) continue;
+          if (collideRect(b.x, b.y, BALL_R, br.x, br.y, br.w, br.h)) {
+            br.alive = false;
+            playSfx("brick");
+            const cx = br.x + br.w / 2, cy = br.y + br.h / 2;
+            const dx = b.x - cx, dy = b.y - cy;
+            if (Math.abs(dx / br.w) > Math.abs(dy / br.h)) {
+              b.vx = -b.vx;
+              b.x += b.vx * 2;
+            } else {
+              b.vy = -b.vy;
+              b.y += b.vy * 2;
+            }
+            setScore((s) => s + 10);
+            scoreRef.current += 10;
+            const remain = g.bricks.some((x) => x.alive);
+            if (!remain) {
+              playSfx("win");
+              setStatus("win");
+              setLevel((l) => l + 1);
+              if (statusRef.current !== "over") statusRef.current = "win";
+            }
+            break;
+          }
+        }
+        if (b.y - BALL_R > H) {
+          const nl = livesRef.current - 1;
+          livesRef.current = nl;
+          setLives(nl);
+          playSfx(nl <= 0 ? "over" : "step");
+          if (nl <= 0) {
+            setStatus("over");
+            statusRef.current = "over";
+          } else resetBall();
+        }
+      }
+      draw(ctx, g);
+    };
+    let raf = requestAnimationFrame(function loop() {
+      frame();
+      raf = requestAnimationFrame(loop);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [resetBall]);
+  const onKeyDown = (0, import_react15.useCallback)((event) => {
+    if (pausedRef.current) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      keys.current.left = true;
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      keys.current.right = true;
+    } else if (event.key === " ") {
+      event.preventDefault();
+      launchBall();
+    } else if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      start(1);
+      setScore(0);
+      setLives(3);
+      setStatus("play");
+      statusRef.current = "play";
+      livesRef.current = 3;
+    }
+  }, [launchBall, start]);
+  const onKeyUp = (0, import_react15.useCallback)((event) => {
+    if (event.key === "ArrowLeft") keys.current.left = false;
+    else if (event.key === "ArrowRight") keys.current.right = false;
+  }, []);
+  const onPointerMove = (0, import_react15.useCallback)((e) => {
+    const g = game.current, cv = canvasRef.current;
+    if (!g || !cv) return;
+    const rect2 = cv.getBoundingClientRect();
+    const scale = rect2.width / W;
+    g.paddle.x = Math.max(0, Math.min(W - PADDLE_W, (e.clientX - rect2.left) / scale - PADDLE_W / 2));
+  }, []);
+  useGameControls(canvasRef, pausedRef.current, onKeyDown, onKeyUp);
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "dgame-game", "aria-label": "\u6253\u7816\u5757", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h3", { children: "\u6253\u7816\u5757" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { children: "\u79FB\u52A8\u6321\u677F\u53CD\u5F39\u5C0F\u7403\uFF0C\u51FB\u788E\u6240\u6709\u7816\u5757\uFF1B\u7403\u843D\u5230\u5E95\u90E8\u6263\u4E00\u6761\u547D\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
+          "\u5F97\u5206 ",
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("strong", { children: score })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
+          "\u547D ",
+          lives,
+          " \xB7 \u7B2C ",
+          level,
+          " \u5173"
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-breakout", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("canvas", { ref: canvasRef, width: W, height: H, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: () => focusStage(canvasRef), className: "dgame-breakout-canvas", "aria-label": "\u6253\u7816\u5757\u6E38\u620F\u533A\u57DF\uFF0C\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u9F20\u6807\u79FB\u52A8\u6321\u677F\uFF0C\u7A7A\u683C\u53D1\u7403" }),
+      status === "win" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("strong", { children: [
+          "\u5168\u6D88\uFF01\u8FDB\u5165\u7B2C ",
+          level,
+          " \u5173"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: () => {
+          start(level);
+          setStatus("play");
+          statusRef.current = "play";
+        }, children: "\u4E0B\u4E00\u5173" })
+      ] }) : null,
+      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("strong", { children: [
+          "\u7403\u6389\u5149\u4E86 \xB7 \u5F97 ",
+          score,
+          " \u5206"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: () => {
+          start(1);
+          setScore(0);
+          setLives(3);
+          setStatus("play");
+          statusRef.current = "play";
+          livesRef.current = 3;
+        }, children: "\u91CD\u65B0\u5F00\u59CB" })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6\u79FB\u52A8", onClick: () => {
+        keys.current.left = false;
+        game.current && (game.current.paddle.x = Math.max(0, game.current.paddle.x - 12));
+      }, children: "\u2190 \u5DE6\u79FB" }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C\u53D1\u7403" }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3\u79FB\u52A8", onClick: () => {
+        keys.current.right = false;
+        game.current && (game.current.paddle.x = Math.min(W - PADDLE_W, game.current.paddle.x + 12));
+      }, children: [
+        "\u53F3\u79FB ",
+        "->"
+      ] })
+    ] })
+  ] });
+}
+function BreakoutPreview() {
+  const cols = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#c084fc"];
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "dgcov-prev dgcov-prev-breakout", "aria-hidden": "true", children: [
+    Array.from({ length: 12 }, (_, i) => {
+      const row = Math.floor(i / 6), c = i % 6;
+      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { style: { left: 5 + c * 15 + "%", top: 10 + row * 12 + "%", background: cols[i % cols.length] } }, i);
+    }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("b", {})
+  ] });
+}
+var breakoutGame = { Game: BreakoutGame, Preview: BreakoutPreview, css: `
+.dgame-breakout{position:relative;align-self:center;width:min(100%,320px);margin:0 auto}.dgame-breakout-canvas{display:block;width:100%;aspect-ratio:320/360;border:1px solid color-mix(in srgb,rgb(56 189 248) 32%,var(--dsw-alias-border-l1));border-radius:10px;outline:none;background:#0b1024;box-shadow:0 4px 18px rgb(0 0 0/.4)}.dgame-breakout-canvas:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(56 189 248) 35%,transparent)}.dgame-breakout .dgame-over{position:absolute;inset:0;border-radius:10px}
+` };
+
+// features/games/games/racer.jsx
+var import_react16 = require("react");
+var import_jsx_runtime9 = require("react/jsx-runtime");
+var W2 = 300;
+var H2 = 420;
+var ROAD_W = 232;
+var ROAD_X = (W2 - ROAD_W) / 2;
+var CAR_W = 34;
+var CAR_H = 52;
+var CAR_COLORS = ["#f87171", "#fb923c", "#c084fc", "#38bdf8", "#4ade80", "#fde047"];
+function laneX(lane) {
+  return ROAD_X + ROAD_W * (lane + 0.5) / 3 - CAR_W / 2;
+}
+function overlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+function rect(ctx, x, y, w, h, r, fill) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
+function RacerGame(props) {
+  const canvasRef = (0, import_react16.useRef)(null);
+  const [status, setStatus] = (0, import_react16.useState)("play");
+  const game = (0, import_react16.useRef)(null);
+  const keys = (0, import_react16.useRef)({});
+  const statusRef = (0, import_react16.useRef)("play");
+  statusRef.current = status;
+  const pausedRef = (0, import_react16.useRef)(!!(props && props.paused));
+  pausedRef.current = !!(props && props.paused);
+  const reset = (0, import_react16.useCallback)(() => {
+    game.current = {
+      stars: Array.from({ length: 50 }, () => ({ x: Math.random() * W2, y: Math.random() * H2, a: 0.2 + Math.random() * 0.5 })),
+      player: { x: laneX(1), y: H2 - CAR_H - 16 },
+      enemies: [],
+      coins: [],
+      dist: 0,
+      coinsGot: 0,
+      spawn: 0,
+      coinSpawn: 0,
+      speed: 3.4,
+      over: false
+    };
+  }, []);
+  (0, import_react16.useEffect)(() => {
+    reset();
+    setStatus("play");
+  }, [reset]);
+  const launch = (0, import_react16.useCallback)(() => {
+    reset();
+    setStatus("play");
+  }, [reset]);
+  (0, import_react16.useEffect)(() => {
+    const draw2 = () => {
+      const g = game.current, ctx = canvasRef.current && canvasRef.current.getContext("2d");
+      if (!g || !ctx) return;
+      ctx.fillStyle = "#0b1024";
+      ctx.fillRect(0, 0, W2, H2);
+      ctx.fillStyle = "#1b2bb0";
+      for (const s of g.stars) {
+        ctx.globalAlpha = s.a;
+        ctx.fillRect(s.x, s.y, 1.5, 1.5);
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#20243a";
+      ctx.fillRect(ROAD_X, 0, ROAD_W, H2);
+      ctx.fillStyle = "rgba(255,255,255,.09)";
+      ctx.fillRect(ROAD_X + 6, 0, 4, H2);
+      ctx.fillRect(ROAD_X + ROAD_W - 10, 0, 4, H2);
+      ctx.fillStyle = "rgba(255,255,255,.16)";
+      for (let i = 1; i < 3; i += 1) {
+        const lx = ROAD_X + ROAD_W * i / 3 - 1;
+        for (let yy = g.dist % 60; yy < H2; yy += 60) ctx.fillRect(lx, yy, 2, 26);
+      }
+      if (pausedRef.current || g.over) {
+        drawHUD(ctx, g);
+        return;
+      }
+      if (keys.current.left) g.player.x -= 5;
+      if (keys.current.right) g.player.x += 5;
+      g.player.x = Math.max(ROAD_X + 2, Math.min(ROAD_X + ROAD_W - CAR_W - 2, g.player.x));
+      g.dist += g.speed * 0.16;
+      g.spawn += 1;
+      if (g.spawn > Math.max(20, 56 - g.dist / 600)) {
+        g.spawn = 0;
+        const lane = Math.floor(Math.random() * 3);
+        const v = g.speed * (1.1 + Math.random() * 0.6);
+        g.enemies.push({ x: laneX(lane), y: -CAR_H - Math.random() * 60, w: CAR_W, h: CAR_H, v, c: CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)] });
+      }
+      g.coinSpawn += 1;
+      if (g.coinSpawn > Math.max(30, 70 - g.dist / 500)) {
+        g.coinSpawn = 0;
+        g.coins.push({ x: laneX(Math.floor(Math.random() * 3)), y: -30, r: 11, got: false });
+      }
+      for (const e of g.enemies) e.y += e.v;
+      for (const c of g.coins) c.y += g.speed;
+      g.enemies = g.enemies.filter((e) => e.y < H2 + 20);
+      g.coins = g.coins.filter((c) => c.y < H2 + 20);
+      for (const e of g.enemies) {
+        if (overlap(g.player, e)) {
+          g.over = true;
+          setStatus("over");
+          statusRef.current = "over";
+        }
+      }
+      for (const c of g.coins) {
+        if (!c.got && Math.abs(c.x + c.r - (g.player.x + CAR_W / 2)) < CAR_W / 2 + 8 && Math.abs(c.y - (g.player.y + CAR_H / 2)) < CAR_H / 2 + 10) {
+          c.got = true;
+          g.coinsGot += 1;
+        }
+      }
+      for (const e of g.enemies) {
+        rect(ctx, e.x, e.y, e.w, e.h, 7, e.c);
+        ctx.fillStyle = "rgba(255,255,255,.25)";
+        ctx.fillRect(e.x + 6, e.y + 7, e.w - 12, 12);
+      }
+      ctx.fillStyle = "#fde047";
+      for (const c of g.coins) {
+        ctx.beginPath();
+        ctx.arc(c.x + c.r, c.y, c.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(120,53,15,.4)";
+        ctx.beginPath();
+        ctx.arc(c.x + c.r, c.y, c.r * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fde047";
+      }
+      drawCar(ctx, g.player.x, g.player.y, "#22d3ee");
+      drawHUD(ctx, g);
+    };
+    const drawHUD = (ctx, g) => {
+      ctx.fillStyle = "#e7ecff";
+      ctx.font = "bold 13px system-ui, sans-serif";
+      ctx.textBaseline = "top";
+      ctx.fillText("\u8DDD\u79BB " + Math.floor(g.dist / 60) + " m", 10, 10);
+      ctx.fillStyle = "#fde047";
+      ctx.fillText("\u91D1\u5E01 \xD7 " + g.coinsGot, W2 - 70, 10);
+    };
+    function drawCar(ctx, x, y, c) {
+      rect(ctx, x, y, CAR_W, CAR_H, 9, c);
+      ctx.fillStyle = "rgba(255,255,255,.3)";
+      rect(ctx, x + 5, y + 6, CAR_W - 10, 13, 4, "rgba(255,255,255,.3)");
+      ctx.fillStyle = "rgba(15,23,42,.5)";
+      rect(ctx, x + 5, y + CAR_H - 16, CAR_W - 10, 9, 3, "rgba(15,23,42,.5)");
+      ctx.fillStyle = "rgba(255,255,255,.45)";
+      rect(ctx, x + 3, y + CAR_H - 4, 6, 5, 2, "#fde047");
+      rect(ctx, x + CAR_W - 9, y + CAR_H - 4, 6, 5, 2, "#fde047");
+    }
+    let raf = requestAnimationFrame(function loop() {
+      draw2();
+      raf = requestAnimationFrame(loop);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const onKeyDown = (0, import_react16.useCallback)((event) => {
+    if (pausedRef.current) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      keys.current.left = true;
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      keys.current.right = true;
+    } else if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      launch();
+    }
+  }, [launch]);
+  const onKeyUp = (0, import_react16.useCallback)((event) => {
+    if (event.key === "ArrowLeft") keys.current.left = false;
+    else if (event.key === "ArrowRight") keys.current.right = false;
+  }, []);
+  const onPointerMove = (0, import_react16.useCallback)((e) => {
+    const g = game.current, cv = canvasRef.current;
+    if (!g || !cv) return;
+    const rect0 = cv.getBoundingClientRect();
+    const scale = rect0.width / W2;
+    g.player.x = Math.max(ROAD_X + 2, Math.min(ROAD_X + ROAD_W - CAR_W - 2, (e.clientX - rect0.left) / scale - CAR_W / 2));
+  }, []);
+  useGameControls(canvasRef, pausedRef.current, onKeyDown, onKeyUp);
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("section", { className: "dgame-game", "aria-label": "\u6781\u901F\u8D5B\u8F66", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h3", { children: "\u6781\u901F\u8D5B\u8F66" }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { children: "\u5DE6\u53F3\u79FB\u52A8\u907F\u5F00\u8FCE\u9762\u6765\u8F66\u3001\u6536\u96C6\u91D1\u5E01\uFF0C\u8D8A\u5F00\u8D8A\u5FEB\uFF1B\u649E\u8F66\u5373\u7ED3\u675F\u3002\u8DDD\u79BB\u4E0E\u91D1\u5E01\u5B9E\u65F6\u663E\u793A\u5728\u6E38\u620F\u753B\u9762\u5DE6\u4E0A/\u53F3\u4E0A\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: "\u64CD\u4F5C" }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-racer", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("canvas", { ref: canvasRef, width: W2, height: H2, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: () => focusStage(canvasRef), className: "dgame-racer-canvas", "aria-label": "\u6781\u901F\u8D5B\u8F66\u6E38\u620F\u533A\u57DF\uFF0C\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u9F20\u6807\u63A7\u5236\u65B9\u5411" }),
+      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("strong", { children: [
+          "\u649E\u8F66\u4E86 \xB7 \u884C\u9A76 ",
+          game.current && Math.floor(game.current.dist / 60) || 0,
+          " \u7C73"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", onClick: launch, children: "\u91CD\u65B0\u51FA\u53D1" })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6", onClick: () => {
+        keys.current.left = false;
+        if (game.current) game.current.player.x = Math.max(ROAD_X + 2, game.current.player.x - 14);
+      }, children: "\u2190 \u5DE6\u79FB" }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 R \u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3", onClick: () => {
+        keys.current.right = false;
+        if (game.current) game.current.player.x = Math.min(ROAD_X + ROAD_W - CAR_W - 2, game.current.player.x + 14);
+      }, children: [
+        "\u53F3\u79FB ",
+        "->"
+      ] })
+    ] })
+  ] });
+}
+function RacerPreview() {
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { className: "dgcov-prev dgcov-prev-racer", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "20%", top: "8%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "55%", top: "22%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "20%", top: "42%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "64%", top: "58%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "38%", top: "74%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("b", {})
+  ] });
+}
+var racerGame = { Game: RacerGame, Preview: RacerPreview, css: `
+.dgame-racer{position:relative;align-self:center;width:min(100%,300px);margin:0 auto}.dgame-racer-canvas{display:block;width:100%;aspect-ratio:300/420;border:1px solid color-mix(in srgb,rgb(34 211 238) 32%,var(--dsw-alias-border-l1));border-radius:10px;outline:none;background:#0b1024;box-shadow:0 4px 18px rgb(0 0 0/.4)}.dgame-racer-canvas:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(34 211 238) 35%,transparent)}.dgame-racer .dgame-over{position:absolute;inset:0;border-radius:10px}.dgame-racer-stat{color:var(--dsw-alias-label-tertiary)}
+` };
+
+// features/games/games/tank.jsx
+var import_react17 = require("react");
+
+// features/games/tank-core.js
+var GRID = 15;
+var EMPTY = 0;
+var STEEL = 1;
+var BRICK = 2;
+var BASE = 3;
+var DIRS4 = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
+var DIR_KEYS = Object.keys(DIRS4);
+var SPAWNS = [{ r: 0, c: 0 }, { r: 0, c: 7 }, { r: 0, c: 14 }];
+function cloneGrid2(g) {
+  return g.map((row) => row.slice());
+}
+function inBounds2(r, c) {
+  return r >= 0 && r < GRID && c >= 0 && c < GRID;
+}
+function cellBlockedForTank(grid, r, c) {
+  return !inBounds2(r, c) || grid[r][c] !== EMPTY;
+}
+function makeGrid() {
+  const g = Array.from({ length: GRID }, () => Array(GRID).fill(EMPTY));
+  const set = (r, c, v) => {
+    if (r >= 0 && r < GRID && c >= 0 && c < GRID) g[r][c] = v;
+  };
+  for (let r = 2; r <= 5; r += 1) {
+    set(r, 3, STEEL);
+    set(r, 11, STEEL);
+    set(r, 7, STEEL);
+  }
+  for (let c = 4; c <= 10; c += 1) set(8, c, BRICK);
+  set(9, 5, BRICK);
+  set(9, 6, BRICK);
+  set(9, 8, BRICK);
+  set(9, 9, BRICK);
+  set(9, 10, BRICK);
+  set(13, 7, BASE);
+  set(12, 6, BRICK);
+  set(12, 7, BRICK);
+  set(12, 8, BRICK);
+  set(13, 6, BRICK);
+  set(13, 8, BRICK);
+  return g;
+}
+function findBase(grid) {
+  for (let r = 0; r < GRID; r += 1) for (let c = 0; c < GRID; c += 1) if (grid[r][c] === BASE) return { r, c };
+  return { r: 13, c: 7 };
+}
+function playerSpawn() {
+  return { r: 11, c: 7, dir: "up", alive: true, lives: 3, cooldown: 0 };
+}
+function initialState() {
+  return {
+    grid: makeGrid(),
+    player: playerSpawn(),
+    enemies: [],
+    bullets: [],
+    score: 0,
+    wave: 1,
+    remaining: 4,
+    active: 2,
+    spawnTick: 0,
+    over: false,
+    win: false,
+    respawnTicks: 0
+  };
+}
+function spawnBullet(r, c, dir, from) {
+  const [dr, dc] = DIRS4[dir];
+  return { r: r + dr, c: c + dc, dr, dc, from };
+}
+function spawnOne(grid, enemies) {
+  for (const s of SPAWNS) {
+    if (grid[s.r][s.c] === EMPTY && !enemies.some((e) => e.r === s.r && e.c === s.c)) {
+      return { r: s.r, c: s.c, dir: "down", hp: 1, cooldown: 3, moveTick: 0 };
+    }
+  }
+  return null;
+}
+function step3(state, input) {
+  if (state.over || state.win) return state;
+  const grid = cloneGrid2(state.grid);
+  let player = Object.assign({}, state.player);
+  let enemies = state.enemies.map((e) => Object.assign({}, e));
+  let bullets = state.bullets.map((b) => Object.assign({}, b));
+  let remaining = state.remaining, score = state.score, over = state.over;
+  let respawnTicks = state.respawnTicks;
+  let spawnTick = state.spawnTick + 1;
+  if (player.alive && input.dir && DIRS4[input.dir]) {
+    const [dr, dc] = DIRS4[input.dir];
+    player.dir = input.dir;
+    const nr = player.r + dr, nc = player.c + dc;
+    if (!cellBlockedForTank(grid, nr, nc)) {
+      player.r = nr;
+      player.c = nc;
+    }
+  }
+  if (player.alive && input.shoot && player.cooldown <= 0) {
+    bullets.push(spawnBullet(player.r, player.c, player.dir, "p"));
+    player.cooldown = 9;
+  }
+  player.cooldown = Math.max(0, player.cooldown - 1);
+  for (let i = 0; i < enemies.length; i += 1) {
+    const e = enemies[i];
+    e.cooldown -= 1;
+    e.moveTick += 1;
+    if (e.moveTick % 12 === 0) {
+      const [dr, dc] = DIRS4[e.dir];
+      const nr = e.r + dr, nc = e.c + dc;
+      if (cellBlockedForTank(grid, nr, nc) || enemies.some((o, oi) => oi !== i && o.r === nr && o.c === nc)) {
+        const opts = DIR_KEYS.filter((d) => {
+          const [ddr, ddc] = DIRS4[d];
+          const tr = e.r + ddr, tc = e.c + ddc;
+          return !cellBlockedForTank(grid, tr, tc) && !enemies.some((o, oi) => oi !== i && o.r === tr && o.c === tc);
+        });
+        if (opts.length) e.dir = opts[Math.floor(Math.random() * opts.length)];
+      } else {
+        e.r = nr;
+        e.c = nc;
+      }
+    }
+    if (e.cooldown <= 0) {
+      bullets.push(spawnBullet(e.r, e.c, e.dir, "e"));
+      e.cooldown = 9 + Math.floor(Math.random() * 9);
+    }
+  }
+  let baseHit = false, playerHit = false;
+  const nextBullets = [];
+  const base = findBase(grid);
+  for (const b of bullets) {
+    const nr = b.r + b.dr, nc = b.c + b.dc;
+    if (!inBounds2(nr, nc)) continue;
+    const cell = grid[nr][nc];
+    if (cell === STEEL) continue;
+    if (cell === BRICK) {
+      grid[nr][nc] = EMPTY;
+      continue;
+    }
+    if (cell === BASE) {
+      if (b.from === "e") baseHit = true;
+      continue;
+    }
+    if (b.from === "p") {
+      const idx = enemies.findIndex((e) => e.r === nr && e.c === nc);
+      if (idx >= 0) {
+        enemies.splice(idx, 1);
+        score += 100;
+        continue;
+      }
+    } else if (player.alive && player.r === nr && player.c === nc) {
+      player.lives -= 1;
+      if (player.lives <= 0) over = true;
+      else {
+        player.alive = false;
+        respawnTicks = 24;
+      }
+      continue;
+    }
+    b.r = nr;
+    b.c = nc;
+    nextBullets.push(b);
+  }
+  if (remaining > 0 && enemies.length < state.active && spawnTick % 9 === 0) {
+    const fresh = spawnOne(grid, enemies);
+    if (fresh) {
+      enemies.push(fresh);
+      remaining -= 1;
+    }
+  }
+  if (!player.alive && !over) {
+    if (respawnTicks <= 0) {
+      player.alive = true;
+      player.r = 11;
+      player.c = 7;
+      player.dir = "up";
+      player.cooldown = 0;
+    } else respawnTicks -= 1;
+  }
+  const win = remaining <= 0 && enemies.length === 0;
+  return Object.assign({}, state, {
+    grid,
+    player,
+    enemies,
+    bullets: nextBullets,
+    score,
+    remaining,
+    over: over || baseHit,
+    win,
+    spawnTick,
+    respawnTicks
+  });
+}
+function nextWave(state) {
+  return Object.assign({}, state, {
+    wave: state.wave + 1,
+    remaining: Math.min(3 + state.wave, 8),
+    active: Math.min(2 + Math.floor(state.wave / 2), 4),
+    enemies: [],
+    win: false,
+    spawnTick: 0
+  });
+}
+
+// features/games/games/tank.jsx
+var import_jsx_runtime10 = require("react/jsx-runtime");
+var DIR_ANGLE = { up: 0, right: 90, down: 180, left: 270 };
+var ENEMY_COLORS = ["#f87171", "#fb923c", "#c084fc", "#4ade80", "#38bdf8"];
+function TankGame(props) {
+  const [snap, setSnap] = (0, import_react17.useState)(initialState);
+  const [status, setStatus] = (0, import_react17.useState)("play");
+  const snapRef = (0, import_react17.useRef)(snap);
+  snapRef.current = snap;
+  const keys = (0, import_react17.useRef)({ dir: null, shoot: false });
+  const pausedRef = (0, import_react17.useRef)(!!(props && props.paused));
+  pausedRef.current = !!(props && props.paused);
+  const statusRef = (0, import_react17.useRef)("play");
+  statusRef.current = status;
+  const boardRef = (0, import_react17.useRef)(null);
+  const start = (0, import_react17.useCallback)(() => {
+    setSnap(initialState());
+    setStatus("play");
+    statusRef.current = "play";
+  }, []);
+  const nextLvl = (0, import_react17.useCallback)(() => {
+    setSnap((s) => nextWave(s));
+    setStatus("play");
+    statusRef.current = "play";
+  }, []);
+  (0, import_react17.useEffect)(() => {
+    const timer = setInterval(() => {
+      if (pausedRef.current) return;
+      setSnap((s) => {
+        if (s.over || s.win) return s;
+        const input = { dir: keys.current.dir, shoot: keys.current.shoot };
+        const ns = step3(s, input);
+        if (ns.over && statusRef.current === "play") {
+          statusRef.current = "over";
+          setStatus("over");
+        } else if (ns.win && statusRef.current === "play") {
+          statusRef.current = "wave";
+          setStatus("wave");
+        }
+        return ns;
+      });
+    }, 120);
+    return () => clearInterval(timer);
+  }, []);
+  const stageRef = (0, import_react17.useRef)(null);
+  const onKeyDown = (0, import_react17.useCallback)((event) => {
+    if (pausedRef.current) return;
+    const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
+    const dir = map[event.key];
+    if (dir) {
+      event.preventDefault();
+      keys.current.dir = dir;
+      return;
+    }
+    if (event.key === " ") {
+      event.preventDefault();
+      keys.current.shoot = true;
+    } else if (event.key.toLowerCase() === "r") {
+      event.preventDefault();
+      start();
+    }
+  }, [start]);
+  const onKeyUp = (0, import_react17.useCallback)((event) => {
+    const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
+    const dir = map[event.key];
+    if (dir && keys.current.dir === dir) keys.current.dir = null;
+    if (event.key === " ") keys.current.shoot = false;
+  }, []);
+  useGameControls(stageRef, pausedRef.current, onKeyDown, onKeyUp);
+  const grid = snap.grid;
+  const player = snap.player;
+  const enemies = snap.enemies;
+  const bullets = snap.bullets;
+  let playerPos = null;
+  if (player && player.alive) playerPos = { r: player.r, c: player.c };
+  const enemyMap = {};
+  for (const e of enemies) enemyMap[e.r + "-" + e.c] = e;
+  const bulletMap = {};
+  for (const b of bullets) bulletMap[b.r + "-" + b.c] = b;
+  const basePos = findBase(grid);
+  const cells = [];
+  for (let r = 0; r < GRID; r += 1) {
+    for (let c = 0; c < GRID; c += 1) {
+      const key = r + "-" + c;
+      let cls = "dgame-tank-cell";
+      let inner = null;
+      if (grid[r][c] === STEEL) cls += " steel";
+      else if (grid[r][c] === BRICK) cls += " brick";
+      else if (grid[r][c] === BASE) cls += " base";
+      if (playerPos && playerPos.r === r && playerPos.c === c) {
+        cls += " pw";
+        inner = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgame-tank-body pw", style: { transform: "rotate(" + DIR_ANGLE[player.dir] + "deg)" } });
+      } else if (enemyMap[key]) {
+        const e = enemyMap[key];
+        cls += " en";
+        inner = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgame-tank-body en", style: { background: ENEMY_COLORS[(e.r + e.c) % ENEMY_COLORS.length], transform: "rotate(" + DIR_ANGLE[e.dir] + "deg)" } });
+      }
+      if (bullets && bulletMap[key]) cls += " bullet";
+      cells.push(/* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { className: cls, children: [
+        inner,
+        bulletMap[key] ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgame-tank-bullet", "aria-hidden": "true" }) : null,
+        grid[r][c] === BASE ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("b", { className: "dgame-tank-flag", "aria-hidden": "true", children: "\u2691" }) : null
+      ] }, key));
+    }
+  }
+  const statusText = status === "over" ? "\u57FA\u5730\u5931\u5B88 \xB7 \u6E38\u620F\u7ED3\u675F" : status === "wave" ? "\u7B2C " + snap.wave + " \u6CE2\u6E05\u7A7A\uFF01\u8FDB\u5165\u4E0B\u4E00\u6CE2" : "\u7B2C " + snap.wave + " \u6CE2 \xB7 \u5F85\u6B7C\u706D " + (snap.remaining + snap.enemies.length) + " \u8F86 \xB7 \u751F\u547D \xD7 " + (player && player.lives);
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: "dgame-game", "aria-label": "\u5766\u514B\u5927\u6218", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("h3", { children: "\u5766\u514B\u5927\u6218" }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("p", { children: "\u65B9\u5411\u952E\u79FB\u52A8\uFF0C\u7A7A\u683C\u5F00\u70AE\uFF1B\u51FB\u6BC1\u654C\u65B9\u5766\u514B\uFF0C\u522B\u8BA9\u654C\u519B\u6467\u6BC1\u4E2D\u592E\u57FA\u5730\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { children: [
+          "\u5F97\u5206 ",
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("strong", { children: snap.score })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { children: [
+          "\u751F\u547D \xD7 ",
+          player && player.lives
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-tank-stage", ref: stageRef, tabIndex: 0, role: "grid", onKeyDown, onKeyUp, onClick: () => focusStage(stageRef), "aria-label": "\u5766\u514B\u5927\u6218\u6E38\u620F\u533A\u57DF\uFF0C\u65B9\u5411\u952E\u79FB\u52A8\uFF0C\u7A7A\u683C\u5F00\u70AE", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "dgame-tank-grid", children: cells }),
+      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("strong", { children: [
+          "\u80DC\u8D25\u5DF2\u5206 \xB7 \u5F97 ",
+          snap.score,
+          " \u5206"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", onClick: start, children: "\u91CD\u65B0\u5F00\u59CB" })
+      ] }) : null,
+      status === "wave" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("strong", { children: [
+          "\u7B2C ",
+          snap.wave,
+          " \u6CE2\u6E05\u7A7A\uFF01"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", onClick: nextLvl, children: "\u4E0B\u4E00\u6CE2" })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-controls dgame-tank-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => {
+        keys.current.dir = "up";
+        setTimeout(() => {
+          if (keys.current.dir === "up") keys.current.dir = null;
+        }, 90);
+      }, children: "\u2191" }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 \u7A7A\u683C\u5F00\u70AE \xB7 R \u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", className: "dgame-tank-fire", "aria-label": "\u5F00\u70AE", onClick: () => {
+        keys.current.shoot = true;
+        setTimeout(() => {
+          keys.current.shoot = false;
+        }, 90);
+      }, children: "\u5F00\u70AE" })
+    ] })
+  ] });
+}
+function TankPreview() {
+  const ROWS3 = [
+    "..B..B..",
+    "S.....E.",
+    "..B.B...",
+    "B..S...B",
+    "...P..F."
+  ];
+  const cls = { ".": "void", B: "brick", S: "steel", P: "pw", E: "en", F: "base" };
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "dgcov-prev dgcov-prev-tank", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "dgp-tank-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgp-tank-" + cls[ch] }, r + "-" + c))) }) });
+}
+var tankGame = { Game: TankGame, Preview: TankPreview, css: `
+.dgame-tank-stage{position:relative;align-self:center;width:min(100%,320px);aspect-ratio:1/1;border:1px solid color-mix(in srgb,rgb(250 204 21) 32%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#1a1425,#100d1c);box-shadow:inset 0 0 26px rgb(0 0 0/.5)}.dgame-tank-stage:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(250 204 21) 30%,transparent)}.dgame-tank-grid{display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);width:100%;height:100%;gap:0}.dgame-tank-cell{position:relative;background:rgba(255,255,255,.03);min-width:0;min-height:0}.dgame-tank-cell.steel{background:linear-gradient(180deg,#94a3b8,#64748b)}.dgame-tank-cell.brick{background:repeating-linear-gradient(45deg,#a3672a 0 55%,#8a5a1c 55% 100%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}.dgame-tank-cell.base{background:#fbbf24}.dgame-tank-cell.bullet::before{content:'';position:absolute;inset:38%;background:#fef3c7;box-shadow:0 0 5px #fef3c7;z-index:4}.dgame-tank-flag{position:absolute;inset:0;display:grid;place-items:center;color:#7c2d12;font-size:18px;z-index:2}.dgame-tank-body{position:absolute;inset:16%;display:block;border-radius:16%;z-index:3;transition:transform .1s ease}.dgame-tank-body.pw{background:linear-gradient(135deg,#fde047,#eab308);box-shadow:0 0 7px color-mix(in srgb,#eab308 55%,transparent)}.dgame-tank-body.en{background:#f87171;box-shadow:0 0 5px color-mix(in srgb,#f87171 40%,transparent)}.dgame-tank-body::before{content:'';position:absolute;left:38%;top:-30%;width:24%;height:64%;background:rgba(255,255,255,.5);border-radius:3px}.dgame-tank-controls{grid-template-columns:1fr auto 1fr}
+` };
+
+// features/games/view.jsx
+var import_jsx_runtime11 = require("react/jsx-runtime");
+var LANES = 3;
+var REACTOR_NEIGHBORS = [[0, 1, 3], [1, 0, 2, 4], [2, 1, 5], [3, 0, 4, 6], [4, 1, 3, 5, 7], [5, 2, 4, 8], [6, 3, 7], [7, 4, 6, 8], [8, 5, 7]];
+var FAB_POS_KEY = "dsh-dock/games/fab/v1";
+var WIN_GEOM_KEY = "dsh-dock/games/win/v1";
+var FAB_W = 36;
+var FAB_H = 120;
+var WIN_MIN_W = 360;
+var WIN_MIN_H = 340;
+function phaseLabel2(phase) {
+  return { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" }[phase] || "\u5904\u7406\u4E2D";
+}
+function elapsedText(ms) {
+  const sec = Math.max(0, Math.floor((Number(ms) || 0) / 1e3));
+  const min = Math.floor(sec / 60);
+  return min > 0 ? min + " \u5206 " + String(sec % 60).padStart(2, "0") + " \u79D2" : sec + " \u79D2";
+}
+function makeReactor() {
+  let cells = Array(9).fill(true);
+  const seed = [4, 0, 8, 1, 7, 3];
+  for (const index of seed) {
+    for (const target of REACTOR_NEIGHBORS[index]) cells[target] = !cells[target];
+  }
+  return cells;
+}
+function initialDash() {
+  return { lane: 1, rocks: [], score: 0, shield: 3, running: true, nextId: 1 };
+}
+function useTaskPulse() {
+  const [status, setStatus] = (0, import_react18.useState)({ loading: true, active: [], error: false });
+  const refresh = (0, import_react18.useCallback)(() => fetch("/dsh-dock/animation/status", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}"
+  }).then((res) => res.json()).then((payload) => {
+    if (!payload || !payload.ok) throw new Error("status unavailable");
+    setStatus({ loading: false, active: Array.isArray(payload.data && payload.data.active) ? payload.data.active : [], error: false });
+  }).catch(() => setStatus((current) => ({ loading: false, active: current.active || [], error: true }))), []);
+  (0, import_react18.useEffect)(() => {
+    refresh();
+    const timer = setInterval(refresh, 2600);
+    return () => clearInterval(timer);
+  }, [refresh]);
+  return status;
+}
+function DashGame(props) {
+  const [dash, setDash] = (0, import_react18.useState)(initialDash);
+  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused));
+  pausedRef.current = !!(props && props.paused);
+  const move = (0, import_react18.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
+    lane: Math.max(0, Math.min(LANES - 1, current.lane + delta))
+  })), []);
+  const stageRef = (0, import_react18.useRef)(null);
+  const onKeyDown = (0, import_react18.useCallback)((event) => {
+    if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      move(-1);
+    } else if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
+      event.preventDefault();
+      move(1);
+    } else if (!dash.running && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      setDash(initialDash());
+    }
+  }, [move, dash.running]);
+  useGameControls(stageRef, props.paused, onKeyDown);
+  (0, import_react18.useEffect)(() => {
+    const timer = setInterval(() => {
+      if (pausedRef.current || typeof document !== "undefined" && document.hidden) return;
+      setDash((current) => {
+        if (!current.running) return current;
+        let gained = 0;
+        let hit = false;
+        const rocks = [];
+        for (const rock of current.rocks) {
+          const next = Object.assign({}, rock, { row: rock.row + 1 });
+          if (next.row >= 4) {
+            if (next.lane === current.lane) hit = true;
+            else gained += 1;
+          } else rocks.push(next);
+        }
+        const shield = hit ? current.shield - 1 : current.shield;
+        if (Math.random() > 0.32) rocks.push({ id: current.nextId, lane: Math.floor(Math.random() * LANES), row: 0 });
+        return {
+          lane: current.lane,
+          rocks,
+          score: current.score + gained,
+          shield,
+          running: shield > 0,
+          nextId: current.nextId + 1
+        };
+      });
+    }, 620);
+    return () => clearInterval(timer);
+  }, []);
+  const cells = [];
+  for (let row = 0; row < 5; row += 1) {
+    for (let lane = 0; lane < LANES; lane += 1) {
+      const rock = dash.rocks.find((item) => item.row === row && item.lane === lane);
+      const pilot = row === 4 && lane === dash.lane;
+      cells.push(/* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgame-dash-cell", children: [
+        rock ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { className: "dgame-rock", children: "\u25C6" }) : null,
+        pilot ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { className: "dgame-pilot", children: "\u25B2" }) : null
+      ] }, row + "-" + lane));
+    }
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "dgame-game", "aria-label": "\u661F\u9645\u8EB2\u907F\u5C0F\u6E38\u620F", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u661F\u9645\u8EB2\u907F" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "\u5DE6\u53F3\u79FB\u52A8\u8865\u7ED9\u8247\uFF0C\u907F\u5F00\u6B63\u5728\u5760\u843D\u7684\u9668\u77F3\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { children: [
+          "\u5F97\u5206 ",
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: dash.score })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { "aria-label": "\u62A4\u76FE " + dash.shield + " \u683C", children: [
+          "\u62A4\u76FE ",
+          "\u2726".repeat(Math.max(0, dash.shield)),
+          "\xB7".repeat(Math.max(0, 3 - dash.shield))
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-dash-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), "aria-label": "\u661F\u9645\u8EB2\u907F\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u4E0B\u65B9\u6309\u94AE\u79FB\u52A8", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-dash-grid", children: cells }),
+      !dash.running ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: "\u62A4\u76FE\u8017\u5C3D" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", onClick: () => setDash(initialDash()), children: "\u91CD\u65B0\u51FA\u53D1" })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6\u79FB\u52A8", onClick: () => move(-1), children: "\u2190 \u5DE6\u79FB" }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u65B9\u5411\u952E / A\u3001D \xB7 \u7A7A\u683C\u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3\u79FB\u52A8", onClick: () => move(1), children: [
+        "\u53F3\u79FB ",
+        "->"
+      ] })
+    ] }),
+    "	"
+  ] });
+}
+function ReactorGame(props) {
+  const [cells, setCells] = (0, import_react18.useState)(makeReactor);
+  const [moves, setMoves] = (0, import_react18.useState)(0);
+  const [cursor, setCursor] = (0, import_react18.useState)(4);
+  const gridRef = (0, import_react18.useRef)(null);
+  const solved = cells.every(Boolean);
+  const toggle = (index) => {
+    if (solved) return;
+    setCells((current) => current.map((on, target) => REACTOR_NEIGHBORS[index].includes(target) ? !on : on));
+    setMoves((current) => current + 1);
+  };
+  const reset = () => {
+    setCells(makeReactor());
+    setMoves(0);
+  };
+  const moveCursor = (dRow, dCol) => setCursor((c) => {
+    const row = Math.min(2, Math.max(0, Math.floor(c / 3) + dRow));
+    const col = Math.min(2, Math.max(0, c % 3 + dCol));
+    return row * 3 + col;
+  });
+  const onKeyDown = (event) => {
+    const key = event.key;
+    if (key === "ArrowLeft") {
+      event.preventDefault();
+      moveCursor(0, -1);
+    } else if (key === "ArrowRight") {
+      event.preventDefault();
+      moveCursor(0, 1);
+    } else if (key === "ArrowUp") {
+      event.preventDefault();
+      moveCursor(-1, 0);
+    } else if (key === "ArrowDown") {
+      event.preventDefault();
+      moveCursor(1, 0);
+    } else if (key === "Enter" || key === " ") {
+      event.preventDefault();
+      toggle(cursor);
+    } else if (key.toLowerCase() === "r") {
+      event.preventDefault();
+      reset();
+    }
+  };
+  useGameControls(gridRef, props.paused, onKeyDown);
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "dgame-game", "aria-label": "\u53CD\u5E94\u5806\u70B9\u4EAE\u5C0F\u6E38\u620F", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u53CD\u5E94\u5806\u70B9\u4EAE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "\u70B9\u4E00\u4E0B\u4F1A\u5207\u6362\u76F8\u90BB\u6A21\u5757\uFF0C\u628A\u4E5D\u4E2A\u6A21\u5757\u5168\u90E8\u70B9\u4EAE\uFF1B\u952E\u76D8\uFF1A\u65B9\u5411\u952E\u9009\u683C\u3001Enter/\u7A7A\u683C \u70B9\u4EAE\u3001R \u91CD\u7F6E\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { children: [
+          "\u64CD\u4F5C ",
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: moves })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u7F6E" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-reactor", ref: gridRef, tabIndex: 0, role: "group", "aria-label": "\u4E5D\u5BAB\u683C\u53CD\u5E94\u5806", onKeyDown, onClick: () => focusStage(gridRef), children: cells.map((on, index) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", tabIndex: -1, className: "dgame-reactor-cell" + (on ? " on" : "") + (cursor === index ? " focus" : ""), "aria-current": cursor === index ? "true" : void 0, "aria-label": (on ? "\u5DF2\u70B9\u4EAE" : "\u672A\u70B9\u4EAE") + "\u6A21\u5757 " + (index + 1), onClick: () => {
+      toggle(index);
+      setCursor(index);
+      focusStage(gridRef);
+    }, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}) }, index)) }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-reactor-status" + (solved ? " solved" : ""), children: solved ? "\u53CD\u5E94\u5806\u7A33\u5B9A\u8FD0\u884C \xB7 \u505A\u5F97\u6F02\u4EAE\uFF08R \u91CD\u65B0\u5F00\u59CB\uFF09" : "\u8BA9\u6240\u6709\u6A21\u5757\u53D1\u5149\uFF0C\u7ED9\u4EFB\u52A1\u4E00\u70B9\u80FD\u91CF" })
+  ] });
+}
+function DashCover() {
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgcov-prev dgcov-prev-dash", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", {})
+  ] });
+}
+function ReactorCover() {
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgcov-prev dgcov-prev-reactor", "aria-hidden": "true", children: Array.from({ length: 9 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}, i)) });
+}
+var GAMES = [
+  {
+    id: "dash",
+    name: "\u661F\u9645\u8EB2\u907F",
+    cat: "casual",
+    accent: "#38bdf8",
+    desc: "\u5DE6\u53F3\u79FB\u52A8\u8865\u7ED9\u8247\uFF0C\u907F\u5F00\u5760\u843D\u7684\u9668\u77F3\uFF1B\u62A4\u76FE\u8017\u5C3D\u524D\u80FD\u62FF\u591A\u5C11\u5206\uFF1F",
+    tip: "\u2190/\u2192 \u6216 A\u3001D \u79FB\u52A8 \xB7 \u7A7A\u683C\u91CD\u5F00",
+    Game: DashGame,
+    Preview: DashCover
+  },
+  {
+    id: "reactor",
+    name: "\u53CD\u5E94\u5806\u70B9\u4EAE",
+    cat: "casual",
+    accent: "#a78bfa",
+    desc: "\u70B9\u4E00\u4E0B\u4F1A\u7FFB\u8F6C\u76F8\u90BB\u6A21\u5757\uFF0C\u628A\u4E5D\u4E2A\u6A21\u5757\u5168\u90E8\u70B9\u4EAE\uFF0C\u8BA9\u53CD\u5E94\u5806\u7A33\u5B9A\u8FD0\u884C\uFF1B\u952E\u76D8\u5168\u7A0B\u53EF\u73A9\u3002",
+    tip: "\u65B9\u5411\u952E\u9009\u683C \xB7 Enter/\u7A7A\u683C \u70B9\u4EAE \xB7 R \u91CD\u7F6E",
+    Game: ReactorGame,
+    Preview: ReactorCover
+  },
+  {
+    id: "gomoku",
+    name: "\u4E94\u5B50\u68CB",
+    cat: "board",
+    accent: "#38bdf8",
+    desc: "\u4F60\u6267\u9ED1\u5148\u624B\u3001AI \u6267\u767D\uFF1B\u5148\u5728\u6A2A\u7AD6\u659C\u4EFB\u4E00\u65B9\u5411\u8FDE\u6210\u4E94\u5B50\u8005\u80DC\u3002",
+    tip: "\u70B9\u51FB\u7A7A\u4F4D\u843D\u5B50 \xB7 \u64A4\u9500 / \u91CD\u5F00",
+    Game: gomokuGame.Game,
+    Preview: gomokuGame.Preview
+  },
+  {
+    id: "xiangqi",
+    name: "\u4E2D\u56FD\u8C61\u68CB",
+    cat: "board",
+    accent: "#f87171",
+    desc: "\u4F60\u6267\u7EA2\u5148\u884C\u3001AI \u6267\u9ED1\uFF1B\u5403\u5149\u5BF9\u65B9\u5C06/\u5E05\u5373\u80DC\uFF0C\u522B\u9001\u738B\u88AB\u5C06\u3002",
+    tip: "\u9009\u4E2D\u7EA2\u5B50\u518D\u70B9\u843D\u70B9 \xB7 R \u91CD\u5F00 \xB7 U \u64A4\u9500",
+    Game: xiangqiGame.Game,
+    Preview: xiangqiGame.Preview
+  },
+  {
+    id: "tetris",
+    name: "\u4FC4\u7F57\u65AF\u65B9\u5757",
+    cat: "classic",
+    accent: "#22d3ee",
+    desc: "\u7ECF\u5178\u673A\u53F0\u7B2C\u4E00\u6B3E\uFF1A\u62FC\u6EE1\u4E00\u884C\u6D88\u9664\u5F97\u5206\uFF0C\u901F\u5EA6\u968F\u7B49\u7EA7\u52A0\u5FEB\u3002",
+    tip: "\u2190/\u2192 \u79FB\u52A8 \xB7 \u2193 \u4E0B\u843D \xB7 \u2191/X \u65CB\u8F6C \xB7 \u7A7A\u683C \u76F4\u843D \xB7 P \u6682\u505C",
+    Game: tetrisGame.Game,
+    Preview: tetrisGame.Preview
+  },
+  {
+    id: "sokoban",
+    name: "\u63A8\u7BB1\u5B50",
+    cat: "classic",
+    accent: "#facc15",
+    desc: "\u628A\u7BB1\u5B50\u5168\u90E8\u63A8\u5230\u76EE\u6807\u70B9\u4E0A\u901A\u5173\uFF1B\u516D\u5173\u96BE\u5EA6\u9012\u589E\u3002",
+    tip: "\u65B9\u5411\u952E\u79FB\u52A8 \xB7 U \u64A4\u9500 \xB7 R \u91CD\u7F6E \xB7 \u6570\u5B57\u5207\u5173",
+    Game: sokobanGame.Game,
+    Preview: sokobanGame.Preview
+  },
+  {
+    id: "snake",
+    name: "\u8D2A\u5403\u86C7",
+    cat: "classic",
+    accent: "#4ade80",
+    desc: "\u5403\u5230\u98DF\u7269\u53D8\u957F\u5E76\u52A0\u901F\uFF1B\u649E\u5899\u6216\u54AC\u5230\u81EA\u5DF1\u5C31\u7ED3\u675F\u3002",
+    tip: "\u65B9\u5411\u952E / WASD \u79FB\u52A8 \xB7 P \u6682\u505C \xB7 R \u91CD\u5F00",
+    Game: snakeGame.Game,
+    Preview: snakeGame.Preview
+  },
+  {
+    id: "breakout",
+    name: "\u6253\u7816\u5757",
+    cat: "classic",
+    accent: "#38bdf8",
+    desc: "\u79FB\u52A8\u6321\u677F\u53CD\u5F39\u5C0F\u7403\uFF0C\u51FB\u788E\u5168\u90E8\u7816\u5757\uFF1B\u7403\u6389\u5230\u5E95\u90E8\u4E22\u4E00\u6761\u547D\u3002",
+    tip: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C\u53D1\u7403",
+    Game: breakoutGame.Game,
+    Preview: breakoutGame.Preview
+  },
+  {
+    id: "racer",
+    name: "\u6781\u901F\u8D5B\u8F66",
+    cat: "classic",
+    accent: "#fb923c",
+    desc: "\u907F\u5F00\u8FCE\u9762\u6765\u8F66\u3001\u6536\u96C6\u91D1\u5E01\uFF0C\u8D8A\u5F00\u8D8A\u5FEB\uFF1B\u649E\u8F66\u5373\u7ED3\u675F\u3002",
+    tip: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 R \u91CD\u5F00",
+    Game: racerGame.Game,
+    Preview: racerGame.Preview
+  },
+  {
+    id: "tank",
+    name: "\u5766\u514B\u5927\u6218",
+    cat: "classic",
+    accent: "#fde047",
+    desc: "\u51FB\u6BC1\u654C\u65B9\u5766\u514B\u3001\u5B88\u4F4F\u4E2D\u592E\u57FA\u5730\uFF1B\u6E05\u7A7A\u4E00\u6CE2\u8FDB\u5165\u4E0B\u4E00\u6CE2\u3002",
+    tip: "\u65B9\u5411\u952E\u79FB\u52A8 \xB7 \u7A7A\u683C\u5F00\u70AE \xB7 R \u91CD\u5F00",
+    Game: tankGame.Game,
+    Preview: tankGame.Preview
+  }
+];
+var gamesBus = {
+  state: { open: false, game: null, picker: false },
+  listeners: /* @__PURE__ */ new Set(),
+  subscribe(fn) {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  },
+  emit() {
+    for (const fn of this.listeners) fn();
+  },
+  launch(id) {
+    if (!GAMES.some((g) => g.id === id)) return;
+    this.state = { open: true, game: id, picker: false };
+    this.emit();
+  },
+  // 快捷入口点击：上次玩过的直接续玩，否则先展开选择层。
+  entry() {
+    this.state = { open: true, game: this.state.game, picker: this.state.game ? false : true };
+    this.emit();
+  },
+  togglePicker() {
+    this.state = Object.assign({}, this.state, { picker: !this.state.picker });
+    this.emit();
+  },
+  closePicker() {
+    this.state = Object.assign({}, this.state, { picker: false });
+    this.emit();
+  },
+  close() {
+    this.state = { open: false, game: this.state.game, picker: false };
+    this.emit();
+  }
+};
+function useGameWin() {
+  const [state, setState] = (0, import_react18.useState)(gamesBus.state);
+  (0, import_react18.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
+  return state;
+}
+var CATS = [
+  { id: "board", label: "\u68CB\u76D8\u5BF9\u6218", desc: "\u4F60\u4E0E AI \u5BF9\u5F08" },
+  { id: "classic", label: "\u7ECF\u5178\u673A\u53F0", desc: "\u4FC4\u7F57\u65AF\u65B9\u5757\u6E38\u620F\u673A\u91CC\u7684\u6000\u65E7\u6E38\u620F" },
+  { id: "casual", label: "\u4F11\u95F2\u76CA\u667A", desc: "\u7B49\u4EFB\u52A1\u65F6\u987A\u624B\u6765\u4E00\u628A" }
+];
+function GameCoverGrid(props) {
+  const currentId = props && props.currentId;
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgcov-groups", children: CATS.map((cat) => {
+    const list = GAMES.filter((g) => (g.cat || "casual") === cat.id);
+    if (!list.length) return null;
+    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgcov-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgcov-sechead", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: cat.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: cat.desc }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("em", { children: [
+          list.length,
+          " \u6B3E"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgcov-grid", role: "list", children: list.map((g) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+        "button",
+        {
+          type: "button",
+          role: "listitem",
+          className: "dgcov" + (currentId === g.id ? " on" : ""),
+          onClick: () => props.onLaunch(g.id),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(g.Preview, {}),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgcov-name", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { style: { background: g.accent } }),
+              g.name,
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("em", { children: currentId === g.id ? "\u6B63\u5728\u73A9" : "\u5F00\u73A9" })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgcov-desc", children: g.desc })
+          ]
+        },
+        g.id
+      )) })
+    ] }, cat.id);
+  }) });
+}
+function TaskPill({ status }) {
+  if (status.loading) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgwin-task", children: "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" });
+  const task = status.active[0];
+  if (!task) return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgwin-task idle", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+    "\u4EFB\u52A1\u7A7A\u95F2 \xB7 \u6162\u6162\u73A9"
+  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgwin-task live", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("b", { children: [
+      status.active.length,
+      " \u4E2A\u4EFB\u52A1"
+    ] }),
+    phaseLabel2(task.phase),
+    " \xB7 ",
+    elapsedText(task.elapsed)
+  ] });
+}
+function readFabSide() {
+  try {
+    const p = JSON.parse(localStorage.getItem(FAB_POS_KEY) || "null");
+    return p && (p.side === "left" || p.side === "right") ? p.side : "left";
+  } catch {
+    return "left";
+  }
+}
+function defaultWinGeom() {
+  const w = Math.min(470, window.innerWidth - 16);
+  const h = Math.min(600, window.innerHeight - 16);
+  const x = readFabSide() === "right" ? Math.max(10, window.innerWidth - w - 14) : Math.min(Math.max(10, sidebarRightEdge() + 10), Math.max(10, window.innerWidth - w - 14));
+  return { mode: "normal", x, y: Math.max(10, Math.round((window.innerHeight - h) / 2) - 10), w, h };
+}
+function restoreWinGeom() {
+  try {
+    const g = JSON.parse(localStorage.getItem(WIN_GEOM_KEY) || "null");
+    if (g && [g.x, g.y, g.w, g.h].every((v) => typeof v === "number")) {
+      const w = Math.max(WIN_MIN_W, Math.min(g.w, window.innerWidth - 16));
+      const h = Math.max(WIN_MIN_H, Math.min(g.h, window.innerHeight - 16));
+      return {
+        mode: "normal",
+        x: Math.min(Math.max(8, g.x), Math.max(8, window.innerWidth - w - 8)),
+        y: Math.min(Math.max(8, g.y), Math.max(8, window.innerHeight - h - 8)),
+        w,
+        h
+      };
+    }
+  } catch {
+  }
+  return defaultWinGeom();
+}
+function findSidebarCol() {
+  if (typeof document === "undefined") return null;
+  const overlay = document.querySelector("[data-shell-overlay]");
+  const frame = overlay && overlay.parentElement;
+  if (!frame) return null;
+  return frame.children[0] || null;
+}
+function sidebarRightEdge() {
+  const col = findSidebarCol();
+  if (col) {
+    const rect2 = col.getBoundingClientRect();
+    if (rect2 && typeof rect2.right === "number") return rect2.right;
+  }
+  return 280;
+}
+function snapFabX(side) {
+  if (typeof window === "undefined") return 0;
+  return side === "right" ? Math.max(0, window.innerWidth - FAB_W) : sidebarRightEdge();
+}
+function GameWindow(props) {
+  const game = props.game;
+  const status = useTaskPulse();
+  const [win, setWin] = (0, import_react18.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
+  const winRef = (0, import_react18.useRef)(win);
+  winRef.current = win;
+  const pickerRef = (0, import_react18.useRef)(props.picker);
+  pickerRef.current = props.picker;
+  (0, import_react18.useEffect)(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (pickerRef.current) gamesBus.closePicker();
+      else gamesBus.close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  function persistGeom(s) {
+    try {
+      localStorage.setItem(WIN_GEOM_KEY, JSON.stringify({ x: s.x, y: s.y, w: s.w, h: s.h }));
+    } catch {
+    }
+  }
+  function beginDrag(e, kind) {
+    if (e.button !== 0 || typeof window === "undefined") return;
+    if (kind === "move" && (winRef.current.mode === "max" || e.target && e.target.closest && e.target.closest("button"))) return;
+    const startX = e.clientX, startY = e.clientY;
+    const origin = Object.assign({}, winRef.current);
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (kind === "move") setWin((s) => Object.assign({}, s, {
+        x: Math.min(Math.max(8, origin.x + dx), Math.max(8, window.innerWidth - origin.w - 8)),
+        y: Math.min(Math.max(8, origin.y + dy), Math.max(8, window.innerHeight - origin.h - 8))
+      }));
+      else setWin((s) => Object.assign({}, s, {
+        // 窗口高度随内容自适应，缩放只调宽度；游戏板按比例跟随缩放。
+        w: Math.max(WIN_MIN_W, Math.min(origin.w + dx, window.innerWidth - 16))
+      }));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setWin((s) => {
+        persistGeom(s);
+        return s;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+  const Game = game && game.Game;
+  const style = win.mode === "max" ? { left: 10, top: 10, right: 10, bottom: 10, width: "auto", height: "auto" } : { left: win.x, top: win.y, width: win.w, height: props.picker ? "min(76vh, 640px)" : "auto" };
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin dgwin-" + win.mode, role: "dialog", "aria-label": "\u6E38\u620F\u7A97\u53E3\uFF1A" + (game ? game.name : "\u8DA3\u5473\u6E38\u620F"), style, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+      "header",
+      {
+        className: "dgwin-bar",
+        onPointerDown: (e) => beginDrag(e, "move"),
+        onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" })),
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgwin-ico", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GamepadIcon, { size: 15 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-title", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: game ? game.name : "\u8DA3\u5473\u6E38\u620F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: game ? game.desc : "\u9009\u4E00\u6B3E\u5C0F\u6E38\u620F\uFF0C\u8FB9\u7B49\u8FB9\u73A9" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(TaskPill, { status }),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-ctrls", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-btn", title: props.picker ? "\u6536\u8D77\u9009\u62E9\u5C42\uFF0C\u56DE\u5230\u6E38\u620F" : "\u5C55\u5F00\u9009\u62E9\u5C42\uFF0C\u6362\u4E00\u6B3E\u6E38\u620F", onClick: () => gamesBus.togglePicker(), children: props.picker ? "\u8FD4\u56DE" : "\u6362\u6E38\u620F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-sq", title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316", "aria-label": win.mode === "min" ? "\u8FD8\u539F\u7A97\u53E3" : "\u6700\u5C0F\u5316\u7A97\u53E3", onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" })), children: "\u2581" }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-sq", title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316", "aria-label": win.mode === "max" ? "\u8FD8\u539F\u7A97\u53E3" : "\u6700\u5927\u5316\u7A97\u53E3", onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" })), children: win.mode === "max" ? "\u2750" : "\u25A2" }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-sq", title: "\u5173\u95ED\uFF08Esc\uFF09", "aria-label": "\u5173\u95ED\u6E38\u620F\u7A97\u53E3", onClick: () => gamesBus.close(), children: "\u2715" })
+          ] })
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-body", children: [
+      Game ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Game, { paused: props.picker || win.mode === "min" }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgwin-empty", children: "\u4ECE\u300C\u6362\u6E38\u620F\u300D\u91CC\u6311\u4E00\u6B3E\u5F00\u59CB\u73A9\u3002" }),
+      game ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("footer", { className: "dgwin-tip", children: [
+        game.tip,
+        " \xB7 Esc \u5173\u95ED\u7A97\u53E3"
+      ] }) : null,
+      props.picker ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-picker", role: "dialog", "aria-label": "\u9009\u62E9\u5C0F\u6E38\u620F", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-picker-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: "\u9009\u62E9\u5C0F\u6E38\u620F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u70B9\u51FB\u5C01\u9762\u5F00\u73A9\uFF1B\u7A97\u53E3\u4F4D\u7F6E\u548C\u5927\u5C0F\u968F\u4F60\u8C03" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-picker-close", "aria-label": "\u5173\u95ED\u9009\u62E9\u5C42", title: "\u5173\u95ED", onClick: () => gamesBus.closePicker(), children: "\u2715" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameCoverGrid, { currentId: game && game.id, onLaunch: (id) => gamesBus.launch(id) })
+      ] }) : null
+    ] }),
+    win.mode === "normal" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgwin-resize", title: "\u62D6\u52A8\u8C03\u6574\u7A97\u53E3\u5927\u5C0F", "aria-hidden": "true", onPointerDown: (e) => beginDrag(e, "size") }) : null
+  ] });
+}
+function GameFab(props) {
+  const [pos, setPos] = (0, import_react18.useState)(null);
+  const [dragging, setDragging] = (0, import_react18.useState)(false);
+  const dragRef = (0, import_react18.useRef)(null);
+  const clickBlockRef = (0, import_react18.useRef)(false);
+  const sideRef = (0, import_react18.useRef)("left");
+  (0, import_react18.useEffect)(() => {
+    if (typeof window === "undefined") return;
+    let next = { side: "left", y: Math.round(window.innerHeight * 0.34) };
+    try {
+      const p = JSON.parse(localStorage.getItem(FAB_POS_KEY) || "null");
+      if (p && (p.side === "left" || p.side === "right") && typeof p.y === "number") next = { side: p.side, y: p.y };
+    } catch {
+    }
+    sideRef.current = next.side;
+    setPos({
+      side: next.side,
+      x: snapFabX(next.side),
+      y: Math.min(Math.max(8, next.y), Math.max(8, window.innerHeight - FAB_H - 8))
+    });
+  }, []);
+  (0, import_react18.useEffect)(() => {
+    if (typeof window === "undefined") return;
+    const update = () => {
+      if (dragRef.current) return;
+      setPos((cur) => cur ? Object.assign({}, cur, { x: snapFabX(cur.side) }) : cur);
+    };
+    const resizeTarget = findSidebarCol();
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined" && resizeTarget) {
+      ro = new ResizeObserver(update);
+      ro.observe(resizeTarget);
+    }
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      if (ro) ro.disconnect();
+    };
+  }, []);
+  const onPointerDown = (e) => {
+    if (e.button !== 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top, w: r.width || FAB_W, h: r.height || FAB_H, moved: false };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+    }
+  };
+  const onPointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d || typeof window === "undefined") return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (!d.moved && Math.hypot(dx, dy) < 4) return;
+    d.moved = true;
+    setDragging(true);
+    const side = d.ox + dx + d.w / 2 < window.innerWidth / 2 ? "left" : "right";
+    sideRef.current = side;
+    setPos({
+      side,
+      x: Math.min(Math.max(0, d.ox + dx), Math.max(0, window.innerWidth - d.w)),
+      y: Math.min(Math.max(8, d.oy + dy), Math.max(8, window.innerHeight - d.h - 8))
+    });
+  };
+  const onPointerUp = (e) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    setDragging(false);
+    if (!d || !d.moved) return;
+    clickBlockRef.current = true;
+    setTimeout(() => {
+      clickBlockRef.current = false;
+    }, 0);
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    const side = d.ox + dx + d.w / 2 < window.innerWidth / 2 ? "left" : "right";
+    sideRef.current = side;
+    const x = snapFabX(side);
+    const y = Math.min(Math.max(8, d.oy + dy), Math.max(8, window.innerHeight - d.h - 8));
+    setPos({ side, x, y });
+    try {
+      localStorage.setItem(FAB_POS_KEY, JSON.stringify({ side, y }));
+    } catch {
+    }
+  };
+  if (!pos) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+    "button",
+    {
+      type: "button",
+      className: "dgfab dgfab-side-" + pos.side + (dragging ? " dgfab-drag" : "") + (props.hidden ? " dgfab-hide" : ""),
+      style: { left: pos.x + "px", top: pos.y + "px" },
+      title: "\u8DA3\u5473\u6E38\u620F \xB7 \u70B9\u51FB\u5F00\u73A9\uFF1B\u6309\u4F4F\u53EF\u62D6\u5230\u4FA7\u680F\u53F3\u7F18\u6216\u5C4F\u5E55\u53F3\u4FA7\u3001\u4E0A\u4E0B\u632A\u4F4D",
+      "aria-label": "\u8DA3\u5473\u6E38\u620F\u5FEB\u6377\u5165\u53E3\uFF0C\u53EF\u62D6\u52A8\u6362\u8FB9\u4E0E\u4E0A\u4E0B\u632A\u4F4D",
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onClick: () => {
+        if (!clickBlockRef.current) gamesBus.entry();
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgfab-ico", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GamepadIcon, { size: 16 }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgfab-label", children: "\u8DA3\u5473\u6E38\u620F" })
+      ]
+    }
+  );
+}
+function GamepadIcon(props) {
+  const size = props && props.size || 16;
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("svg", { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: "1.3", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("rect", { x: "1.6", y: "4.6", width: "12.8", height: "6.8", rx: "3.2" }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("path", { d: "M4.7 6.8v2.6M3.4 8.1h2.6" }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("circle", { cx: "10.4", cy: "6.9", r: ".95", fill: "currentColor", stroke: "none" }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("circle", { cx: "12.2", cy: "8.7", r: ".95", fill: "currentColor", stroke: "none" })
+  ] });
+}
+function GamesOverlay() {
+  const winState = useGameWin();
+  const [panelOpen, setPanelOpen2] = (0, import_react18.useState)(panelNav.open);
+  (0, import_react18.useEffect)(() => {
+    setPanelOpen2(panelNav.open);
+    return subscribePanel(() => setPanelOpen2(panelNav.open));
+  }, []);
+  const game = winState.game ? GAMES.find((g) => g.id === winState.game) : null;
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameFab, { hidden: winState.open || panelOpen }),
+    winState.open ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameWindow, { game, picker: winState.picker }) : null
+  ] });
+}
+function TaskStatus({ status }) {
+  const task = status.active[0];
+  if (status.loading) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-task-status loading", children: "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" });
+  if (!task) return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-task-status", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+    " \u4EFB\u52A1\u6682\u65F6\u7A7A\u95F2 \xB7 \u6E38\u620F\u968F\u65F6\u53EF\u73A9"
+  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-task-status live", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
+        status.active.length,
+        " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 ",
+        phaseLabel2(task.phase)
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { title: task.title, children: [
+        task.title || "\u5F53\u524D\u4EFB\u52A1",
+        " \xB7 \u5DF2\u8FD0\u884C ",
+        elapsedText(task.elapsed)
+      ] })
+    ] })
+  ] });
+}
+function GamesView() {
+  const status = useTaskPulse();
+  const winState = useGameWin();
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "dgame", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("header", { className: "dgame-hero", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgame-eyebrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+          " \u7B49\u5F85\u4E5F\u53EF\u4EE5\u5F88\u597D\u73A9"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h2", { children: "\u8DA3\u5473\u6E38\u620F" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "\u4EFB\u52A1\u5728\u540E\u53F0\u7EE7\u7EED\u6267\u884C\uFF1B\u6E38\u620F\u5728\u5C40\u90E8\u6D6E\u52A8\u7A97\u53E3\u91CC\u8FD0\u884C\uFF0C\u4E0D\u94FA\u6EE1\u5168\u5C4F\u3001\u4E0D\u906E\u6321\u4F1A\u8BDD\u5185\u5BB9\uFF0C\u4E5F\u4E0D\u5F71\u54CD\u6587\u4EF6\u6216\u6B63\u5728\u8FD0\u884C\u7684\u667A\u80FD\u4F53\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgame-planet", "aria-hidden": "true", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", {})
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(TaskStatus, { status }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-launch-note", children: "\u70B9\u51FB\u5C01\u9762\u5728\u6D6E\u52A8\u7A97\u53E3\u5F00\u73A9\uFF1A\u7A97\u53E3\u53EF\u62D6\u52A8\u3001\u53EF\u8C03\u5927\u5C0F\u3001\u53EF\u6700\u5927\u5316\u6700\u5C0F\u5316\uFF1B\u5C4F\u5E55\u4FA7\u8FB9\u7684\u300C\u8DA3\u5473\u6E38\u620F\u300D\u78C1\u5438\u5165\u53E3\u8D34\u5728\u5DE6\u4FA7\u8FB9\u680F\u53F3\u7F18\uFF08\u4E0D\u6321\u5DE5\u4F5C\u533A\u76EE\u5F55\uFF09\uFF0C\u53EF\u4E0A\u4E0B\u632A\u4F4D\u3001\u5DE6\u53F3\u6362\u8FB9\uFF0C\u4F4D\u7F6E\u90FD\u4F1A\u8BB0\u4F4F\uFF1B\u5341\u6B3E\u5C0F\u6E38\u620F\u90FD\u652F\u6301\u952E\u76D8\uFF08\u80FD\u914D\u6309\u94AE\u7684\u4E5F\u914D\u4E86\u6309\u94AE\uFF09\u64CD\u4F5C\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameCoverGrid, { currentId: winState.open ? winState.game : null, onLaunch: (id) => {
+      gamesBus.launch(id);
+      setPanelOpen(false);
+    } }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("footer", { className: "dgame-foot", children: "\u6E38\u620F\u4E2D\u6309 Esc \u5173\u95ED\u7A97\u53E3\uFF1B\u6E38\u620F\u4E0D\u53D1\u9001\u4EFB\u4F55\u6D88\u606F\uFF0C\u4E5F\u4E0D\u6539\u52A8\u5DE5\u4F5C\u533A\u3002\u65B9\u5411\u952E / WASD\u3001Enter\u3001\u7A7A\u683C\u3001R\u3001U\u3001P \u7B49\u952E\u968F\u6E38\u620F\u53EF\u7528\uFF1B\u4E94\u5B50\u68CB\u3001\u8C61\u68CB\u652F\u6301\u64A4\u9500/\u91CD\u5F00\u3002" })
+  ] });
+}
+function GamesHomeStat() {
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u5341\u6B3E\u6D6E\u52A8\u7A97\u53E3\u5C0F\u6E38\u620F \xB7 \u4E94\u5B50\u68CB/\u8C61\u68CB/\u4FC4\u7F57\u65AF\u65B9\u5757/\u63A8\u7BB1\u5B50\u2026\u4EFB\u52A1\u7B49\u5F85\u4E0D\u65E0\u804A" });
+}
+var baseCss = `
+.dgame{--dgame-accent:#a78bfa;--dgame-accent-soft:color-mix(in srgb,var(--dgame-accent) 16%,transparent);display:flex;flex-direction:column;gap:14px;max-width:760px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dgame h2,.dgame h3,.dgame p{margin:0}.dgame-hero{position:relative;display:flex;justify-content:space-between;gap:18px;overflow:hidden;padding:17px 18px;border:1px solid color-mix(in srgb,var(--dgame-accent) 35%,var(--dsw-alias-border-l1));border-radius:16px;background:radial-gradient(circle at 88% 30%,color-mix(in srgb,#38bdf8 25%,transparent),transparent 28%),radial-gradient(circle at 8% 100%,color-mix(in srgb,#a855f7 24%,transparent),transparent 34%),var(--dsw-alias-bg-layer-1)}.dgame-hero>div{position:relative;z-index:1;display:flex;flex-direction:column;gap:5px;max-width:540px}.dgame-hero h2{font-size:21px;letter-spacing:-.02em}.dgame-hero p,.dgame-foot{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-eyebrow{display:inline-flex;align-items:center;gap:7px;color:var(--dgame-accent);font-size:11px;font-weight:700}.dgame-eyebrow i,.dgame-task-status>i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px currentColor;opacity:.9}.dgame-planet{position:relative;z-index:1;align-self:center;display:block;width:76px;height:76px;flex:none;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e0f2fe 0 4%,#60a5fa 18%,#3730a3 59%,#1e1b4b);box-shadow:0 0 30px color-mix(in srgb,#818cf8 45%,transparent)}.dgame-planet::after{content:'';position:absolute;left:-16px;top:33px;width:106px;height:27px;border:3px solid color-mix(in srgb,#c4b5fd 72%,transparent);border-radius:50%;transform:rotate(-17deg)}.dgame-planet i{position:absolute;right:15px;top:14px;width:9px;height:9px;border-radius:50%;background:#818cf8;box-shadow:-23px 24px 0 5px color-mix(in srgb,#312e81 52%,transparent)}.dgame-planet b{position:absolute;left:-9px;top:9px;width:5px;height:5px;border-radius:50%;background:#fef3c7;box-shadow:58px -20px 0 #fef3c7,76px 43px 0 #bae6fd}.dgame-task-status{display:flex;align-items:center;gap:9px;min-height:40px;padding:9px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:11px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary)}.dgame-task-status>i{color:var(--dsw-alias-label-tertiary);box-shadow:0 0 0 4px color-mix(in srgb,var(--dsw-alias-label-tertiary) 13%,transparent)}.dgame-task-status.live{color:var(--dgame-accent);border-color:color-mix(in srgb,var(--dgame-accent) 36%,var(--dsw-alias-border-l1));background:var(--dgame-accent-soft)}.dgame-task-status.live>i{box-shadow:0 0 0 4px color-mix(in srgb,var(--dgame-accent) 17%,transparent);animation:dgame-pulse 1.8s ease-in-out infinite}.dgame-task-status div{display:flex;flex:1;min-width:0;flex-direction:column}.dgame-task-status strong{font-size:12px}.dgame-task-status span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--dsw-alias-label-secondary)}.dgame-task-status.loading{color:var(--dsw-alias-label-tertiary)}@keyframes dgame-pulse{50%{transform:scale(.72);opacity:.5}}.dgame-launch-note{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-game{display:flex;flex-direction:column;gap:11px;padding:15px;border:1px solid var(--dsw-alias-border-l1);border-radius:14px;background:var(--dsw-alias-bg-layer-1)}.dgame-game-head{display:flex;justify-content:space-between;gap:12px}.dgame-game-head>div:first-child{display:flex;flex-direction:column;gap:3px}.dgame-game h3{font-size:16px}.dgame-game p{font-size:12px;color:var(--dsw-alias-label-secondary)}.dgame-score{display:flex;align-items:flex-end;gap:9px;flex-direction:column;color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}.dgame-score strong{color:var(--dgame-accent);font-size:17px;line-height:1}.dgame-score button{min-height:28px;padding:3px 8px;font-size:11px}.dgame-dash-stage{position:relative;align-self:center;width:min(100%,360px);border:1px solid color-mix(in srgb,var(--dgame-accent) 30%,var(--dsw-alias-border-l1));border-radius:13px;overflow:hidden;outline:none;background:radial-gradient(circle at 50% -16%,color-mix(in srgb,#38bdf8 25%,transparent),transparent 42%),linear-gradient(180deg,#10162d,#17142d)}.dgame-dash-stage:focus-visible{box-shadow:0 0 0 3px var(--dgame-accent-soft)}.dgame-dash-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,52px);padding:7px;background:repeating-linear-gradient(90deg,transparent 0 calc(33.333% - 1px),color-mix(in srgb,#c4b5fd 15%,transparent) calc(33.333% - 1px) 33.333%)}.dgame-dash-cell{position:relative;display:grid;place-items:center;border-bottom:1px dashed color-mix(in srgb,#c4b5fd 13%,transparent)}.dgame-rock{font-style:normal;color:#fb7185;text-shadow:0 0 12px #f43f5e;font-size:22px;animation:dgame-rock .55s cubic-bezier(.2,.8,.25,1)}.dgame-pilot{position:relative;color:#a5f3fc;font-size:25px;text-shadow:0 0 14px #38bdf8;animation:dgame-pilot .9s ease-in-out infinite alternate}.dgame-pilot::after{content:'';position:absolute;left:46%;top:19px;width:4px;height:18px;background:linear-gradient(#fef3c7,transparent);transform:translateX(-50%)}@keyframes dgame-rock{from{opacity:0;transform:translateY(-13px) scale(.65)}to{opacity:1;transform:none}}@keyframes dgame-pilot{to{transform:translateY(-2px)}}.dgame-over{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:color-mix(in srgb,#111827 74%,transparent);backdrop-filter:blur(2px);color:#fef3c7}.dgame-over strong{font-size:17px}.dgame-over button{padding:7px 12px;color:#fef3c7;background:color-mix(in srgb,#f59e0b 25%,transparent);border-color:#f59e0b}.dgame-controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;align-self:center;width:min(100%,360px)}.dgame-controls button{min-height:42px;padding:8px 10px;font-weight:600}.dgame-controls span{text-align:center;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-reactor{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;align-self:center;width:min(100%,360px);padding:10px;border-radius:13px;background:linear-gradient(135deg,color-mix(in srgb,#312e81 34%,transparent),color-mix(in srgb,#0f172a 45%,transparent));border:1px solid color-mix(in srgb,var(--dgame-accent) 22%,var(--dsw-alias-border-l1))}.dgame-reactor-cell{position:relative;aspect-ratio:1;border:1px solid color-mix(in srgb,#94a3b8 30%,transparent);border-radius:12px;background:#171a33;cursor:pointer;transition:transform .16s ease,background .22s ease,border-color .22s ease,box-shadow .22s ease}.dgame-reactor-cell:hover{transform:translateY(-2px);border-color:var(--dgame-accent)}.dgame-reactor-cell:focus-visible{outline:2px solid var(--dgame-accent);outline-offset:2px}.dgame-reactor-cell i{position:absolute;inset:23%;border-radius:9px;background:#303252;transition:inherit}.dgame-reactor-cell.on{border-color:#67e8f9;background:color-mix(in srgb,#164e63 70%,#0f172a)}.dgame-reactor-cell.on i{background:radial-gradient(circle at 35% 30%,#ecfeff,#67e8f9 36%,#2563eb 78%);box-shadow:0 0 15px color-mix(in srgb,#22d3ee 65%,transparent)}.dgame-reactor-cell.focus{border-color:#a5f3fc;box-shadow:0 0 0 2px var(--dgame-accent) inset,0 0 14px color-mix(in srgb,#22d3ee 48%,transparent)}.dgame-reactor-cell.focus i{box-shadow:0 0 0 2px color-mix(in srgb,#ecfeff 55%,transparent) inset}.dgame-reactor:focus-visible{outline:2px solid var(--dgame-accent);outline-offset:3px}.dgame-reactor-status{align-self:center;min-height:36px;padding:8px 12px;border-radius:9px;color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-reactor-status.solved{color:#a7f3d0;background:color-mix(in srgb,#34d399 13%,transparent)}.dgame-foot{padding:0 2px}.dgame-foot::before{content:'\u2726';margin-right:6px;color:var(--dgame-accent)}
+.dgame .dgame-score button,.dgame .dgame-controls button,.dgame .dgame-over button,.dgwin .dgame-score button,.dgwin .dgame-controls button,.dgwin .dgame-over button{border:1px solid var(--dsw-alias-border-l2);border-radius:9px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;transition:transform .16s ease,border-color .18s ease,background .18s ease,color .18s ease}.dgame .dgame-score button:hover,.dgame .dgame-controls button:hover,.dgame .dgame-over button:hover,.dgwin .dgame-score button:hover,.dgwin .dgame-controls button:hover,.dgwin .dgame-over button:hover{border-color:var(--dgame-accent);color:var(--dsw-alias-label-primary)}.dgame .dgame-score button:active,.dgame .dgame-controls button:active,.dgame .dgame-over button:active,.dgwin .dgame-score button:active,.dgwin .dgame-controls button:active,.dgwin .dgame-over button:active{transform:scale(.97)}
+.dgcov-grid{--dgame-accent:#a78bfa;display:flex;gap:10px;flex-wrap:wrap}.dgcov{flex:1;min-width:230px;display:flex;flex-direction:column;gap:8px;padding:11px;border:1px solid var(--dsw-alias-border-l1);border-radius:13px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;text-align:left;transition:border-color .16s ease,transform .16s ease}.dgcov:hover{border-color:var(--dgame-accent);transform:translateY(-2px)}.dgcov:focus-visible{outline:2px solid var(--dgame-accent);outline-offset:2px}.dgcov.on{border-color:var(--dgame-accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--dgame-accent) 40%,transparent)}.dgcov-name{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}.dgcov-name i{width:8px;height:8px;border-radius:50%;flex:none}.dgcov-name em{margin-left:auto;font-style:normal;font-size:10px;color:var(--dgame-accent);border:1px solid color-mix(in srgb,var(--dgame-accent) 45%,transparent);border-radius:999px;padding:1px 8px;white-space:nowrap}.dgcov-desc{font-size:11.5px;color:var(--dsw-alias-label-secondary);line-height:1.55}.dgcov-prev{position:relative;display:block;height:96px;border-radius:9px;overflow:hidden;border:1px solid color-mix(in srgb,var(--dgame-accent) 25%,var(--dsw-alias-border-l1))}
+.dgcov-prev-dash{background:radial-gradient(circle at 70% 20%,color-mix(in srgb,#1d4ed8 30%,transparent),transparent 55%),linear-gradient(180deg,#0d1330,#171233)}.dgcov-prev-dash i{position:absolute;top:-22%;font-style:normal;color:#fb7185;text-shadow:0 0 10px #f43f5e;font-size:15px;animation:dgcov-fall 1.5s linear infinite}.dgcov-prev-dash i::after{content:'\u25C6'}.dgcov-prev-dash i:nth-child(1){left:16%}.dgcov-prev-dash i:nth-child(2){left:50%;animation-delay:-.5s}.dgcov-prev-dash i:nth-child(3){left:82%;animation-delay:-1s}.dgcov-prev-dash b{position:absolute;left:50%;bottom:8px;margin-left:-9px;font-size:17px;color:#a5f3fc;text-shadow:0 0 12px #38bdf8;animation:dgcov-dodge 2.4s ease-in-out infinite}.dgcov-prev-dash b::after{content:'\u25B2'}@keyframes dgcov-fall{to{transform:translateY(140px)}}@keyframes dgcov-dodge{0%,100%{transform:translateX(-46px)}25%,75%{transform:translateX(0)}50%{transform:translateX(46px)}}
+.dgcov-prev-reactor{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:14px;background:linear-gradient(135deg,#272463,#12102c)}.dgcov-prev-reactor i{display:block;border-radius:9px;background:#191c38;border:1px solid color-mix(in srgb,#ffffff 11%,transparent);animation:dgcov-reactor 3s ease-in-out infinite}.dgcov-prev-reactor i:nth-child(1){animation-delay:0s}.dgcov-prev-reactor i:nth-child(2){animation-delay:-.33s}.dgcov-prev-reactor i:nth-child(3){animation-delay:-.66s}.dgcov-prev-reactor i:nth-child(4){animation-delay:-1s}.dgcov-prev-reactor i:nth-child(5){animation-delay:-1.33s}.dgcov-prev-reactor i:nth-child(6){animation-delay:-1.66s}.dgcov-prev-reactor i:nth-child(7){animation-delay:-2s}.dgcov-prev-reactor i:nth-child(8){animation-delay:-2.33s}.dgcov-prev-reactor i:nth-child(9){animation-delay:-2.66s}@keyframes dgcov-reactor{0%,20%,100%{background:#191c38;box-shadow:none;border-color:color-mix(in srgb,#ffffff 11%,transparent)}40%,64%{background:radial-gradient(circle at 35% 30%,#ecfeff,#67e8f9 40%,#2563eb 85%);box-shadow:0 0 14px color-mix(in srgb,#22d3ee 55%,transparent);border-color:#67e8f9}}
+.dgfab{--dgame-accent:#a78bfa;position:fixed;z-index:9985;display:flex;flex-direction:column;align-items:center;gap:6px;box-sizing:border-box;width:36px;padding:11px 0;border:1px solid color-mix(in srgb,var(--dgame-accent) 42%,var(--dsw-alias-border-l1));background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary);font-family:inherit;cursor:grab;user-select:none;touch-action:none;box-shadow:0 6px 24px rgb(0 0 0 / .18);transition:left .22s ease,top .22s ease,border-color .15s ease,opacity .15s ease}.dgfab:hover{border-color:var(--dgame-accent)}.dgfab-side-left{border-radius:0 12px 12px 0;border-left:none}.dgfab-side-right{border-radius:12px 0 0 12px;border-right:none}.dgfab-drag{transition:none;cursor:grabbing;box-shadow:0 10px 34px rgb(0 0 0 / .3);z-index:9986}.dgfab-hide{display:none}.dgfab-ico{display:inline-flex;color:var(--dgame-accent)}.dgfab-label{writing-mode:vertical-rl;letter-spacing:.22em;font-size:11px;line-height:1;color:var(--dsw-alias-label-secondary)}
+.dgwin{--dgame-accent:#a78bfa;--dgame-accent-soft:color-mix(in srgb,#a78bfa 16%,transparent);--dsw-alias-label-primary:#e7ecff;--dsw-alias-label-secondary:#aab3e8;--dsw-alias-label-tertiary:#7d86c0;--dsw-alias-border-l1:rgb(255 255 255 / .12);--dsw-alias-border-l2:rgb(255 255 255 / .17);--dsw-alias-bg-layer-1:#0d1230;--dsw-alias-bg-layer-2:#131a3d;--dsw-alias-interactive-bg-hover:rgb(255 255 255 / .08);position:fixed;z-index:9993;display:flex;flex-direction:column;border:1px solid rgb(255 255 255 / .14);border-radius:14px;background:radial-gradient(600px 300px at 80% -10%,color-mix(in srgb,#312e81 30%,transparent),transparent 60%),radial-gradient(500px 340px at -10% 110%,color-mix(in srgb,#0ea5e9 14%,transparent),transparent 55%),linear-gradient(180deg,#0b1024,#12102a 60%,#0a0f22);color:var(--dsw-alias-label-primary);box-shadow:0 24px 72px rgb(0 0 0 / .5);animation:dgwin-in .18s ease-out}.dgwin::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(1px 1px at 12% 22%,rgb(255 255 255 / .35),transparent),radial-gradient(1px 1px at 34% 68%,rgb(255 255 255 / .26),transparent),radial-gradient(1.5px 1.5px at 58% 14%,rgb(199 210 254 / .35),transparent),radial-gradient(1px 1px at 76% 44%,rgb(255 255 255 / .22),transparent),radial-gradient(1.5px 1.5px at 88% 78%,rgb(165 243 252 / .3),transparent),radial-gradient(1px 1px at 22% 88%,rgb(255 255 255 / .18),transparent),radial-gradient(1px 1px at 45% 38%,rgb(255 255 255 / .15),transparent),radial-gradient(1px 1px at 67% 86%,rgb(255 255 255 / .19),transparent)}@keyframes dgwin-in{from{opacity:0;transform:translateY(8px) scale(.985)}}
+.dgwin-min{height:auto!important;border-radius:12px}.dgwin-min .dgwin-body{display:none}.dgwin-min .dgwin-resize{display:none}
+.dgwin-max{border-radius:12px}.dgwin-max .dgwin-body .dgame-game{align-items:stretch}.dgwin-max .dgwin-body .dgame-dash-stage,.dgwin-max .dgwin-body .dgame-tetris,.dgwin-max .dgwin-body .dgame-tetris-board,.dgwin-max .dgwin-body .dgame-snake-stage,.dgwin-max .dgwin-body .dgame-sokoban-stage,.dgwin-max .dgwin-body .dgame-gomoku-board,.dgwin-max .dgwin-body .dgame-xiangqi-board,.dgwin-max .dgwin-body .dgame-tank-stage,.dgwin-max .dgwin-body .dgame-breakout,.dgwin-max .dgwin-body .dgame-racer,.dgwin-max .dgwin-body .dgame-reactor{width:100%;max-width:none}.dgwin-max .dgwin-body .dgame-controls{width:100%;max-width:none}
+.dgwin-bar{flex:none;display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid rgb(255 255 255 / .09);background:rgb(7 11 28 / .72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#cdd6ff;cursor:move;user-select:none;touch-action:none;position:relative;z-index:2}.dgwin-ico{display:inline-flex;color:#a78bfa}.dgwin-title{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}.dgwin-title b{font-size:13px}.dgwin-title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#8f98ce}.dgwin-task{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1px solid rgb(255 255 255 / .13);background:rgb(255 255 255 / .05);font-size:11px;color:#aab3e8;white-space:nowrap}.dgwin-task i{width:7px;height:7px;border-radius:50%;background:#6b7499;flex:none}.dgwin-task.live{color:#c4f5e4;border-color:color-mix(in srgb,#34d399 33%,transparent);background:color-mix(in srgb,#34d399 8%,transparent)}.dgwin-task.live i{background:#34d399;box-shadow:0 0 0 3px color-mix(in srgb,#34d399 14%,transparent);animation:dgame-pulse 1.8s ease-in-out infinite}.dgwin-ctrls{display:flex;align-items:center;gap:6px;flex:none}.dgwin-btn{cursor:pointer;border:1px solid rgb(255 255 255 / .17);background:rgb(255 255 255 / .07);color:#e6ebff;border-radius:8px;padding:5px 10px;font:inherit;font-size:11px;transition:background .15s ease,border-color .15s ease}.dgwin-btn:hover{background:rgb(255 255 255 / .13);border-color:rgb(255 255 255 / .28)}.dgwin-sq{cursor:pointer;border:1px solid transparent;background:transparent;color:#a9b2e2;border-radius:8px;width:28px;height:26px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;transition:background .15s ease,color .15s ease}.dgwin-sq:hover{background:rgb(255 255 255 / .12);color:#fff}
+/* \u5C0F\u7A97\u5185\u5BB9\u81EA\u9002\u5E94\uFF1A\u9AD8\u5EA6\u968F\u5185\u5BB9\uFF08\u4E0D\u88C1\u5207\u3001\u4E0D\u6EDA\u52A8\uFF09\uFF0C\u6E38\u620F\u677F\u6309\u5C4F\u5E55\u53EF\u7528\u9AD8\u5EA6\u7B49\u6BD4\u7F29\u653E */
+.dgwin-normal{max-height:calc(100vh - 12px)}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-snake-stage,.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-tank-stage{width:min(100%,430px,calc(100vh - 240px))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-gomoku-board{width:min(100%,390px,calc(100vh - 245px))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-xiangqi-board{width:min(100%,370px,calc((100vh - 240px) * .9))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-breakout{width:min(100%,410px,calc((100vh - 235px) * .89))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-tetris-board{width:min(100%,215px,calc((100vh - 270px) / 2))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-dash-stage{width:min(100%,430px,calc((100vh - 215px) * 1.24))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-racer{width:min(100%,400px,calc((100vh - 235px) * .71))}
+.dgwin-body{flex:1;min-height:0;position:relative;z-index:1;overflow:hidden;display:flex;flex-direction:column;gap:10px;padding:13px}.dgwin-body .dgame-game{border-color:transparent;background:transparent;padding:0}.dgwin-empty{display:grid;place-items:center;min-height:220px;color:#8f98ce;font-size:12px}.dgwin-tip{flex:none;text-align:center;color:#8b93c9;font-size:11px;padding:0 4px 2px}
+.dgwin-picker{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;gap:10px;padding:13px;background:rgb(10 14 32 / .86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow-y:auto;animation:dgentry-in .15s ease-out}.dgwin-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.dgwin-picker-head>div{display:flex;flex-direction:column;gap:3px}.dgwin-picker-head b{font-size:14px}.dgwin-picker-head span{font-size:11px;color:#aab3e8}.dgwin-picker-close{cursor:pointer;border:none;background:transparent;color:#7d86c0;border-radius:8px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}.dgwin-picker-close:hover{background:rgb(255 255 255 / .08);color:#e7ecff}.dgwin-picker .dgcov-grid{flex-direction:column;--dsw-alias-label-primary:#e7ecff;--dsw-alias-label-secondary:#aab3e8;--dsw-alias-border-l1:rgb(255 255 255 / .12)}.dgwin-picker .dgcov{min-width:0;background:rgb(255 255 255 / .04)}
+.dgwin-resize{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3;touch-action:none}.dgwin-resize::after{content:'';position:absolute;right:4px;bottom:4px;width:8px;height:8px;border-right:2px solid rgb(255 255 255 / .3);border-bottom:2px solid rgb(255 255 255 / .3);border-radius:0 0 3px 0}
+@keyframes dgentry-in{from{opacity:0}}
+@media (max-width:680px){.dgame{gap:12px;font-size:14px}.dgame-hero{padding:15px}.dgame-hero h2{font-size:20px}.dgame-planet{width:58px;height:58px}.dgame-planet::after{left:-12px;top:25px;width:80px;height:20px}.dgame-game{padding:12px}.dgame-dash-grid{grid-template-rows:repeat(5,48px)}.dgame-controls{grid-template-columns:1fr 1fr}.dgame-controls span{grid-column:1 / -1;grid-row:2}.dgame-reactor{gap:8px}.dgcov-grid{flex-direction:column}.dgcov{min-width:0}.dgfab{width:32px}.dgwin-title span,.dgwin-task{display:none}.dgwin-bar{gap:7px;padding:8px 10px}.dgwin-btn{padding:6px 8px}.dgwin-body{padding:10px}}
+@media (prefers-reduced-motion:reduce){.dgame *,.dgcov *,.dgfab,.dgwin,.dgwin-picker *{animation:none!important;transition:none!important}}
+`;
+var dgcovGroupCss = `
+.dgcov-groups{display:flex;flex-direction:column;gap:16px}.dgcov-section{display:flex;flex-direction:column;gap:8px}.dgcov-sechead{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-secondary);font-size:12px}.dgcov-sechead b{font-size:13px;color:var(--dsw-alias-label-primary);font-weight:600}.dgcov-sechead span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dgcov-sechead em{margin-left:auto;font-style:normal;font-size:10px;color:var(--dgame-accent);border:1px solid color-mix(in srgb,var(--dgame-accent) 40%,transparent);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.dgcov-prev-gomoku{background:repeating-linear-gradient(94deg,rgba(124,79,22,.06) 0 2px,transparent 2px 11px),radial-gradient(120% 120% at 30% 10%,#edc97f,#dcae62 55%,#c89a52)}.dgcov-prev-gomoku svg{position:absolute;inset:0;width:100%;height:100%}.dgcov-prev-gomoku line,.dgcov-prev-gomoku rect{stroke:#66431a;stroke-width:3;fill:none}.dgcov-prev-gomoku .dgp-star{fill:#66431a}.dgcov-prev-gomoku .dgp-stone-b{fill:radial-gradient(circle at 34% 30%,#4b5563,#111827 70%);fill:#1f2937;stroke:#0b1220;stroke-width:3}.dgcov-prev-gomoku .dgp-stone-w{fill:#fff;stroke:#94a3b8;stroke-width:3}
+.dgcov-prev-xiangqi{background:repeating-linear-gradient(94deg,rgba(124,79,22,.06) 0 2px,transparent 2px 11px),radial-gradient(120% 120% at 30% 10%,#f0cd86,#ddb067 55%,#c89a52)}.dgcov-prev-xiangqi svg{position:absolute;inset:0;width:100%;height:100%}.dgcov-prev-xiangqi line,.dgcov-prev-xiangqi rect,.dgcov-prev-xiangqi path{stroke:#66431a;stroke-width:3;fill:none}.dgcov-prev-xiangqi .dgp-xq-river{fill:rgba(102,67,26,.65);font-family:KaiTi,"Kaiti SC","STKaiti",serif;font-size:62px;text-anchor:middle;letter-spacing:8px}.dgcov-prev-xiangqi .dgp-xq-pc-b{fill:#f3e0ae;stroke:#8a5a1c;stroke-width:4}.dgcov-prev-xiangqi .dgp-xq-pc-r{fill:#f3e0ae;stroke:#b91c1c;stroke-width:4}.dgcov-prev-xiangqi .dgp-xq-tx-b{fill:#1f2937;font-size:52px;font-weight:700;text-anchor:middle;dominant-baseline:central;font-family:KaiTi,"Kaiti SC","STKaiti",serif}.dgcov-prev-xiangqi .dgp-xq-tx-r{fill:#b91c1c;font-size:52px;font-weight:700;text-anchor:middle;dominant-baseline:central;font-family:KaiTi,"Kaiti SC","STKaiti",serif}
+.dgcov-prev-tetris{display:grid;place-items:center;background:linear-gradient(180deg,#0c1024,#131a3d)}.dgp-tet-grid{display:grid;grid-template-columns:repeat(10,10px);grid-auto-rows:10px;gap:1px;padding:7px;border:1px solid rgba(34,211,238,.3);border-radius:7px;background:rgba(12,16,36,.6)}.dgp-tet-grid i{border-radius:2px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 2px rgba(255,255,255,.07)}.dgp-tet-grid i.cI{background:#22d3ee;box-shadow:0 0 6px rgba(34,211,238,.6)}.dgp-tet-grid i.cO{background:#facc15;box-shadow:0 0 6px rgba(250,204,21,.55)}.dgp-tet-grid i.cT{background:#c084fc;box-shadow:0 0 6px rgba(192,132,252,.55)}.dgp-tet-grid i.cS{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.55)}.dgp-tet-grid i.cZ{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.55)}.dgp-tet-grid i.cJ{background:#60a5fa;box-shadow:0 0 6px rgba(96,165,250,.55)}.dgp-tet-grid i.cL{background:#fb923c;box-shadow:0 0 6px rgba(251,146,60,.55)}.dgp-tet-grid i.fall{animation:dgp-tetbob 1.1s ease-in-out infinite}@keyframes dgp-tetbob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+.dgcov-prev-soko{display:grid;place-items:center;background:linear-gradient(180deg,#181420,#14101f)}.dgp-soko-grid{display:grid;grid-template-columns:repeat(7,17px);grid-auto-rows:17px;gap:2px}.dgp-soko-grid i{display:block;border-radius:3px;position:relative}.dgp-soko-floor{background:rgba(255,255,255,.04)}.dgp-soko-wall{background:linear-gradient(180deg,#3a3350,#241f3a);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}.dgp-soko-box{background:linear-gradient(135deg,#d4a24a,#8a5a1c);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}.dgp-soko-boxT{background:linear-gradient(135deg,#34d399,#0f766e)}.dgp-soko-target{background:rgba(255,255,255,.04)}.dgp-soko-target::after{content:'';position:absolute;inset:32%;border-radius:50%;background:#f59e0b}.dgp-soko-player{background:radial-gradient(circle at 35% 30%,#e0f2fe,#38bdf8 70%);border-radius:50%!important}
+.dgcov-prev-snake{background:linear-gradient(180deg,#0a1420,#123320)}.dgcov-prev-snake i{position:absolute;width:12px;height:12px;border-radius:26%;background:linear-gradient(135deg,#4ade80,#16a34a);transform:translate(-50%,-50%)}.dgcov-prev-snake i:first-child{background:linear-gradient(135deg,#bbf7d0,#22c55e)}.dgcov-prev-snake i:nth-child(2){background:linear-gradient(135deg,#34d399,#0d9f6e)}.dgcov-prev-snake b{position:absolute;width:13px;height:13px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;transform:translate(-50%,-50%);animation:dgcov-snakefood 1s ease-in-out infinite}@keyframes dgcov-snakefood{50%{transform:translate(-50%,-50%) scale(1.3)}}
+.dgcov-prev-breakout{background:linear-gradient(180deg,#0b1024,#14203a)}.dgcov-prev-breakout i{position:absolute;width:12px;height:5px;border-radius:3px}.dgcov-prev-breakout b{position:absolute;left:50%;bottom:10px;width:34px;height:8px;border-radius:4px;background:#a5f3fc;transform:translateX(-50%)}
+.dgcov-prev-racer{background:linear-gradient(180deg,#0b1024,#1a0f2a)}.dgcov-prev-racer i{position:absolute;width:14px;height:22px;border-radius:5px;transform:translate(-50%,-50%);background:#f87171}.dgcov-prev-racer i:nth-child(even){background:#fb923c}.dgcov-prev-racer b{position:absolute;left:50%;bottom:8px;width:18px;height:30px;border-radius:6px;background:#22d3ee;transform:translateX(-50%)}
+.dgcov-prev-tank{display:grid;place-items:center;background:linear-gradient(180deg,#1a1425,#100d1c)}.dgp-tank-grid{display:grid;grid-template-columns:repeat(8,18px);grid-auto-rows:18px;gap:2px}.dgp-tank-grid i{display:block;border-radius:3px}.dgp-tank-void{background:rgba(255,255,255,.035)}.dgp-tank-brick{background:repeating-linear-gradient(45deg,#a3672a 0 55%,#8a5a1c 55% 100%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}.dgp-tank-steel{background:linear-gradient(180deg,#94a3b8,#64748b)}.dgp-tank-pw{background:linear-gradient(135deg,#fde047,#eab308);box-shadow:0 0 7px rgba(234,179,8,.55);border-radius:5px}.dgp-tank-en{background:#f87171;box-shadow:0 0 5px rgba(248,113,113,.4);border-radius:5px}.dgp-tank-base{background:#fbbf24;border-radius:50%}
+
+`;
+var css3 = [baseCss, tetrisGame.css, sokobanGame.css, gomokuGame.css, xiangqiGame.css, snakeGame.css, breakoutGame.css, racerGame.css, tankGame.css, dgcovGroupCss].filter(Boolean).join("\n");
+var feature7 = {
+  id: "games",
+  name: "\u8DA3\u5473\u6E38\u620F",
+  order: 135,
+  accent: "#a78bfa",
+  description: "\u4EFB\u52A1\u7B49\u5F85\u65F6\u53EF\u73A9\u7684\u5341\u6B3E\u5C0F\u6E38\u620F\uFF1A\u4E94\u5B50\u68CB\u3001\u4E2D\u56FD\u8C61\u68CB\uFF08\u4F60 vs AI\uFF09\u3001\u4FC4\u7F57\u65AF\u65B9\u5757\u3001\u63A8\u7BB1\u5B50\u3001\u8D2A\u5403\u86C7\u3001\u6253\u7816\u5757\u3001\u6781\u901F\u8D5B\u8F66\u3001\u5766\u514B\u5927\u6218\u3001\u661F\u9645\u8EB2\u907F\u3001\u53CD\u5E94\u5806\u70B9\u4EAE\u3002\u6D6E\u52A8\u7A97\u53E3\u8FD0\u884C\uFF08\u53EF\u62D6\u52A8\u3001\u53EF\u8C03\u5927\u5C0F\u3001\u53EF\u6700\u5927\u5316\u6700\u5C0F\u5316\uFF0C\u4E0D\u906E\u6321\u4F1A\u8BDD\uFF09\uFF0C\u5C4F\u5E55\u4FA7\u8FB9\u78C1\u5438\u5FEB\u6377\u5165\u53E3\u8D34\u5728\u5DE6\u4FA7\u8FB9\u680F\u53F3\u7F18\uFF08\u4E0D\u6321\u5DE5\u4F5C\u533A\u76EE\u5F55\uFF09\uFF0C\u53EF\u4E0A\u4E0B\u632A\u4F4D\u3001\u5DE6\u53F3\u6362\u8FB9\uFF1B\u5747\u652F\u6301\u952E\u76D8",
+  defaultEnabled: true,
+  css: css3,
+  View: GamesView,
+  HomeStat: GamesHomeStat,
+  Overlay: GamesOverlay
+};
+
 // src/client.jsx
-var DOCK_VERSION = "0.7.1";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6];
+var DOCK_VERSION = "0.8.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -4124,8 +7577,8 @@ function scheduleInitialCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react9.default.useReducer((n) => n + 1, 0);
-  import_react9.default.useEffect(() => {
+  const [, bump] = import_react19.default.useReducer((n) => n + 1, 0);
+  import_react19.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -4135,44 +7588,44 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react9.default.createElement(
+  return import_react19.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react9.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react9.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react9.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react9.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react19.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react19.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react19.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react19.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react9.default.useState(panelNav.open);
-  import_react9.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react9.default.createElement("button", {
+  const [open, setOpen] = import_react19.default.useState(panelNav.open);
+  import_react19.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react19.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
     title: "\u529F\u80FD\u575E",
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react9.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react9.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react19.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react19.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react9.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react9.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react19.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react19.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react9.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react9.default.useRef(null);
-  const contentRef = import_react9.default.useRef(null);
-  import_react9.default.useEffect(() => {
+  const [win, setWin] = import_react19.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react19.default.useRef(null);
+  const contentRef = import_react19.default.useRef(null);
+  import_react19.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react9.default.useEffect(() => {
+  import_react19.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -4180,9 +7633,9 @@ function DockModal() {
     if (type === "move" && e.target && e.target.closest && e.target.closest("button,select,input")) return;
     const node = dlgRef.current;
     if (!node || typeof window === "undefined") return;
-    const rect = node.getBoundingClientRect();
+    const rect2 = node.getBoundingClientRect();
     const startX = e.clientX, startY = e.clientY;
-    const origin = { left: rect.left, top: rect.top, w: rect.width, h: rect.height };
+    const origin = { left: rect2.left, top: rect2.top, w: rect2.width, h: rect2.height };
     const clampX = (v) => Math.min(Math.max(8, v), window.innerWidth - origin.w - 8);
     const clampY = (v) => Math.min(Math.max(8, v), window.innerHeight - origin.h - 8);
     const onMove = (ev) => {
@@ -4210,13 +7663,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react9.default.createElement(
+  const viewNode = mod && View ? import_react19.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react9.default.createElement(
-      mod.external ? FeatureBoundary : import_react9.default.Fragment,
+    import_react19.default.createElement(
+      mod.external ? FeatureBoundary : import_react19.default.Fragment,
       null,
-      import_react9.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react19.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -4230,10 +7683,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react9.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react9.default.createElement(
+    import_react19.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -4241,41 +7694,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react9.default.createElement(
+      import_react19.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react9.default.createElement(DockIcon, null),
-        import_react9.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react9.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react9.default.createElement(
+        import_react19.default.createElement(DockIcon, null),
+        import_react19.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react19.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react19.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react9.default.createElement("button", {
+          import_react19.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react9.default.createElement("button", {
+          import_react19.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react9.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react19.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react9.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react9.default.createElement(
+        import_react19.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react9.default.createElement(
+          import_react19.default.createElement(
             "button",
             {
               type: "button",
@@ -4283,10 +7736,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)),
-            import_react9.default.createElement("span", null, "\u9996\u9875")
+            import_react19.default.createElement("span", { className: "dockm-navhome" }, import_react19.default.createElement(DockIcon, null)),
+            import_react19.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react9.default.createElement(
+          MODULES.map((m) => import_react19.default.createElement(
             "button",
             {
               type: "button",
@@ -4294,42 +7747,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react9.default.createElement("span", null, m.name),
-            m.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react19.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react19.default.createElement("span", null, m.name),
+            m.planned ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react9.default.createElement(
+        import_react19.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react9.default.createElement(
+          import_react19.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react9.default.createElement(
+            import_react19.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react9.default.createElement("span", { className: "dockm-navhome" }, import_react9.default.createElement(DockIcon, null)) : import_react9.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react19.default.createElement("span", { className: "dockm-navhome" }, import_react19.default.createElement(DockIcon, null)) : import_react19.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react9.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react9.default.createElement(
+            import_react19.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react9.default.createElement("div", { className: "dockm-view" }, import_react9.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react9.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react9.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react9.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react9.default.createElement(
+          isHome ? import_react19.default.createElement("div", { className: "dockm-view" }, import_react19.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react19.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react19.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react19.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react19.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react9.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react9.default.createElement(
+            import_react19.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react19.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react9.default.createElement("button", {
+              import_react19.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react19.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -4342,11 +7795,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react9.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react19.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react9.default.createElement("button", {
+              import_react19.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react19.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -4362,30 +7815,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react9.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react19.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react9.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react9.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react9.default.createElement(
-        m.external ? FeatureBoundary : import_react9.default.Fragment,
+      const statNode = m.planned ? import_react19.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react19.default.createElement(
+        m.external ? FeatureBoundary : import_react19.default.Fragment,
         null,
-        import_react9.default.createElement(Stat, { ctx })
-      ) : import_react9.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react9.default.createElement(
+        import_react19.default.createElement(Stat, { ctx })
+      ) : import_react19.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react19.default.createElement(
         "div",
         {
           key: m.id,
@@ -4400,21 +7853,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react9.default.createElement(
+        import_react19.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react9.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react9.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react9.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react19.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react19.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react19.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react9.default.createElement(
+          import_react19.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react9.default.createElement("span", { className: "dockh-sdot" }),
-            import_react9.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react19.default.createElement("span", { className: "dockh-sdot" }),
+            import_react19.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react9.default.createElement("button", {
+          m.planned ? null : import_react19.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -4429,12 +7882,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react9.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react9.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react9.default.createElement(
+        import_react19.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react19.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react19.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react9.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react19.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -4442,16 +7895,16 @@ function HomeView(props) {
 }
 function DockPanel() {
   const ctx = ctxRef.current;
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react9.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react9.default.createElement(
+    import_react19.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -4460,25 +7913,25 @@ function DockPanel() {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react9.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react19.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react9.default.createElement(
-          f.external ? FeatureBoundary : import_react9.default.Fragment,
+        import_react19.default.createElement(
+          f.external ? FeatureBoundary : import_react19.default.Fragment,
           null,
-          import_react9.default.createElement(View, { ctx, feature: f })
+          import_react19.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
-      return import_react9.default.createElement(
+      return import_react19.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react9.default.createElement(
+        import_react19.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react9.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react9.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react9.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react9.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react9.default.createElement("button", {
+          import_react19.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react19.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react19.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react19.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react19.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -4487,11 +7940,11 @@ function DockPanel() {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react9.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react19.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react9.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react9.default.createElement("button", {
+            import_react19.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react19.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -4505,19 +7958,19 @@ function DockPanel() {
             })
           ) : null
         ),
-        f.planned ? import_react9.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react9.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react19.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react19.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
-  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
+  import_react19.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react9.default.createElement(f.Chip, {
+    items.push(import_react19.default.createElement(f.Chip, {
       key: f.id,
       ctx: props.ctx,
       feature: f,
@@ -4527,23 +7980,23 @@ function DockChips(props) {
     }));
   }
   if (items.length === 0) return null;
-  return import_react9.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react19.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react9.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react9.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react19.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react9.default.createElement(
+    items.push(import_react19.default.createElement(
       FeatureBoundary,
       { key: f.id },
-      import_react9.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react19.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react9.default.createElement(import_react9.default.Fragment, null, items);
+  return import_react19.default.createElement(import_react19.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -4554,23 +8007,23 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react9.default.createElement(DockEntry, props)
+    (props) => import_react19.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react9.default.createElement(DockModal, null)
+    () => import_react19.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react9.default.createElement(FeatureOverlays, null)
+    () => import_react19.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react9.default.createElement(DockPanel, null)
+    () => import_react19.default.createElement(DockPanel, null)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react9.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react19.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];
