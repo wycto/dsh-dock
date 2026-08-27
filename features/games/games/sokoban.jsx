@@ -1,5 +1,6 @@
 /* 趣味游戏 · 推箱子（经典机台）——纯 Client；把箱子推到目标点上即可过关。 */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { focusStage, useGameControls, playSfx } from "./shared.jsx";
 
 // 关卡：'#' 墙 · ' ' 地板 · '.' 目标 · '$' 箱子 · '@' 人 · '*' 箱子在目标 · '+' 人在目标
 const LEVELS = [
@@ -9,6 +10,16 @@ const LEVELS = [
 	["######", "#@   #", "# $  #", "#  . #", "#    #", "######"],
 	["#######", "# @   #", "# $   #", "#  $ .#", "#   . #", "#######"],
 	["########", "#      #", "# $ $  #", "# . .  #", "#   @  #", "########"],
+	// —— 扩充关：由易到难（已用求解器验证全部可解）——
+	["########", "#  ##  #", "#@ $ . #", "#  ##  #", "########"],
+	["########", "#  @   #", "# $$$  #", "# ...  #", "#      #", "########"],
+	["########", "#@     #", "# $ $  #", "#  #   #", "# . #. #", "########"],
+	["########", "#    @ #", "# $$   #", "#  ..# #", "#      #", "########"],
+	["########", "#@     #", "# $ $  #", "#      #", "# .# . #", "########"],
+	["#########", "#       #", "# $ $ $ #", "#  ...  #", "#   @   #", "#       #", "#########"],
+	["#########", "#   @   #", "# $#$$  #", "#  ...  #", "#  ##   #", "#########"],
+	["#########", "#@  #   #", "# $   $ #", "# ###   #", "#  . .  #", "#########"],
+	["#########", "#     ###", "# $$ #  #", "# .. #@ #", "# $$ #  #", "# ..    #", "#########"],
 ];
 
 function cloneGrid(grid) {
@@ -55,6 +66,7 @@ function step(state, dr, dc) {
 		if (br < 0 || br >= grid.length || bc < 0 || bc >= grid[0].length) return state;
 		const beyond = grid[br][bc];
 		if (beyond === "#" || isBox(beyond)) return state;
+		playSfx("push");
 		grid[br][bc] = isTarget(beyond) ? "*" : "$";
 		grid[nr][nc] = isTarget(target) ? "+" : "@";
 		return Object.assign({}, state, {
@@ -66,6 +78,7 @@ function step(state, dr, dc) {
 		});
 	}
 	grid[nr][nc] = isTarget(target) ? "+" : "@";
+	playSfx("step");
 	return Object.assign({}, state, {
 		grid,
 		moves: state.moves + 1,
@@ -94,12 +107,12 @@ export function SokobanGame(props) {
 	const levelRef = useRef(level);
 	levelRef.current = level;
 
-	useEffect(() => {
-		if (props.paused) return;
-		if (stageRef.current) stageRef.current.focus();
-	}, [level, props.paused]);
-
 	const move = useCallback((dr, dc) => setState((s) => step(s, dr, dc)), []);
+	const prevWon = useRef(false);
+	useEffect(() => {
+		if (state.wonNew && !prevWon.current) playSfx("win");
+		prevWon.current = state.wonNew;
+	}, [state.wonNew]);
 	const nextLevel = useCallback(() => {
 		const n = (levelRef.current + 1) % LEVELS.length;
 		setLevel(n);
@@ -116,9 +129,12 @@ export function SokobanGame(props) {
 		else if (event.key === "Enter" && state.wonNew) { event.preventDefault(); nextLevel(); }
 	}, [move, state.wonNew, reset, nextLevel]);
 
+	useGameControls(stageRef, props.paused, onKeyDown);
+
 	const grid = state.grid;
 	const rows = grid.length, cols = grid[0].length;
-	const width = Math.min(cols * 26, 340);
+	// 宽度同时钳制：单元格理想宽、容器可用宽、按关卡长宽比折算的视口可用高——保证等比完整显示不裁切。
+	const width = "min(" + (cols * 26) + "px, 100%, calc((100vh - 250px) * " + cols + " / " + rows + "))";
 
 	return <section className="dgame-game" aria-label="推箱子">
 		<div className="dgame-game-head"><div><h3>推箱子</h3><p>用方向键把箱子推到目标格子上；全部到位即过关（U 撤销、R 重置）。</p></div><div className="dgame-score"><span>步数 <strong>{state.moves}</strong></span><span>推箱 {state.pushes}</span></div></div>
@@ -127,7 +143,7 @@ export function SokobanGame(props) {
 			<button type="button" onClick={() => setState((s) => undo(s))}>撤销</button>
 			<button type="button" onClick={reset}>重置</button>
 		</div>
-		<div className="dgame-sokoban-stage" ref={stageRef} tabIndex={0} onKeyDown={onKeyDown} style={{ width, gridTemplateColumns: "repeat(" + cols + ",1fr)", gridTemplateRows: "repeat(" + rows + ",1fr)", aspectRatio: cols + " / " + rows }} aria-label="推箱子游戏区域，使用方向键移动，U 撤销，R 重置">
+		<div className="dgame-sokoban-stage" ref={stageRef} tabIndex={0} onKeyDown={onKeyDown} onClick={() => focusStage(stageRef)} style={{ width, gridTemplateColumns: "repeat(" + cols + ",1fr)", gridTemplateRows: "repeat(" + rows + ",1fr)", aspectRatio: cols + " / " + rows }} aria-label="推箱子游戏区域，使用方向键移动，U 撤销，R 重置">
 			{grid.map((row, r) => row.map((ch, c) => {
 				let cls = "dgame-soko-cell";
 				if (ch === "#") cls += " wall";
@@ -143,8 +159,19 @@ export function SokobanGame(props) {
 }
 
 export function SokobanPreview() {
+	// 迷你关卡画面：墙/地/箱/目标/小人色块，与真实游戏元素一致。
+	const ROWS = [
+		"#######",
+		"#     #",
+		"# .$@ #",
+		"# .*  #",
+		"#######",
+	];
+	const cls = { "#": "wall", " ": "floor", ".": "target", "$": "box", "*": "boxT", "@": "player", "+": "player" };
 	return <span className="dgcov-prev dgcov-prev-soko" aria-hidden="true">
-		{["#####", "#@$.#", "# . #", "#####"].map((row, r) => <b key={r}>{row}</b>)}
+		<span className="dgp-soko-grid">
+			{ROWS.flatMap((row, r) => row.split("").map((ch, c) => <i key={r + "-" + c} className={"dgp-soko-" + cls[ch]} />))}
+		</span>
 	</span>;
 }
 

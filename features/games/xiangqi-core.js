@@ -18,14 +18,22 @@ export function initialBoard() {
 	const back = ["k", "h", "e", "a", "g", "a", "e", "h", "k"];
 	back.forEach((t, c) => { b[0][c] = { t, c: "b" }; });
 	b[2][1] = { t: "c", c: "b" }; b[2][7] = { t: "c", c: "b" };
-	[0, 2, 4, 6, 8].forEach((c) => { b[4][c] = { t: "p", c: "b" }; });
+	// 黑卒在己方第三横线（row 3，紧邻楚河汉界一侧留一行间隔）。
+	[0, 2, 4, 6, 8].forEach((c) => { b[3][c] = { t: "p", c: "b" }; });
 	back.forEach((t, c) => { b[9][c] = { t, c: "r" }; });
-	b[8][1] = { t: "c", c: "r" }; b[8][7] = { t: "c", c: "r" };
+	b[7][1] = { t: "c", c: "r" }; b[7][7] = { t: "c", c: "r" };
+	// 红兵与红炮和黑方对称（row 6 / row 7）。
 	[0, 2, 4, 6, 8].forEach((c) => { b[6][c] = { t: "p", c: "r" }; });
 	return b;
 }
 export function cloneBoard(b) {
 	return b.map((row) => row.slice());
+}
+// 局面指纹：用于识别重复局面（防止 AI 无限循环将军）。
+export function posKey(board) {
+	let s = "";
+	for (const row of board) for (const p of row) s += p ? p.t + p.c : ".";
+	return s;
 }
 function inBounds(r, c) { return r >= 0 && r < ROWS && c >= 0 && c < COLS; }
 function inPalace(r, c, color) {
@@ -103,7 +111,7 @@ export function pseudoMoves(board, r, c) {
 	const push = (nr, nc) => { if (inBounds(nr, nc)) out.push([nr, nc]); };
 	const clear = (nr, nc) => !board[nr][nc];
 	const enemy = (nr, nc) => { const q = board[nr][nc]; return q && q.c !== p.c; };
-	if (p.t === "k") {
+	if (p.t === "g") {
 		[[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dr, dc]) => {
 			const nr = r + dr, nc = c + dc;
 			if (inPalace(nr, nc, p.c) && (clear(nr, nc) || enemy(nr, nc))) push(nr, nc);
@@ -245,26 +253,47 @@ function orderMoves(board, moves) {
 	scored.sort((a, b) => b.s - a.s);
 	return scored.map((o) => o.m);
 }
-export function bestMove(board, color, depth) {
+// avoid：局面指纹 → 出现次数 的计数表。
+// 优先只在"从未出现过的局面"里选优；若全部重复，给出现次数越多的走法越大的罚分，
+// 避免来回倒子的死循环。根节点对评分相近（±TIE_EPSILON）的走法随机挑一个，
+// 防止每局都走出完全相同的呆板着法。
+export function bestMove(board, color, depth, avoid) {
 	const moves = legalMoves(board, color);
 	if (!moves.length) return null;
-	if (depth <= 1) {
-		let best = moves[0], bestScore = -Infinity;
-		for (const m of moves) {
-			const nb = applyMove(board, m[0], m[1], m[2], m[3]);
-			const s = evalFrom(nb, color);
-			if (s > bestScore) { bestScore = s; best = m; }
-		}
-		return best;
-	}
 	const enemy = color === "r" ? "b" : "r";
 	const ordered = orderMoves(board, moves);
-	let best = ordered[0], bestScore = -Infinity, alpha = -Infinity;
-	for (const m of ordered) {
-		const nb = applyMove(board, m[0], m[1], m[2], m[3]);
-		const score = -negamax(nb, enemy, depth - 1, -Infinity, -alpha);
-		if (score > bestScore) { bestScore = score; best = m; }
-		if (bestScore > alpha) alpha = bestScore;
+	let pool;
+	if (avoid && avoid.size) {
+		const seenCount = (m) => avoid.get(posKey(applyMove(board, m[0], m[1], m[2], m[3]))) || 0;
+		const minSeen = Math.min(...ordered.map(seenCount));
+		pool = minSeen === 0
+			? ordered.filter((m) => seenCount(m) === 0).map((m) => ({ m, pen: 0 }))
+			: ordered.map((m) => ({ m, pen: seenCount(m) * 60 })).sort((a, b) => a.pen - b.pen);
+	} else {
+		pool = ordered.map((m) => ({ m, pen: 0 }));
 	}
-	return best;
+	if (depth <= 1) {
+		return pickAmongBest(pool.map(({ m, pen }) => ({ m, s: evalFrom(applyMove(board, m[0], m[1], m[2], m[3]), color) - pen })));
+	}
+	let bestScore = -Infinity;
+	let alpha = -Infinity;
+	const scored = [];
+	for (const { m, pen } of pool) {
+		const nb = applyMove(board, m[0], m[1], m[2], m[3]);
+		// 窗口下界放宽 TIE_EPSILON：近似并列的走法仍能拿到精确评分，供随机挑选。
+		const s = -negamax(nb, enemy, depth - 1, -Infinity, -alpha) - pen;
+		scored.push({ m, s });
+		if (s > bestScore) {
+			bestScore = s;
+			alpha = Math.max(alpha, bestScore - TIE_EPSILON);
+		}
+	}
+	return pickAmongBest(scored);
+}
+const TIE_EPSILON = 12;
+function pickAmongBest(scored) {
+	let bestScore = -Infinity;
+	for (const o of scored) if (o.s > bestScore) bestScore = o.s;
+	const ties = scored.filter((o) => o.s >= bestScore - TIE_EPSILON);
+	return ties[Math.floor(Math.random() * ties.length)].m;
 }
