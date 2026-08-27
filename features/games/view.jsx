@@ -5,6 +5,7 @@
 // 不写入会话、不改动工作区。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { panelNav, setPanelOpen, subscribePanel } from "../../src/shared.js";
+import { focusStage, useGameControls } from "./games/shared.jsx";
 import { tetrisGame } from "./games/tetris.jsx";
 import { sokobanGame } from "./games/sokoban.jsx";
 import { gomokuGame } from "./games/gomoku.jsx";
@@ -70,11 +71,12 @@ function DashGame(props) {
 		lane: Math.max(0, Math.min(LANES - 1, current.lane + delta)),
 	})), []);
 	const stageRef = useRef(null);
-	// 进入游戏即聚焦游戏区，方向键 / A、D 立即可用（无需先点一下）；从最小化/选择层恢复时重新聚焦。
-	useEffect(() => {
-		if (props.paused) return;
-		if (stageRef.current) stageRef.current.focus();
-	}, [props.paused]);
+	const onKeyDown = useCallback((event) => {
+		if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") { event.preventDefault(); move(-1); }
+		else if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") { event.preventDefault(); move(1); }
+		else if (!dash.running && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setDash(initialDash()); }
+	}, [move, dash.running]);
+	useGameControls(stageRef, props.paused, onKeyDown);
 	useEffect(() => {
 		const timer = setInterval(() => {
 			if (pausedRef.current || (typeof document !== "undefined" && document.hidden)) return;
@@ -110,11 +112,7 @@ function DashGame(props) {
 	}
 	return <section className="dgame-game" aria-label="星际躲避小游戏">
 		<div className="dgame-game-head"><div><h3>星际躲避</h3><p>左右移动补给艇，避开正在坠落的陨石。</p></div><div className="dgame-score"><span>得分 <strong>{dash.score}</strong></span><span aria-label={"护盾 " + dash.shield + " 格"}>护盾 {"✦".repeat(Math.max(0, dash.shield))}{"·".repeat(Math.max(0, 3 - dash.shield))}</span></div></div>
-		<div className="dgame-dash-stage" ref={stageRef} tabIndex={0} onKeyDown={(event) => {
-			if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") { event.preventDefault(); move(-1); }
-			else if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") { event.preventDefault(); move(1); }
-			else if (!dash.running && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setDash(initialDash()); }
-		}} aria-label="星际躲避游戏区域，使用左右方向键或下方按钮移动">
+		<div className="dgame-dash-stage" ref={stageRef} tabIndex={0} onKeyDown={onKeyDown} onClick={() => focusStage(stageRef)} aria-label="星际躲避游戏区域，使用左右方向键或下方按钮移动">
 			<div className="dgame-dash-grid">{cells}</div>
 			{!dash.running ? <div className="dgame-over"><strong>护盾耗尽</strong><button type="button" onClick={() => setDash(initialDash())}>重新出发</button></div> : null}
 		</div>
@@ -148,12 +146,11 @@ function ReactorGame(props) {
 		else if (key === "Enter" || key === " ") { event.preventDefault(); toggle(cursor); }
 		else if (key.toLowerCase() === "r") { event.preventDefault(); reset(); }
 	};
-	// 进入游戏即聚焦九宫格，键盘全程可玩（方向键选格、Enter/空格 点亮、R 重置）；从最小化/选择层恢复时重新聚焦。
-	useEffect(() => { if (!props.paused && gridRef.current) gridRef.current.focus(); }, [props.paused]);
+	useGameControls(gridRef, props.paused, onKeyDown);
 	return <section className="dgame-game" aria-label="反应堆点亮小游戏">
 		<div className="dgame-game-head"><div><h3>反应堆点亮</h3><p>点一下会切换相邻模块，把九个模块全部点亮；键盘：方向键选格、Enter/空格 点亮、R 重置。</p></div><div className="dgame-score"><span>操作 <strong>{moves}</strong></span><button type="button" onClick={reset}>重置</button></div></div>
-		<div className="dgame-reactor" ref={gridRef} tabIndex={0} role="group" aria-label="九宫格反应堆" onKeyDown={onKeyDown}>
-			{cells.map((on, index) => <button type="button" key={index} tabIndex={-1} className={"dgame-reactor-cell" + (on ? " on" : "") + (cursor === index ? " focus" : "")} aria-current={cursor === index ? "true" : undefined} aria-label={(on ? "已点亮" : "未点亮") + "模块 " + (index + 1)} onClick={() => { toggle(index); setCursor(index); if (gridRef.current) gridRef.current.focus(); }}><i /></button>)}
+		<div className="dgame-reactor" ref={gridRef} tabIndex={0} role="group" aria-label="九宫格反应堆" onKeyDown={onKeyDown} onClick={() => focusStage(gridRef)}>
+			{cells.map((on, index) => <button type="button" key={index} tabIndex={-1} className={"dgame-reactor-cell" + (on ? " on" : "") + (cursor === index ? " focus" : "")} aria-current={cursor === index ? "true" : undefined} aria-label={(on ? "已点亮" : "未点亮") + "模块 " + (index + 1)} onClick={() => { toggle(index); setCursor(index); focusStage(gridRef); }}><i /></button>)}
 		</div>
 		<div className={"dgame-reactor-status" + (solved ? " solved" : "")}>{solved ? "反应堆稳定运行 · 做得漂亮（R 重新开始）" : "让所有模块发光，给任务一点能量"}</div>
 	</section>;
@@ -397,8 +394,8 @@ function GameWindow(props) {
 				y: Math.min(Math.max(8, origin.y + dy), Math.max(8, window.innerHeight - origin.h - 8)),
 			}));
 			else setWin((s) => Object.assign({}, s, {
+				// 窗口高度随内容自适应，缩放只调宽度；游戏板按比例跟随缩放。
 				w: Math.max(WIN_MIN_W, Math.min(origin.w + dx, window.innerWidth - 16)),
-				h: Math.max(WIN_MIN_H, Math.min(origin.h + dy, window.innerHeight - 16)),
 			}));
 		};
 		const onUp = () => {
@@ -410,10 +407,11 @@ function GameWindow(props) {
 		window.addEventListener("pointerup", onUp);
 	}
 	const Game = game && game.Game;
-	// 最大化：铺满视口（四周留 10px）；最小化：折叠成标题栏；普通：固定坐标 + 自定义大小。
+	// 最大化：铺满视口（四周留 10px）；最小化：折叠成标题栏；普通：固定坐标，高度随内容自适应（不裁切）；
+	// 选择层打开时给固定舒适高度，列表内部滚动（避免内容稀疏导致窗口过矮）。
 	const style = win.mode === "max"
 		? { left: 10, top: 10, right: 10, bottom: 10, width: "auto", height: "auto" }
-		: { left: win.x, top: win.y, width: win.w, height: win.mode === "min" ? "auto" : win.h };
+		: { left: win.x, top: win.y, width: win.w, height: props.picker ? "min(76vh, 640px)" : "auto" };
 	return <div className={"dgwin dgwin-" + win.mode} role="dialog" aria-label={"游戏窗口：" + (game ? game.name : "趣味游戏")} style={style}>
 		<header className="dgwin-bar"
 			onPointerDown={(e) => beginDrag(e, "move")}
@@ -522,7 +520,7 @@ function GameFab(props) {
 	};
 	if (!pos) return null;
 	return <button type="button"
-		className={"dgfab dgfab-" + pos.side + (dragging ? " dgfab-drag" : "") + (props.hidden ? " dgfab-hide" : "")}
+		className={"dgfab dgfab-side-" + pos.side + (dragging ? " dgfab-drag" : "") + (props.hidden ? " dgfab-hide" : "")}
 		style={{ left: pos.x + "px", top: pos.y + "px" }}
 		title="趣味游戏 · 点击开玩；按住可拖到侧栏右缘或屏幕右侧、上下挪位"
 		aria-label="趣味游戏快捷入口，可拖动换边与上下挪位"
@@ -593,9 +591,18 @@ const baseCss = `
 .dgfab{--dgame-accent:#a78bfa;position:fixed;z-index:9985;display:flex;flex-direction:column;align-items:center;gap:6px;box-sizing:border-box;width:36px;padding:11px 0;border:1px solid color-mix(in srgb,var(--dgame-accent) 42%,var(--dsw-alias-border-l1));background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary);font-family:inherit;cursor:grab;user-select:none;touch-action:none;box-shadow:0 6px 24px rgb(0 0 0 / .18);transition:left .22s ease,top .22s ease,border-color .15s ease,opacity .15s ease}.dgfab:hover{border-color:var(--dgame-accent)}.dgfab-side-left{border-radius:0 12px 12px 0;border-left:none}.dgfab-side-right{border-radius:12px 0 0 12px;border-right:none}.dgfab-drag{transition:none;cursor:grabbing;box-shadow:0 10px 34px rgb(0 0 0 / .3);z-index:9986}.dgfab-hide{display:none}.dgfab-ico{display:inline-flex;color:var(--dgame-accent)}.dgfab-label{writing-mode:vertical-rl;letter-spacing:.22em;font-size:11px;line-height:1;color:var(--dsw-alias-label-secondary)}
 .dgwin{--dgame-accent:#a78bfa;--dgame-accent-soft:color-mix(in srgb,#a78bfa 16%,transparent);--dsw-alias-label-primary:#e7ecff;--dsw-alias-label-secondary:#aab3e8;--dsw-alias-label-tertiary:#7d86c0;--dsw-alias-border-l1:rgb(255 255 255 / .12);--dsw-alias-border-l2:rgb(255 255 255 / .17);--dsw-alias-bg-layer-1:#0d1230;--dsw-alias-bg-layer-2:#131a3d;--dsw-alias-interactive-bg-hover:rgb(255 255 255 / .08);position:fixed;z-index:9993;display:flex;flex-direction:column;border:1px solid rgb(255 255 255 / .14);border-radius:14px;background:radial-gradient(600px 300px at 80% -10%,color-mix(in srgb,#312e81 30%,transparent),transparent 60%),radial-gradient(500px 340px at -10% 110%,color-mix(in srgb,#0ea5e9 14%,transparent),transparent 55%),linear-gradient(180deg,#0b1024,#12102a 60%,#0a0f22);color:var(--dsw-alias-label-primary);box-shadow:0 24px 72px rgb(0 0 0 / .5);animation:dgwin-in .18s ease-out}.dgwin::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(1px 1px at 12% 22%,rgb(255 255 255 / .35),transparent),radial-gradient(1px 1px at 34% 68%,rgb(255 255 255 / .26),transparent),radial-gradient(1.5px 1.5px at 58% 14%,rgb(199 210 254 / .35),transparent),radial-gradient(1px 1px at 76% 44%,rgb(255 255 255 / .22),transparent),radial-gradient(1.5px 1.5px at 88% 78%,rgb(165 243 252 / .3),transparent),radial-gradient(1px 1px at 22% 88%,rgb(255 255 255 / .18),transparent),radial-gradient(1px 1px at 45% 38%,rgb(255 255 255 / .15),transparent),radial-gradient(1px 1px at 67% 86%,rgb(255 255 255 / .19),transparent)}@keyframes dgwin-in{from{opacity:0;transform:translateY(8px) scale(.985)}}
 .dgwin-min{height:auto!important;border-radius:12px}.dgwin-min .dgwin-body{display:none}.dgwin-min .dgwin-resize{display:none}
-.dgwin-max{border-radius:12px}.dgwin-max .dgwin-body .dgame-dash-stage{width:100%}.dgwin-max .dgwin-body .dgame-controls{width:100%}.dgwin-max .dgwin-body .dgame-reactor{width:min(100%,480px)}
+.dgwin-max{border-radius:12px}.dgwin-max .dgwin-body .dgame-game{align-items:stretch}.dgwin-max .dgwin-body .dgame-dash-stage,.dgwin-max .dgwin-body .dgame-tetris,.dgwin-max .dgwin-body .dgame-tetris-board,.dgwin-max .dgwin-body .dgame-snake-stage,.dgwin-max .dgwin-body .dgame-sokoban-stage,.dgwin-max .dgwin-body .dgame-gomoku-board,.dgwin-max .dgwin-body .dgame-xiangqi-board,.dgwin-max .dgwin-body .dgame-tank-stage,.dgwin-max .dgwin-body .dgame-breakout,.dgwin-max .dgwin-body .dgame-racer,.dgwin-max .dgwin-body .dgame-reactor{width:100%;max-width:none}.dgwin-max .dgwin-body .dgame-controls{width:100%;max-width:none}
 .dgwin-bar{flex:none;display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid rgb(255 255 255 / .09);background:rgb(7 11 28 / .72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#cdd6ff;cursor:move;user-select:none;touch-action:none;position:relative;z-index:2}.dgwin-ico{display:inline-flex;color:#a78bfa}.dgwin-title{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}.dgwin-title b{font-size:13px}.dgwin-title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#8f98ce}.dgwin-task{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1px solid rgb(255 255 255 / .13);background:rgb(255 255 255 / .05);font-size:11px;color:#aab3e8;white-space:nowrap}.dgwin-task i{width:7px;height:7px;border-radius:50%;background:#6b7499;flex:none}.dgwin-task.live{color:#c4f5e4;border-color:color-mix(in srgb,#34d399 33%,transparent);background:color-mix(in srgb,#34d399 8%,transparent)}.dgwin-task.live i{background:#34d399;box-shadow:0 0 0 3px color-mix(in srgb,#34d399 14%,transparent);animation:dgame-pulse 1.8s ease-in-out infinite}.dgwin-ctrls{display:flex;align-items:center;gap:6px;flex:none}.dgwin-btn{cursor:pointer;border:1px solid rgb(255 255 255 / .17);background:rgb(255 255 255 / .07);color:#e6ebff;border-radius:8px;padding:5px 10px;font:inherit;font-size:11px;transition:background .15s ease,border-color .15s ease}.dgwin-btn:hover{background:rgb(255 255 255 / .13);border-color:rgb(255 255 255 / .28)}.dgwin-sq{cursor:pointer;border:1px solid transparent;background:transparent;color:#a9b2e2;border-radius:8px;width:28px;height:26px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;transition:background .15s ease,color .15s ease}.dgwin-sq:hover{background:rgb(255 255 255 / .12);color:#fff}
-.dgwin-body{flex:1;min-height:0;position:relative;z-index:1;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:13px}.dgwin-body .dgame-game{border-color:transparent;background:transparent;padding:0}.dgwin-empty{display:grid;place-items:center;min-height:220px;color:#8f98ce;font-size:12px}.dgwin-tip{flex:none;text-align:center;color:#8b93c9;font-size:11px;padding:0 4px 2px}
+/* 小窗内容自适应：高度随内容（不裁切、不滚动），游戏板按屏幕可用高度等比缩放 */
+.dgwin-normal{max-height:calc(100vh - 12px)}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-snake-stage,.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-tank-stage{width:min(100%,430px,calc(100vh - 240px))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-gomoku-board{width:min(100%,390px,calc(100vh - 245px))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-xiangqi-board{width:min(100%,370px,calc((100vh - 240px) * .9))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-breakout{width:min(100%,410px,calc((100vh - 235px) * .89))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-tetris-board{width:min(100%,215px,calc((100vh - 270px) / 2))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-dash-stage{width:min(100%,430px,calc((100vh - 215px) * 1.24))}
+.dgwin:not(.dgwin-max):not(.dgwin-min) .dgame-racer{width:min(100%,400px,calc((100vh - 235px) * .71))}
+.dgwin-body{flex:1;min-height:0;position:relative;z-index:1;overflow:hidden;display:flex;flex-direction:column;gap:10px;padding:13px}.dgwin-body .dgame-game{border-color:transparent;background:transparent;padding:0}.dgwin-empty{display:grid;place-items:center;min-height:220px;color:#8f98ce;font-size:12px}.dgwin-tip{flex:none;text-align:center;color:#8b93c9;font-size:11px;padding:0 4px 2px}
 .dgwin-picker{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;gap:10px;padding:13px;background:rgb(10 14 32 / .86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow-y:auto;animation:dgentry-in .15s ease-out}.dgwin-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.dgwin-picker-head>div{display:flex;flex-direction:column;gap:3px}.dgwin-picker-head b{font-size:14px}.dgwin-picker-head span{font-size:11px;color:#aab3e8}.dgwin-picker-close{cursor:pointer;border:none;background:transparent;color:#7d86c0;border-radius:8px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}.dgwin-picker-close:hover{background:rgb(255 255 255 / .08);color:#e7ecff}.dgwin-picker .dgcov-grid{flex-direction:column;--dsw-alias-label-primary:#e7ecff;--dsw-alias-label-secondary:#aab3e8;--dsw-alias-border-l1:rgb(255 255 255 / .12)}.dgwin-picker .dgcov{min-width:0;background:rgb(255 255 255 / .04)}
 .dgwin-resize{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3;touch-action:none}.dgwin-resize::after{content:'';position:absolute;right:4px;bottom:4px;width:8px;height:8px;border-right:2px solid rgb(255 255 255 / .3);border-bottom:2px solid rgb(255 255 255 / .3);border-radius:0 0 3px 0}
 @keyframes dgentry-in{from{opacity:0}}
@@ -605,14 +612,14 @@ const baseCss = `
 
 const dgcovGroupCss = `
 .dgcov-groups{display:flex;flex-direction:column;gap:16px}.dgcov-section{display:flex;flex-direction:column;gap:8px}.dgcov-sechead{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-secondary);font-size:12px}.dgcov-sechead b{font-size:13px;color:var(--dsw-alias-label-primary);font-weight:600}.dgcov-sechead span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dgcov-sechead em{margin-left:auto;font-style:normal;font-size:10px;color:var(--dgame-accent);border:1px solid color-mix(in srgb,var(--dgame-accent) 40%,transparent);border-radius:999px;padding:1px 8px;white-space:nowrap}
-.dgcov-prev-gomoku{background:linear-gradient(135deg,#e8c07a,#c08a3e);display:block}.dgcov-prev-gomoku i{position:absolute;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 1px 2px rgb(0 0 0/.4)}.dgcov-prev-gomoku i.black{background:#111827}.dgcov-prev-gomoku i.white{background:#fff}
-.dgcov-prev-xiangqi{display:flex;flex-direction:column;justify-content:center;background:linear-gradient(135deg,#e8c07a,#c08a3e);padding:6px;font-size:11px;line-height:1.34;color:#7c2d12;font-weight:600}.dgcov-prev-xiangqi b{white-space:pre;text-align:center}
-.dgcov-prev-tetris{background:linear-gradient(180deg,#0c1024,#131a3d)}.dgcov-prev-tetris i{position:absolute;width:11px;height:11px;border-radius:2px;box-shadow:0 0 7px rgba(255,255,255,.35)}.dgcov-prev-tetris b{position:absolute;left:50%;top:6%;width:12px;height:12px;background:#fde047;transform:translateX(-50%);animation:dgcov-tetrisdrop 1.4s linear infinite}.dgcov-prev-tetris b::after{content:'';position:absolute;inset:0;background:#fb923c;animation:dgcov-tetriscolor 3s steps(7) infinite}@keyframes dgcov-tetrisdrop{to{transform:translateX(-50%) translateY(190px)}}@keyframes dgcov-tetriscolor{to{background:#f87171}}
-.dgcov-prev-soko{display:grid;place-items:center;background:linear-gradient(180deg,#181420,#14101f);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.05;color:#d4a24a;font-weight:700}.dgcov-prev-soko b{color:#d4a24a}
+.dgcov-prev-gomoku{background:repeating-linear-gradient(94deg,rgba(124,79,22,.06) 0 2px,transparent 2px 11px),radial-gradient(120% 120% at 30% 10%,#edc97f,#dcae62 55%,#c89a52)}.dgcov-prev-gomoku svg{position:absolute;inset:0;width:100%;height:100%}.dgcov-prev-gomoku line,.dgcov-prev-gomoku rect{stroke:#66431a;stroke-width:3;fill:none}.dgcov-prev-gomoku .dgp-star{fill:#66431a}.dgcov-prev-gomoku .dgp-stone-b{fill:radial-gradient(circle at 34% 30%,#4b5563,#111827 70%);fill:#1f2937;stroke:#0b1220;stroke-width:3}.dgcov-prev-gomoku .dgp-stone-w{fill:#fff;stroke:#94a3b8;stroke-width:3}
+.dgcov-prev-xiangqi{background:repeating-linear-gradient(94deg,rgba(124,79,22,.06) 0 2px,transparent 2px 11px),radial-gradient(120% 120% at 30% 10%,#f0cd86,#ddb067 55%,#c89a52)}.dgcov-prev-xiangqi svg{position:absolute;inset:0;width:100%;height:100%}.dgcov-prev-xiangqi line,.dgcov-prev-xiangqi rect,.dgcov-prev-xiangqi path{stroke:#66431a;stroke-width:3;fill:none}.dgcov-prev-xiangqi .dgp-xq-river{fill:rgba(102,67,26,.65);font-family:KaiTi,"Kaiti SC","STKaiti",serif;font-size:62px;text-anchor:middle;letter-spacing:8px}.dgcov-prev-xiangqi .dgp-xq-pc-b{fill:#f3e0ae;stroke:#8a5a1c;stroke-width:4}.dgcov-prev-xiangqi .dgp-xq-pc-r{fill:#f3e0ae;stroke:#b91c1c;stroke-width:4}.dgcov-prev-xiangqi .dgp-xq-tx-b{fill:#1f2937;font-size:52px;font-weight:700;text-anchor:middle;dominant-baseline:central;font-family:KaiTi,"Kaiti SC","STKaiti",serif}.dgcov-prev-xiangqi .dgp-xq-tx-r{fill:#b91c1c;font-size:52px;font-weight:700;text-anchor:middle;dominant-baseline:central;font-family:KaiTi,"Kaiti SC","STKaiti",serif}
+.dgcov-prev-tetris{display:grid;place-items:center;background:linear-gradient(180deg,#0c1024,#131a3d)}.dgp-tet-grid{display:grid;grid-template-columns:repeat(10,10px);grid-auto-rows:10px;gap:1px;padding:7px;border:1px solid rgba(34,211,238,.3);border-radius:7px;background:rgba(12,16,36,.6)}.dgp-tet-grid i{border-radius:2px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 2px rgba(255,255,255,.07)}.dgp-tet-grid i.cI{background:#22d3ee;box-shadow:0 0 6px rgba(34,211,238,.6)}.dgp-tet-grid i.cO{background:#facc15;box-shadow:0 0 6px rgba(250,204,21,.55)}.dgp-tet-grid i.cT{background:#c084fc;box-shadow:0 0 6px rgba(192,132,252,.55)}.dgp-tet-grid i.cS{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.55)}.dgp-tet-grid i.cZ{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.55)}.dgp-tet-grid i.cJ{background:#60a5fa;box-shadow:0 0 6px rgba(96,165,250,.55)}.dgp-tet-grid i.cL{background:#fb923c;box-shadow:0 0 6px rgba(251,146,60,.55)}.dgp-tet-grid i.fall{animation:dgp-tetbob 1.1s ease-in-out infinite}@keyframes dgp-tetbob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+.dgcov-prev-soko{display:grid;place-items:center;background:linear-gradient(180deg,#181420,#14101f)}.dgp-soko-grid{display:grid;grid-template-columns:repeat(7,17px);grid-auto-rows:17px;gap:2px}.dgp-soko-grid i{display:block;border-radius:3px;position:relative}.dgp-soko-floor{background:rgba(255,255,255,.04)}.dgp-soko-wall{background:linear-gradient(180deg,#3a3350,#241f3a);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}.dgp-soko-box{background:linear-gradient(135deg,#d4a24a,#8a5a1c);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}.dgp-soko-boxT{background:linear-gradient(135deg,#34d399,#0f766e)}.dgp-soko-target{background:rgba(255,255,255,.04)}.dgp-soko-target::after{content:'';position:absolute;inset:32%;border-radius:50%;background:#f59e0b}.dgp-soko-player{background:radial-gradient(circle at 35% 30%,#e0f2fe,#38bdf8 70%);border-radius:50%!important}
 .dgcov-prev-snake{background:linear-gradient(180deg,#0a1420,#123320)}.dgcov-prev-snake i{position:absolute;width:12px;height:12px;border-radius:26%;background:linear-gradient(135deg,#4ade80,#16a34a);transform:translate(-50%,-50%)}.dgcov-prev-snake i:first-child{background:linear-gradient(135deg,#bbf7d0,#22c55e)}.dgcov-prev-snake i:nth-child(2){background:linear-gradient(135deg,#34d399,#0d9f6e)}.dgcov-prev-snake b{position:absolute;width:13px;height:13px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;transform:translate(-50%,-50%);animation:dgcov-snakefood 1s ease-in-out infinite}@keyframes dgcov-snakefood{50%{transform:translate(-50%,-50%) scale(1.3)}}
 .dgcov-prev-breakout{background:linear-gradient(180deg,#0b1024,#14203a)}.dgcov-prev-breakout i{position:absolute;width:12px;height:5px;border-radius:3px}.dgcov-prev-breakout b{position:absolute;left:50%;bottom:10px;width:34px;height:8px;border-radius:4px;background:#a5f3fc;transform:translateX(-50%)}
 .dgcov-prev-racer{background:linear-gradient(180deg,#0b1024,#1a0f2a)}.dgcov-prev-racer i{position:absolute;width:14px;height:22px;border-radius:5px;transform:translate(-50%,-50%);background:#f87171}.dgcov-prev-racer i:nth-child(even){background:#fb923c}.dgcov-prev-racer b{position:absolute;left:50%;bottom:8px;width:18px;height:30px;border-radius:6px;background:#22d3ee;transform:translateX(-50%)}
-.dgcov-prev-tank{display:grid;place-items:center;padding:8px;background:linear-gradient(180deg,#1a1425,#100d1c);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.12;color:#a3672a;font-weight:700}.dgcov-prev-tank b{color:#a3672a}.dgcov-prev-tank b:nth-child(5){color:#fde047}
+.dgcov-prev-tank{display:grid;place-items:center;background:linear-gradient(180deg,#1a1425,#100d1c)}.dgp-tank-grid{display:grid;grid-template-columns:repeat(8,18px);grid-auto-rows:18px;gap:2px}.dgp-tank-grid i{display:block;border-radius:3px}.dgp-tank-void{background:rgba(255,255,255,.035)}.dgp-tank-brick{background:repeating-linear-gradient(45deg,#a3672a 0 55%,#8a5a1c 55% 100%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}.dgp-tank-steel{background:linear-gradient(180deg,#94a3b8,#64748b)}.dgp-tank-pw{background:linear-gradient(135deg,#fde047,#eab308);box-shadow:0 0 7px rgba(234,179,8,.55);border-radius:5px}.dgp-tank-en{background:#f87171;box-shadow:0 0 5px rgba(248,113,113,.4);border-radius:5px}.dgp-tank-base{background:#fbbf24;border-radius:50%}
 
 `;
 
