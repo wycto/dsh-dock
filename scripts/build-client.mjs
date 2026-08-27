@@ -25,7 +25,7 @@ function runEsbuild(args) {
   // npx 自动解析 esbuild（含 npx 缓存）；Windows 下经 shell 调用
   // stdio: inherit — esbuild 输出直通终端，不捕获管道（沙箱/CI 下避免管道 EPERM）
   try {
-    execSync(`npx --yes esbuild ${args.map((a) => JSON.stringify(a)).join(" ")}`, {
+    execSync(`npx --cache /tmp/npm-cache --yes esbuild ${args.map((a) => JSON.stringify(a)).join(" ")}`, {
       stdio: "inherit",
       shell: process.platform === "win32",
     });
