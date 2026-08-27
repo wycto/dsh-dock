@@ -1,6 +1,7 @@
 /* 趣味游戏 · 坦克大战（经典机台）——纯 Client；击毁敌方坦克、守住基地过关。 */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GRID, EMPTY, STEEL, BRICK, BASE, initialState, step, nextWave, findBase } from "../tank-core.js";
+import { focusStage, useGameControls } from "./shared.jsx";
 
 const DIR_ANGLE = { up: 0, right: 90, down: 180, left: 270 };
 const ENEMY_COLORS = ["#f87171", "#fb923c", "#c084fc", "#4ade80", "#38bdf8"];
@@ -52,7 +53,7 @@ export function TankGame(props) {
 		if (dir && keys.current.dir === dir) keys.current.dir = null;
 		if (event.key === " ") keys.current.shoot = false;
 	}, []);
-	useEffect(() => { if (pausedRef.current) return; if (stageRef.current) stageRef.current.focus(); }, [props.paused]);
+	useGameControls(stageRef, pausedRef.current, onKeyDown, onKeyUp);
 
 	const grid = snap.grid;
 	const player = snap.player;
@@ -92,7 +93,7 @@ export function TankGame(props) {
 
 	return <section className="dgame-game" aria-label="坦克大战">
 		<div className="dgame-game-head"><div><h3>坦克大战</h3><p>方向键移动，空格开炮；击毁敌方坦克，别让敌军摧毁中央基地。</p></div><div className="dgame-score"><span>得分 <strong>{snap.score}</strong></span><span>生命 × {player && player.lives}</span></div></div>
-		<div className="dgame-tank-stage" ref={stageRef} tabIndex={0} role="grid" onKeyDown={onKeyDown} onKeyUp={onKeyUp} aria-label="坦克大战游戏区域，方向键移动，空格开炮">
+		<div className="dgame-tank-stage" ref={stageRef} tabIndex={0} role="grid" onKeyDown={onKeyDown} onKeyUp={onKeyUp} onClick={() => focusStage(stageRef)} aria-label="坦克大战游戏区域，方向键移动，空格开炮">
 			<div className="dgame-tank-grid">{cells}</div>
 			{status === "over" ? <div className="dgame-over"><strong>胜败已分 · 得 {snap.score} 分</strong><button type="button" onClick={start}>重新开始</button></div> : null}
 			{status === "wave" ? <div className="dgame-over"><strong>第 {snap.wave} 波清空！</strong><button type="button" onClick={nextLvl}>下一波</button></div> : null}
@@ -106,8 +107,19 @@ export function TankGame(props) {
 }
 
 export function TankPreview() {
+	// 迷你战场：砖墙/钢墙色块 + 我方坦克 + 敌方坦克 + 基地，与真实游戏元素一致。
+	const ROWS = [
+		"..B..B..",
+		"S.....E.",
+		"..B.B...",
+		"B..S...B",
+		"...P..F.",
+	];
+	const cls = { ".": "void", B: "brick", S: "steel", P: "pw", E: "en", F: "base" };
 	return <span className="dgcov-prev dgcov-prev-tank" aria-hidden="true">
-		{["#...#", "#...#", "#...#", "+++++", "+..1+", "+++++"].map((row, r) => <b key={r}>{row}</b>)}
+		<span className="dgp-tank-grid">
+			{ROWS.flatMap((row, r) => row.split("").map((ch, c) => <i key={r + "-" + c} className={"dgp-tank-" + cls[ch]} />))}
+		</span>
 	</span>;
 }
 
