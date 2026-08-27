@@ -1,5 +1,6 @@
 /* 趣味游戏 · 极速赛车（经典机台）——纯 Client；canvas 渲染，躲避来车、收集金币，越开越快。 */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { focusStage, useGameControls } from "./shared.jsx";
 
 const W = 300, H = 420;
 const ROAD_W = 232, ROAD_X = (W - ROAD_W) / 2;
@@ -144,15 +145,12 @@ export function RacerGame(props) {
 		const scale = rect0.width / W;
 		g.player.x = Math.max(ROAD_X + 2, Math.min(ROAD_X + ROAD_W - CAR_W - 2, (e.clientX - rect0.left) / scale - CAR_W / 2));
 	}, []);
-	useEffect(() => {
-		if (pausedRef.current) return;
-		if (canvasRef.current) canvasRef.current.focus();
-	}, [props.paused]);
+	useGameControls(canvasRef, pausedRef.current, onKeyDown, onKeyUp);
 
 	return <section className="dgame-game" aria-label="极速赛车">
 		<div className="dgame-game-head"><div><h3>极速赛车</h3><p>左右移动避开迎面来车、收集金币，越开越快；撞车即结束。距离与金币实时显示在游戏画面左上/右上。</p></div><div className="dgame-score"><span>操作</span><span>←/→ 或鼠标</span></div></div>
 		<div className="dgame-racer">
-			<canvas ref={canvasRef} width={W} height={H} tabIndex={0} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPointerMove={onPointerMove} className="dgame-racer-canvas" aria-label="极速赛车游戏区域，左右方向键或鼠标控制方向" />
+			<canvas ref={canvasRef} width={W} height={H} tabIndex={0} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPointerMove={onPointerMove} onClick={() => focusStage(canvasRef)} className="dgame-racer-canvas" aria-label="极速赛车游戏区域，左右方向键或鼠标控制方向" />
 			{status === "over" ? <div className="dgame-over"><strong>撞车了 · 行驶 {(game.current && Math.floor(game.current.dist / 60)) || 0} 米</strong><button type="button" onClick={launch}>重新出发</button></div> : null}
 		</div>
 		<div className="dgame-controls"><button type="button" aria-label="向左" onClick={() => { keys.current.left = false; if (game.current) game.current.player.x = Math.max(ROAD_X + 2, game.current.player.x - 14); }}>← 左移</button><span>←/→ 或鼠标移动 · R 重开</span><button type="button" aria-label="向右" onClick={() => { keys.current.right = false; if (game.current) game.current.player.x = Math.min(ROAD_X + ROAD_W - CAR_W - 2, game.current.player.x + 14); }}>右移 {'->'}</button></div>
