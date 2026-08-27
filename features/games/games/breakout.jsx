@@ -1,5 +1,6 @@
 /* 趣味游戏 · 打砖块（经典机台）——纯 Client；canvas 渲染，方向键/鼠标/触摸控制挡板。 */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { focusStage, useGameControls, playSfx } from "./shared.jsx";
 
 const W = 320, H = 360;
 const BRICK_COLS = 8, BRICK_ROWS = 5, BRICK_GAP = 4, BRICK_TOP = 22, BRICK_H = 18;
@@ -109,9 +110,9 @@ export function BreakoutGame(props) {
 		if (g) { g.ball.x = W / 2; g.ball.y = H - PADDLE_BOTTOM - PADDLE_H - BALL_R - 1; g.ball.vx = 0; g.ball.vy = 0; g.launched = false; }
 	}, []);
 
-	// rAF 主循环。
+	// rAF 主循环。注意：本地函数不能叫 draw，否则会遮蔽模块级渲染函数导致递归自调用。
 	useEffect(() => {
-		const draw = () => {
+		const frame = () => {
 			const g = game.current;
 			const ctx = canvasRef.current && canvasRef.current.getContext("2d");
 			if (!g || !ctx) return;
@@ -133,6 +134,7 @@ export function BreakoutGame(props) {
 				if (b.y - BALL_R < 0) { b.y = BALL_R; b.vy = Math.abs(b.vy); }
 				// 挡板
 				if (b.vy > 0 && b.y + BALL_R >= g.paddle.y && b.y - BALL_R <= g.paddle.y + PADDLE_H && b.x >= g.paddle.x - BALL_R && b.x <= g.paddle.x + PADDLE_W + BALL_R) {
+					playSfx("bounce");
 					const rel = (b.x - (g.paddle.x + PADDLE_W / 2)) / (PADDLE_W / 2);
 					const ang = rel * .6;
 					const sp = Math.hypot(b.vx, b.vy);
@@ -146,6 +148,7 @@ export function BreakoutGame(props) {
 					if (!br.alive) continue;
 					if (collideRect(b.x, b.y, BALL_R, br.x, br.y, br.w, br.h)) {
 						br.alive = false;
+						playSfx("brick");
 						const cx = br.x + br.w / 2, cy = br.y + br.h / 2;
 						const dx = b.x - cx, dy = b.y - cy;
 						if (Math.abs(dx / br.w) > Math.abs(dy / br.h)) { b.vx = -b.vx; b.x += b.vx * 2; }
@@ -154,6 +157,7 @@ export function BreakoutGame(props) {
 						scoreRef.current += 10;
 						const remain = g.bricks.some((x) => x.alive);
 						if (!remain) {
+							playSfx("win");
 							setStatus("win"); setLevel((l) => l + 1);
 							if (statusRef.current !== "over") statusRef.current = "win";
 						}
@@ -164,13 +168,14 @@ export function BreakoutGame(props) {
 				if (b.y - BALL_R > H) {
 					const nl = livesRef.current - 1;
 					livesRef.current = nl; setLives(nl);
+					playSfx(nl <= 0 ? "over" : "step");
 					if (nl <= 0) { setStatus("over"); statusRef.current = "over"; }
 					else resetBall();
 				}
 			}
 			draw(ctx, g);
 		};
-		let raf = requestAnimationFrame(function loop() { draw(); raf = requestAnimationFrame(loop); });
+		let raf = requestAnimationFrame(function loop() { frame(); raf = requestAnimationFrame(loop); });
 		return () => cancelAnimationFrame(raf);
 	}, [resetBall]);
 
@@ -193,15 +198,12 @@ export function BreakoutGame(props) {
 		const scale = rect.width / W;
 		g.paddle.x = Math.max(0, Math.min(W - PADDLE_W, (e.clientX - rect.left) / scale - PADDLE_W / 2));
 	}, []);
-	useEffect(() => {
-		if (pausedRef.current) return;
-		if (canvasRef.current) canvasRef.current.focus();
-	}, [props.paused]);
+	useGameControls(canvasRef, pausedRef.current, onKeyDown, onKeyUp);
 
 	return <section className="dgame-game" aria-label="打砖块">
 		<div className="dgame-game-head"><div><h3>打砖块</h3><p>移动挡板反弹小球，击碎所有砖块；球落到底部扣一条命。</p></div><div className="dgame-score"><span>得分 <strong>{score}</strong></span><span>命 {lives} · 第 {level} 关</span></div></div>
 		<div className="dgame-breakout">
-			<canvas ref={canvasRef} width={W} height={H} tabIndex={0} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPointerMove={onPointerMove} className="dgame-breakout-canvas" aria-label="打砖块游戏区域，左右方向键或鼠标移动挡板，空格发球" />
+			<canvas ref={canvasRef} width={W} height={H} tabIndex={0} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPointerMove={onPointerMove} onClick={() => focusStage(canvasRef)} className="dgame-breakout-canvas" aria-label="打砖块游戏区域，左右方向键或鼠标移动挡板，空格发球" />
 			{status === "win" ? <div className="dgame-over"><strong>全消！进入第 {level} 关</strong><button type="button" onClick={() => { start(level); setStatus("play"); statusRef.current = "play"; }}>下一关</button></div> : null}
 			{status === "over" ? <div className="dgame-over"><strong>球掉光了 · 得 {score} 分</strong><button type="button" onClick={() => { start(1); setScore(0); setLives(3); setStatus("play"); statusRef.current = "play"; livesRef.current = 3; }}>重新开始</button></div> : null}
 		</div>
