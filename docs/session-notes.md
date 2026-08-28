@@ -465,3 +465,34 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 - **修正**：场景加宽 200→220px；书桌 200 宽居中（x=110 中心）；人物组 left 16→96（中心 x≈118 ≈ 桌中心）；三屏收到人物右侧扇形（x=128/166/196，ry ±20°）；键盘 x=126 在人物手边桌前缘。
 - **几何验证**（面板预览卡实测）：人物中心与桌中心偏差 8px（居中）；人物 bottom 落在桌沿下（坐姿正确，腿在桌面下方）；三屏在人物右侧、键盘在手边。
 - **注意**：本节验证时隔离实例的模型配额已耗尽（429 insufficient_quota，周配额 08-28 重置）——真实任务 E2E 已不可行，布局验证改走面板预览卡（静态渲染同款 RobotScene）+ getBoundingClientRect 几何测量；阶段流转逻辑未改动（8.22 已验证）。
+
+### 8.24 手机接力正式接入 + 局域网电脑直连（0.0.0.0）（2026-08-28，未发布）
+
+**需求**：用户希望局域网内其他电脑能访问完整 DSH（会话记录、工作区文件夹选择等全部交互与 127.0.0.1 一致），并明确要求"以 0.0.0.0 启动"，实现放在 dsh-dock 的【手机接力】里；主实例（3080）不得挂掉，另开新端口测试。
+
+**关键事实（实证自 dsh 0.1.1-rc.2 源码）**：
+- CLI 拒绝 `--host 0.0.0.0`（`dsh-web-app/lib/startup.js` 显式 `program.error`，理由：浏览器表层无登录认证，直开会把代码执行能力交给同网任何人）；
+- 但 `webServer` 行 schema 本身支持 `0.0.0.0`（`dsh-host-webserver`），合成配置里该行 id = `webserver`，host 来自 `ctx.webStartup.host ?? '127.0.0.1'`；
+- 绑定 0.0.0.0 后 `dsh-web-app` 的 `resolveLanTrust` 自动把全部局域网 IPv4 派生进 `/api` 信任白名单；目录选择器 `directory-picker-auto` 按 `bindHost !== '127.0.0.1'` 自动切成 **browse 模式**（浏览器内浏览/新建目录，`host.listDirectory`/`host.createDirectory`）——这正是局域网电脑选工作区文件夹所需；`host.pickDirectory`（本机原生对话框）属于 `PRIVILEGED_METHODS`，任何 LAN 访问都 403，与真 0.0.0.0 绑定行为一致。
+
+**实现（不复制会话，同资料共享）**：
+- `features/mobile-relay/host.js` 新增 `lan` / `lan/start` / `lan/stop` RPC：写一条 `- id: webserver, config: {host: '0.0.0.0', port: N}` 补丁到 `~/.dsh/dsh-dock-lan/lan-N.patch.yml`，用 `process.argv[1]`（当前 dsh 入口）spawn `node <入口> --profile web --patch <补丁> --port N --no-open`，stdout/stderr 进 `lan-N.log`；端口预检（0.0.0.0 绑定探测）、就绪轮询（25s 超时带日志尾部报错）；
+- 子实例环境标记 `DSH_DOCK_LAN_CHILD=1` + `DSH_DOCK_LAN_PARENT_PID`：子实例内 `lan/start` 拒绝（防递归嵌套）；每 5s 检查 `process.ppid`，主实例退出即自退出（孤儿保护）；
+- `features/mobile-relay/view.jsx` 新增 `LanDirectCard`（两种视图分支都渲染）：端口输入（默认 3082）、状态徽标、地址列表 + 二维码 + 复制、一键启停、安全警示；
+- 接线：`index.js` FEATURES + `src/client.jsx` BUILTIN_FEATURES（order 80）+ 重建 client.js（版本号未提升，待发布时再定）。
+
+**集成测试实录（主实例 3080 全程存活）**：
+- 实例 A（0.0.0.0:3082，手动补丁同机制启动）：loopback/LAN IP 均 200；`Host: 172.18.98.20:3082` 下 `host.describe`/`host.listDirectory`/`session.list` 全部通过信任篱笆；`host.pickDirectory` LAN 403（预期特权钉死）；`pickDirectory` loopback 报 `composed picker serves "browse"`（证明 browse 已挂载）；`host.listDirectory` 返回目录树、`host.createDirectory` 可建目录；
+- RPC 链：A 上 `lan/start {port:3083}` → 子实例 B 1s 内就绪，LAN IP 可访问，`lan` 状态 `child:true`；B 上 `lan/start` 返回 400 拒绝；B 的 `session.list` 与主实例同一份；A `lan/stop` → B 进程退出、端口释放；停止后可重开；杀掉 A → B 在 5s 内自退出（孤儿保护生效）；
+- 收尾：3082/3083 均无残留监听，`http://127.0.0.1:3080/` 保持 200。
+- 遗留注意：macOS 防火墙首次放行 node 入站可能弹窗（本次测试 172.18.98.20 直连成功，未遇拦截）；直连子实例与主实例同时写同一份 `~/.dsh` 会话文件属预期共享语义，避免两端同时编辑同一会话。
+
+### 8.25 局域网直连 crypto.randomUUID 修复（2026-08-28，未发布内追加）
+
+**用户反馈**：局域网电脑打开直连实例后左侧无会话记录、不能打开工作目录，控制台报 `crypto.randomUUID is not a function`。
+
+**根因**：局域网 `http://<IP>` **不是浏览器安全上下文**（只有 HTTPS 或 localhost 才是）。部分浏览器在非安全上下文只暴露 `crypto.getRandomValues()` 而省略 `crypto.randomUUID()`。DSH 的 connection 客户端在生成消息 ID（`MessageId(crypto.randomUUID())`）与 RPC ID（`RpcId(crypto.randomUUID())`）时直接调用它——缺失则整个客户端引导失败，表现为会话列表空、工作区不可用等"全面瘫痪"。手机接力网关此前已用代理注入 compat.js 解决同问题，但**直连子实例是裸 DSH 服务、没有代理层**，所以漏了这一步。
+
+**修复**：直连子实例（`isLanChildInstance()` 为真）在 `webServer.tapIndex` 注册一个 transform，向 index.html 的 `<head>` 之后内联注入同款 UUID v4 兜底脚本（`LAN_COMPAT_JS`），先于任何 DSH 引导脚本执行；幂等（marker 防重注）；本机回环下 randomUUID 已存在→脚本自我短路零副作用。仅子实例注册，主实例 HTML 完全不受影响。
+
+**验证**：带子实例标记启动 0.0.0.0 实例，index.html 的 `<head>` 后即见 `<script data-dsh-lan-compat>`（loopback 与 LAN IP 均注入）；VM 模拟非安全上下文（有 getRandomValues 无 randomUUID）跑注入脚本→randomUUID 被定义且产出合法 UUID v4；重启用户现役子实例后 `session.list`@LAN 正常返回 59 条会话，主实例 3080 保持 200。

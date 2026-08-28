@@ -11,6 +11,13 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  try {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  } catch (e) {
+    throw mod = 0, e;
+  }
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -33,6 +40,2084 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// node_modules/qrcode/lib/can-promise.js
+var require_can_promise = __commonJS({
+  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+    module2.exports = function() {
+      return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/utils.js
+var require_utils = __commonJS({
+  "node_modules/qrcode/lib/core/utils.js"(exports) {
+    var toSJISFunction;
+    var CODEWORDS_COUNT = [
+      0,
+      // Not used
+      26,
+      44,
+      70,
+      100,
+      134,
+      172,
+      196,
+      242,
+      292,
+      346,
+      404,
+      466,
+      532,
+      581,
+      655,
+      733,
+      815,
+      901,
+      991,
+      1085,
+      1156,
+      1258,
+      1364,
+      1474,
+      1588,
+      1706,
+      1828,
+      1921,
+      2051,
+      2185,
+      2323,
+      2465,
+      2611,
+      2761,
+      2876,
+      3034,
+      3196,
+      3362,
+      3532,
+      3706
+    ];
+    exports.getSymbolSize = function getSymbolSize(version) {
+      if (!version) throw new Error('"version" cannot be null or undefined');
+      if (version < 1 || version > 40) throw new Error('"version" should be in range from 1 to 40');
+      return version * 4 + 17;
+    };
+    exports.getSymbolTotalCodewords = function getSymbolTotalCodewords(version) {
+      return CODEWORDS_COUNT[version];
+    };
+    exports.getBCHDigit = function(data) {
+      let digit = 0;
+      while (data !== 0) {
+        digit++;
+        data >>>= 1;
+      }
+      return digit;
+    };
+    exports.setToSJISFunction = function setToSJISFunction(f) {
+      if (typeof f !== "function") {
+        throw new Error('"toSJISFunc" is not a valid function.');
+      }
+      toSJISFunction = f;
+    };
+    exports.isKanjiModeEnabled = function() {
+      return typeof toSJISFunction !== "undefined";
+    };
+    exports.toSJIS = function toSJIS(kanji) {
+      return toSJISFunction(kanji);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/error-correction-level.js
+var require_error_correction_level = __commonJS({
+  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+    exports.L = { bit: 1 };
+    exports.M = { bit: 0 };
+    exports.Q = { bit: 3 };
+    exports.H = { bit: 2 };
+    function fromString(string) {
+      if (typeof string !== "string") {
+        throw new Error("Param is not a string");
+      }
+      const lcStr = string.toLowerCase();
+      switch (lcStr) {
+        case "l":
+        case "low":
+          return exports.L;
+        case "m":
+        case "medium":
+          return exports.M;
+        case "q":
+        case "quartile":
+          return exports.Q;
+        case "h":
+        case "high":
+          return exports.H;
+        default:
+          throw new Error("Unknown EC Level: " + string);
+      }
+    }
+    exports.isValid = function isValid(level) {
+      return level && typeof level.bit !== "undefined" && level.bit >= 0 && level.bit < 4;
+    };
+    exports.from = function from(value, defaultValue) {
+      if (exports.isValid(value)) {
+        return value;
+      }
+      try {
+        return fromString(value);
+      } catch (e) {
+        return defaultValue;
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/bit-buffer.js
+var require_bit_buffer = __commonJS({
+  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+    function BitBuffer() {
+      this.buffer = [];
+      this.length = 0;
+    }
+    BitBuffer.prototype = {
+      get: function(index) {
+        const bufIndex = Math.floor(index / 8);
+        return (this.buffer[bufIndex] >>> 7 - index % 8 & 1) === 1;
+      },
+      put: function(num, length) {
+        for (let i = 0; i < length; i++) {
+          this.putBit((num >>> length - i - 1 & 1) === 1);
+        }
+      },
+      getLengthInBits: function() {
+        return this.length;
+      },
+      putBit: function(bit) {
+        const bufIndex = Math.floor(this.length / 8);
+        if (this.buffer.length <= bufIndex) {
+          this.buffer.push(0);
+        }
+        if (bit) {
+          this.buffer[bufIndex] |= 128 >>> this.length % 8;
+        }
+        this.length++;
+      }
+    };
+    module2.exports = BitBuffer;
+  }
+});
+
+// node_modules/qrcode/lib/core/bit-matrix.js
+var require_bit_matrix = __commonJS({
+  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+    function BitMatrix(size) {
+      if (!size || size < 1) {
+        throw new Error("BitMatrix size must be defined and greater than 0");
+      }
+      this.size = size;
+      this.data = new Uint8Array(size * size);
+      this.reservedBit = new Uint8Array(size * size);
+    }
+    BitMatrix.prototype.set = function(row, col, value, reserved) {
+      const index = row * this.size + col;
+      this.data[index] = value;
+      if (reserved) this.reservedBit[index] = true;
+    };
+    BitMatrix.prototype.get = function(row, col) {
+      return this.data[row * this.size + col];
+    };
+    BitMatrix.prototype.xor = function(row, col, value) {
+      this.data[row * this.size + col] ^= value;
+    };
+    BitMatrix.prototype.isReserved = function(row, col) {
+      return this.reservedBit[row * this.size + col];
+    };
+    module2.exports = BitMatrix;
+  }
+});
+
+// node_modules/qrcode/lib/core/alignment-pattern.js
+var require_alignment_pattern = __commonJS({
+  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+    var getSymbolSize = require_utils().getSymbolSize;
+    exports.getRowColCoords = function getRowColCoords(version) {
+      if (version === 1) return [];
+      const posCount = Math.floor(version / 7) + 2;
+      const size = getSymbolSize(version);
+      const intervals = size === 145 ? 26 : Math.ceil((size - 13) / (2 * posCount - 2)) * 2;
+      const positions = [size - 7];
+      for (let i = 1; i < posCount - 1; i++) {
+        positions[i] = positions[i - 1] - intervals;
+      }
+      positions.push(6);
+      return positions.reverse();
+    };
+    exports.getPositions = function getPositions(version) {
+      const coords = [];
+      const pos = exports.getRowColCoords(version);
+      const posLength = pos.length;
+      for (let i = 0; i < posLength; i++) {
+        for (let j = 0; j < posLength; j++) {
+          if (i === 0 && j === 0 || // top-left
+          i === 0 && j === posLength - 1 || // bottom-left
+          i === posLength - 1 && j === 0) {
+            continue;
+          }
+          coords.push([pos[i], pos[j]]);
+        }
+      }
+      return coords;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/finder-pattern.js
+var require_finder_pattern = __commonJS({
+  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+    var getSymbolSize = require_utils().getSymbolSize;
+    var FINDER_PATTERN_SIZE = 7;
+    exports.getPositions = function getPositions(version) {
+      const size = getSymbolSize(version);
+      return [
+        // top-left
+        [0, 0],
+        // top-right
+        [size - FINDER_PATTERN_SIZE, 0],
+        // bottom-left
+        [0, size - FINDER_PATTERN_SIZE]
+      ];
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/mask-pattern.js
+var require_mask_pattern = __commonJS({
+  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+    exports.Patterns = {
+      PATTERN000: 0,
+      PATTERN001: 1,
+      PATTERN010: 2,
+      PATTERN011: 3,
+      PATTERN100: 4,
+      PATTERN101: 5,
+      PATTERN110: 6,
+      PATTERN111: 7
+    };
+    var PenaltyScores = {
+      N1: 3,
+      N2: 3,
+      N3: 40,
+      N4: 10
+    };
+    exports.isValid = function isValid(mask) {
+      return mask != null && mask !== "" && !isNaN(mask) && mask >= 0 && mask <= 7;
+    };
+    exports.from = function from(value) {
+      return exports.isValid(value) ? parseInt(value, 10) : void 0;
+    };
+    exports.getPenaltyN1 = function getPenaltyN1(data) {
+      const size = data.size;
+      let points = 0;
+      let sameCountCol = 0;
+      let sameCountRow = 0;
+      let lastCol = null;
+      let lastRow = null;
+      for (let row = 0; row < size; row++) {
+        sameCountCol = sameCountRow = 0;
+        lastCol = lastRow = null;
+        for (let col = 0; col < size; col++) {
+          let module3 = data.get(row, col);
+          if (module3 === lastCol) {
+            sameCountCol++;
+          } else {
+            if (sameCountCol >= 5) points += PenaltyScores.N1 + (sameCountCol - 5);
+            lastCol = module3;
+            sameCountCol = 1;
+          }
+          module3 = data.get(col, row);
+          if (module3 === lastRow) {
+            sameCountRow++;
+          } else {
+            if (sameCountRow >= 5) points += PenaltyScores.N1 + (sameCountRow - 5);
+            lastRow = module3;
+            sameCountRow = 1;
+          }
+        }
+        if (sameCountCol >= 5) points += PenaltyScores.N1 + (sameCountCol - 5);
+        if (sameCountRow >= 5) points += PenaltyScores.N1 + (sameCountRow - 5);
+      }
+      return points;
+    };
+    exports.getPenaltyN2 = function getPenaltyN2(data) {
+      const size = data.size;
+      let points = 0;
+      for (let row = 0; row < size - 1; row++) {
+        for (let col = 0; col < size - 1; col++) {
+          const last = data.get(row, col) + data.get(row, col + 1) + data.get(row + 1, col) + data.get(row + 1, col + 1);
+          if (last === 4 || last === 0) points++;
+        }
+      }
+      return points * PenaltyScores.N2;
+    };
+    exports.getPenaltyN3 = function getPenaltyN3(data) {
+      const size = data.size;
+      let points = 0;
+      let bitsCol = 0;
+      let bitsRow = 0;
+      for (let row = 0; row < size; row++) {
+        bitsCol = bitsRow = 0;
+        for (let col = 0; col < size; col++) {
+          bitsCol = bitsCol << 1 & 2047 | data.get(row, col);
+          if (col >= 10 && (bitsCol === 1488 || bitsCol === 93)) points++;
+          bitsRow = bitsRow << 1 & 2047 | data.get(col, row);
+          if (col >= 10 && (bitsRow === 1488 || bitsRow === 93)) points++;
+        }
+      }
+      return points * PenaltyScores.N3;
+    };
+    exports.getPenaltyN4 = function getPenaltyN4(data) {
+      let darkCount = 0;
+      const modulesCount = data.data.length;
+      for (let i = 0; i < modulesCount; i++) darkCount += data.data[i];
+      const k = Math.abs(Math.ceil(darkCount * 100 / modulesCount / 5) - 10);
+      return k * PenaltyScores.N4;
+    };
+    function getMaskAt(maskPattern, i, j) {
+      switch (maskPattern) {
+        case exports.Patterns.PATTERN000:
+          return (i + j) % 2 === 0;
+        case exports.Patterns.PATTERN001:
+          return i % 2 === 0;
+        case exports.Patterns.PATTERN010:
+          return j % 3 === 0;
+        case exports.Patterns.PATTERN011:
+          return (i + j) % 3 === 0;
+        case exports.Patterns.PATTERN100:
+          return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0;
+        case exports.Patterns.PATTERN101:
+          return i * j % 2 + i * j % 3 === 0;
+        case exports.Patterns.PATTERN110:
+          return (i * j % 2 + i * j % 3) % 2 === 0;
+        case exports.Patterns.PATTERN111:
+          return (i * j % 3 + (i + j) % 2) % 2 === 0;
+        default:
+          throw new Error("bad maskPattern:" + maskPattern);
+      }
+    }
+    exports.applyMask = function applyMask(pattern, data) {
+      const size = data.size;
+      for (let col = 0; col < size; col++) {
+        for (let row = 0; row < size; row++) {
+          if (data.isReserved(row, col)) continue;
+          data.xor(row, col, getMaskAt(pattern, row, col));
+        }
+      }
+    };
+    exports.getBestMask = function getBestMask(data, setupFormatFunc) {
+      const numPatterns = Object.keys(exports.Patterns).length;
+      let bestPattern = 0;
+      let lowerPenalty = Infinity;
+      for (let p = 0; p < numPatterns; p++) {
+        setupFormatFunc(p);
+        exports.applyMask(p, data);
+        const penalty = exports.getPenaltyN1(data) + exports.getPenaltyN2(data) + exports.getPenaltyN3(data) + exports.getPenaltyN4(data);
+        exports.applyMask(p, data);
+        if (penalty < lowerPenalty) {
+          lowerPenalty = penalty;
+          bestPattern = p;
+        }
+      }
+      return bestPattern;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/error-correction-code.js
+var require_error_correction_code = __commonJS({
+  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+    var ECLevel = require_error_correction_level();
+    var EC_BLOCKS_TABLE = [
+      // L  M  Q  H
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      1,
+      2,
+      2,
+      4,
+      1,
+      2,
+      4,
+      4,
+      2,
+      4,
+      4,
+      4,
+      2,
+      4,
+      6,
+      5,
+      2,
+      4,
+      6,
+      6,
+      2,
+      5,
+      8,
+      8,
+      4,
+      5,
+      8,
+      8,
+      4,
+      5,
+      8,
+      11,
+      4,
+      8,
+      10,
+      11,
+      4,
+      9,
+      12,
+      16,
+      4,
+      9,
+      16,
+      16,
+      6,
+      10,
+      12,
+      18,
+      6,
+      10,
+      17,
+      16,
+      6,
+      11,
+      16,
+      19,
+      6,
+      13,
+      18,
+      21,
+      7,
+      14,
+      21,
+      25,
+      8,
+      16,
+      20,
+      25,
+      8,
+      17,
+      23,
+      25,
+      9,
+      17,
+      23,
+      34,
+      9,
+      18,
+      25,
+      30,
+      10,
+      20,
+      27,
+      32,
+      12,
+      21,
+      29,
+      35,
+      12,
+      23,
+      34,
+      37,
+      12,
+      25,
+      34,
+      40,
+      13,
+      26,
+      35,
+      42,
+      14,
+      28,
+      38,
+      45,
+      15,
+      29,
+      40,
+      48,
+      16,
+      31,
+      43,
+      51,
+      17,
+      33,
+      45,
+      54,
+      18,
+      35,
+      48,
+      57,
+      19,
+      37,
+      51,
+      60,
+      19,
+      38,
+      53,
+      63,
+      20,
+      40,
+      56,
+      66,
+      21,
+      43,
+      59,
+      70,
+      22,
+      45,
+      62,
+      74,
+      24,
+      47,
+      65,
+      77,
+      25,
+      49,
+      68,
+      81
+    ];
+    var EC_CODEWORDS_TABLE = [
+      // L  M  Q  H
+      7,
+      10,
+      13,
+      17,
+      10,
+      16,
+      22,
+      28,
+      15,
+      26,
+      36,
+      44,
+      20,
+      36,
+      52,
+      64,
+      26,
+      48,
+      72,
+      88,
+      36,
+      64,
+      96,
+      112,
+      40,
+      72,
+      108,
+      130,
+      48,
+      88,
+      132,
+      156,
+      60,
+      110,
+      160,
+      192,
+      72,
+      130,
+      192,
+      224,
+      80,
+      150,
+      224,
+      264,
+      96,
+      176,
+      260,
+      308,
+      104,
+      198,
+      288,
+      352,
+      120,
+      216,
+      320,
+      384,
+      132,
+      240,
+      360,
+      432,
+      144,
+      280,
+      408,
+      480,
+      168,
+      308,
+      448,
+      532,
+      180,
+      338,
+      504,
+      588,
+      196,
+      364,
+      546,
+      650,
+      224,
+      416,
+      600,
+      700,
+      224,
+      442,
+      644,
+      750,
+      252,
+      476,
+      690,
+      816,
+      270,
+      504,
+      750,
+      900,
+      300,
+      560,
+      810,
+      960,
+      312,
+      588,
+      870,
+      1050,
+      336,
+      644,
+      952,
+      1110,
+      360,
+      700,
+      1020,
+      1200,
+      390,
+      728,
+      1050,
+      1260,
+      420,
+      784,
+      1140,
+      1350,
+      450,
+      812,
+      1200,
+      1440,
+      480,
+      868,
+      1290,
+      1530,
+      510,
+      924,
+      1350,
+      1620,
+      540,
+      980,
+      1440,
+      1710,
+      570,
+      1036,
+      1530,
+      1800,
+      570,
+      1064,
+      1590,
+      1890,
+      600,
+      1120,
+      1680,
+      1980,
+      630,
+      1204,
+      1770,
+      2100,
+      660,
+      1260,
+      1860,
+      2220,
+      720,
+      1316,
+      1950,
+      2310,
+      750,
+      1372,
+      2040,
+      2430
+    ];
+    exports.getBlocksCount = function getBlocksCount(version, errorCorrectionLevel) {
+      switch (errorCorrectionLevel) {
+        case ECLevel.L:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 0];
+        case ECLevel.M:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 1];
+        case ECLevel.Q:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 2];
+        case ECLevel.H:
+          return EC_BLOCKS_TABLE[(version - 1) * 4 + 3];
+        default:
+          return void 0;
+      }
+    };
+    exports.getTotalCodewordsCount = function getTotalCodewordsCount(version, errorCorrectionLevel) {
+      switch (errorCorrectionLevel) {
+        case ECLevel.L:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 0];
+        case ECLevel.M:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 1];
+        case ECLevel.Q:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 2];
+        case ECLevel.H:
+          return EC_CODEWORDS_TABLE[(version - 1) * 4 + 3];
+        default:
+          return void 0;
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/galois-field.js
+var require_galois_field = __commonJS({
+  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
+    var EXP_TABLE = new Uint8Array(512);
+    var LOG_TABLE = new Uint8Array(256);
+    (function initTables() {
+      let x = 1;
+      for (let i = 0; i < 255; i++) {
+        EXP_TABLE[i] = x;
+        LOG_TABLE[x] = i;
+        x <<= 1;
+        if (x & 256) {
+          x ^= 285;
+        }
+      }
+      for (let i = 255; i < 512; i++) {
+        EXP_TABLE[i] = EXP_TABLE[i - 255];
+      }
+    })();
+    exports.log = function log(n) {
+      if (n < 1) throw new Error("log(" + n + ")");
+      return LOG_TABLE[n];
+    };
+    exports.exp = function exp(n) {
+      return EXP_TABLE[n];
+    };
+    exports.mul = function mul(x, y) {
+      if (x === 0 || y === 0) return 0;
+      return EXP_TABLE[LOG_TABLE[x] + LOG_TABLE[y]];
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/polynomial.js
+var require_polynomial = __commonJS({
+  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
+    var GF = require_galois_field();
+    exports.mul = function mul(p1, p2) {
+      const coeff = new Uint8Array(p1.length + p2.length - 1);
+      for (let i = 0; i < p1.length; i++) {
+        for (let j = 0; j < p2.length; j++) {
+          coeff[i + j] ^= GF.mul(p1[i], p2[j]);
+        }
+      }
+      return coeff;
+    };
+    exports.mod = function mod(divident, divisor) {
+      let result = new Uint8Array(divident);
+      while (result.length - divisor.length >= 0) {
+        const coeff = result[0];
+        for (let i = 0; i < divisor.length; i++) {
+          result[i] ^= GF.mul(divisor[i], coeff);
+        }
+        let offset = 0;
+        while (offset < result.length && result[offset] === 0) offset++;
+        result = result.slice(offset);
+      }
+      return result;
+    };
+    exports.generateECPolynomial = function generateECPolynomial(degree) {
+      let poly = new Uint8Array([1]);
+      for (let i = 0; i < degree; i++) {
+        poly = exports.mul(poly, new Uint8Array([1, GF.exp(i)]));
+      }
+      return poly;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/reed-solomon-encoder.js
+var require_reed_solomon_encoder = __commonJS({
+  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+    var Polynomial = require_polynomial();
+    function ReedSolomonEncoder(degree) {
+      this.genPoly = void 0;
+      this.degree = degree;
+      if (this.degree) this.initialize(this.degree);
+    }
+    ReedSolomonEncoder.prototype.initialize = function initialize(degree) {
+      this.degree = degree;
+      this.genPoly = Polynomial.generateECPolynomial(this.degree);
+    };
+    ReedSolomonEncoder.prototype.encode = function encode(data) {
+      if (!this.genPoly) {
+        throw new Error("Encoder not initialized");
+      }
+      const paddedData = new Uint8Array(data.length + this.degree);
+      paddedData.set(data);
+      const remainder = Polynomial.mod(paddedData, this.genPoly);
+      const start = this.degree - remainder.length;
+      if (start > 0) {
+        const buff = new Uint8Array(this.degree);
+        buff.set(remainder, start);
+        return buff;
+      }
+      return remainder;
+    };
+    module2.exports = ReedSolomonEncoder;
+  }
+});
+
+// node_modules/qrcode/lib/core/version-check.js
+var require_version_check = __commonJS({
+  "node_modules/qrcode/lib/core/version-check.js"(exports) {
+    exports.isValid = function isValid(version) {
+      return !isNaN(version) && version >= 1 && version <= 40;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/regex.js
+var require_regex = __commonJS({
+  "node_modules/qrcode/lib/core/regex.js"(exports) {
+    var numeric = "[0-9]+";
+    var alphanumeric = "[A-Z $%*+\\-./:]+";
+    var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
+    kanji = kanji.replace(/u/g, "\\u");
+    var byte = "(?:(?![A-Z0-9 $%*+\\-./:]|" + kanji + ")(?:.|[\r\n]))+";
+    exports.KANJI = new RegExp(kanji, "g");
+    exports.BYTE_KANJI = new RegExp("[^A-Z0-9 $%*+\\-./:]+", "g");
+    exports.BYTE = new RegExp(byte, "g");
+    exports.NUMERIC = new RegExp(numeric, "g");
+    exports.ALPHANUMERIC = new RegExp(alphanumeric, "g");
+    var TEST_KANJI = new RegExp("^" + kanji + "$");
+    var TEST_NUMERIC = new RegExp("^" + numeric + "$");
+    var TEST_ALPHANUMERIC = new RegExp("^[A-Z0-9 $%*+\\-./:]+$");
+    exports.testKanji = function testKanji(str) {
+      return TEST_KANJI.test(str);
+    };
+    exports.testNumeric = function testNumeric(str) {
+      return TEST_NUMERIC.test(str);
+    };
+    exports.testAlphanumeric = function testAlphanumeric(str) {
+      return TEST_ALPHANUMERIC.test(str);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/mode.js
+var require_mode = __commonJS({
+  "node_modules/qrcode/lib/core/mode.js"(exports) {
+    var VersionCheck = require_version_check();
+    var Regex = require_regex();
+    exports.NUMERIC = {
+      id: "Numeric",
+      bit: 1 << 0,
+      ccBits: [10, 12, 14]
+    };
+    exports.ALPHANUMERIC = {
+      id: "Alphanumeric",
+      bit: 1 << 1,
+      ccBits: [9, 11, 13]
+    };
+    exports.BYTE = {
+      id: "Byte",
+      bit: 1 << 2,
+      ccBits: [8, 16, 16]
+    };
+    exports.KANJI = {
+      id: "Kanji",
+      bit: 1 << 3,
+      ccBits: [8, 10, 12]
+    };
+    exports.MIXED = {
+      bit: -1
+    };
+    exports.getCharCountIndicator = function getCharCountIndicator(mode, version) {
+      if (!mode.ccBits) throw new Error("Invalid mode: " + mode);
+      if (!VersionCheck.isValid(version)) {
+        throw new Error("Invalid version: " + version);
+      }
+      if (version >= 1 && version < 10) return mode.ccBits[0];
+      else if (version < 27) return mode.ccBits[1];
+      return mode.ccBits[2];
+    };
+    exports.getBestModeForData = function getBestModeForData(dataStr) {
+      if (Regex.testNumeric(dataStr)) return exports.NUMERIC;
+      else if (Regex.testAlphanumeric(dataStr)) return exports.ALPHANUMERIC;
+      else if (Regex.testKanji(dataStr)) return exports.KANJI;
+      else return exports.BYTE;
+    };
+    exports.toString = function toString(mode) {
+      if (mode && mode.id) return mode.id;
+      throw new Error("Invalid mode");
+    };
+    exports.isValid = function isValid(mode) {
+      return mode && mode.bit && mode.ccBits;
+    };
+    function fromString(string) {
+      if (typeof string !== "string") {
+        throw new Error("Param is not a string");
+      }
+      const lcStr = string.toLowerCase();
+      switch (lcStr) {
+        case "numeric":
+          return exports.NUMERIC;
+        case "alphanumeric":
+          return exports.ALPHANUMERIC;
+        case "kanji":
+          return exports.KANJI;
+        case "byte":
+          return exports.BYTE;
+        default:
+          throw new Error("Unknown mode: " + string);
+      }
+    }
+    exports.from = function from(value, defaultValue) {
+      if (exports.isValid(value)) {
+        return value;
+      }
+      try {
+        return fromString(value);
+      } catch (e) {
+        return defaultValue;
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/version.js
+var require_version = __commonJS({
+  "node_modules/qrcode/lib/core/version.js"(exports) {
+    var Utils = require_utils();
+    var ECCode = require_error_correction_code();
+    var ECLevel = require_error_correction_level();
+    var Mode = require_mode();
+    var VersionCheck = require_version_check();
+    var G18 = 1 << 12 | 1 << 11 | 1 << 10 | 1 << 9 | 1 << 8 | 1 << 5 | 1 << 2 | 1 << 0;
+    var G18_BCH = Utils.getBCHDigit(G18);
+    function getBestVersionForDataLength(mode, length, errorCorrectionLevel) {
+      for (let currentVersion = 1; currentVersion <= 40; currentVersion++) {
+        if (length <= exports.getCapacity(currentVersion, errorCorrectionLevel, mode)) {
+          return currentVersion;
+        }
+      }
+      return void 0;
+    }
+    function getReservedBitsCount(mode, version) {
+      return Mode.getCharCountIndicator(mode, version) + 4;
+    }
+    function getTotalBitsFromDataArray(segments, version) {
+      let totalBits = 0;
+      segments.forEach(function(data) {
+        const reservedBits = getReservedBitsCount(data.mode, version);
+        totalBits += reservedBits + data.getBitsLength();
+      });
+      return totalBits;
+    }
+    function getBestVersionForMixedData(segments, errorCorrectionLevel) {
+      for (let currentVersion = 1; currentVersion <= 40; currentVersion++) {
+        const length = getTotalBitsFromDataArray(segments, currentVersion);
+        if (length <= exports.getCapacity(currentVersion, errorCorrectionLevel, Mode.MIXED)) {
+          return currentVersion;
+        }
+      }
+      return void 0;
+    }
+    exports.from = function from(value, defaultValue) {
+      if (VersionCheck.isValid(value)) {
+        return parseInt(value, 10);
+      }
+      return defaultValue;
+    };
+    exports.getCapacity = function getCapacity(version, errorCorrectionLevel, mode) {
+      if (!VersionCheck.isValid(version)) {
+        throw new Error("Invalid QR Code version");
+      }
+      if (typeof mode === "undefined") mode = Mode.BYTE;
+      const totalCodewords = Utils.getSymbolTotalCodewords(version);
+      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
+      const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
+      if (mode === Mode.MIXED) return dataTotalCodewordsBits;
+      const usableBits = dataTotalCodewordsBits - getReservedBitsCount(mode, version);
+      switch (mode) {
+        case Mode.NUMERIC:
+          return Math.floor(usableBits / 10 * 3);
+        case Mode.ALPHANUMERIC:
+          return Math.floor(usableBits / 11 * 2);
+        case Mode.KANJI:
+          return Math.floor(usableBits / 13);
+        case Mode.BYTE:
+        default:
+          return Math.floor(usableBits / 8);
+      }
+    };
+    exports.getBestVersionForData = function getBestVersionForData(data, errorCorrectionLevel) {
+      let seg;
+      const ecl = ECLevel.from(errorCorrectionLevel, ECLevel.M);
+      if (Array.isArray(data)) {
+        if (data.length > 1) {
+          return getBestVersionForMixedData(data, ecl);
+        }
+        if (data.length === 0) {
+          return 1;
+        }
+        seg = data[0];
+      } else {
+        seg = data;
+      }
+      return getBestVersionForDataLength(seg.mode, seg.getLength(), ecl);
+    };
+    exports.getEncodedBits = function getEncodedBits(version) {
+      if (!VersionCheck.isValid(version) || version < 7) {
+        throw new Error("Invalid QR Code version");
+      }
+      let d = version << 12;
+      while (Utils.getBCHDigit(d) - G18_BCH >= 0) {
+        d ^= G18 << Utils.getBCHDigit(d) - G18_BCH;
+      }
+      return version << 12 | d;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/format-info.js
+var require_format_info = __commonJS({
+  "node_modules/qrcode/lib/core/format-info.js"(exports) {
+    var Utils = require_utils();
+    var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
+    var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
+    var G15_BCH = Utils.getBCHDigit(G15);
+    exports.getEncodedBits = function getEncodedBits(errorCorrectionLevel, mask) {
+      const data = errorCorrectionLevel.bit << 3 | mask;
+      let d = data << 10;
+      while (Utils.getBCHDigit(d) - G15_BCH >= 0) {
+        d ^= G15 << Utils.getBCHDigit(d) - G15_BCH;
+      }
+      return (data << 10 | d) ^ G15_MASK;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/numeric-data.js
+var require_numeric_data = __commonJS({
+  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+    var Mode = require_mode();
+    function NumericData(data) {
+      this.mode = Mode.NUMERIC;
+      this.data = data.toString();
+    }
+    NumericData.getBitsLength = function getBitsLength(length) {
+      return 10 * Math.floor(length / 3) + (length % 3 ? length % 3 * 3 + 1 : 0);
+    };
+    NumericData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    NumericData.prototype.getBitsLength = function getBitsLength() {
+      return NumericData.getBitsLength(this.data.length);
+    };
+    NumericData.prototype.write = function write(bitBuffer) {
+      let i, group, value;
+      for (i = 0; i + 3 <= this.data.length; i += 3) {
+        group = this.data.substr(i, 3);
+        value = parseInt(group, 10);
+        bitBuffer.put(value, 10);
+      }
+      const remainingNum = this.data.length - i;
+      if (remainingNum > 0) {
+        group = this.data.substr(i);
+        value = parseInt(group, 10);
+        bitBuffer.put(value, remainingNum * 3 + 1);
+      }
+    };
+    module2.exports = NumericData;
+  }
+});
+
+// node_modules/qrcode/lib/core/alphanumeric-data.js
+var require_alphanumeric_data = __commonJS({
+  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+    var Mode = require_mode();
+    var ALPHA_NUM_CHARS = [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "N",
+      "O",
+      "P",
+      "Q",
+      "R",
+      "S",
+      "T",
+      "U",
+      "V",
+      "W",
+      "X",
+      "Y",
+      "Z",
+      " ",
+      "$",
+      "%",
+      "*",
+      "+",
+      "-",
+      ".",
+      "/",
+      ":"
+    ];
+    function AlphanumericData(data) {
+      this.mode = Mode.ALPHANUMERIC;
+      this.data = data;
+    }
+    AlphanumericData.getBitsLength = function getBitsLength(length) {
+      return 11 * Math.floor(length / 2) + 6 * (length % 2);
+    };
+    AlphanumericData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    AlphanumericData.prototype.getBitsLength = function getBitsLength() {
+      return AlphanumericData.getBitsLength(this.data.length);
+    };
+    AlphanumericData.prototype.write = function write(bitBuffer) {
+      let i;
+      for (i = 0; i + 2 <= this.data.length; i += 2) {
+        let value = ALPHA_NUM_CHARS.indexOf(this.data[i]) * 45;
+        value += ALPHA_NUM_CHARS.indexOf(this.data[i + 1]);
+        bitBuffer.put(value, 11);
+      }
+      if (this.data.length % 2) {
+        bitBuffer.put(ALPHA_NUM_CHARS.indexOf(this.data[i]), 6);
+      }
+    };
+    module2.exports = AlphanumericData;
+  }
+});
+
+// node_modules/qrcode/lib/core/byte-data.js
+var require_byte_data = __commonJS({
+  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+    var Mode = require_mode();
+    function ByteData(data) {
+      this.mode = Mode.BYTE;
+      if (typeof data === "string") {
+        this.data = new TextEncoder().encode(data);
+      } else {
+        this.data = new Uint8Array(data);
+      }
+    }
+    ByteData.getBitsLength = function getBitsLength(length) {
+      return length * 8;
+    };
+    ByteData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    ByteData.prototype.getBitsLength = function getBitsLength() {
+      return ByteData.getBitsLength(this.data.length);
+    };
+    ByteData.prototype.write = function(bitBuffer) {
+      for (let i = 0, l = this.data.length; i < l; i++) {
+        bitBuffer.put(this.data[i], 8);
+      }
+    };
+    module2.exports = ByteData;
+  }
+});
+
+// node_modules/qrcode/lib/core/kanji-data.js
+var require_kanji_data = __commonJS({
+  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+    var Mode = require_mode();
+    var Utils = require_utils();
+    function KanjiData(data) {
+      this.mode = Mode.KANJI;
+      this.data = data;
+    }
+    KanjiData.getBitsLength = function getBitsLength(length) {
+      return length * 13;
+    };
+    KanjiData.prototype.getLength = function getLength() {
+      return this.data.length;
+    };
+    KanjiData.prototype.getBitsLength = function getBitsLength() {
+      return KanjiData.getBitsLength(this.data.length);
+    };
+    KanjiData.prototype.write = function(bitBuffer) {
+      let i;
+      for (i = 0; i < this.data.length; i++) {
+        let value = Utils.toSJIS(this.data[i]);
+        if (value >= 33088 && value <= 40956) {
+          value -= 33088;
+        } else if (value >= 57408 && value <= 60351) {
+          value -= 49472;
+        } else {
+          throw new Error(
+            "Invalid SJIS character: " + this.data[i] + "\nMake sure your charset is UTF-8"
+          );
+        }
+        value = (value >>> 8 & 255) * 192 + (value & 255);
+        bitBuffer.put(value, 13);
+      }
+    };
+    module2.exports = KanjiData;
+  }
+});
+
+// node_modules/dijkstrajs/dijkstra.js
+var require_dijkstra = __commonJS({
+  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+    "use strict";
+    var dijkstra = {
+      single_source_shortest_paths: function(graph, s, d) {
+        var predecessors = {};
+        var costs = {};
+        costs[s] = 0;
+        var open = dijkstra.PriorityQueue.make();
+        open.push(s, 0);
+        var closest, u, v, cost_of_s_to_u, adjacent_nodes, cost_of_e, cost_of_s_to_u_plus_cost_of_e, cost_of_s_to_v, first_visit;
+        while (!open.empty()) {
+          closest = open.pop();
+          u = closest.value;
+          cost_of_s_to_u = closest.cost;
+          adjacent_nodes = graph[u] || {};
+          for (v in adjacent_nodes) {
+            if (adjacent_nodes.hasOwnProperty(v)) {
+              cost_of_e = adjacent_nodes[v];
+              cost_of_s_to_u_plus_cost_of_e = cost_of_s_to_u + cost_of_e;
+              cost_of_s_to_v = costs[v];
+              first_visit = typeof costs[v] === "undefined";
+              if (first_visit || cost_of_s_to_v > cost_of_s_to_u_plus_cost_of_e) {
+                costs[v] = cost_of_s_to_u_plus_cost_of_e;
+                open.push(v, cost_of_s_to_u_plus_cost_of_e);
+                predecessors[v] = u;
+              }
+            }
+          }
+        }
+        if (typeof d !== "undefined" && typeof costs[d] === "undefined") {
+          var msg = ["Could not find a path from ", s, " to ", d, "."].join("");
+          throw new Error(msg);
+        }
+        return predecessors;
+      },
+      extract_shortest_path_from_predecessor_list: function(predecessors, d) {
+        var nodes = [];
+        var u = d;
+        var predecessor;
+        while (u) {
+          nodes.push(u);
+          predecessor = predecessors[u];
+          u = predecessors[u];
+        }
+        nodes.reverse();
+        return nodes;
+      },
+      find_path: function(graph, s, d) {
+        var predecessors = dijkstra.single_source_shortest_paths(graph, s, d);
+        return dijkstra.extract_shortest_path_from_predecessor_list(
+          predecessors,
+          d
+        );
+      },
+      /**
+       * A very naive priority queue implementation.
+       */
+      PriorityQueue: {
+        make: function(opts) {
+          var T = dijkstra.PriorityQueue, t = {}, key;
+          opts = opts || {};
+          for (key in T) {
+            if (T.hasOwnProperty(key)) {
+              t[key] = T[key];
+            }
+          }
+          t.queue = [];
+          t.sorter = opts.sorter || T.default_sorter;
+          return t;
+        },
+        default_sorter: function(a, b) {
+          return a.cost - b.cost;
+        },
+        /**
+         * Add a new item to the queue and ensure the highest priority element
+         * is at the front of the queue.
+         */
+        push: function(value, cost) {
+          var item = { value, cost };
+          this.queue.push(item);
+          this.queue.sort(this.sorter);
+        },
+        /**
+         * Return the highest priority element in the queue.
+         */
+        pop: function() {
+          return this.queue.shift();
+        },
+        empty: function() {
+          return this.queue.length === 0;
+        }
+      }
+    };
+    if (typeof module2 !== "undefined") {
+      module2.exports = dijkstra;
+    }
+  }
+});
+
+// node_modules/qrcode/lib/core/segments.js
+var require_segments = __commonJS({
+  "node_modules/qrcode/lib/core/segments.js"(exports) {
+    var Mode = require_mode();
+    var NumericData = require_numeric_data();
+    var AlphanumericData = require_alphanumeric_data();
+    var ByteData = require_byte_data();
+    var KanjiData = require_kanji_data();
+    var Regex = require_regex();
+    var Utils = require_utils();
+    var dijkstra = require_dijkstra();
+    function getStringByteLength(str) {
+      return unescape(encodeURIComponent(str)).length;
+    }
+    function getSegments(regex, mode, str) {
+      const segments = [];
+      let result;
+      while ((result = regex.exec(str)) !== null) {
+        segments.push({
+          data: result[0],
+          index: result.index,
+          mode,
+          length: result[0].length
+        });
+      }
+      return segments;
+    }
+    function getSegmentsFromString(dataStr) {
+      const numSegs = getSegments(Regex.NUMERIC, Mode.NUMERIC, dataStr);
+      const alphaNumSegs = getSegments(Regex.ALPHANUMERIC, Mode.ALPHANUMERIC, dataStr);
+      let byteSegs;
+      let kanjiSegs;
+      if (Utils.isKanjiModeEnabled()) {
+        byteSegs = getSegments(Regex.BYTE, Mode.BYTE, dataStr);
+        kanjiSegs = getSegments(Regex.KANJI, Mode.KANJI, dataStr);
+      } else {
+        byteSegs = getSegments(Regex.BYTE_KANJI, Mode.BYTE, dataStr);
+        kanjiSegs = [];
+      }
+      const segs = numSegs.concat(alphaNumSegs, byteSegs, kanjiSegs);
+      return segs.sort(function(s1, s2) {
+        return s1.index - s2.index;
+      }).map(function(obj) {
+        return {
+          data: obj.data,
+          mode: obj.mode,
+          length: obj.length
+        };
+      });
+    }
+    function getSegmentBitsLength(length, mode) {
+      switch (mode) {
+        case Mode.NUMERIC:
+          return NumericData.getBitsLength(length);
+        case Mode.ALPHANUMERIC:
+          return AlphanumericData.getBitsLength(length);
+        case Mode.KANJI:
+          return KanjiData.getBitsLength(length);
+        case Mode.BYTE:
+          return ByteData.getBitsLength(length);
+      }
+    }
+    function mergeSegments(segs) {
+      return segs.reduce(function(acc, curr) {
+        const prevSeg = acc.length - 1 >= 0 ? acc[acc.length - 1] : null;
+        if (prevSeg && prevSeg.mode === curr.mode) {
+          acc[acc.length - 1].data += curr.data;
+          return acc;
+        }
+        acc.push(curr);
+        return acc;
+      }, []);
+    }
+    function buildNodes(segs) {
+      const nodes = [];
+      for (let i = 0; i < segs.length; i++) {
+        const seg = segs[i];
+        switch (seg.mode) {
+          case Mode.NUMERIC:
+            nodes.push([
+              seg,
+              { data: seg.data, mode: Mode.ALPHANUMERIC, length: seg.length },
+              { data: seg.data, mode: Mode.BYTE, length: seg.length }
+            ]);
+            break;
+          case Mode.ALPHANUMERIC:
+            nodes.push([
+              seg,
+              { data: seg.data, mode: Mode.BYTE, length: seg.length }
+            ]);
+            break;
+          case Mode.KANJI:
+            nodes.push([
+              seg,
+              { data: seg.data, mode: Mode.BYTE, length: getStringByteLength(seg.data) }
+            ]);
+            break;
+          case Mode.BYTE:
+            nodes.push([
+              { data: seg.data, mode: Mode.BYTE, length: getStringByteLength(seg.data) }
+            ]);
+        }
+      }
+      return nodes;
+    }
+    function buildGraph(nodes, version) {
+      const table = {};
+      const graph = { start: {} };
+      let prevNodeIds = ["start"];
+      for (let i = 0; i < nodes.length; i++) {
+        const nodeGroup = nodes[i];
+        const currentNodeIds = [];
+        for (let j = 0; j < nodeGroup.length; j++) {
+          const node = nodeGroup[j];
+          const key = "" + i + j;
+          currentNodeIds.push(key);
+          table[key] = { node, lastCount: 0 };
+          graph[key] = {};
+          for (let n = 0; n < prevNodeIds.length; n++) {
+            const prevNodeId = prevNodeIds[n];
+            if (table[prevNodeId] && table[prevNodeId].node.mode === node.mode) {
+              graph[prevNodeId][key] = getSegmentBitsLength(table[prevNodeId].lastCount + node.length, node.mode) - getSegmentBitsLength(table[prevNodeId].lastCount, node.mode);
+              table[prevNodeId].lastCount += node.length;
+            } else {
+              if (table[prevNodeId]) table[prevNodeId].lastCount = node.length;
+              graph[prevNodeId][key] = getSegmentBitsLength(node.length, node.mode) + 4 + Mode.getCharCountIndicator(node.mode, version);
+            }
+          }
+        }
+        prevNodeIds = currentNodeIds;
+      }
+      for (let n = 0; n < prevNodeIds.length; n++) {
+        graph[prevNodeIds[n]].end = 0;
+      }
+      return { map: graph, table };
+    }
+    function buildSingleSegment(data, modesHint) {
+      let mode;
+      const bestMode = Mode.getBestModeForData(data);
+      mode = Mode.from(modesHint, bestMode);
+      if (mode !== Mode.BYTE && mode.bit < bestMode.bit) {
+        throw new Error('"' + data + '" cannot be encoded with mode ' + Mode.toString(mode) + ".\n Suggested mode is: " + Mode.toString(bestMode));
+      }
+      if (mode === Mode.KANJI && !Utils.isKanjiModeEnabled()) {
+        mode = Mode.BYTE;
+      }
+      switch (mode) {
+        case Mode.NUMERIC:
+          return new NumericData(data);
+        case Mode.ALPHANUMERIC:
+          return new AlphanumericData(data);
+        case Mode.KANJI:
+          return new KanjiData(data);
+        case Mode.BYTE:
+          return new ByteData(data);
+      }
+    }
+    exports.fromArray = function fromArray(array) {
+      return array.reduce(function(acc, seg) {
+        if (typeof seg === "string") {
+          acc.push(buildSingleSegment(seg, null));
+        } else if (seg.data) {
+          acc.push(buildSingleSegment(seg.data, seg.mode));
+        }
+        return acc;
+      }, []);
+    };
+    exports.fromString = function fromString(data, version) {
+      const segs = getSegmentsFromString(data, Utils.isKanjiModeEnabled());
+      const nodes = buildNodes(segs);
+      const graph = buildGraph(nodes, version);
+      const path = dijkstra.find_path(graph.map, "start", "end");
+      const optimizedSegs = [];
+      for (let i = 1; i < path.length - 1; i++) {
+        optimizedSegs.push(graph.table[path[i]].node);
+      }
+      return exports.fromArray(mergeSegments(optimizedSegs));
+    };
+    exports.rawSplit = function rawSplit(data) {
+      return exports.fromArray(
+        getSegmentsFromString(data, Utils.isKanjiModeEnabled())
+      );
+    };
+  }
+});
+
+// node_modules/qrcode/lib/core/qrcode.js
+var require_qrcode = __commonJS({
+  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
+    var Utils = require_utils();
+    var ECLevel = require_error_correction_level();
+    var BitBuffer = require_bit_buffer();
+    var BitMatrix = require_bit_matrix();
+    var AlignmentPattern = require_alignment_pattern();
+    var FinderPattern = require_finder_pattern();
+    var MaskPattern = require_mask_pattern();
+    var ECCode = require_error_correction_code();
+    var ReedSolomonEncoder = require_reed_solomon_encoder();
+    var Version = require_version();
+    var FormatInfo = require_format_info();
+    var Mode = require_mode();
+    var Segments = require_segments();
+    function setupFinderPattern(matrix, version) {
+      const size = matrix.size;
+      const pos = FinderPattern.getPositions(version);
+      for (let i = 0; i < pos.length; i++) {
+        const row = pos[i][0];
+        const col = pos[i][1];
+        for (let r = -1; r <= 7; r++) {
+          if (row + r <= -1 || size <= row + r) continue;
+          for (let c = -1; c <= 7; c++) {
+            if (col + c <= -1 || size <= col + c) continue;
+            if (r >= 0 && r <= 6 && (c === 0 || c === 6) || c >= 0 && c <= 6 && (r === 0 || r === 6) || r >= 2 && r <= 4 && c >= 2 && c <= 4) {
+              matrix.set(row + r, col + c, true, true);
+            } else {
+              matrix.set(row + r, col + c, false, true);
+            }
+          }
+        }
+      }
+    }
+    function setupTimingPattern(matrix) {
+      const size = matrix.size;
+      for (let r = 8; r < size - 8; r++) {
+        const value = r % 2 === 0;
+        matrix.set(r, 6, value, true);
+        matrix.set(6, r, value, true);
+      }
+    }
+    function setupAlignmentPattern(matrix, version) {
+      const pos = AlignmentPattern.getPositions(version);
+      for (let i = 0; i < pos.length; i++) {
+        const row = pos[i][0];
+        const col = pos[i][1];
+        for (let r = -2; r <= 2; r++) {
+          for (let c = -2; c <= 2; c++) {
+            if (r === -2 || r === 2 || c === -2 || c === 2 || r === 0 && c === 0) {
+              matrix.set(row + r, col + c, true, true);
+            } else {
+              matrix.set(row + r, col + c, false, true);
+            }
+          }
+        }
+      }
+    }
+    function setupVersionInfo(matrix, version) {
+      const size = matrix.size;
+      const bits = Version.getEncodedBits(version);
+      let row, col, mod;
+      for (let i = 0; i < 18; i++) {
+        row = Math.floor(i / 3);
+        col = i % 3 + size - 8 - 3;
+        mod = (bits >> i & 1) === 1;
+        matrix.set(row, col, mod, true);
+        matrix.set(col, row, mod, true);
+      }
+    }
+    function setupFormatInfo(matrix, errorCorrectionLevel, maskPattern) {
+      const size = matrix.size;
+      const bits = FormatInfo.getEncodedBits(errorCorrectionLevel, maskPattern);
+      let i, mod;
+      for (i = 0; i < 15; i++) {
+        mod = (bits >> i & 1) === 1;
+        if (i < 6) {
+          matrix.set(i, 8, mod, true);
+        } else if (i < 8) {
+          matrix.set(i + 1, 8, mod, true);
+        } else {
+          matrix.set(size - 15 + i, 8, mod, true);
+        }
+        if (i < 8) {
+          matrix.set(8, size - i - 1, mod, true);
+        } else if (i < 9) {
+          matrix.set(8, 15 - i - 1 + 1, mod, true);
+        } else {
+          matrix.set(8, 15 - i - 1, mod, true);
+        }
+      }
+      matrix.set(size - 8, 8, 1, true);
+    }
+    function setupData(matrix, data) {
+      const size = matrix.size;
+      let inc = -1;
+      let row = size - 1;
+      let bitIndex = 7;
+      let byteIndex = 0;
+      for (let col = size - 1; col > 0; col -= 2) {
+        if (col === 6) col--;
+        while (true) {
+          for (let c = 0; c < 2; c++) {
+            if (!matrix.isReserved(row, col - c)) {
+              let dark = false;
+              if (byteIndex < data.length) {
+                dark = (data[byteIndex] >>> bitIndex & 1) === 1;
+              }
+              matrix.set(row, col - c, dark);
+              bitIndex--;
+              if (bitIndex === -1) {
+                byteIndex++;
+                bitIndex = 7;
+              }
+            }
+          }
+          row += inc;
+          if (row < 0 || size <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    }
+    function createData(version, errorCorrectionLevel, segments) {
+      const buffer = new BitBuffer();
+      segments.forEach(function(data) {
+        buffer.put(data.mode.bit, 4);
+        buffer.put(data.getLength(), Mode.getCharCountIndicator(data.mode, version));
+        data.write(buffer);
+      });
+      const totalCodewords = Utils.getSymbolTotalCodewords(version);
+      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
+      const dataTotalCodewordsBits = (totalCodewords - ecTotalCodewords) * 8;
+      if (buffer.getLengthInBits() + 4 <= dataTotalCodewordsBits) {
+        buffer.put(0, 4);
+      }
+      while (buffer.getLengthInBits() % 8 !== 0) {
+        buffer.putBit(0);
+      }
+      const remainingByte = (dataTotalCodewordsBits - buffer.getLengthInBits()) / 8;
+      for (let i = 0; i < remainingByte; i++) {
+        buffer.put(i % 2 ? 17 : 236, 8);
+      }
+      return createCodewords(buffer, version, errorCorrectionLevel);
+    }
+    function createCodewords(bitBuffer, version, errorCorrectionLevel) {
+      const totalCodewords = Utils.getSymbolTotalCodewords(version);
+      const ecTotalCodewords = ECCode.getTotalCodewordsCount(version, errorCorrectionLevel);
+      const dataTotalCodewords = totalCodewords - ecTotalCodewords;
+      const ecTotalBlocks = ECCode.getBlocksCount(version, errorCorrectionLevel);
+      const blocksInGroup2 = totalCodewords % ecTotalBlocks;
+      const blocksInGroup1 = ecTotalBlocks - blocksInGroup2;
+      const totalCodewordsInGroup1 = Math.floor(totalCodewords / ecTotalBlocks);
+      const dataCodewordsInGroup1 = Math.floor(dataTotalCodewords / ecTotalBlocks);
+      const dataCodewordsInGroup2 = dataCodewordsInGroup1 + 1;
+      const ecCount = totalCodewordsInGroup1 - dataCodewordsInGroup1;
+      const rs = new ReedSolomonEncoder(ecCount);
+      let offset = 0;
+      const dcData = new Array(ecTotalBlocks);
+      const ecData = new Array(ecTotalBlocks);
+      let maxDataSize = 0;
+      const buffer = new Uint8Array(bitBuffer.buffer);
+      for (let b = 0; b < ecTotalBlocks; b++) {
+        const dataSize = b < blocksInGroup1 ? dataCodewordsInGroup1 : dataCodewordsInGroup2;
+        dcData[b] = buffer.slice(offset, offset + dataSize);
+        ecData[b] = rs.encode(dcData[b]);
+        offset += dataSize;
+        maxDataSize = Math.max(maxDataSize, dataSize);
+      }
+      const data = new Uint8Array(totalCodewords);
+      let index = 0;
+      let i, r;
+      for (i = 0; i < maxDataSize; i++) {
+        for (r = 0; r < ecTotalBlocks; r++) {
+          if (i < dcData[r].length) {
+            data[index++] = dcData[r][i];
+          }
+        }
+      }
+      for (i = 0; i < ecCount; i++) {
+        for (r = 0; r < ecTotalBlocks; r++) {
+          data[index++] = ecData[r][i];
+        }
+      }
+      return data;
+    }
+    function createSymbol(data, version, errorCorrectionLevel, maskPattern) {
+      let segments;
+      if (Array.isArray(data)) {
+        segments = Segments.fromArray(data);
+      } else if (typeof data === "string") {
+        let estimatedVersion = version;
+        if (!estimatedVersion) {
+          const rawSegments = Segments.rawSplit(data);
+          estimatedVersion = Version.getBestVersionForData(rawSegments, errorCorrectionLevel);
+        }
+        segments = Segments.fromString(data, estimatedVersion || 40);
+      } else {
+        throw new Error("Invalid data");
+      }
+      const bestVersion = Version.getBestVersionForData(segments, errorCorrectionLevel);
+      if (!bestVersion) {
+        throw new Error("The amount of data is too big to be stored in a QR Code");
+      }
+      if (!version) {
+        version = bestVersion;
+      } else if (version < bestVersion) {
+        throw new Error(
+          "\nThe chosen QR Code version cannot contain this amount of data.\nMinimum version required to store current data is: " + bestVersion + ".\n"
+        );
+      }
+      const dataBits = createData(version, errorCorrectionLevel, segments);
+      const moduleCount = Utils.getSymbolSize(version);
+      const modules = new BitMatrix(moduleCount);
+      setupFinderPattern(modules, version);
+      setupTimingPattern(modules);
+      setupAlignmentPattern(modules, version);
+      setupFormatInfo(modules, errorCorrectionLevel, 0);
+      if (version >= 7) {
+        setupVersionInfo(modules, version);
+      }
+      setupData(modules, dataBits);
+      if (isNaN(maskPattern)) {
+        maskPattern = MaskPattern.getBestMask(
+          modules,
+          setupFormatInfo.bind(null, modules, errorCorrectionLevel)
+        );
+      }
+      MaskPattern.applyMask(maskPattern, modules);
+      setupFormatInfo(modules, errorCorrectionLevel, maskPattern);
+      return {
+        modules,
+        version,
+        errorCorrectionLevel,
+        maskPattern,
+        segments
+      };
+    }
+    exports.create = function create(data, options) {
+      if (typeof data === "undefined" || data === "") {
+        throw new Error("No input text");
+      }
+      let errorCorrectionLevel = ECLevel.M;
+      let version;
+      let mask;
+      if (typeof options !== "undefined") {
+        errorCorrectionLevel = ECLevel.from(options.errorCorrectionLevel, ECLevel.M);
+        version = Version.from(options.version);
+        mask = MaskPattern.from(options.maskPattern);
+        if (options.toSJISFunc) {
+          Utils.setToSJISFunction(options.toSJISFunc);
+        }
+      }
+      return createSymbol(data, version, errorCorrectionLevel, mask);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/renderer/utils.js
+var require_utils2 = __commonJS({
+  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
+    function hex2rgba(hex) {
+      if (typeof hex === "number") {
+        hex = hex.toString();
+      }
+      if (typeof hex !== "string") {
+        throw new Error("Color should be defined as hex string");
+      }
+      let hexCode = hex.slice().replace("#", "").split("");
+      if (hexCode.length < 3 || hexCode.length === 5 || hexCode.length > 8) {
+        throw new Error("Invalid hex color: " + hex);
+      }
+      if (hexCode.length === 3 || hexCode.length === 4) {
+        hexCode = Array.prototype.concat.apply([], hexCode.map(function(c) {
+          return [c, c];
+        }));
+      }
+      if (hexCode.length === 6) hexCode.push("F", "F");
+      const hexValue = parseInt(hexCode.join(""), 16);
+      return {
+        r: hexValue >> 24 & 255,
+        g: hexValue >> 16 & 255,
+        b: hexValue >> 8 & 255,
+        a: hexValue & 255,
+        hex: "#" + hexCode.slice(0, 6).join("")
+      };
+    }
+    exports.getOptions = function getOptions(options) {
+      if (!options) options = {};
+      if (!options.color) options.color = {};
+      const margin = typeof options.margin === "undefined" || options.margin === null || options.margin < 0 ? 4 : options.margin;
+      const width = options.width && options.width >= 21 ? options.width : void 0;
+      const scale = options.scale || 4;
+      return {
+        width,
+        scale: width ? 4 : scale,
+        margin,
+        color: {
+          dark: hex2rgba(options.color.dark || "#000000ff"),
+          light: hex2rgba(options.color.light || "#ffffffff")
+        },
+        type: options.type,
+        rendererOpts: options.rendererOpts || {}
+      };
+    };
+    exports.getScale = function getScale(qrSize, opts) {
+      return opts.width && opts.width >= qrSize + opts.margin * 2 ? opts.width / (qrSize + opts.margin * 2) : opts.scale;
+    };
+    exports.getImageWidth = function getImageWidth(qrSize, opts) {
+      const scale = exports.getScale(qrSize, opts);
+      return Math.floor((qrSize + opts.margin * 2) * scale);
+    };
+    exports.qrToImageData = function qrToImageData(imgData, qr, opts) {
+      const size = qr.modules.size;
+      const data = qr.modules.data;
+      const scale = exports.getScale(size, opts);
+      const symbolSize = Math.floor((size + opts.margin * 2) * scale);
+      const scaledMargin = opts.margin * scale;
+      const palette = [opts.color.light, opts.color.dark];
+      for (let i = 0; i < symbolSize; i++) {
+        for (let j = 0; j < symbolSize; j++) {
+          let posDst = (i * symbolSize + j) * 4;
+          let pxColor = opts.color.light;
+          if (i >= scaledMargin && j >= scaledMargin && i < symbolSize - scaledMargin && j < symbolSize - scaledMargin) {
+            const iSrc = Math.floor((i - scaledMargin) / scale);
+            const jSrc = Math.floor((j - scaledMargin) / scale);
+            pxColor = palette[data[iSrc * size + jSrc] ? 1 : 0];
+          }
+          imgData[posDst++] = pxColor.r;
+          imgData[posDst++] = pxColor.g;
+          imgData[posDst++] = pxColor.b;
+          imgData[posDst] = pxColor.a;
+        }
+      }
+    };
+  }
+});
+
+// node_modules/qrcode/lib/renderer/canvas.js
+var require_canvas = __commonJS({
+  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+    var Utils = require_utils2();
+    function clearCanvas(ctx, canvas, size) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!canvas.style) canvas.style = {};
+      canvas.height = size;
+      canvas.width = size;
+      canvas.style.height = size + "px";
+      canvas.style.width = size + "px";
+    }
+    function getCanvasElement() {
+      try {
+        return document.createElement("canvas");
+      } catch (e) {
+        throw new Error("You need to specify a canvas element");
+      }
+    }
+    exports.render = function render(qrData, canvas, options) {
+      let opts = options;
+      let canvasEl = canvas;
+      if (typeof opts === "undefined" && (!canvas || !canvas.getContext)) {
+        opts = canvas;
+        canvas = void 0;
+      }
+      if (!canvas) {
+        canvasEl = getCanvasElement();
+      }
+      opts = Utils.getOptions(opts);
+      const size = Utils.getImageWidth(qrData.modules.size, opts);
+      const ctx = canvasEl.getContext("2d");
+      const image = ctx.createImageData(size, size);
+      Utils.qrToImageData(image.data, qrData, opts);
+      clearCanvas(ctx, canvasEl, size);
+      ctx.putImageData(image, 0, 0);
+      return canvasEl;
+    };
+    exports.renderToDataURL = function renderToDataURL(qrData, canvas, options) {
+      let opts = options;
+      if (typeof opts === "undefined" && (!canvas || !canvas.getContext)) {
+        opts = canvas;
+        canvas = void 0;
+      }
+      if (!opts) opts = {};
+      const canvasEl = exports.render(qrData, canvas, opts);
+      const type = opts.type || "image/png";
+      const rendererOpts = opts.rendererOpts || {};
+      return canvasEl.toDataURL(type, rendererOpts.quality);
+    };
+  }
+});
+
+// node_modules/qrcode/lib/renderer/svg-tag.js
+var require_svg_tag = __commonJS({
+  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+    var Utils = require_utils2();
+    function getColorAttrib(color, attrib) {
+      const alpha = color.a / 255;
+      const str = attrib + '="' + color.hex + '"';
+      return alpha < 1 ? str + " " + attrib + '-opacity="' + alpha.toFixed(2).slice(1) + '"' : str;
+    }
+    function svgCmd(cmd, x, y) {
+      let str = cmd + x;
+      if (typeof y !== "undefined") str += " " + y;
+      return str;
+    }
+    function qrToPath(data, size, margin) {
+      let path = "";
+      let moveBy = 0;
+      let newRow = false;
+      let lineLength = 0;
+      for (let i = 0; i < data.length; i++) {
+        const col = Math.floor(i % size);
+        const row = Math.floor(i / size);
+        if (!col && !newRow) newRow = true;
+        if (data[i]) {
+          lineLength++;
+          if (!(i > 0 && col > 0 && data[i - 1])) {
+            path += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
+            moveBy = 0;
+            newRow = false;
+          }
+          if (!(col + 1 < size && data[i + 1])) {
+            path += svgCmd("h", lineLength);
+            lineLength = 0;
+          }
+        } else {
+          moveBy++;
+        }
+      }
+      return path;
+    }
+    exports.render = function render(qrData, options, cb) {
+      const opts = Utils.getOptions(options);
+      const size = qrData.modules.size;
+      const data = qrData.modules.data;
+      const qrcodesize = size + opts.margin * 2;
+      const bg = !opts.color.light.a ? "" : "<path " + getColorAttrib(opts.color.light, "fill") + ' d="M0 0h' + qrcodesize + "v" + qrcodesize + 'H0z"/>';
+      const path = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
+      const viewBox = 'viewBox="0 0 ' + qrcodesize + " " + qrcodesize + '"';
+      const width = !opts.width ? "" : 'width="' + opts.width + '" height="' + opts.width + '" ';
+      const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path + "</svg>\n";
+      if (typeof cb === "function") {
+        cb(null, svgTag);
+      }
+      return svgTag;
+    };
+  }
+});
+
+// node_modules/qrcode/lib/browser.js
+var require_browser = __commonJS({
+  "node_modules/qrcode/lib/browser.js"(exports) {
+    var canPromise = require_can_promise();
+    var QRCode2 = require_qrcode();
+    var CanvasRenderer = require_canvas();
+    var SvgRenderer = require_svg_tag();
+    function renderCanvas(renderFunc, canvas, text, opts, cb) {
+      const args = [].slice.call(arguments, 1);
+      const argsNum = args.length;
+      const isLastArgCb = typeof args[argsNum - 1] === "function";
+      if (!isLastArgCb && !canPromise()) {
+        throw new Error("Callback required as last argument");
+      }
+      if (isLastArgCb) {
+        if (argsNum < 2) {
+          throw new Error("Too few arguments provided");
+        }
+        if (argsNum === 2) {
+          cb = text;
+          text = canvas;
+          canvas = opts = void 0;
+        } else if (argsNum === 3) {
+          if (canvas.getContext && typeof cb === "undefined") {
+            cb = opts;
+            opts = void 0;
+          } else {
+            cb = opts;
+            opts = text;
+            text = canvas;
+            canvas = void 0;
+          }
+        }
+      } else {
+        if (argsNum < 1) {
+          throw new Error("Too few arguments provided");
+        }
+        if (argsNum === 1) {
+          text = canvas;
+          canvas = opts = void 0;
+        } else if (argsNum === 2 && !canvas.getContext) {
+          opts = text;
+          text = canvas;
+          canvas = void 0;
+        }
+        return new Promise(function(resolve, reject) {
+          try {
+            const data = QRCode2.create(text, opts);
+            resolve(renderFunc(data, canvas, opts));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+      try {
+        const data = QRCode2.create(text, opts);
+        cb(null, renderFunc(data, canvas, opts));
+      } catch (e) {
+        cb(e);
+      }
+    }
+    exports.create = QRCode2.create;
+    exports.toCanvas = renderCanvas.bind(null, CanvasRenderer.render);
+    exports.toDataURL = renderCanvas.bind(null, CanvasRenderer.renderToDataURL);
+    exports.toString = renderCanvas.bind(null, function(data, _, opts) {
+      return SvgRenderer.render(data, opts);
+    });
+  }
+});
+
 // src/client.jsx
 var client_exports = {};
 __export(client_exports, {
@@ -41,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react19 = __toESM(require("react"), 1);
+var import_react20 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -7373,9 +9458,623 @@ var feature7 = {
   Overlay: GamesOverlay
 };
 
+// features/mobile-relay/view.jsx
+var import_react19 = require("react");
+var import_qrcode = __toESM(require_browser(), 1);
+var import_jsx_runtime12 = require("react/jsx-runtime");
+var DEVICE_KEY = "dsh-dock/mobile-relay/device/v1";
+var SESSION_KEY = "dsh-dock/mobile-relay/session/v1";
+var LAUNCH_KEY = "dsh-dock/mobile-relay/launch/v1";
+function rpc(method, payload) {
+  return fetch("/dsh-dock/mobile-relay/" + method, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload || {})
+  }).then(async (res) => {
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && body && body.ok) return body.data;
+    if (res.status === 404 || res.status === 405) throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u4ECD\u662F\u65E7\u7248\u672C\uFF0C\u8BF7\u91CD\u542F dsh web \u540E\u518D\u5F00\u542F\u5C40\u57DF\u7F51\u8FDE\u63A5");
+    throw new Error(body && body.error && body.error.message || "\u8BF7\u6C42\u5931\u8D25\uFF08" + res.status + "\uFF09");
+  });
+}
+function deviceId() {
+  let id = "";
+  try {
+    id = localStorage.getItem(DEVICE_KEY) || "";
+  } catch {
+  }
+  if (!id) {
+    id = globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    try {
+      localStorage.setItem(DEVICE_KEY, id);
+    } catch {
+    }
+  }
+  return id;
+}
+function readSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function saveSession(value) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
+  } catch {
+  }
+}
+function clearSession() {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+  }
+}
+function fmtDuration2(ms) {
+  const sec = Math.max(0, Math.floor((ms || 0) / 1e3));
+  const min = Math.floor(sec / 60);
+  const rest = sec % 60;
+  return min > 0 ? min + " \u5206 " + String(rest).padStart(2, "0") + " \u79D2" : rest + " \u79D2";
+}
+function fmtTime3(value) {
+  return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+}
+function phaseLabel3(phase) {
+  return { think: "\u6B63\u5728\u601D\u8003", write: "\u6B63\u5728\u8F93\u51FA", code: "\u6B63\u5728\u5F00\u53D1", search: "\u6B63\u5728\u67E5\u8D44\u6599" }[phase] || "\u8FDB\u884C\u4E2D";
+}
+function copy(value) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(value);
+  return Promise.reject(new Error("\u5F53\u524D\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u590D\u5236\uFF0C\u8BF7\u957F\u6309\u6216\u624B\u52A8\u590D\u5236"));
+}
+function RelayIcon({ name, size = 18 }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
+  if (name === "phone") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("rect", { x: "7", y: "2.5", width: "10", height: "19", rx: "2.2" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M10 18.5h4" })
+  ] });
+  if (name === "link") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M10.5 13.5a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1.15 1.14" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M13.5 10.5a4 4 0 0 0-5.66-.01l-2 2a4 4 0 0 0 5.66 5.66l1.15-1.14" })
+  ] });
+  if (name === "copy") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("rect", { x: "8", y: "8", width: "11", height: "12", rx: "1.5" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" })
+  ] });
+  if (name === "check") return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m5 12 4.2 4.2L19 6.5" }) });
+  if (name === "arrow") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M5 12h13" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m14 7 5 5-5 5" })
+  ] });
+  if (name === "close") return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m6 6 12 12M18 6 6 18" }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("circle", { cx: "12", cy: "12", r: "8" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M12 8v4l2.5 2" })
+  ] });
+}
+function useCompact() {
+  const [compact, setCompact] = (0, import_react19.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
+  (0, import_react19.useEffect)(() => {
+    const media = window.matchMedia("(max-width: 680px)");
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return compact;
+}
+function LanDirectCard() {
+  const [lan, setLan] = (0, import_react19.useState)(null);
+  const [lanPort, setLanPort] = (0, import_react19.useState)(3082);
+  const [lanBusy, setLanBusy] = (0, import_react19.useState)("");
+  const [lanAddress, setLanAddress] = (0, import_react19.useState)("");
+  const [lanQr, setLanQr] = (0, import_react19.useState)("");
+  const [lanMessage, setLanMessage] = (0, import_react19.useState)("");
+  const refreshLan = (0, import_react19.useCallback)(async () => {
+    try {
+      const data = await rpc("lan");
+      setLan(data);
+      setLanAddress((prev) => prev || (data.addresses && data.addresses[0] ? data.addresses[0].address : ""));
+    } catch (e) {
+      const message = e && e.message ? e.message : String(e);
+      if (!/旧版本/.test(message)) setLanMessage(message);
+    }
+  }, []);
+  (0, import_react19.useEffect)(() => {
+    refreshLan();
+    const timer = setInterval(refreshLan, 3e3);
+    return () => clearInterval(timer);
+  }, [refreshLan]);
+  const lanLink = (0, import_react19.useMemo)(() => {
+    if (!lan || !lan.active || !lanAddress || !lan.port) return "";
+    return "http://" + lanAddress + ":" + lan.port;
+  }, [lan, lanAddress]);
+  (0, import_react19.useEffect)(() => {
+    let active = true;
+    if (!lanLink) {
+      setLanQr("");
+      return () => {
+        active = false;
+      };
+    }
+    import_qrcode.default.toDataURL(lanLink, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 220,
+      color: { dark: "#111827", light: "#ffffff" }
+    }).then((value) => {
+      if (active) setLanQr(value);
+    }).catch(() => {
+    });
+    return () => {
+      active = false;
+    };
+  }, [lanLink]);
+  async function startLan() {
+    setLanMessage("");
+    const numericPort = Number(lanPort);
+    if (!Number.isInteger(numericPort) || numericPort < 1024 || numericPort > 65535) {
+      setLanMessage("\u76F4\u8FDE\u7AEF\u53E3\u9700\u4E3A 1024 \u5230 65535 \u4E4B\u95F4\u7684\u6574\u6570\u3002");
+      return;
+    }
+    setLanBusy("start");
+    try {
+      const data = await rpc("lan/start", { port: numericPort });
+      setLan(data);
+      setLanAddress((prev) => prev || (data.addresses && data.addresses[0] ? data.addresses[0].address : ""));
+      setLanMessage("\u5C40\u57DF\u7F51\u76F4\u8FDE\u5DF2\u5F00\u542F\uFF1A0.0.0.0:" + data.port + "\uFF08\u8FDB\u7A0B " + data.pid + "\uFF09\u3002\u5C40\u57DF\u7F51\u5185\u4EFB\u4F55\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\u5373\u4E3A\u5B8C\u6574 DSH\u3002");
+    } catch (e) {
+      setLanMessage(e && e.message ? e.message : String(e));
+    } finally {
+      setLanBusy("");
+    }
+  }
+  async function stopLan() {
+    setLanMessage("");
+    setLanBusy("stop");
+    try {
+      const data = await rpc("lan/stop", {});
+      setLan((prev) => Object.assign({}, prev, { active: false, pid: null }));
+      setLanMessage("\u5C40\u57DF\u7F51\u76F4\u8FDE\u5DF2\u5173\u95ED" + (data && data.pid ? "\uFF08\u8FDB\u7A0B " + data.pid + "\uFF09" : "") + "\u3002");
+    } catch (e) {
+      setLanMessage(e && e.message ? e.message : String(e));
+    } finally {
+      setLanBusy("");
+    }
+  }
+  function copyLanLink() {
+    copy(lanLink).then(() => setLanMessage("\u76F4\u8FDE\u5730\u5740\u5DF2\u590D\u5236\u3002")).catch((e) => setLanMessage(e.message));
+  }
+  const running = Boolean(lan && lan.active);
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr dmr-lan", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-title", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+          " \u5C40\u57DF\u7F51\u7535\u8111\u76F4\u8FDE\uFF080.0.0.0\uFF09"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u8BA9\u5C40\u57DF\u7F51\u7535\u8111\u8BBF\u95EE\u5B8C\u6574 DSH" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u5728\u72EC\u7ACB\u7AEF\u53E3\u542F\u52A8\u4E00\u4E2A\u7ED1\u5B9A 0.0.0.0 \u7684 dsh web \u5B9E\u4F8B\uFF0C\u4E0E\u4E3B\u5B9E\u4F8B\u5171\u7528\u540C\u4E00\u4EFD\u4F1A\u8BDD\u4E0E\u5DE5\u4F5C\u533A\uFF1B\u7535\u8111\u7AEF\u529F\u80FD\u3001\u4EA4\u4E92\u4E0E 127.0.0.1 \u5B8C\u5168\u4E00\u81F4\uFF08\u542B\u5DE5\u4F5C\u533A\u6587\u4EF6\u5939\u9009\u62E9\u3001\u4F1A\u8BDD\u8BB0\u5F55\uFF09\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dmr-lan-badge" + (running ? " on" : ""), role: "status", children: running ? "\u8FD0\u884C\u4E2D \xB7 :" + lan.port : "\u672A\u5F00\u542F" })
+    ] }),
+    running ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-active", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5C40\u57DF\u7F51 IP" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("select", { value: lanAddress, onChange: (e) => setLanAddress(e.target.value), children: lan.addresses && lan.addresses.length ? lan.addresses.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("option", { value: item.address, children: [
+            item.address,
+            " \xB7 ",
+            item.interface
+          ] }, item.interface + item.address)) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: "", children: "\u672A\u68C0\u6D4B\u5230\u5730\u5740" }) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5B9E\u4F8B\u4FE1\u606F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { readOnly: true, value: "0.0.0.0:" + lan.port + " \xB7 PID " + (lan.pid || "\u2014"), "aria-label": "\u76F4\u8FDE\u5B9E\u4F8B\u4FE1\u606F" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-layout", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-qr-card", children: [
+          lanQr ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("img", { src: lanQr, alt: "\u5C40\u57DF\u7F51\u76F4\u8FDE\u5730\u5740\u4E8C\u7EF4\u7801", width: "220", height: "220" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-qr-loading", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740\u8BBF\u95EE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u7535\u8111\u3001\u624B\u673A\u5747\u53EF\u76F4\u63A5\u8BBF\u95EE" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-detail", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+              " \u5B8C\u6574 DSH \u5B9E\u4F8B\u5DF2\u8FD0\u884C"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: lanLink })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-link", title: lanLink, children: lanLink }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-actions", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLanLink, disabled: !lanLink, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "copy" }),
+              "\u590D\u5236\u5730\u5740"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-secondary dmr-danger", onClick: stopLan, disabled: lanBusy === "stop", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }),
+              lanBusy === "stop" ? "\u6B63\u5728\u5173\u95ED\u2026" : "\u5173\u95ED\u76F4\u8FDE"
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { children: [
+            "\u6B64\u5B9E\u4F8B\u4E0E\u4E3B\u5B9E\u4F8B\u5171\u7528\u540C\u4E00\u4EFD\u4F1A\u8BDD\u4E0E\u5DE5\u4F5C\u533A\uFF1B",
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u6CA1\u6709\u767B\u5F55\u4FDD\u62A4" }),
+            "\uFF0C\u7B49\u540C\u5B98\u65B9 CLI \u62D2\u7EDD\u7684 `--host 0.0.0.0`\uFF0C\u8BF7\u5728\u53EF\u4FE1\u5C40\u57DF\u7F51\u5185\u4F7F\u7528\uFF0C\u7528\u6BD5\u53CA\u65F6\u5173\u95ED\u3002"
+          ] })
+        ] })
+      ] }) })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-idle", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u76F4\u8FDE\u7AEF\u53E3" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: lanPort, onChange: (e) => setLanPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", "aria-describedby": "dmr-lan-port-help" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { id: "dmr-lan-port-help", children: "\u9ED8\u8BA4 3082\uFF08\u4E3B\u670D\u52A1 3080\u3001\u624B\u673A\u63A5\u529B 3081 \u4E4B\u5916\u7684\u72EC\u7ACB\u7AEF\u53E3\uFF09\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-security", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5B89\u5168\u63D0\u793A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u76F4\u8FDE\u6A21\u5F0F\u6CA1\u6709\u767B\u5F55\u8BA4\u8BC1\uFF0C\u7B49\u540C\u4EE5 0.0.0.0 \u542F\u52A8 dsh web\uFF08\u5B98\u65B9 CLI \u51FA\u4E8E\u5B89\u5168\u9ED8\u8BA4\u62D2\u7EDD\u8BE5\u65D7\u6807\uFF09\u3002\u53EA\u5E94\u5728\u53EF\u4FE1\u5C40\u57DF\u7F51\u5185\u5F00\u542F\uFF0C\u7528\u5B8C\u540E\u8BF7\u5173\u95ED\uFF1B\u5173\u95ED\u5373\u7EC8\u6B62\u5B50\u5B9E\u4F8B\u8FDB\u7A0B\u3002" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-primary", onClick: startLan, disabled: lanBusy === "start", children: lanBusy === "start" ? "\u6B63\u5728\u542F\u52A8\u5B50\u5B9E\u4F8B\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "link" }),
+        "\u5F00\u542F\u5C40\u57DF\u7F51\u76F4\u8FDE\uFF080.0.0.0\uFF09"
+      ] }) })
+    ] }),
+    lanMessage && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message error", role: "alert", children: lanMessage })
+  ] });
+}
+function MobileRelayView() {
+  const compact = useCompact();
+  const [session, setSession] = (0, import_react19.useState)(readSession);
+  const [pair, setPair] = (0, import_react19.useState)(null);
+  const [network, setNetwork] = (0, import_react19.useState)(null);
+  const [port, setPort] = (0, import_react19.useState)(3081);
+  const [selectedAddress, setSelectedAddress] = (0, import_react19.useState)("");
+  const [qrDataUrl, setQrDataUrl] = (0, import_react19.useState)("");
+  const [note, setNote] = (0, import_react19.useState)("");
+  const [busy, setBusy] = (0, import_react19.useState)("");
+  const [notice, setNotice] = (0, import_react19.useState)("");
+  const [error, setError] = (0, import_react19.useState)("");
+  const mobile = session && session.role === "mobile";
+  const setCurrent = (0, import_react19.useCallback)((next) => {
+    setSession(next);
+    next ? saveSession(next) : clearSession();
+  }, []);
+  (0, import_react19.useEffect)(() => {
+    if (session) return;
+    rpc("network").then((data) => {
+      setNetwork(data);
+      if (data && data.defaultPort) setPort(data.defaultPort);
+      const first = data && data.addresses && data.addresses[0];
+      if (first) setSelectedAddress(first.address);
+    }).catch((e) => setError(e && e.message ? e.message : String(e)));
+  }, [session]);
+  const refresh = (0, import_react19.useCallback)(async (candidate = session) => {
+    if (!candidate) return;
+    try {
+      const result = await rpc("status", candidate);
+      setPair(result.pair);
+      setError("");
+    } catch (e) {
+      const message = e && e.message ? e.message : String(e);
+      setError(message);
+      if (/过期|未完成配对/.test(message)) setCurrent(null);
+    }
+  }, [session, setCurrent]);
+  (0, import_react19.useEffect)(() => {
+    if (session) refresh(session);
+  }, [session, refresh]);
+  (0, import_react19.useEffect)(() => {
+    if (!session) return;
+    const timer = setInterval(() => refresh(session), 2500);
+    return () => clearInterval(timer);
+  }, [session, refresh]);
+  (0, import_react19.useEffect)(() => {
+    if (session) return;
+    let launch = "";
+    try {
+      launch = sessionStorage.getItem(LAUNCH_KEY) || "";
+    } catch {
+    }
+    if (!launch) return;
+    try {
+      sessionStorage.removeItem(LAUNCH_KEY);
+    } catch {
+    }
+    const [pairId, code] = launch.split(".");
+    if (!pairId || !code) return;
+    setBusy("join");
+    rpc("join", { pairId, code, deviceId: deviceId(), label: "\u624B\u673A\u7AEF" }).then((data) => {
+      setCurrent({ pairId, secret: data.secret, role: "mobile", deviceId: deviceId() });
+      setPair(data.pair);
+      setNotice("\u5DF2\u8FDE\u63A5\u5230\u7535\u8111\u7AEF\uFF0C\u4EFB\u52A1\u72B6\u6001\u4F1A\u6301\u7EED\u540C\u6B65\u3002");
+    }).catch((e) => setError(e && e.message ? e.message : String(e))).finally(() => setBusy(""));
+  }, [session, setCurrent]);
+  const mobileLink = (0, import_react19.useMemo)(() => {
+    if (!session || !session.gatewayToken || !session.gatewayAddress || !session.gatewayPort) return "";
+    return "http://" + session.gatewayAddress + ":" + session.gatewayPort + "/__dsh_mobile/connect#" + session.gatewayToken;
+  }, [session]);
+  (0, import_react19.useEffect)(() => {
+    let active = true;
+    if (!mobileLink) {
+      setQrDataUrl("");
+      return () => {
+        active = false;
+      };
+    }
+    import_qrcode.default.toDataURL(mobileLink, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 260,
+      color: { dark: "#111827", light: "#ffffff" }
+    }).then((value) => {
+      if (active) setQrDataUrl(value);
+    }).catch((e) => {
+      if (active) setError("\u4E8C\u7EF4\u7801\u751F\u6210\u5931\u8D25\uFF1A" + (e && e.message ? e.message : String(e)));
+    });
+    return () => {
+      active = false;
+    };
+  }, [mobileLink]);
+  async function start() {
+    setError("");
+    setNotice("");
+    const numericPort = Number(port);
+    if (!selectedAddress) {
+      setError("\u6CA1\u6709\u68C0\u6D4B\u5230\u53EF\u7528\u7684\u5C40\u57DF\u7F51 IPv4 \u5730\u5740\uFF0C\u8BF7\u5148\u8FDE\u63A5 Wi-Fi \u6216\u6709\u7EBF\u7F51\u7EDC\u3002");
+      return;
+    }
+    if (!Number.isInteger(numericPort) || numericPort < 1024 || numericPort > 65535) {
+      setError("\u5C40\u57DF\u7F51\u7AEF\u53E3\u9700\u4E3A 1024 \u5230 65535 \u4E4B\u95F4\u7684\u6574\u6570\u3002");
+      return;
+    }
+    setBusy("start");
+    try {
+      const data = await rpc("start", { deviceId: deviceId(), port: numericPort });
+      const next = {
+        pairId: data.pairId,
+        secret: data.secret,
+        code: data.code,
+        role: "desktop",
+        deviceId: deviceId(),
+        gatewayToken: data.gatewayToken,
+        gatewayPort: data.gateway.port,
+        gatewayAddress: selectedAddress
+      };
+      setCurrent(next);
+      setPair(data.pair);
+      setNotice("\u53D7\u4FDD\u62A4\u7684\u5C40\u57DF\u7F51\u53CD\u5411\u4EE3\u7406\u5DF2\u5F00\u542F\u3002\u624B\u673A\u626B\u7801\u5373\u53EF\u8FDB\u5165\u540C\u4E00 DSH\u3002");
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function sendNote(event) {
+    event.preventDefault();
+    if (!session || !note.trim()) return;
+    setBusy("note");
+    setError("");
+    try {
+      const data = await rpc("note", Object.assign({}, session, { note }));
+      setPair(data.pair);
+      setNote("");
+      setNotice("\u63A5\u529B\u5907\u6CE8\u5DF2\u540C\u6B65\u3002");
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function end() {
+    if (!session) return;
+    setBusy("end");
+    try {
+      await rpc("end", session);
+      setCurrent(null);
+      setPair(null);
+      setNotice("\u624B\u673A\u8FDE\u63A5\u5DF2\u5173\u95ED\u3002");
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  function copyLink() {
+    copy(mobileLink).then(() => setNotice("\u8FDE\u63A5\u94FE\u63A5\u5DF2\u590D\u5236\u3002")).catch((e) => setError(e.message));
+  }
+  if (!session) return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-hero", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dmr-hero-icon", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "phone", size: 22 }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "\u628A\u5F00\u53D1\u4EFB\u52A1\u63A5\u5230\u624B\u673A" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u4E3B DSH \u7EE7\u7EED\u4EC5\u9650\u672C\u673A\uFF1B\u5F00\u542F\u5C40\u57DF\u7F51\u53CD\u5411\u4EE3\u7406\u540E\uFF0C\u901A\u8FC7\u4E00\u6B21\u6027\u4E8C\u7EF4\u7801\u5B89\u5168\u63A5\u5165\u3002" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("ol", { className: "dmr-steps", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u786E\u8BA4 IP \u4E0E\u7AEF\u53E3" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u81EA\u52A8\u8BC6\u522B\u7535\u8111\u5C40\u57DF\u7F51 IPv4\uFF0C\u9ED8\u8BA4\u4F7F\u7528\u72EC\u7ACB\u7AEF\u53E3 3081\u3002" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5F00\u542F\u53CD\u5411\u4EE3\u7406" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u4EE3\u7406 HTTP \u4E0E WebSocket\uFF0C\u672A\u8BA4\u8BC1\u8BBE\u5907\u65E0\u6CD5\u8BBF\u95EE\u3002" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u624B\u673A\u626B\u7801\u63A5\u529B" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u626B\u7801\u8FDB\u5165\u539F\u4F1A\u8BDD\uFF0C\u7535\u8111\u7AEF\u540C\u6B65\u770B\u5230\u5F00\u53D1\u8FDB\u5EA6\u3002" })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5C40\u57DF\u7F51 IP" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("select", { value: selectedAddress, onChange: (e) => setSelectedAddress(e.target.value), disabled: !network || !network.addresses || !network.addresses.length, children: network && network.addresses && network.addresses.length ? network.addresses.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("option", { value: item.address, children: [
+          item.address,
+          " \xB7 ",
+          item.interface
+        ] }, item.interface + item.address)) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: "", children: network ? "\u672A\u68C0\u6D4B\u5230\u5730\u5740" : "\u6B63\u5728\u68C0\u6D4B\u7F51\u7EDC\u2026" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u624B\u673A\u9700\u4E0E\u7535\u8111\u4F4D\u4E8E\u53EF\u4E92\u8BBF\u7684\u540C\u4E00\u5C40\u57DF\u7F51\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u76D1\u542C\u7AEF\u53E3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", "aria-describedby": "dmr-port-help" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { id: "dmr-port-help", children: "\u4E3B\u670D\u52A1\u4ECD\u4E3A 127.0.0.1:3080\uFF1B\u624B\u673A\u5165\u53E3\u5EFA\u8BAE\u4F7F\u7528 3081\u3002" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-security", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5B89\u5168\u8BF4\u660E" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u94FE\u63A5\u76F8\u5F53\u4E8E\u4E34\u65F6\u767B\u5F55\u51ED\u636E\uFF0C\u53EA\u53D1\u7ED9\u81EA\u5DF1\u7684\u624B\u673A\u3002\u9A8C\u8BC1\u4EE4\u724C 10 \u5206\u949F\u540E\u5931\u6548\uFF1B\u5173\u95ED\u8FDE\u63A5\u4F1A\u7ACB\u5373\u64A4\u9500\u624B\u673A\u4F1A\u8BDD\u5E76\u505C\u6B62\u7AEF\u53E3\u76D1\u542C\u3002" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-primary", onClick: start, disabled: busy === "start" || !selectedAddress, children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u53CD\u5411\u4EE3\u7406\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "link" }),
+      "\u5F00\u542F\u53CD\u5411\u4EE3\u7406\u5E76\u751F\u6210\u4E8C\u7EF4\u7801"
+    ] }) }),
+    error && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message error", role: "alert", children: error }),
+    notice && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-message success", "aria-live": "polite", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "check" }),
+      notice
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LanDirectCard, {})
+  ] });
+  const onlineMobiles = pair && pair.devices ? pair.devices.filter((device) => device.role === "mobile") : [];
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-status-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+          " ",
+          mobile ? "\u5DF2\u8FDE\u63A5\u5230\u7535\u8111" : "\u624B\u673A\u8FDE\u63A5\u5DF2\u5F00\u542F"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: mobile ? "\u53EF\u4EE5\u5728\u8FD9\u91CC\u7EE7\u7EED\u5F00\u53D1" : "\u7B49\u5F85\u624B\u673A\u63A5\u5165" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: mobile ? "\u4EFB\u52A1\u72B6\u6001\u548C\u63A5\u529B\u5907\u6CE8\u4F1A\u81EA\u52A8\u540C\u6B65\u3002\u7EE7\u7EED\u5F00\u53D1\u8BF7\u56DE\u5230\u5F53\u524D DSH \u4F1A\u8BDD\u8F93\u5165\u533A\u3002" : "\u5C06\u4E0B\u9762\u7684\u5B89\u5168\u94FE\u63A5\u53D1\u5230\u624B\u673A\uFF1B\u8FDE\u63A5\u5728 " + fmtTime3(pair && pair.expiresAt) + " \u524D\u6709\u6548\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-icon-button", onClick: end, disabled: busy === "end", title: "\u5173\u95ED\u624B\u673A\u8FDE\u63A5", "aria-label": "\u5173\u95ED\u624B\u673A\u8FDE\u63A5", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }) })
+    ] }),
+    !mobile && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-layout", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-qr-card", children: [
+        qrDataUrl ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("img", { src: qrDataUrl, alt: "\u624B\u673A\u63A5\u529B\u4E00\u6B21\u6027\u8FDE\u63A5\u4E8C\u7EF4\u7801", width: "260", height: "260" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-qr-loading", "aria-live": "polite", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u4F7F\u7528\u624B\u673A\u76F8\u673A\u626B\u7801" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u624B\u673A\u4E0E\u7535\u8111\u9700\u5728\u540C\u4E00\u5C40\u57DF\u7F51" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-detail", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+            " \u53CD\u5411\u4EE3\u7406\u5DF2\u8FD0\u884C"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("h4", { children: [
+            session.gatewayAddress,
+            ":",
+            session.gatewayPort,
+            " \u2192 127.0.0.1:3080"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-link", title: mobileLink, children: mobileLink || "\u5C40\u57DF\u7F51\u5165\u53E3\u672A\u5C31\u7EEA" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share-actions", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLink, disabled: !mobileLink, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "copy" }),
+          "\u590D\u5236\u8FDE\u63A5\u94FE\u63A5"
+        ] }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u4E8C\u7EF4\u7801\u548C\u94FE\u63A5\u53EA\u53EF\u6210\u529F\u9A8C\u8BC1\u4E00\u6B21\uFF0C10 \u5206\u949F\u540E\u5931\u6548\u3002\u5982\u9700\u53E6\u4E00\u53F0\u624B\u673A\uFF0C\u8BF7\u5173\u95ED\u540E\u91CD\u65B0\u5F00\u542F\u3002" })
+      ] })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-overview", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-overview-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8BBE\u5907\u72B6\u6001" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: mobile ? "\u624B\u673A\u5DF2\u63A5\u529B" : onlineMobiles.length ? onlineMobiles.length + " \u53F0\u624B\u673A\u5728\u7EBF" : "\u7B49\u5F85\u624B\u673A" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: mobile ? "\u4FDD\u6301\u6B64\u9875\u9762\u6253\u5F00\u5373\u53EF\u540C\u6B65\u72B6\u6001" : onlineMobiles.length ? "\u72B6\u6001\u6BCF 2.5 \u79D2\u5237\u65B0" : "\u8FDE\u63A5\u7801\u4EC5\u5728\u5F53\u524D\u914D\u5BF9\u7A97\u53E3\u6709\u6548" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-overview-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8FDB\u884C\u4E2D\u7684\u4EFB\u52A1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: pair && pair.tasks ? pair.tasks.length : "\u2014" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: pair && pair.tasks && pair.tasks.length ? "\u4E0E DSH \u5F53\u524D\u4F1A\u8BDD\u5171\u7528\u540C\u4E00\u4EFB\u52A1" : "\u5F00\u59CB\u4EFB\u52A1\u540E\u4F1A\u81EA\u52A8\u663E\u793A\u5728\u8FD9\u91CC" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u5B9E\u65F6\u4EFB\u52A1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-text-button", onClick: () => refresh(), disabled: busy, children: "\u5237\u65B0" })
+      ] }),
+      pair && pair.tasks && pair.tasks.length ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-task-list", children: pair.tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("article", { className: "dmr-task", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dmr-phase " + task.phase, children: phaseLabel3(task.phase) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: task.title }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { children: [
+            "\u5DF2\u8FD0\u884C ",
+            fmtDuration2(task.elapsed),
+            " \xB7 \u6700\u8FD1\u6D3B\u52A8 ",
+            fmtTime3(task.lastActivityAt)
+          ] })
+        ] })
+      ] }, task.sessionId)) }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-empty", children: "\u5F53\u524D\u6CA1\u6709\u6B63\u5728\u8FD0\u884C\u7684\u4EFB\u52A1\u3002\u542F\u52A8\u4EFB\u52A1\u540E\uFF0C\u624B\u673A\u548C\u7535\u8111\u90FD\u4F1A\u770B\u5230\u540C\u4E00\u4EFD\u72B6\u6001\u3002" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("form", { className: "dmr-note", onSubmit: sendNote, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u63A5\u529B\u5907\u6CE8" }),
+        pair && pair.noteAt ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { children: [
+          pair.noteFrom,
+          " \xB7 ",
+          fmtTime3(pair.noteAt)
+        ] }) : null
+      ] }),
+      pair && pair.note ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("blockquote", { children: pair.note }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u628A\u5F53\u524D\u8FDB\u5EA6\u3001\u4E0B\u4E00\u6B65\u6216\u9700\u8981\u6CE8\u610F\u7684\u4E8B\u9879\u7559\u7ED9\u53E6\u4E00\u53F0\u8BBE\u5907\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "sr-only", children: "\u63A5\u529B\u5907\u6CE8" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("textarea", { value: note, onChange: (e) => setNote(e.target.value), maxLength: "1200", placeholder: mobile ? "\u4F8B\u5982\uFF1A\u6211\u5DF2\u5728\u624B\u673A\u67E5\u770B\u5230\u6784\u5EFA\u9519\u8BEF\uFF0C\u4E0B\u4E00\u6B65\u8BF7\u5728\u7535\u8111\u8FD0\u884C\u6D4B\u8BD5\u3002" : "\u4F8B\u5982\uFF1A\u5DF2\u7ECF\u5B8C\u6210\u63A5\u53E3\u4FEE\u6539\uFF0C\u624B\u673A\u7AEF\u7EE7\u7EED\u68C0\u67E5\u9875\u9762\u4EA4\u4E92\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "dmr-secondary", disabled: !note.trim() || busy === "note", children: busy === "note" ? "\u6B63\u5728\u540C\u6B65\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "arrow" }),
+        "\u540C\u6B65\u5907\u6CE8"
+      ] }) })
+    ] }),
+    error && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message error", role: "alert", children: error }),
+    notice && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-message success", "aria-live": "polite", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "check" }),
+      notice
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LanDirectCard, {})
+  ] });
+}
+function MobileRelayHomeStat() {
+  const [summary, setSummary] = (0, import_react19.useState)("\u53EF\u5728\u624B\u673A\u7EE7\u7EED\u5F53\u524D\u4EFB\u52A1");
+  (0, import_react19.useEffect)(() => {
+    const session = readSession();
+    if (!session) return;
+    rpc("status", session).then((data) => {
+      const p = data.pair;
+      setSummary((p.tasks || []).length ? p.tasks.length + " \u4E2A\u4EFB\u52A1\u540C\u6B65\u4E2D" : "\u624B\u673A\u5DF2\u8FDE\u63A5\uFF0C\u7B49\u5F85\u4EFB\u52A1");
+    }).catch(() => setSummary("\u8FDE\u63A5\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u914D\u5BF9"));
+  }, []);
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: summary });
+}
+var feature8 = {
+  id: "mobile-relay",
+  name: "\u624B\u673A\u63A5\u529B",
+  order: 80,
+  accent: "#38bdf8",
+  description: "\u5B89\u5168\u53CD\u5411\u4EE3\u7406\u4E0E\u626B\u7801\u63A5\u529B\uFF0C\u540C\u6B65\u5F53\u524D\u4EFB\u52A1\u72B6\u6001\u548C\u5907\u6CE8",
+  defaultEnabled: true,
+  css: `
+.dmr{--dmr-accent:#38bdf8;--dmr-accent-soft:color-mix(in srgb,var(--dmr-accent) 13%,transparent);display:flex;flex-direction:column;gap:16px;max-width:720px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dmr h3,.dmr h4,.dmr p{margin:0}.dmr h3{font-size:17px;line-height:1.25;letter-spacing:-.01em}.dmr h4{font-size:13px}.dmr-hero,.dmr-status-head{display:flex;align-items:flex-start;gap:12px}.dmr-hero>div,.dmr-status-head>div{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-hero-icon{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:14px;background:var(--dmr-accent-soft);color:var(--dmr-accent);border:1px solid color-mix(in srgb,var(--dmr-accent) 35%,var(--dsw-alias-border-l1))}.dmr-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}.dmr-steps li{display:flex;gap:9px;padding:11px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:12px}.dmr-steps li>span{width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;font-size:11px;font-weight:700;color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-steps div{display:flex;flex-direction:column;gap:3px;min-width:0}.dmr-steps strong{font-size:12px}.dmr-steps small{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}.dmr-field{display:flex;flex-direction:column;gap:6px;font-weight:600}.dmr-field input,.dmr-field select,.dmr-note textarea{box-sizing:border-box;width:100%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:10px 12px;min-height:44px;font:inherit;outline:none;transition:border-color .18s ease,box-shadow .18s ease}.dmr-field input:focus,.dmr-field select:focus,.dmr-note textarea:focus{border-color:var(--dmr-accent);box-shadow:0 0 0 3px var(--dmr-accent-soft)}.dmr-field small{font-weight:400}.dmr-network-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(150px,.6fr);gap:12px}.dmr-security{padding:12px 13px;border:1px solid color-mix(in srgb,#f59e0b 38%,var(--dsw-alias-border-l1));border-radius:12px;background:color-mix(in srgb,#f59e0b 8%,transparent)}.dmr-security strong{display:block;margin-bottom:4px;color:#f59e0b;font-size:12px}.dmr-security p{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.55}.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button{font:inherit;touch-action:manipulation;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease,opacity .18s ease}.dmr-primary,.dmr-secondary{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:9px 13px;font-weight:600}.dmr-primary{align-self:flex-start;border:1px solid var(--dmr-accent);background:var(--dmr-accent);color:#062238}.dmr-primary:hover{filter:brightness(1.05)}.dmr-secondary{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}.dmr-secondary:hover{border-color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-primary:active,.dmr-secondary:active,.dmr-icon-button:active{transform:scale(.98)}.dmr-primary:disabled,.dmr-secondary:disabled,.dmr-text-button:disabled,.dmr-icon-button:disabled{cursor:not-allowed;opacity:.5}.dmr-message{display:flex;align-items:flex-start;gap:7px;padding:10px 12px;border-radius:10px;font-size:12px}.dmr-message.success{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent)}.dmr-message.error{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}.dmr-status-head{justify-content:space-between}.dmr-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--dmr-accent)}.dmr-eyebrow i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px var(--dmr-accent-soft)}.dmr-icon-button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-secondary)}.dmr-icon-button:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor}.dmr-share{display:flex;flex-direction:column;gap:9px;padding:13px;border:1px solid color-mix(in srgb,var(--dmr-accent) 32%,var(--dsw-alias-border-l1));border-radius:13px;background:var(--dmr-accent-soft)}.dmr-share-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:center}.dmr-qr-card{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border-radius:12px;background:#fff;color:#111827;text-align:center}.dmr-qr-card img{display:block;width:176px;height:176px;max-width:100%;object-fit:contain}.dmr-qr-card strong{font-size:12px}.dmr-qr-card small{color:#4b5563;font-size:10px}.dmr-qr-loading{display:grid;place-items:center;width:176px;height:176px;color:#64748b;font-size:12px}.dmr-share-detail{min-width:0;display:flex;flex-direction:column;gap:10px}.dmr-share-detail>div:first-child{display:flex;flex-direction:column;gap:4px}.dmr-link{padding:10px 11px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:var(--dsw-alias-label-secondary)}.dmr-share-actions{display:flex;gap:8px;flex-wrap:wrap}.dmr-share-actions .dmr-primary{align-self:auto}.dmr-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dmr-overview-card{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dmr-overview-card>span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-overview-card strong{font-size:16px;letter-spacing:-.01em}.dmr-section{display:flex;flex-direction:column;gap:9px}.dmr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.dmr-section-head small{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-text-button{border:0;background:transparent;color:var(--dmr-accent);padding:8px;min-height:36px;font-weight:600}.dmr-task-list{display:flex;flex-direction:column;gap:8px}.dmr-task{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dmr-task>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.dmr-task strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dmr-phase{flex:none;border-radius:999px;padding:3px 8px;font-size:11px;background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-phase.write{color:var(--dsw-alias-state-success-primary)}.dmr-phase.code{color:#f59e0b}.dmr-phase.search{color:#14b8a6}.dmr-empty{padding:18px 12px;text-align:center;border:1px dashed var(--dsw-alias-border-l2);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}.dmr-note{display:flex;flex-direction:column;gap:9px;padding-top:2px}.dmr-note blockquote{margin:0;padding:10px 12px;border-left:3px solid var(--dmr-accent);border-radius:0 9px 9px 0;background:var(--dmr-accent-soft);white-space:pre-wrap;font-size:12px}.dmr-note textarea{min-height:88px;resize:vertical;line-height:1.5}.dmr-note .dmr-secondary{align-self:flex-start}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media (max-width:680px){.dmr{gap:14px;font-size:14px}.dmr h3{font-size:18px}.dmr-steps{grid-template-columns:1fr;gap:8px}.dmr-steps li{padding:10px}.dmr-steps small,.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{font-size:12px}.dmr-network-grid{grid-template-columns:1fr;gap:10px}.dmr-field input,.dmr-field select{font-size:16px}.dmr-primary,.dmr-secondary{width:100%;font-size:14px}.dmr-share-layout{grid-template-columns:1fr;gap:12px}.dmr-qr-card{width:min(240px,100%);margin:0 auto}.dmr-qr-card img,.dmr-qr-loading{width:210px;height:210px}.dmr-share-actions{flex-direction:column}.dmr-share-actions .dmr-primary{width:100%}.dmr-overview{gap:8px}.dmr-overview-card{padding:11px}.dmr-status-head{gap:8px}.dmr-link{font-size:11px}.dmr-note textarea{font-size:16px;min-height:104px}.dmr-note .dmr-secondary{align-self:stretch}.dmr-compact .dmr-hero-icon{width:40px;height:40px;border-radius:13px}}@media (prefers-reduced-motion:reduce){.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button,.dmr-field input,.dmr-field select,.dmr-note textarea{transition:none}}.dmr-lan{flex:none;margin-top:6px;padding-top:16px;border-top:1px solid var(--dsw-alias-border-l1)}.dmr-lan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.dmr-lan-title{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-lan-title p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-lan-badge{flex:none;display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}.dmr-lan-badge.on{border-color:color-mix(in srgb,var(--dmr-accent) 45%,transparent);background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-lan-active,.dmr-lan-idle{display:flex;flex-direction:column;gap:12px}.dmr-lan-active .dmr-share-detail small strong{color:var(--dsw-alias-state-error-primary)}.dmr-danger{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,var(--dsw-alias-border-l2));color:var(--dsw-alias-state-error-primary)}.dmr-danger:hover{border-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}
+`,
+  View: MobileRelayView,
+  HomeStat: MobileRelayHomeStat
+};
+
 // src/client.jsx
 var DOCK_VERSION = "0.8.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7];
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -7577,8 +10276,8 @@ function scheduleInitialCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react19.default.useReducer((n) => n + 1, 0);
-  import_react19.default.useEffect(() => {
+  const [, bump] = import_react20.default.useReducer((n) => n + 1, 0);
+  import_react20.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -7588,44 +10287,44 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react19.default.createElement(
+  return import_react20.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react19.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react19.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react19.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react19.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react20.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react20.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react20.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react20.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react19.default.useState(panelNav.open);
-  import_react19.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react19.default.createElement("button", {
+  const [open, setOpen] = import_react20.default.useState(panelNav.open);
+  import_react20.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react20.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
     title: "\u529F\u80FD\u575E",
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react19.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react19.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react20.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react20.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react19.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react19.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react20.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react20.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react19.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react19.default.useRef(null);
-  const contentRef = import_react19.default.useRef(null);
-  import_react19.default.useEffect(() => {
+  const [win, setWin] = import_react20.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react20.default.useRef(null);
+  const contentRef = import_react20.default.useRef(null);
+  import_react20.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react19.default.useEffect(() => {
+  import_react20.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -7663,13 +10362,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react19.default.createElement(
+  const viewNode = mod && View ? import_react20.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react19.default.createElement(
-      mod.external ? FeatureBoundary : import_react19.default.Fragment,
+    import_react20.default.createElement(
+      mod.external ? FeatureBoundary : import_react20.default.Fragment,
       null,
-      import_react19.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react20.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -7683,10 +10382,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react19.default.createElement(
+  return import_react20.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react19.default.createElement(
+    import_react20.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -7694,41 +10393,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react19.default.createElement(
+      import_react20.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react19.default.createElement(DockIcon, null),
-        import_react19.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react19.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react19.default.createElement(
+        import_react20.default.createElement(DockIcon, null),
+        import_react20.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react20.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react20.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react19.default.createElement("button", {
+          import_react20.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react19.default.createElement("button", {
+          import_react20.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react19.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react20.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react19.default.createElement(
+      import_react20.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react19.default.createElement(
+        import_react20.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react19.default.createElement(
+          import_react20.default.createElement(
             "button",
             {
               type: "button",
@@ -7736,10 +10435,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react19.default.createElement("span", { className: "dockm-navhome" }, import_react19.default.createElement(DockIcon, null)),
-            import_react19.default.createElement("span", null, "\u9996\u9875")
+            import_react20.default.createElement("span", { className: "dockm-navhome" }, import_react20.default.createElement(DockIcon, null)),
+            import_react20.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react19.default.createElement(
+          MODULES.map((m) => import_react20.default.createElement(
             "button",
             {
               type: "button",
@@ -7747,42 +10446,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react19.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react19.default.createElement("span", null, m.name),
-            m.planned ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react20.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react20.default.createElement("span", null, m.name),
+            m.planned ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react19.default.createElement(
+        import_react20.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react19.default.createElement(
+          import_react20.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react19.default.createElement(
+            import_react20.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react19.default.createElement("span", { className: "dockm-navhome" }, import_react19.default.createElement(DockIcon, null)) : import_react19.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react20.default.createElement("span", { className: "dockm-navhome" }, import_react20.default.createElement(DockIcon, null)) : import_react20.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react19.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react19.default.createElement(
+            import_react20.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react19.default.createElement("div", { className: "dockm-view" }, import_react19.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react19.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react19.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react19.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react19.default.createElement(
+          isHome ? import_react20.default.createElement("div", { className: "dockm-view" }, import_react20.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react20.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react20.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react20.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react20.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react19.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react19.default.createElement(
+            import_react20.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react20.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react19.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react19.default.createElement("button", {
+              import_react20.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react20.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -7795,11 +10494,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react19.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react20.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react19.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react19.default.createElement("button", {
+              import_react20.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react20.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -7815,30 +10514,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react19.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react20.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react19.default.createElement(
+  return import_react20.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react19.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react19.default.createElement(
-        m.external ? FeatureBoundary : import_react19.default.Fragment,
+      const statNode = m.planned ? import_react20.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react20.default.createElement(
+        m.external ? FeatureBoundary : import_react20.default.Fragment,
         null,
-        import_react19.default.createElement(Stat, { ctx })
-      ) : import_react19.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react19.default.createElement(
+        import_react20.default.createElement(Stat, { ctx })
+      ) : import_react20.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react20.default.createElement(
         "div",
         {
           key: m.id,
@@ -7853,21 +10552,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react19.default.createElement(
+        import_react20.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react19.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react19.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react19.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react20.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react20.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react20.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react19.default.createElement(
+          import_react20.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react19.default.createElement("span", { className: "dockh-sdot" }),
-            import_react19.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react20.default.createElement("span", { className: "dockh-sdot" }),
+            import_react20.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react19.default.createElement("button", {
+          m.planned ? null : import_react20.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -7882,12 +10581,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react19.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react19.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react19.default.createElement(
+        import_react20.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react20.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react20.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react19.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react20.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -7895,16 +10594,16 @@ function HomeView(props) {
 }
 function DockPanel() {
   const ctx = ctxRef.current;
-  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react19.default.createElement(
+  return import_react20.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react19.default.createElement(
+    import_react20.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -7913,25 +10612,25 @@ function DockPanel() {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react19.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react20.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react19.default.createElement(
-          f.external ? FeatureBoundary : import_react19.default.Fragment,
+        import_react20.default.createElement(
+          f.external ? FeatureBoundary : import_react20.default.Fragment,
           null,
-          import_react19.default.createElement(View, { ctx, feature: f })
+          import_react20.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
-      return import_react19.default.createElement(
+      return import_react20.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react19.default.createElement(
+        import_react20.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react19.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react19.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react19.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react19.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react19.default.createElement("button", {
+          import_react20.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react20.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react20.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react20.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react20.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -7940,11 +10639,11 @@ function DockPanel() {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react19.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react20.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react19.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react19.default.createElement("button", {
+            import_react20.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react20.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -7958,19 +10657,19 @@ function DockPanel() {
             })
           ) : null
         ),
-        f.planned ? import_react19.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react19.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react20.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react20.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
-  import_react19.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
+  import_react20.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react19.default.createElement(f.Chip, {
+    items.push(import_react20.default.createElement(f.Chip, {
       key: f.id,
       ctx: props.ctx,
       feature: f,
@@ -7980,23 +10679,23 @@ function DockChips(props) {
     }));
   }
   if (items.length === 0) return null;
-  return import_react19.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react20.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react19.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react19.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react20.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react19.default.createElement(
+    items.push(import_react20.default.createElement(
       FeatureBoundary,
       { key: f.id },
-      import_react19.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react20.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react19.default.createElement(import_react19.default.Fragment, null, items);
+  return import_react20.default.createElement(import_react20.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -8007,23 +10706,23 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react19.default.createElement(DockEntry, props)
+    (props) => import_react20.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react19.default.createElement(DockModal, null)
+    () => import_react20.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react19.default.createElement(FeatureOverlays, null)
+    () => import_react20.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react19.default.createElement(DockPanel, null)
+    () => import_react20.default.createElement(DockPanel, null)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react19.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react20.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];
