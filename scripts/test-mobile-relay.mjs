@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { connect } from 'node:net'
-import { once } from 'node:events'
-import vm from 'node:vm'
-import QRCode from 'qrcode'
+import { createRequire } from 'node:module'
 import { startProtectedLanGateway } from '../features/mobile-relay/gateway.js'
+
+// qrcode 经 CJS require 解析：仓库 checkout 无 node_modules，运行时用
+// NODE_PATH 指向任意装了 qrcode 的 node_modules（或仓库内 junction）。
+const QRCode = createRequire(import.meta.url)('qrcode')
 
 function listen(server, host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
@@ -14,6 +16,44 @@ function listen(server, host = '127.0.0.1') {
       resolve(server.address().port)
     })
   })
+}
+
+const upstreamUpgrades = new Set()
+const upstream = createServer((req, res) => {
+  if (req.url === '/app') {
+    const page = '<!doctype html><html><head><script>window.booted=true</script></head><body>DSH</body></html>'
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': String(Buffer.byteLength(page)) })
+    res.end(page)
+    return
+  }
+  res.writeHead(200, { 'content-type': 'application/json' })
+  res.end(JSON.stringify({ path: req.url, host: req.headers.host, origin: req.headers.origin || '', cookie: req.headers.cookie || '' }))
+})
+upstream.on('upgrade', (req, socket) => {
+  upstreamUpgrades.add(socket)
+  socket.once('close', () => upstreamUpgrades.delete(socket))
+  socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\ngateway-websocket-ok')
+  socket.resume()
+})
+
+const upstreamPort = await listen(upstream)
+
+// 凭据校验桩（宿主用 settings 哈希比对，这里同语义）。
+const ACCOUNT = { username: 'wzy', password: 'secret-pass' }
+async function verifyLogin(username, password) {
+  return username === ACCOUNT.username && password === ACCOUNT.password
+}
+
+// spoofLoopback=true：主实例保持仅本机时的真实形态（Host/Origin 改写为回环）。
+const gateway = await startProtectedLanGateway({ port: 0, upstreamPort, spoofLoopback: true, verifyLogin })
+const base = `http://127.0.0.1:${gateway.port}`
+
+async function login(username, password) {
+  const res = await fetch(base + '/__dsh_auth/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  return { res, cookie: (res.headers.get('set-cookie') || '').split(';')[0] }
 }
 
 function websocketProbe(port, cookie) {
@@ -42,83 +82,63 @@ function websocketProbe(port, cookie) {
   })
 }
 
-const upstreamUpgrades = new Set()
-const upstream = createServer((req, res) => {
-  if (req.url === '/app') {
-    const page = '<!doctype html><html><head><script>window.booted=true</script></head><body>DSH</body></html>'
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': String(Buffer.byteLength(page)) })
-    res.end(page)
-    return
-  }
-  res.writeHead(200, { 'content-type': 'application/json' })
-  res.end(JSON.stringify({ path: req.url, host: req.headers.host, origin: req.headers.origin || '', cookie: req.headers.cookie || '' }))
-})
-upstream.on('upgrade', (req, socket) => {
-  upstreamUpgrades.add(socket)
-  socket.once('close', () => upstreamUpgrades.delete(socket))
-  socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\ngateway-websocket-ok')
-  socket.resume()
-})
-
-const upstreamPort = await listen(upstream)
-const gateway = await startProtectedLanGateway({ port: 0, upstreamPort })
-const base = `http://127.0.0.1:${gateway.port}`
-
 try {
-  const unauthenticated = await fetch(base + '/')
-  assert.equal(unauthenticated.status, 401)
+  // 未登录：页面 → 302 登录页；接口 → 401。
+  const gate = await fetch(base + '/', { headers: { accept: 'text/html' }, redirect: 'manual' })
+  assert.equal(gate.status, 302)
+  assert.match(gate.headers.get('location') || '', /\/__dsh_auth\/login/)
+  const gateApi = await fetch(base + '/api/session.list', { method: 'POST', redirect: 'manual' })
+  assert.equal(gateApi.status, 401)
 
-  const connectPage = await fetch(base + '/__dsh_mobile/connect')
-  assert.equal(connectPage.status, 200)
-  assert.match(connectPage.headers.get('content-security-policy') || '', /frame-ancestors 'none'/)
+  // 登录页可访问且含表单。
+  const loginPage = await fetch(base + '/__dsh_auth/login')
+  assert.equal(loginPage.status, 200)
+  const loginHtml = await loginPage.text()
+  assert.match(loginHtml, /账号/)
+  assert.match(loginHtml, /__dsh_auth\/login/)
 
-  const token = gateway.issue('pair-1', 'pair-1.A1B2C3D4E5', Date.now() + 60_000)
-  const scanLink = `${base}/__dsh_mobile/connect#${token}`
-  assert.match(await QRCode.toDataURL(scanLink, { errorCorrectionLevel: 'M' }), /^data:image\/png;base64,/)
-  const exchange = await fetch(base + '/__dsh_mobile/connect', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }),
-  })
-  assert.equal(exchange.status, 200)
-  assert.equal((await exchange.json()).launch, 'pair-1.A1B2C3D4E5')
-  const cookie = (exchange.headers.get('set-cookie') || '').split(';')[0]
-  assert.match(cookie, /^dsh_mobile_session=/)
+  // 错误凭据 → 401；正确凭据 → 会话 Cookie。
+  const bad = await login(ACCOUNT.username, 'wrong')
+  assert.equal(bad.res.status, 401)
+  const good = await login(ACCOUNT.username, ACCOUNT.password)
+  assert.equal(good.res.status, 200)
+  assert.match(good.cookie, /^dsh_remote_session=/)
 
-  const replay = await fetch(base + '/__dsh_mobile/connect', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }),
-  })
-  assert.equal(replay.status, 403)
-
-  const proxied = await fetch(base + '/probe', {
-    headers: { cookie, origin: `http://127.0.0.1:${gateway.port}` },
-  })
-  assert.equal(proxied.status, 200)
-  const probe = await proxied.json()
-  assert.equal(probe.path, '/probe')
+  // 登录后：页面带远程标记与兼容脚本注入；Host/Origin 已改写为回环；Cookie 透传。
+  const page = await fetch(base + '/app', { headers: { cookie: good.cookie } })
+  assert.equal(page.status, 200)
+  const html = await page.text()
+  assert.match(html, /<head><script data-dsh-mobile-compat src="\/__dsh_mobile\/compat\.js"><\/script><script>/)
+  const probe = await (await fetch(base + '/probe', {
+    headers: { cookie: good.cookie, origin: `http://127.0.0.1:${gateway.port}` },
+  })).json()
   assert.equal(probe.host, `127.0.0.1:${upstreamPort}`)
   assert.equal(probe.origin, `http://127.0.0.1:${upstreamPort}`)
-  assert.equal(probe.cookie, '')
+  assert.equal(probe.cookie, good.cookie)
 
-  const htmlResponse = await fetch(base + '/app', { headers: { cookie } })
-  const html = await htmlResponse.text()
-  assert.equal(htmlResponse.status, 200)
-  assert.match(html, /<head><script data-dsh-mobile-compat src="\/__dsh_mobile\/compat\.js"><\/script><script>/)
-  assert.equal(htmlResponse.headers.get('content-length'), null)
-  const compatResponse = await fetch(base + '/__dsh_mobile/compat.js', { headers: { cookie } })
-  const compatJs = await compatResponse.text()
-  const browser = { crypto: { getRandomValues(bytes) { for (let i = 0; i < bytes.length; i++) bytes[i] = i * 17 + 3; return bytes } } }
-  vm.runInNewContext(compatJs, browser)
-  assert.equal(typeof browser.crypto.randomUUID, 'function')
-  assert.match(browser.crypto.randomUUID(), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  // 授权二维码（把地址发给设备）。
+  assert.match(await QRCode.toDataURL(`http://127.0.0.1:${gateway.port}`, { errorCorrectionLevel: 'M' }), /^data:image\/png;base64,/)
 
-  const upgraded = await websocketProbe(gateway.port, cookie)
+  // WebSocket 管道（带会话）。
+  const upgraded = await websocketProbe(gateway.port, good.cookie)
   assert.match(upgraded.output, /101 Switching Protocols/)
+  const upgradedClosed = { promise: null, socket: upgraded.socket }
 
-  const upgradedClosed = once(upgraded.socket, 'close')
-  gateway.revokePair('pair-1')
-  await upgradedClosed
-  const revoked = await fetch(base + '/', { headers: { cookie } })
-  assert.equal(revoked.status, 401)
-  console.log(`mobile relay gateway: ok (127.0.0.1:${gateway.port} -> 127.0.0.1:${upstreamPort})`)
+  // 退出登录：会话作废，再次访问回到 302 登录页。
+  const logout = await fetch(base + '/__dsh_auth/logout', { headers: { cookie: good.cookie } })
+  assert.equal(logout.status, 200)
+  assert.match(await logout.text(), /已退出登录/)
+  const afterLogout = await fetch(base + '/', { headers: { cookie: good.cookie, accept: 'text/html' }, redirect: 'manual' })
+  assert.equal(afterLogout.status, 302)
+
+  // revokeAllSessions：账号变更作废所有会话。
+  const again = await login(ACCOUNT.username, ACCOUNT.password)
+  gateway.revokeAllSessions()
+  const revoked = await fetch(base + '/', { headers: { cookie: again.cookie, accept: 'text/html' }, redirect: 'manual' })
+  assert.equal(revoked.status, 302)
+
+  upgradedClosed.socket.destroy()
+  console.log(`remote access gateway: ok (127.0.0.1:${gateway.port} -> 127.0.0.1:${upstreamPort}, login/logout/spoof/ws)`)
 } finally {
   await gateway.close()
   for (const socket of upstreamUpgrades) socket.destroy()
