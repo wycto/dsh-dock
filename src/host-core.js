@@ -5,8 +5,14 @@ import z from '@deepseek-ai/schemastery'
 /** dsh-dock 自有 settings 命名空间（插件级配置，如图片理解代理）。 */
 export const DOCK_NS = 'dsh-dock'
 
-/** 自有命名空间的 schema（图片理解代理 + 任务动画配置）。 */
+/** 自有命名空间的 schema（图片理解代理 + 任务动画配置 + 远程访问账号）。 */
 export const DockConfig = z.object({
+  remoteAuth: z.object({
+    /** 远程访问登录账号（明文用户名；密码只存加盐哈希）。 */
+    username: z.string().default(''),
+    passwordHash: z.string().default(''),
+    salt: z.string().default(''),
+  }).default({}),
   visionProxy: z.object({
     enabled: z.boolean().default(false),
     provider: z.string().default(''),
