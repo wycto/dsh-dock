@@ -3,7 +3,21 @@
 // 不复制或迁移 DSH 会话：手机与电脑都连接同一个 DSH 宿主时，会话本来就是同一份。
 // 本模块只负责短时配对、在线状态、实时任务摘要和接力备注，避免把任务状态再做成一套
 // 容易分叉的副本。所有配对凭据均只存内存，宿主重启后自动失效。
+//
+// 局域网电脑直连（0.0.0.0）：
+//   DSH 的 CLI 出于安全拒绝 `--host 0.0.0.0`（浏览器表层无登录认证，直开等于把代码执行
+//   能力交给同网任何人），但 webServer 行本身支持 0.0.0.0 绑定，且绑定后 DSH 会自动
+//   派生局域网信任、把目录选择器切成浏览器浏览模式——即「以 0.0.0.0 启动」的完整效果。
+//   本模块用一条补丁覆盖 webServer 行的 host，另起一个同资料（同 ~/.dsh、同会话与工作区）
+//   的 dsh web 实例绑到 0.0.0.0 指定端口；主实例继续只监听 127.0.0.1。
+import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import { existsSync, mkdirSync, openSync, readFileSync, closeSync, writeFileSync } from 'node:fs'
+import { createServer, request as httpRequest } from 'node:http'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { readBody, sendJson } from '../../src/host-core.js'
 import { lanAddresses, startProtectedLanGateway } from './gateway.js'
 
@@ -12,6 +26,111 @@ const PRESENCE_TTL_MS = 45 * 1000
 const NOTE_MAX_LENGTH = 1200
 const MAX_JOIN_ATTEMPTS = 8
 const DEFAULT_GATEWAY_PORT = 3081
+const DEFAULT_LAN_DIRECT_PORT = 3082
+const LAN_DIR_NAME = 'dsh-dock-lan'
+const LAN_READY_TIMEOUT_MS = 25 * 1000
+const LAN_STOP_GRACE_MS = 4 * 1000
+
+/** 当前进程是否是「局域网直连」子实例（由本模块 spawn 时注入的环境标记）。 */
+function isLanChildInstance() {
+  return process.env.DSH_DOCK_LAN_CHILD === '1'
+}
+function lanDir() { return join(homedir(), '.dsh', LAN_DIR_NAME) }
+function lanPatchPath(port) { return join(lanDir(), `lan-${port}.patch.yml`) }
+function lanLogPath(port) { return join(lanDir(), `lan-${port}.log`) }
+function lanPatchContent(port) {
+  return `# dsh-dock · 手机接力「局域网电脑直连（0.0.0.0）」生成补丁 —— 勿手改
+# 覆盖 webServer 行的绑定主机：效果等同 \`dsh web --host 0.0.0.0\`（CLI 出于安全拒绝该旗标）。
+# 绑定 0.0.0.0 后 DSH 自动派生局域网信任，并把目录选择器切换为浏览器浏览模式。
+- id: webserver
+  config:
+    host: '0.0.0.0'
+    port: ${port}
+`
+}
+/** 定位 dsh CLI 入口：优先使用启动本进程的入口，退回按包解析。 */
+function dshEntry() {
+  const argv1 = process.argv && process.argv[1]
+  if (argv1 && existsSync(argv1)) return argv1
+  try {
+    return createRequire(import.meta.url).resolve('@deepseek-ai/dsh/lib/bin.js')
+  } catch {
+    return join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+  }
+}
+/** 预检端口：能在 0.0.0.0 上绑定才算空闲（EADDRINUSE 抛 400）。 */
+function assertPortFree(port) {
+  return new Promise((resolve, reject) => {
+    const probe = createServer()
+    probe.once('error', (error) => {
+      if (error && error.code === 'EADDRINUSE') {
+        const err = new Error(`端口 ${port} 已被占用，请换一个端口`)
+        err.statusCode = 400
+        reject(err)
+      } else {
+        const err = new Error('端口预检失败：' + ((error && error.message) || String(error)))
+        err.statusCode = 400
+        reject(err)
+      }
+    })
+    probe.listen(port, '0.0.0.0', () => probe.close(() => resolve()))
+  })
+}
+
+// LAN HTTP 不是浏览器安全上下文：部分浏览器在 http://<局域网IP> 下只暴露
+// crypto.getRandomValues() 而省略 crypto.randomUUID()，而 DSH 的 connection /
+// conversation 客户端直接调用 randomUUID() 生成消息 ID 与 RPC ID——缺失时整个
+// 客户端引导失败（会话列表、工作区等全部不可用）。下面这段与手机接力网关同款、
+// 标准兼容的 UUID v4 兜底，在直连子实例的 index.html <head> 里内联注入，先于
+// 任何 DSH 引导脚本执行；本机回环（127.0.0.1 是安全上下文）下 randomUUID 已存在，
+// 脚本自我短路，零副作用。
+const LAN_COMPAT_JS = "(()=>{const c=globalThis.crypto;if(!c||typeof c.randomUUID==='function'||typeof c.getRandomValues!=='function')return;const make=()=>{const b=new Uint8Array(16);c.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20)};try{Object.defineProperty(c,'randomUUID',{value:make,configurable:true})}catch{try{c.randomUUID=make}catch{}}})()"
+const LAN_COMPAT_MARKER = 'data-dsh-lan-compat'
+/** 把兼容脚本内联注入 index.html 的 <head> 之后（幂等）。 */
+function injectLanCompat(html) {
+  if (html.includes(LAN_COMPAT_MARKER)) return html
+  const script = `<script ${LAN_COMPAT_MARKER}>${LAN_COMPAT_JS}</script>`
+  const match = /<head(?:\s[^>]*)?>/i.exec(html)
+  if (!match) return script + html
+  const at = match.index + match[0].length
+  return html.slice(0, at) + script + html.slice(at)
+}
+/** 轮询子实例直到 HTTP 可响应；子进程提前退出时带上日志尾部报错。 */
+function waitForLanReady(port, child, logPath) {
+  const deadline = Date.now() + LAN_READY_TIMEOUT_MS
+  const logTail = () => {
+    try {
+      const text = readFileSync(logPath, 'utf8')
+      return text.slice(-2000).trim()
+    } catch { return '' }
+  }
+  return new Promise((resolve, reject) => {
+    const attempt = () => {
+      if (child.exitCode !== null) {
+        const err = new Error('局域网直连实例启动失败（进程已退出）：\n' + (logTail() || '无日志输出'))
+        err.statusCode = 500
+        reject(err)
+        return
+      }
+      const probe = httpRequest({ hostname: '127.0.0.1', port, path: '/', method: 'GET', timeout: 1500 }, (res) => {
+        res.resume()
+        resolve()
+      })
+      probe.on('error', () => {
+        if (Date.now() > deadline) {
+          const err = new Error('局域网直连实例启动超时：\n' + (logTail() || '无日志输出'))
+          err.statusCode = 500
+          reject(err)
+        } else {
+          setTimeout(attempt, 300)
+        }
+      })
+      probe.on('timeout', () => probe.destroy())
+      probe.end()
+    }
+    attempt()
+  })
+}
 
 function now() { return Date.now() }
 function cleanText(value, max) { return String(value || '').replace(/\u0000/g, '').trim().slice(0, max) }
@@ -36,7 +155,7 @@ function extractText(content) {
 }
 function routeMethod(req) {
   const url = new URL(req.url || '/', 'http://dsh.internal')
-  return url.pathname.replace(/^\/dsh-dock\/mobile-relay\/?/, '').split('/')[0] || ''
+  return url.pathname.replace(/^\/dsh-dock\/mobile-relay\/?/, '').replace(/\/+$/, '')
 }
 
 export const feature = {
@@ -51,6 +170,144 @@ export const feature = {
     const joinAttempts = new Map()
     let gateway = null
     let gatewayStarting = null
+    // ── 局域网电脑直连（0.0.0.0）状态 ──
+    let lanChild = null
+    let lanPort = 0
+    let lanStartedAt = 0
+    let lanStopping = false
+
+    // 直连子实例自身（环境标记存在时）监视主进程：主进程退出后子实例随之退出，避免孤儿进程。
+    if (isLanChildInstance()) {
+      const parentPid = Number(process.env.DSH_DOCK_LAN_PARENT_PID || 0)
+      if (parentPid && parentPid !== process.pid) {
+        const watcher = setInterval(() => {
+          if (process.ppid !== parentPid) {
+            clearInterval(watcher)
+            console.log('[dsh-dock] 主实例已退出，局域网直连实例随之退出')
+            process.exit(0)
+          }
+        }, 5000)
+        disposers.push(() => clearInterval(watcher))
+      }
+    }
+
+    function lanStatus() {
+      const alive = Boolean(lanChild && lanChild.exitCode === null)
+      return {
+        active: alive,
+        port: lanPort,
+        pid: alive && lanChild.pid ? lanChild.pid : null,
+        startedAt: lanStartedAt,
+        addresses: lanAddresses(),
+        defaultPort: DEFAULT_LAN_DIRECT_PORT,
+        child: isLanChildInstance(),
+        logPath: lanPort ? lanLogPath(lanPort) : '',
+      }
+    }
+
+    async function stopLanDirect() {
+      const child = lanChild
+      if (!child || lanStopping) return { active: false, pid: child ? child.pid : null }
+      lanStopping = true
+      lanChild = null
+      lanPort = 0
+      lanStartedAt = 0
+      const exited = new Promise((resolve) => child.once('exit', resolve))
+      child.kill('SIGTERM')
+      const killer = setTimeout(() => {
+        if (child.exitCode === null) child.kill('SIGKILL')
+      }, LAN_STOP_GRACE_MS)
+      await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, LAN_STOP_GRACE_MS + 1500))])
+      clearTimeout(killer)
+      lanStopping = false
+      return { active: false, pid: child.pid }
+    }
+
+    async function startLanDirect(webServer, requestedPort) {
+      if (isLanChildInstance()) {
+        const error = new Error('当前已是局域网直连实例，无需（也不能）再开启一层直连')
+        error.statusCode = 400
+        throw error
+      }
+      const port = Number(requestedPort === undefined ? DEFAULT_LAN_DIRECT_PORT : requestedPort)
+      if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+        const error = new Error('局域网端口需为 1024 到 65535 之间的整数')
+        error.statusCode = 400
+        throw error
+      }
+      if (port === webServer.port) {
+        const error = new Error(`直连端口不能与 DSH 主服务端口 ${webServer.port} 相同`)
+        error.statusCode = 400
+        throw error
+      }
+      if (gateway && gateway.port === port) {
+        const error = new Error(`端口 ${port} 正在被手机接力网关使用，请换一个端口`)
+        error.statusCode = 409
+        throw error
+      }
+      if (lanChild && lanChild.exitCode === null) {
+        const error = new Error(`局域网直连已在 ${lanPort} 端口运行，请先关闭当前直连`)
+        error.statusCode = 409
+        throw error
+      }
+      await assertPortFree(port)
+
+      mkdirSync(lanDir(), { recursive: true })
+      const patchPath = lanPatchPath(port)
+      const logPath = lanLogPath(port)
+      try { writeFileSync(patchPath, lanPatchContent(port), 'utf8') } catch (error) {
+        const err = new Error('无法写入直连补丁：' + ((error && error.message) || String(error)))
+        err.statusCode = 500
+        throw err
+      }
+
+      const entry = dshEntry()
+      const args = ['--profile', 'web', '--patch', patchPath, '--port', String(port), '--no-open']
+      let logFd
+      try {
+        logFd = openSync(logPath, 'a')
+      } catch { logFd = 1 }
+      let child
+      try {
+        child = spawn(process.execPath, [entry, ...args], {
+          env: {
+            ...process.env,
+            DSH_DOCK_LAN_CHILD: '1',
+            DSH_DOCK_LAN_PARENT_PID: String(process.pid),
+          },
+          stdio: ['ignore', logFd, logFd],
+          cwd: process.cwd(),
+        })
+      } catch (error) {
+        const err = new Error('无法启动局域网直连实例：' + ((error && error.message) || String(error)))
+        err.statusCode = 500
+        throw err
+      }
+      lanChild = child
+      lanPort = port
+      lanStartedAt = now()
+      child.once('exit', () => {
+        if (logFd !== 1) { try { closeSync(logFd) } catch { /* ignore */ } }
+        if (lanChild === child) {
+          lanChild = null
+          lanPort = 0
+          lanStartedAt = 0
+        }
+      })
+
+      try {
+        await waitForLanReady(port, child, logPath)
+      } catch (error) {
+        if (lanChild === child) {
+          lanChild = null
+          lanPort = 0
+          lanStartedAt = 0
+        }
+        if (child.exitCode === null) child.kill('SIGTERM')
+        throw error
+      }
+      return { ...lanStatus(), pid: child.pid }
+    }
 
     async function stopGateway() {
       const current = gateway
@@ -223,6 +480,11 @@ export const feature = {
     }))
 
     disposers.push(ctx.inject(['webServer'], (wsCtx) => {
+      // 直连子实例（0.0.0.0）：向 index.html 注入 crypto.randomUUID 兜底，修复
+      // 非安全上下文下 DSH 客户端引导失败。仅子实例注册，主实例（回环）不受影响。
+      if (isLanChildInstance() && typeof wsCtx.webServer.tapIndex === 'function') {
+        disposers.push(wsCtx.effect(() => wsCtx.webServer.tapIndex(injectLanCompat)))
+      }
       wsCtx.effect(() => wsCtx.webServer.register({
         kind: 'prefix',
         path: '/dsh-dock/mobile-relay',
@@ -238,6 +500,17 @@ export const feature = {
                 main: { host: wsCtx.webServer.host, port: wsCtx.webServer.port },
                 gateway: gateway ? { active: true, port: gateway.port, addresses: gateway.addresses } : { active: false },
               } })
+            }
+            if (method === 'lan') {
+              return sendJson(res, 200, { ok: true, data: { ...lanStatus(), main: { host: wsCtx.webServer.host, port: wsCtx.webServer.port } } })
+            }
+            if (method === 'lan/start') {
+              const data = await startLanDirect(wsCtx.webServer, payload && payload.port)
+              return sendJson(res, 200, { ok: true, data: { ...data, main: { host: wsCtx.webServer.host, port: wsCtx.webServer.port } } })
+            }
+            if (method === 'lan/stop') {
+              const data = await stopLanDirect()
+              return sendJson(res, 200, { ok: true, data })
             }
             if (method === 'start') {
               const activeGateway = await ensureGateway(wsCtx.webServer, payload && payload.port)
@@ -322,6 +595,7 @@ export const feature = {
       }
       pairs.clear()
       tasks.clear()
+      void stopLanDirect()
       void stopGateway()
     }
   },
