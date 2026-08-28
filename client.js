@@ -40,18 +40,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// node_modules/qrcode/lib/can-promise.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/utils.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  "node_modules/qrcode/lib/core/utils.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -128,9 +128,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-level.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -173,9 +173,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-buffer.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -208,9 +208,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-matrix.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -237,9 +237,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alignment-pattern.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -272,9 +272,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/finder-pattern.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -291,9 +291,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mask-pattern.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -433,9 +433,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-code.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -794,9 +794,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/galois-field.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -827,9 +827,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/polynomial.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -863,9 +863,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -895,18 +895,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version-check.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  "node_modules/qrcode/lib/core/version-check.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/regex.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  "node_modules/qrcode/lib/core/regex.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -932,9 +932,9 @@ var require_regex = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mode.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  "node_modules/qrcode/lib/core/mode.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1013,9 +1013,9 @@ var require_mode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  "node_modules/qrcode/lib/core/version.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1108,9 +1108,9 @@ var require_version = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/format-info.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  "node_modules/qrcode/lib/core/format-info.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1126,9 +1126,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/numeric-data.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1161,9 +1161,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alphanumeric-data.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1240,9 +1240,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/byte-data.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1270,9 +1270,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/kanji-data.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1309,9 +1309,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// node_modules/dijkstrajs/dijkstra.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1410,9 +1410,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/segments.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  "node_modules/qrcode/lib/core/segments.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1596,9 +1596,9 @@ var require_segments = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/qrcode.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1857,9 +1857,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/utils.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1937,9 +1937,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/canvas.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1990,9 +1990,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/svg-tag.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2048,9 +2048,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/browser.js
+// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  "node_modules/qrcode/lib/browser.js"(exports) {
+  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -9462,9 +9462,6 @@ var feature7 = {
 var import_react19 = require("react");
 var import_qrcode = __toESM(require_browser(), 1);
 var import_jsx_runtime12 = require("react/jsx-runtime");
-var DEVICE_KEY = "dsh-dock/mobile-relay/device/v1";
-var SESSION_KEY = "dsh-dock/mobile-relay/session/v1";
-var LAUNCH_KEY = "dsh-dock/mobile-relay/launch/v1";
 function rpc(method, payload) {
   return fetch("/dsh-dock/mobile-relay/" + method, {
     method: "POST",
@@ -9473,56 +9470,9 @@ function rpc(method, payload) {
   }).then(async (res) => {
     const body = await res.json().catch(() => ({}));
     if (res.ok && body && body.ok) return body.data;
-    if (res.status === 404 || res.status === 405) throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u4ECD\u662F\u65E7\u7248\u672C\uFF0C\u8BF7\u91CD\u542F dsh web \u540E\u518D\u5F00\u542F\u5C40\u57DF\u7F51\u8FDE\u63A5");
+    if (res.status === 404 || res.status === 405) throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u4ECD\u662F\u65E7\u7248\u672C\uFF0C\u8BF7\u91CD\u542F dsh web \u540E\u518D\u8BD5");
     throw new Error(body && body.error && body.error.message || "\u8BF7\u6C42\u5931\u8D25\uFF08" + res.status + "\uFF09");
   });
-}
-function deviceId() {
-  let id = "";
-  try {
-    id = localStorage.getItem(DEVICE_KEY) || "";
-  } catch {
-  }
-  if (!id) {
-    id = globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-    try {
-      localStorage.setItem(DEVICE_KEY, id);
-    } catch {
-    }
-  }
-  return id;
-}
-function readSession() {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-function saveSession(value) {
-  try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
-  } catch {
-  }
-}
-function clearSession() {
-  try {
-    sessionStorage.removeItem(SESSION_KEY);
-  } catch {
-  }
-}
-function fmtDuration2(ms) {
-  const sec = Math.max(0, Math.floor((ms || 0) / 1e3));
-  const min = Math.floor(sec / 60);
-  const rest = sec % 60;
-  return min > 0 ? min + " \u5206 " + String(rest).padStart(2, "0") + " \u79D2" : rest + " \u79D2";
-}
-function fmtTime3(value) {
-  return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-}
-function phaseLabel3(phase) {
-  return { think: "\u6B63\u5728\u601D\u8003", write: "\u6B63\u5728\u8F93\u51FA", code: "\u6B63\u5728\u5F00\u53D1", search: "\u6B63\u5728\u67E5\u8D44\u6599" }[phase] || "\u8FDB\u884C\u4E2D";
 }
 function copy(value) {
   if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(value);
@@ -9530,10 +9480,6 @@ function copy(value) {
 }
 function RelayIcon({ name, size = 18 }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
-  if (name === "phone") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("rect", { x: "7", y: "2.5", width: "10", height: "19", rx: "2.2" }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M10 18.5h4" })
-  ] });
   if (name === "link") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M10.5 13.5a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1.15 1.14" }),
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M13.5 10.5a4 4 0 0 0-5.66-.01l-2 2a4 4 0 0 0 5.66 5.66l1.15-1.14" })
@@ -9542,12 +9488,8 @@ function RelayIcon({ name, size = 18 }) {
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("rect", { x: "8", y: "8", width: "11", height: "12", rx: "1.5" }),
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" })
   ] });
-  if (name === "check") return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m5 12 4.2 4.2L19 6.5" }) });
-  if (name === "arrow") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M5 12h13" }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m14 7 5 5-5 5" })
-  ] });
   if (name === "close") return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m6 6 12 12M18 6 6 18" }) });
+  if (name === "check") return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m5 12 4.2 4.2L19 6.5" }) });
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("circle", { cx: "12", cy: "12", r: "8" }),
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M12 8v4l2.5 2" })
@@ -9564,516 +9506,279 @@ function useCompact() {
   }, []);
   return compact;
 }
-function LanDirectCard() {
+function RemoteCard() {
+  const compact = useCompact();
   const [lan, setLan] = (0, import_react19.useState)(null);
-  const [lanPort, setLanPort] = (0, import_react19.useState)(3082);
-  const [lanBusy, setLanBusy] = (0, import_react19.useState)("");
-  const [lanAddress, setLanAddress] = (0, import_react19.useState)("");
-  const [lanQr, setLanQr] = (0, import_react19.useState)("");
-  const [lanMessage, setLanMessage] = (0, import_react19.useState)("");
-  const refreshLan = (0, import_react19.useCallback)(async () => {
+  const [username, setUsername] = (0, import_react19.useState)("");
+  const [password, setPassword] = (0, import_react19.useState)("");
+  const [newPassword, setNewPassword] = (0, import_react19.useState)("");
+  const [port, setPort] = (0, import_react19.useState)("");
+  const [address, setAddress] = (0, import_react19.useState)("");
+  const [qr, setQr] = (0, import_react19.useState)("");
+  const [busy, setBusy] = (0, import_react19.useState)("");
+  const [message, setMessage] = (0, import_react19.useState)("");
+  const [messageKind, setMessageKind] = (0, import_react19.useState)("error");
+  const [changing, setChanging] = (0, import_react19.useState)(false);
+  const [remote, setRemote] = (0, import_react19.useState)(false);
+  const notify = (0, import_react19.useCallback)((text, kind) => {
+    setMessage(text);
+    setMessageKind(kind || "error");
+  }, []);
+  const refresh = (0, import_react19.useCallback)(async () => {
     try {
       const data = await rpc("lan");
       setLan(data);
-      setLanAddress((prev) => prev || (data.addresses && data.addresses[0] ? data.addresses[0].address : ""));
+      setAddress((prev) => prev || (data.addresses && data.addresses[0] ? data.addresses[0].address : ""));
+      setUsername((prev) => prev || (data.username || ""));
     } catch (e) {
-      const message = e && e.message ? e.message : String(e);
-      if (!/旧版本/.test(message)) setLanMessage(message);
+      notify(e && e.message ? e.message : String(e));
     }
-  }, []);
+  }, [notify]);
   (0, import_react19.useEffect)(() => {
-    refreshLan();
-    const timer = setInterval(refreshLan, 3e3);
+    refresh();
+    const timer = setInterval(refresh, 3e3);
     return () => clearInterval(timer);
-  }, [refreshLan]);
-  const lanLink = (0, import_react19.useMemo)(() => {
-    if (!lan || !lan.active || !lanAddress || !lan.port) return "";
-    return "http://" + lanAddress + ":" + lan.port;
-  }, [lan, lanAddress]);
+  }, [refresh]);
   (0, import_react19.useEffect)(() => {
-    let active = true;
+    fetch("/__dsh_auth/health", { method: "POST" }).then((r) => setRemote(Boolean(r.ok))).catch(() => setRemote(false));
+  }, []);
+  const active = Boolean(lan && lan.gatewayActive);
+  const gatewayPort = lan && lan.gatewayPort ? lan.gatewayPort : 3081;
+  const lanLink = (0, import_react19.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
+  (0, import_react19.useEffect)(() => {
+    let live = true;
     if (!lanLink) {
-      setLanQr("");
+      setQr("");
       return () => {
-        active = false;
+        live = false;
       };
     }
-    import_qrcode.default.toDataURL(lanLink, {
-      errorCorrectionLevel: "M",
-      margin: 2,
-      width: 220,
-      color: { dark: "#111827", light: "#ffffff" }
-    }).then((value) => {
-      if (active) setLanQr(value);
+    import_qrcode.default.toDataURL(lanLink, { errorCorrectionLevel: "M", margin: 2, width: 220, color: { dark: "#111827", light: "#ffffff" } }).then((value) => {
+      if (live) setQr(value);
     }).catch(() => {
     });
     return () => {
-      active = false;
+      live = false;
     };
   }, [lanLink]);
-  async function startLan() {
-    setLanMessage("");
-    const numericPort = Number(lanPort);
-    if (!Number.isInteger(numericPort) || numericPort < 1024 || numericPort > 65535) {
-      setLanMessage("\u76F4\u8FDE\u7AEF\u53E3\u9700\u4E3A 1024 \u5230 65535 \u4E4B\u95F4\u7684\u6574\u6570\u3002");
-      return;
-    }
-    setLanBusy("start");
-    try {
-      const data = await rpc("lan/start", { port: numericPort });
-      setLan(data);
-      setLanAddress((prev) => prev || (data.addresses && data.addresses[0] ? data.addresses[0].address : ""));
-      setLanMessage("\u5C40\u57DF\u7F51\u76F4\u8FDE\u5DF2\u5F00\u542F\uFF1A0.0.0.0:" + data.port + "\uFF08\u8FDB\u7A0B " + data.pid + "\uFF09\u3002\u5C40\u57DF\u7F51\u5185\u4EFB\u4F55\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\u5373\u4E3A\u5B8C\u6574 DSH\u3002");
-    } catch (e) {
-      setLanMessage(e && e.message ? e.message : String(e));
-    } finally {
-      setLanBusy("");
-    }
-  }
-  async function stopLan() {
-    setLanMessage("");
-    setLanBusy("stop");
-    try {
-      const data = await rpc("lan/stop", {});
-      setLan((prev) => Object.assign({}, prev, { active: false, pid: null }));
-      setLanMessage("\u5C40\u57DF\u7F51\u76F4\u8FDE\u5DF2\u5173\u95ED" + (data && data.pid ? "\uFF08\u8FDB\u7A0B " + data.pid + "\uFF09" : "") + "\u3002");
-    } catch (e) {
-      setLanMessage(e && e.message ? e.message : String(e));
-    } finally {
-      setLanBusy("");
-    }
-  }
-  function copyLanLink() {
-    copy(lanLink).then(() => setLanMessage("\u76F4\u8FDE\u5730\u5740\u5DF2\u590D\u5236\u3002")).catch((e) => setLanMessage(e.message));
-  }
-  const running = Boolean(lan && lan.active);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr dmr-lan", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-title", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
-          " \u5C40\u57DF\u7F51\u7535\u8111\u76F4\u8FDE\uFF080.0.0.0\uFF09"
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u8BA9\u5C40\u57DF\u7F51\u7535\u8111\u8BBF\u95EE\u5B8C\u6574 DSH" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u5728\u72EC\u7ACB\u7AEF\u53E3\u542F\u52A8\u4E00\u4E2A\u7ED1\u5B9A 0.0.0.0 \u7684 dsh web \u5B9E\u4F8B\uFF0C\u4E0E\u4E3B\u5B9E\u4F8B\u5171\u7528\u540C\u4E00\u4EFD\u4F1A\u8BDD\u4E0E\u5DE5\u4F5C\u533A\uFF1B\u7535\u8111\u7AEF\u529F\u80FD\u3001\u4EA4\u4E92\u4E0E 127.0.0.1 \u5B8C\u5168\u4E00\u81F4\uFF08\u542B\u5DE5\u4F5C\u533A\u6587\u4EF6\u5939\u9009\u62E9\u3001\u4F1A\u8BDD\u8BB0\u5F55\uFF09\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dmr-lan-badge" + (running ? " on" : ""), role: "status", children: running ? "\u8FD0\u884C\u4E2D \xB7 :" + lan.port : "\u672A\u5F00\u542F" })
-    ] }),
-    running ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-active", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5C40\u57DF\u7F51 IP" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("select", { value: lanAddress, onChange: (e) => setLanAddress(e.target.value), children: lan.addresses && lan.addresses.length ? lan.addresses.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("option", { value: item.address, children: [
-            item.address,
-            " \xB7 ",
-            item.interface
-          ] }, item.interface + item.address)) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: "", children: "\u672A\u68C0\u6D4B\u5230\u5730\u5740" }) })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5B9E\u4F8B\u4FE1\u606F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { readOnly: true, value: "0.0.0.0:" + lan.port + " \xB7 PID " + (lan.pid || "\u2014"), "aria-label": "\u76F4\u8FDE\u5B9E\u4F8B\u4FE1\u606F" })
-        ] })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-layout", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-qr-card", children: [
-          lanQr ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("img", { src: lanQr, alt: "\u5C40\u57DF\u7F51\u76F4\u8FDE\u5730\u5740\u4E8C\u7EF4\u7801", width: "220", height: "220" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-qr-loading", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740\u8BBF\u95EE" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u7535\u8111\u3001\u624B\u673A\u5747\u53EF\u76F4\u63A5\u8BBF\u95EE" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-detail", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
-              " \u5B8C\u6574 DSH \u5B9E\u4F8B\u5DF2\u8FD0\u884C"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: lanLink })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-link", title: lanLink, children: lanLink }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-actions", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLanLink, disabled: !lanLink, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "copy" }),
-              "\u590D\u5236\u5730\u5740"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-secondary dmr-danger", onClick: stopLan, disabled: lanBusy === "stop", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }),
-              lanBusy === "stop" ? "\u6B63\u5728\u5173\u95ED\u2026" : "\u5173\u95ED\u76F4\u8FDE"
-            ] })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { children: [
-            "\u6B64\u5B9E\u4F8B\u4E0E\u4E3B\u5B9E\u4F8B\u5171\u7528\u540C\u4E00\u4EFD\u4F1A\u8BDD\u4E0E\u5DE5\u4F5C\u533A\uFF1B",
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u6CA1\u6709\u767B\u5F55\u4FDD\u62A4" }),
-            "\uFF0C\u7B49\u540C\u5B98\u65B9 CLI \u62D2\u7EDD\u7684 `--host 0.0.0.0`\uFF0C\u8BF7\u5728\u53EF\u4FE1\u5C40\u57DF\u7F51\u5185\u4F7F\u7528\uFF0C\u7528\u6BD5\u53CA\u65F6\u5173\u95ED\u3002"
-          ] })
-        ] })
-      ] }) })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-lan-idle", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u76F4\u8FDE\u7AEF\u53E3" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: lanPort, onChange: (e) => setLanPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", "aria-describedby": "dmr-lan-port-help" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { id: "dmr-lan-port-help", children: "\u9ED8\u8BA4 3082\uFF08\u4E3B\u670D\u52A1 3080\u3001\u624B\u673A\u63A5\u529B 3081 \u4E4B\u5916\u7684\u72EC\u7ACB\u7AEF\u53E3\uFF09\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-security", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5B89\u5168\u63D0\u793A" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u76F4\u8FDE\u6A21\u5F0F\u6CA1\u6709\u767B\u5F55\u8BA4\u8BC1\uFF0C\u7B49\u540C\u4EE5 0.0.0.0 \u542F\u52A8 dsh web\uFF08\u5B98\u65B9 CLI \u51FA\u4E8E\u5B89\u5168\u9ED8\u8BA4\u62D2\u7EDD\u8BE5\u65D7\u6807\uFF09\u3002\u53EA\u5E94\u5728\u53EF\u4FE1\u5C40\u57DF\u7F51\u5185\u5F00\u542F\uFF0C\u7528\u5B8C\u540E\u8BF7\u5173\u95ED\uFF1B\u5173\u95ED\u5373\u7EC8\u6B62\u5B50\u5B9E\u4F8B\u8FDB\u7A0B\u3002" })
-        ] })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-primary", onClick: startLan, disabled: lanBusy === "start", children: lanBusy === "start" ? "\u6B63\u5728\u542F\u52A8\u5B50\u5B9E\u4F8B\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "link" }),
-        "\u5F00\u542F\u5C40\u57DF\u7F51\u76F4\u8FDE\uFF080.0.0.0\uFF09"
-      ] }) })
-    ] }),
-    lanMessage && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message error", role: "alert", children: lanMessage })
-  ] });
-}
-function MobileRelayView() {
-  const compact = useCompact();
-  const [session, setSession] = (0, import_react19.useState)(readSession);
-  const [pair, setPair] = (0, import_react19.useState)(null);
-  const [network, setNetwork] = (0, import_react19.useState)(null);
-  const [port, setPort] = (0, import_react19.useState)(3081);
-  const [selectedAddress, setSelectedAddress] = (0, import_react19.useState)("");
-  const [qrDataUrl, setQrDataUrl] = (0, import_react19.useState)("");
-  const [note, setNote] = (0, import_react19.useState)("");
-  const [busy, setBusy] = (0, import_react19.useState)("");
-  const [notice, setNotice] = (0, import_react19.useState)("");
-  const [error, setError] = (0, import_react19.useState)("");
-  const mobile = session && session.role === "mobile";
-  const setCurrent = (0, import_react19.useCallback)((next) => {
-    setSession(next);
-    next ? saveSession(next) : clearSession();
-  }, []);
-  (0, import_react19.useEffect)(() => {
-    if (session) return;
-    rpc("network").then((data) => {
-      setNetwork(data);
-      if (data && data.defaultPort) setPort(data.defaultPort);
-      const first = data && data.addresses && data.addresses[0];
-      if (first) setSelectedAddress(first.address);
-    }).catch((e) => setError(e && e.message ? e.message : String(e)));
-  }, [session]);
-  const refresh = (0, import_react19.useCallback)(async (candidate = session) => {
-    if (!candidate) return;
-    try {
-      const result = await rpc("status", candidate);
-      setPair(result.pair);
-      setError("");
-    } catch (e) {
-      const message = e && e.message ? e.message : String(e);
-      setError(message);
-      if (/过期|未完成配对/.test(message)) setCurrent(null);
-    }
-  }, [session, setCurrent]);
-  (0, import_react19.useEffect)(() => {
-    if (session) refresh(session);
-  }, [session, refresh]);
-  (0, import_react19.useEffect)(() => {
-    if (!session) return;
-    const timer = setInterval(() => refresh(session), 2500);
-    return () => clearInterval(timer);
-  }, [session, refresh]);
-  (0, import_react19.useEffect)(() => {
-    if (session) return;
-    let launch = "";
-    try {
-      launch = sessionStorage.getItem(LAUNCH_KEY) || "";
-    } catch {
-    }
-    if (!launch) return;
-    try {
-      sessionStorage.removeItem(LAUNCH_KEY);
-    } catch {
-    }
-    const [pairId, code] = launch.split(".");
-    if (!pairId || !code) return;
-    setBusy("join");
-    rpc("join", { pairId, code, deviceId: deviceId(), label: "\u624B\u673A\u7AEF" }).then((data) => {
-      setCurrent({ pairId, secret: data.secret, role: "mobile", deviceId: deviceId() });
-      setPair(data.pair);
-      setNotice("\u5DF2\u8FDE\u63A5\u5230\u7535\u8111\u7AEF\uFF0C\u4EFB\u52A1\u72B6\u6001\u4F1A\u6301\u7EED\u540C\u6B65\u3002");
-    }).catch((e) => setError(e && e.message ? e.message : String(e))).finally(() => setBusy(""));
-  }, [session, setCurrent]);
-  const mobileLink = (0, import_react19.useMemo)(() => {
-    if (!session || !session.gatewayToken || !session.gatewayAddress || !session.gatewayPort) return "";
-    return "http://" + session.gatewayAddress + ":" + session.gatewayPort + "/__dsh_mobile/connect#" + session.gatewayToken;
-  }, [session]);
-  (0, import_react19.useEffect)(() => {
-    let active = true;
-    if (!mobileLink) {
-      setQrDataUrl("");
-      return () => {
-        active = false;
-      };
-    }
-    import_qrcode.default.toDataURL(mobileLink, {
-      errorCorrectionLevel: "M",
-      margin: 2,
-      width: 260,
-      color: { dark: "#111827", light: "#ffffff" }
-    }).then((value) => {
-      if (active) setQrDataUrl(value);
-    }).catch((e) => {
-      if (active) setError("\u4E8C\u7EF4\u7801\u751F\u6210\u5931\u8D25\uFF1A" + (e && e.message ? e.message : String(e)));
-    });
-    return () => {
-      active = false;
-    };
-  }, [mobileLink]);
-  async function start() {
-    setError("");
-    setNotice("");
-    const numericPort = Number(port);
-    if (!selectedAddress) {
-      setError("\u6CA1\u6709\u68C0\u6D4B\u5230\u53EF\u7528\u7684\u5C40\u57DF\u7F51 IPv4 \u5730\u5740\uFF0C\u8BF7\u5148\u8FDE\u63A5 Wi-Fi \u6216\u6709\u7EBF\u7F51\u7EDC\u3002");
-      return;
-    }
-    if (!Number.isInteger(numericPort) || numericPort < 1024 || numericPort > 65535) {
-      setError("\u5C40\u57DF\u7F51\u7AEF\u53E3\u9700\u4E3A 1024 \u5230 65535 \u4E4B\u95F4\u7684\u6574\u6570\u3002");
+  async function enable() {
+    notify("");
+    if (!lan.accountSet && (!username.trim() || password.length < 6)) {
+      notify("\u9996\u6B21\u5F00\u542F\u8BF7\u8BBE\u7F6E\u8D26\u53F7\u548C\u81F3\u5C11 6 \u4F4D\u7684\u5BC6\u7801\u3002");
       return;
     }
     setBusy("start");
     try {
-      const data = await rpc("start", { deviceId: deviceId(), port: numericPort });
-      const next = {
-        pairId: data.pairId,
-        secret: data.secret,
-        code: data.code,
-        role: "desktop",
-        deviceId: deviceId(),
-        gatewayToken: data.gatewayToken,
-        gatewayPort: data.gateway.port,
-        gatewayAddress: selectedAddress
-      };
-      setCurrent(next);
-      setPair(data.pair);
-      setNotice("\u53D7\u4FDD\u62A4\u7684\u5C40\u57DF\u7F51\u53CD\u5411\u4EE3\u7406\u5DF2\u5F00\u542F\u3002\u624B\u673A\u626B\u7801\u5373\u53EF\u8FDB\u5165\u540C\u4E00 DSH\u3002");
+      const payload = {};
+      if (username.trim() && newPassword) {
+        payload.username = username.trim();
+        payload.password = newPassword;
+      } else if (!lan.accountSet) {
+        payload.username = username.trim();
+        payload.password = password;
+      }
+      const numericPort = Number(port);
+      if (Number.isInteger(numericPort) && numericPort >= 1024 && numericPort <= 65535) payload.port = numericPort;
+      const data = await rpc("lan/start", payload);
+      setLan(data);
+      setPassword("");
+      setNewPassword("");
+      setChanging(false);
+      notify("\u8FDC\u7A0B\u8BBF\u95EE\u5DF2\u5F00\u542F\uFF1A\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\u5E76\u7528\u8D26\u53F7\u5BC6\u7801\u767B\u5F55\u3002" + (data.needsRestart ? "\uFF08\u5DE5\u4F5C\u533A\u76EE\u5F55\u7684\u6D4F\u89C8\u9009\u62E9\u9700\u91CD\u542F dsh web \u540E\u53EF\u7528\uFF09" : ""), "success");
     } catch (e) {
-      setError(e && e.message ? e.message : String(e));
+      notify(e && e.message ? e.message : String(e));
     } finally {
       setBusy("");
     }
   }
-  async function sendNote(event) {
-    event.preventDefault();
-    if (!session || !note.trim()) return;
-    setBusy("note");
-    setError("");
+  async function disable() {
+    notify("");
+    setBusy("stop");
     try {
-      const data = await rpc("note", Object.assign({}, session, { note }));
-      setPair(data.pair);
-      setNote("");
-      setNotice("\u63A5\u529B\u5907\u6CE8\u5DF2\u540C\u6B65\u3002");
+      const data = await rpc("lan/stop", {});
+      setLan(data);
+      notify("\u8FDC\u7A0B\u8BBF\u95EE\u5DF2\u5173\u95ED\uFF0C\u5DF2\u767B\u5F55\u8BBE\u5907\u5168\u90E8\u9000\u51FA\u3002" + (data.needsRestart ? "\u91CD\u542F dsh web \u540E\u6062\u590D\u5DE5\u4F5C\u533A\u539F\u751F\u9009\u62E9\u5668\u3002" : ""), "success");
     } catch (e) {
-      setError(e && e.message ? e.message : String(e));
+      notify(e && e.message ? e.message : String(e));
     } finally {
       setBusy("");
     }
   }
-  async function end() {
-    if (!session) return;
-    setBusy("end");
+  async function saveAuth() {
+    notify("");
+    if (!username.trim() || newPassword.length < 6) {
+      notify("\u8BF7\u586B\u5199\u8D26\u53F7\u548C\u81F3\u5C11 6 \u4F4D\u7684\u65B0\u5BC6\u7801\u3002");
+      return;
+    }
+    setBusy("auth");
     try {
-      await rpc("end", session);
-      setCurrent(null);
-      setPair(null);
-      setNotice("\u624B\u673A\u8FDE\u63A5\u5DF2\u5173\u95ED\u3002");
+      const data = await rpc("auth/set", { username: username.trim(), password: newPassword });
+      setLan(data);
+      setPassword("");
+      setNewPassword("");
+      setChanging(false);
+      notify("\u8D26\u53F7\u5BC6\u7801\u5DF2\u66F4\u65B0\uFF0C\u6240\u6709\u8BBE\u5907\u9700\u91CD\u65B0\u767B\u5F55\u3002", "success");
     } catch (e) {
-      setError(e && e.message ? e.message : String(e));
+      notify(e && e.message ? e.message : String(e));
     } finally {
       setBusy("");
     }
   }
   function copyLink() {
-    copy(mobileLink).then(() => setNotice("\u8FDE\u63A5\u94FE\u63A5\u5DF2\u590D\u5236\u3002")).catch((e) => setError(e.message));
+    copy(lanLink).then(() => notify("\u5730\u5740\u5DF2\u590D\u5236\u3002", "success")).catch((e) => notify(e.message));
   }
-  if (!session) return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-hero", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dmr-hero-icon", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "phone", size: 22 }) }),
+  function logout() {
+    const info = typeof window !== "undefined" ? window.__DSH_REMOTE__ : null;
+    if (info && info.logout) window.location.href = info.logout;
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-status-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "\u628A\u5F00\u53D1\u4EFB\u52A1\u63A5\u5230\u624B\u673A" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u4E3B DSH \u7EE7\u7EED\u4EC5\u9650\u672C\u673A\uFF1B\u5F00\u542F\u5C40\u57DF\u7F51\u53CD\u5411\u4EE3\u7406\u540E\uFF0C\u901A\u8FC7\u4E00\u6B21\u6027\u4E8C\u7EF4\u7801\u5B89\u5168\u63A5\u5165\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+          " \u8FDC\u7A0B\u8BBF\u95EE"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: active ? "\u5165\u53E3\u5DF2\u5F00\u542F" : "\u4ECE\u4EFB\u4F55\u8BBE\u5907\u8BBF\u95EE\u8FD9\u4E2A DSH" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: active ? "\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\uFF0C\u7528\u8D26\u53F7\u5BC6\u7801\u767B\u5F55\u5373\u53EF\u4F7F\u7528\u5B8C\u6574 DSH\uFF08\u4E0E\u672C\u673A\u540C\u4E00\u5B9E\u4F8B\uFF0C\u4EFB\u52A1\u8FDB\u5EA6\u5B9E\u65F6\u4E00\u81F4\uFF09\u3002" : "\u5F00\u542F\u540E\uFF0C\u5C40\u57DF\u7F51/\u865A\u62DF\u7F51\u8BBE\u5907\u8BBF\u95EE\u7F51\u5173\u5730\u5740\u5E76\u767B\u5F55\uFF0C\u5373\u53EF\u4F7F\u7528\u4E0E\u672C\u673A\u5B8C\u5168\u4E00\u81F4\u7684 DSH\u3002" })
+      ] }),
+      remote && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-secondary", onClick: logout, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }),
+        "\u9000\u51FA\u767B\u5F55"
       ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("ol", { className: "dmr-steps", children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "1" }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u786E\u8BA4 IP \u4E0E\u7AEF\u53E3" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u81EA\u52A8\u8BC6\u522B\u7535\u8111\u5C40\u57DF\u7F51 IPv4\uFF0C\u9ED8\u8BA4\u4F7F\u7528\u72EC\u7ACB\u7AEF\u53E3 3081\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u8BBE\u7F6E\u8D26\u53F7\u5BC6\u7801" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u8FDC\u7A0B\u767B\u5F55\u7684\u552F\u4E00\u51ED\u636E\uFF0C\u6539\u5BC6\u540E\u6240\u6709\u8BBE\u5907\u91CD\u65B0\u767B\u5F55\u3002" })
         ] })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "2" }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5F00\u542F\u53CD\u5411\u4EE3\u7406" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u4EE3\u7406 HTTP \u4E0E WebSocket\uFF0C\u672A\u8BA4\u8BC1\u8BBE\u5907\u65E0\u6CD5\u8BBF\u95EE\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5F00\u542F\u5165\u53E3" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u7F51\u5173\u76D1\u542C 0.0.0.0:3081\uFF08\u53EF\u6539\u7AEF\u53E3\uFF09\uFF0C\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\u3002" })
         ] })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "3" }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u624B\u673A\u626B\u7801\u63A5\u529B" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u626B\u7801\u8FDB\u5165\u539F\u4F1A\u8BDD\uFF0C\u7535\u8111\u7AEF\u540C\u6B65\u770B\u5230\u5F00\u53D1\u8FDB\u5EA6\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u8BBE\u5907\u8BBF\u95EE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740\u767B\u5F55\uFF1B\u5F02\u5730\u7EC4\u7F51\uFF08Tailscale \u7B49\uFF09\u7528\u7EC4\u7F51 IP \u76F4\u8FDE\u3002" })
         ] })
       ] })
     ] }),
+    !active ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8D26\u53F7" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: username, onChange: (e) => setUsername(e.target.value), autoComplete: "username", placeholder: "\u767B\u5F55\u8D26\u53F7" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5BC6\u7801" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { type: "password", value: password, onChange: (e) => setPassword(e.target.value), autoComplete: "new-password", placeholder: lan && lan.accountSet ? "\u5DF2\u8BBE\u7F6E\uFF0C\u7559\u7A7A\u6CBF\u7528" : "\u81F3\u5C11 6 \u4F4D" })
+      ] })
+    ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5C40\u57DF\u7F51 IP" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("select", { value: selectedAddress, onChange: (e) => setSelectedAddress(e.target.value), disabled: !network || !network.addresses || !network.addresses.length, children: network && network.addresses && network.addresses.length ? network.addresses.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("option", { value: item.address, children: [
-          item.address,
-          " \xB7 ",
-          item.interface
-        ] }, item.interface + item.address)) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("option", { value: "", children: network ? "\u672A\u68C0\u6D4B\u5230\u5730\u5740" : "\u6B63\u5728\u68C0\u6D4B\u7F51\u7EDC\u2026" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u624B\u673A\u9700\u4E0E\u7535\u8111\u4F4D\u4E8E\u53EF\u4E92\u8BBF\u7684\u540C\u4E00\u5C40\u57DF\u7F51\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u76D1\u542C\u7AEF\u53E3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", "aria-describedby": "dmr-port-help" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { id: "dmr-port-help", children: "\u4E3B\u670D\u52A1\u4ECD\u4E3A 127.0.0.1:3080\uFF1B\u624B\u673A\u5165\u53E3\u5EFA\u8BAE\u4F7F\u7528 3081\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", placeholder: "\u9ED8\u8BA4 " + gatewayPort, "aria-describedby": "dmr-lan-port-help" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { id: "dmr-lan-port-help", children: [
+          "\u7559\u7A7A\u4FDD\u6301\u5F53\u524D\u7AEF\u53E3 ",
+          gatewayPort,
+          "\uFF1B\u91CD\u542F dsh web \u540E\u4ECD\u4EE5\u8FD9\u91CC\u8BBE\u7F6E\u7684\u7AEF\u53E3\u4E3A\u51C6\u3002"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-security", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5B89\u5168\u8BF4\u660E" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u76D1\u542C 127.0.0.1\uFF1A\u8FDC\u7A0B\u8BBE\u5907\u53EA\u80FD\u7ECF\u8FD9\u4E2A\u767B\u5F55\u7F51\u5173\u8FDB\u5165\uFF0C\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u7684\u76F4\u8FDE\u8DEF\u5F84\u3002\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\uFF1B\u6539\u5BC6\u540E\u6240\u6709\u8BBE\u5907\u9700\u91CD\u65B0\u767B\u5F55\u3002" })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-security", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5B89\u5168\u8BF4\u660E" }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u94FE\u63A5\u76F8\u5F53\u4E8E\u4E34\u65F6\u767B\u5F55\u51ED\u636E\uFF0C\u53EA\u53D1\u7ED9\u81EA\u5DF1\u7684\u624B\u673A\u3002\u9A8C\u8BC1\u4EE4\u724C 10 \u5206\u949F\u540E\u5931\u6548\uFF1B\u5173\u95ED\u8FDE\u63A5\u4F1A\u7ACB\u5373\u64A4\u9500\u624B\u673A\u4F1A\u8BDD\u5E76\u505C\u6B62\u7AEF\u53E3\u76D1\u542C\u3002" })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-primary", onClick: start, disabled: busy === "start" || !selectedAddress, children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u53CD\u5411\u4EE3\u7406\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "link" }),
-      "\u5F00\u542F\u53CD\u5411\u4EE3\u7406\u5E76\u751F\u6210\u4E8C\u7EF4\u7801"
-    ] }) }),
-    error && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message error", role: "alert", children: error }),
-    notice && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-message success", "aria-live": "polite", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "check" }),
-      notice
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LanDirectCard, {})
-  ] });
-  const onlineMobiles = pair && pair.devices ? pair.devices.filter((device) => device.role === "mobile") : [];
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-status-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
-          " ",
-          mobile ? "\u5DF2\u8FDE\u63A5\u5230\u7535\u8111" : "\u624B\u673A\u8FDE\u63A5\u5DF2\u5F00\u542F"
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: mobile ? "\u53EF\u4EE5\u5728\u8FD9\u91CC\u7EE7\u7EED\u5F00\u53D1" : "\u7B49\u5F85\u624B\u673A\u63A5\u5165" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: mobile ? "\u4EFB\u52A1\u72B6\u6001\u548C\u63A5\u529B\u5907\u6CE8\u4F1A\u81EA\u52A8\u540C\u6B65\u3002\u7EE7\u7EED\u5F00\u53D1\u8BF7\u56DE\u5230\u5F53\u524D DSH \u4F1A\u8BDD\u8F93\u5165\u533A\u3002" : "\u5C06\u4E0B\u9762\u7684\u5B89\u5168\u94FE\u63A5\u53D1\u5230\u624B\u673A\uFF1B\u8FDE\u63A5\u5728 " + fmtTime3(pair && pair.expiresAt) + " \u524D\u6709\u6548\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-icon-button", onClick: end, disabled: busy === "end", title: "\u5173\u95ED\u624B\u673A\u8FDE\u63A5", "aria-label": "\u5173\u95ED\u624B\u673A\u8FDE\u63A5", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }) })
-    ] }),
-    !mobile && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-layout", children: [
+    active ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-layout", children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-qr-card", children: [
-        qrDataUrl ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("img", { src: qrDataUrl, alt: "\u624B\u673A\u63A5\u529B\u4E00\u6B21\u6027\u8FDE\u63A5\u4E8C\u7EF4\u7801", width: "260", height: "260" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-qr-loading", "aria-live": "polite", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u4F7F\u7528\u624B\u673A\u76F8\u673A\u626B\u7801" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u624B\u673A\u4E0E\u7535\u8111\u9700\u5728\u540C\u4E00\u5C40\u57DF\u7F51" })
+        qr ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("img", { src: qr, alt: "\u8FDC\u7A0B\u8BBF\u95EE\u5730\u5740\u4E8C\u7EF4\u7801", width: "220", height: "220" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-qr-loading", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u6253\u5F00\u540E\u8F93\u5165\u8D26\u53F7\u5BC6\u7801\u767B\u5F55" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-detail", children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
           /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
             /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
-            " \u53CD\u5411\u4EE3\u7406\u5DF2\u8FD0\u884C"
+            " \u767B\u5F55\u7F51\u5173\u5DF2\u8FD0\u884C"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("h4", { children: [
-            session.gatewayAddress,
-            ":",
-            session.gatewayPort,
-            " \u2192 127.0.0.1:3080"
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: lanLink })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-link", title: lanLink, children: lanLink }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLink, disabled: !lanLink, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "copy" }),
+            "\u590D\u5236\u5730\u5740"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-secondary dmr-danger", onClick: disable, disabled: busy === "stop", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }),
+            busy === "stop" ? "\u6B63\u5728\u5173\u95ED\u2026" : "\u5173\u95ED\u8FDC\u7A0B\u8BBF\u95EE"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-link", title: mobileLink, children: mobileLink || "\u5C40\u57DF\u7F51\u5165\u53E3\u672A\u5C31\u7EEA" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share-actions", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLink, disabled: !mobileLink, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "copy" }),
-          "\u590D\u5236\u8FDE\u63A5\u94FE\u63A5"
-        ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u4E8C\u7EF4\u7801\u548C\u94FE\u63A5\u53EA\u53EF\u6210\u529F\u9A8C\u8BC1\u4E00\u6B21\uFF0C10 \u5206\u949F\u540E\u5931\u6548\u3002\u5982\u9700\u53E6\u4E00\u53F0\u624B\u673A\uFF0C\u8BF7\u5173\u95ED\u540E\u91CD\u65B0\u5F00\u542F\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\uFF08\u7ED3\u6784\u4E0A\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u76F4\u8FDE\uFF09\uFF1B\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\u3002\u82E5\u5F00\u542F\u524D\u5DF2\u6709\u65E7\u670D\u52A1\u5668\u6A21\u5F0F\uFF080.0.0.0\uFF09\u914D\u7F6E\uFF0C\u4F1A\u4E00\u5E76\u79FB\u9664\u5E76\u63D0\u793A\u91CD\u542F\u3002" })
       ] })
+    ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-primary", onClick: enable, disabled: busy === "start", children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "link" }),
+      "\u5F00\u542F\u8FDC\u7A0B\u8BBF\u95EE"
     ] }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-overview", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-overview-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8BBE\u5907\u72B6\u6001" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: mobile ? "\u624B\u673A\u5DF2\u63A5\u529B" : onlineMobiles.length ? onlineMobiles.length + " \u53F0\u624B\u673A\u5728\u7EBF" : "\u7B49\u5F85\u624B\u673A" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: mobile ? "\u4FDD\u6301\u6B64\u9875\u9762\u6253\u5F00\u5373\u53EF\u540C\u6B65\u72B6\u6001" : onlineMobiles.length ? "\u72B6\u6001\u6BCF 2.5 \u79D2\u5237\u65B0" : "\u8FDE\u63A5\u7801\u4EC5\u5728\u5F53\u524D\u914D\u5BF9\u7A97\u53E3\u6709\u6548" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-overview-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8FDB\u884C\u4E2D\u7684\u4EFB\u52A1" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: pair && pair.tasks ? pair.tasks.length : "\u2014" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: pair && pair.tasks && pair.tasks.length ? "\u4E0E DSH \u5F53\u524D\u4F1A\u8BDD\u5171\u7528\u540C\u4E00\u4EFB\u52A1" : "\u5F00\u59CB\u4EFB\u52A1\u540E\u4F1A\u81EA\u52A8\u663E\u793A\u5728\u8FD9\u91CC" })
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section", children: [
+    active ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section", children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u5B9E\u65F6\u4EFB\u52A1" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-text-button", onClick: () => refresh(), disabled: busy, children: "\u5237\u65B0" })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u4FEE\u6539\u8D26\u53F7\u5BC6\u7801" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-text-button", onClick: () => setChanging((v) => !v), children: changing ? "\u6536\u8D77" : "\u4FEE\u6539" })
       ] }),
-      pair && pair.tasks && pair.tasks.length ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-task-list", children: pair.tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("article", { className: "dmr-task", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dmr-phase " + task.phase, children: phaseLabel3(task.phase) }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: task.title }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { children: [
-            "\u5DF2\u8FD0\u884C ",
-            fmtDuration2(task.elapsed),
-            " \xB7 \u6700\u8FD1\u6D3B\u52A8 ",
-            fmtTime3(task.lastActivityAt)
+      changing ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-note", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8D26\u53F7" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: username, onChange: (e) => setUsername(e.target.value), autoComplete: "username" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u65B0\u5BC6\u7801" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { type: "password", value: newPassword, onChange: (e) => setNewPassword(e.target.value), autoComplete: "new-password", placeholder: "\u81F3\u5C11 6 \u4F4D" })
           ] })
-        ] })
-      ] }, task.sessionId)) }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-empty", children: "\u5F53\u524D\u6CA1\u6709\u6B63\u5728\u8FD0\u884C\u7684\u4EFB\u52A1\u3002\u542F\u52A8\u4EFB\u52A1\u540E\uFF0C\u624B\u673A\u548C\u7535\u8111\u90FD\u4F1A\u770B\u5230\u540C\u4E00\u4EFD\u72B6\u6001\u3002" })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("form", { className: "dmr-note", onSubmit: sendNote, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u63A5\u529B\u5907\u6CE8" }),
-        pair && pair.noteAt ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { children: [
-          pair.noteFrom,
-          " \xB7 ",
-          fmtTime3(pair.noteAt)
-        ] }) : null
-      ] }),
-      pair && pair.note ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("blockquote", { children: pair.note }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u628A\u5F53\u524D\u8FDB\u5EA6\u3001\u4E0B\u4E00\u6B65\u6216\u9700\u8981\u6CE8\u610F\u7684\u4E8B\u9879\u7559\u7ED9\u53E6\u4E00\u53F0\u8BBE\u5907\u3002" }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "sr-only", children: "\u63A5\u529B\u5907\u6CE8" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("textarea", { value: note, onChange: (e) => setNote(e.target.value), maxLength: "1200", placeholder: mobile ? "\u4F8B\u5982\uFF1A\u6211\u5DF2\u5728\u624B\u673A\u67E5\u770B\u5230\u6784\u5EFA\u9519\u8BEF\uFF0C\u4E0B\u4E00\u6B65\u8BF7\u5728\u7535\u8111\u8FD0\u884C\u6D4B\u8BD5\u3002" : "\u4F8B\u5982\uFF1A\u5DF2\u7ECF\u5B8C\u6210\u63A5\u53E3\u4FEE\u6539\uFF0C\u624B\u673A\u7AEF\u7EE7\u7EED\u68C0\u67E5\u9875\u9762\u4EA4\u4E92\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { className: "dmr-secondary", disabled: !note.trim() || busy === "note", children: busy === "note" ? "\u6B63\u5728\u540C\u6B65\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "arrow" }),
-        "\u540C\u6B65\u5907\u6CE8"
-      ] }) })
-    ] }),
-    error && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message error", role: "alert", children: error }),
-    notice && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-message success", "aria-live": "polite", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "check" }),
-      notice
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(LanDirectCard, {})
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-secondary", onClick: saveAuth, disabled: busy === "auth" || !username.trim() || newPassword.length < 6, children: busy === "auth" ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\uFF08\u6240\u6709\u8BBE\u5907\u91CD\u65B0\u767B\u5F55\uFF09" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("p", { className: "dmr-note", children: [
+        "\u5F53\u524D\u8D26\u53F7\uFF1A",
+        lan.username || "\u2014",
+        "\u3002\u4FEE\u6539\u540E\u6240\u6709\u5DF2\u767B\u5F55\u8BBE\u5907\u5C06\u88AB\u5F3A\u5236\u9000\u51FA\u3002"
+      ] })
+    ] }) : null,
+    message ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message " + (messageKind === "success" ? "success" : "error"), role: "alert", children: message }) : null
   ] });
 }
+function MobileRelayView() {
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RemoteCard, {});
+}
 function MobileRelayHomeStat() {
-  const [summary, setSummary] = (0, import_react19.useState)("\u53EF\u5728\u624B\u673A\u7EE7\u7EED\u5F53\u524D\u4EFB\u52A1");
+  const [summary, setSummary] = (0, import_react19.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
   (0, import_react19.useEffect)(() => {
-    const session = readSession();
-    if (!session) return;
-    rpc("status", session).then((data) => {
-      const p = data.pair;
-      setSummary((p.tasks || []).length ? p.tasks.length + " \u4E2A\u4EFB\u52A1\u540C\u6B65\u4E2D" : "\u624B\u673A\u5DF2\u8FDE\u63A5\uFF0C\u7B49\u5F85\u4EFB\u52A1");
-    }).catch(() => setSummary("\u8FDE\u63A5\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u914D\u5BF9"));
+    rpc("lan").then((data) => {
+      setSummary(data.gatewayActive ? "\u5165\u53E3\u8FD0\u884C\u4E2D \xB7 \u7AEF\u53E3 " + data.gatewayPort : data.accountSet ? "\u8D26\u53F7\u5DF2\u8BBE\u7F6E\uFF0C\u5165\u53E3\u672A\u5F00\u542F" : "\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
+    }).catch(() => {
+    });
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: summary });
 }
 var feature8 = {
   id: "mobile-relay",
-  name: "\u624B\u673A\u63A5\u529B",
+  name: "\u8FDC\u7A0B\u8BBF\u95EE",
   order: 80,
   accent: "#38bdf8",
-  description: "\u5B89\u5168\u53CD\u5411\u4EE3\u7406\u4E0E\u626B\u7801\u63A5\u529B\uFF0C\u540C\u6B65\u5F53\u524D\u4EFB\u52A1\u72B6\u6001\u548C\u5907\u6CE8",
+  description: "\u8D26\u53F7\u5BC6\u7801\u767B\u5F55\u7684\u8FDC\u7A0B\u5165\u53E3\uFF1A\u6240\u6709\u8BBE\u5907\u8BBF\u95EE\u540C\u4E00\u4E2A DSH\uFF0C\u4EFB\u52A1\u8FDB\u5EA6\u5B9E\u65F6\u4E00\u81F4",
   defaultEnabled: true,
   css: `
-.dmr{--dmr-accent:#38bdf8;--dmr-accent-soft:color-mix(in srgb,var(--dmr-accent) 13%,transparent);display:flex;flex-direction:column;gap:16px;max-width:720px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dmr h3,.dmr h4,.dmr p{margin:0}.dmr h3{font-size:17px;line-height:1.25;letter-spacing:-.01em}.dmr h4{font-size:13px}.dmr-hero,.dmr-status-head{display:flex;align-items:flex-start;gap:12px}.dmr-hero>div,.dmr-status-head>div{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-hero-icon{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:14px;background:var(--dmr-accent-soft);color:var(--dmr-accent);border:1px solid color-mix(in srgb,var(--dmr-accent) 35%,var(--dsw-alias-border-l1))}.dmr-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}.dmr-steps li{display:flex;gap:9px;padding:11px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:12px}.dmr-steps li>span{width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;font-size:11px;font-weight:700;color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-steps div{display:flex;flex-direction:column;gap:3px;min-width:0}.dmr-steps strong{font-size:12px}.dmr-steps small{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}.dmr-field{display:flex;flex-direction:column;gap:6px;font-weight:600}.dmr-field input,.dmr-field select,.dmr-note textarea{box-sizing:border-box;width:100%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:10px 12px;min-height:44px;font:inherit;outline:none;transition:border-color .18s ease,box-shadow .18s ease}.dmr-field input:focus,.dmr-field select:focus,.dmr-note textarea:focus{border-color:var(--dmr-accent);box-shadow:0 0 0 3px var(--dmr-accent-soft)}.dmr-field small{font-weight:400}.dmr-network-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(150px,.6fr);gap:12px}.dmr-security{padding:12px 13px;border:1px solid color-mix(in srgb,#f59e0b 38%,var(--dsw-alias-border-l1));border-radius:12px;background:color-mix(in srgb,#f59e0b 8%,transparent)}.dmr-security strong{display:block;margin-bottom:4px;color:#f59e0b;font-size:12px}.dmr-security p{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.55}.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button{font:inherit;touch-action:manipulation;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease,opacity .18s ease}.dmr-primary,.dmr-secondary{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:9px 13px;font-weight:600}.dmr-primary{align-self:flex-start;border:1px solid var(--dmr-accent);background:var(--dmr-accent);color:#062238}.dmr-primary:hover{filter:brightness(1.05)}.dmr-secondary{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}.dmr-secondary:hover{border-color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-primary:active,.dmr-secondary:active,.dmr-icon-button:active{transform:scale(.98)}.dmr-primary:disabled,.dmr-secondary:disabled,.dmr-text-button:disabled,.dmr-icon-button:disabled{cursor:not-allowed;opacity:.5}.dmr-message{display:flex;align-items:flex-start;gap:7px;padding:10px 12px;border-radius:10px;font-size:12px}.dmr-message.success{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent)}.dmr-message.error{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}.dmr-status-head{justify-content:space-between}.dmr-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--dmr-accent)}.dmr-eyebrow i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px var(--dmr-accent-soft)}.dmr-icon-button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-secondary)}.dmr-icon-button:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor}.dmr-share{display:flex;flex-direction:column;gap:9px;padding:13px;border:1px solid color-mix(in srgb,var(--dmr-accent) 32%,var(--dsw-alias-border-l1));border-radius:13px;background:var(--dmr-accent-soft)}.dmr-share-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:center}.dmr-qr-card{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border-radius:12px;background:#fff;color:#111827;text-align:center}.dmr-qr-card img{display:block;width:176px;height:176px;max-width:100%;object-fit:contain}.dmr-qr-card strong{font-size:12px}.dmr-qr-card small{color:#4b5563;font-size:10px}.dmr-qr-loading{display:grid;place-items:center;width:176px;height:176px;color:#64748b;font-size:12px}.dmr-share-detail{min-width:0;display:flex;flex-direction:column;gap:10px}.dmr-share-detail>div:first-child{display:flex;flex-direction:column;gap:4px}.dmr-link{padding:10px 11px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:var(--dsw-alias-label-secondary)}.dmr-share-actions{display:flex;gap:8px;flex-wrap:wrap}.dmr-share-actions .dmr-primary{align-self:auto}.dmr-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dmr-overview-card{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dmr-overview-card>span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-overview-card strong{font-size:16px;letter-spacing:-.01em}.dmr-section{display:flex;flex-direction:column;gap:9px}.dmr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.dmr-section-head small{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-text-button{border:0;background:transparent;color:var(--dmr-accent);padding:8px;min-height:36px;font-weight:600}.dmr-task-list{display:flex;flex-direction:column;gap:8px}.dmr-task{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dmr-task>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.dmr-task strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dmr-phase{flex:none;border-radius:999px;padding:3px 8px;font-size:11px;background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-phase.write{color:var(--dsw-alias-state-success-primary)}.dmr-phase.code{color:#f59e0b}.dmr-phase.search{color:#14b8a6}.dmr-empty{padding:18px 12px;text-align:center;border:1px dashed var(--dsw-alias-border-l2);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}.dmr-note{display:flex;flex-direction:column;gap:9px;padding-top:2px}.dmr-note blockquote{margin:0;padding:10px 12px;border-left:3px solid var(--dmr-accent);border-radius:0 9px 9px 0;background:var(--dmr-accent-soft);white-space:pre-wrap;font-size:12px}.dmr-note textarea{min-height:88px;resize:vertical;line-height:1.5}.dmr-note .dmr-secondary{align-self:flex-start}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media (max-width:680px){.dmr{gap:14px;font-size:14px}.dmr h3{font-size:18px}.dmr-steps{grid-template-columns:1fr;gap:8px}.dmr-steps li{padding:10px}.dmr-steps small,.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{font-size:12px}.dmr-network-grid{grid-template-columns:1fr;gap:10px}.dmr-field input,.dmr-field select{font-size:16px}.dmr-primary,.dmr-secondary{width:100%;font-size:14px}.dmr-share-layout{grid-template-columns:1fr;gap:12px}.dmr-qr-card{width:min(240px,100%);margin:0 auto}.dmr-qr-card img,.dmr-qr-loading{width:210px;height:210px}.dmr-share-actions{flex-direction:column}.dmr-share-actions .dmr-primary{width:100%}.dmr-overview{gap:8px}.dmr-overview-card{padding:11px}.dmr-status-head{gap:8px}.dmr-link{font-size:11px}.dmr-note textarea{font-size:16px;min-height:104px}.dmr-note .dmr-secondary{align-self:stretch}.dmr-compact .dmr-hero-icon{width:40px;height:40px;border-radius:13px}}@media (prefers-reduced-motion:reduce){.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button,.dmr-field input,.dmr-field select,.dmr-note textarea{transition:none}}.dmr-lan{flex:none;margin-top:6px;padding-top:16px;border-top:1px solid var(--dsw-alias-border-l1)}.dmr-lan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.dmr-lan-title{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-lan-title p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-lan-badge{flex:none;display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}.dmr-lan-badge.on{border-color:color-mix(in srgb,var(--dmr-accent) 45%,transparent);background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-lan-active,.dmr-lan-idle{display:flex;flex-direction:column;gap:12px}.dmr-lan-active .dmr-share-detail small strong{color:var(--dsw-alias-state-error-primary)}.dmr-danger{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,var(--dsw-alias-border-l2));color:var(--dsw-alias-state-error-primary)}.dmr-danger:hover{border-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}
-`,
+.dmr{--dmr-accent:#38bdf8;--dmr-accent-soft:color-mix(in srgb,var(--dmr-accent) 13%,transparent);display:flex;flex-direction:column;gap:16px;max-width:720px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dmr h3,.dmr h4,.dmr p{margin:0}.dmr h3{font-size:17px;line-height:1.25;letter-spacing:-.01em}.dmr h4{font-size:13px}.dmr-hero,.dmr-status-head{display:flex;align-items:flex-start;gap:12px}.dmr-hero>div,.dmr-status-head>div{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-hero-icon{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:14px;background:var(--dmr-accent-soft);color:var(--dmr-accent);border:1px solid color-mix(in srgb,var(--dmr-accent) 35%,var(--dsw-alias-border-l1))}.dmr-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}.dmr-steps li{display:flex;gap:9px;padding:11px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:12px}.dmr-steps li>span{width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;font-size:11px;font-weight:700;color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-steps div{display:flex;flex-direction:column;gap:3px;min-width:0}.dmr-steps strong{font-size:12px}.dmr-steps small{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}.dmr-field{display:flex;flex-direction:column;gap:6px;font-weight:600}.dmr-field input,.dmr-field select,.dmr-note textarea{box-sizing:border-box;width:100%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:10px 12px;min-height:44px;font:inherit;outline:none;transition:border-color .18s ease,box-shadow .18s ease}.dmr-field input:focus,.dmr-field select:focus,.dmr-note textarea:focus{border-color:var(--dmr-accent);box-shadow:0 0 0 3px var(--dmr-accent-soft)}.dmr-field small{font-weight:400}.dmr-network-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(150px,.6fr);gap:12px}.dmr-security{padding:12px 13px;border:1px solid color-mix(in srgb,#f59e0b 38%,var(--dsw-alias-border-l1));border-radius:12px;background:color-mix(in srgb,#f59e0b 8%,transparent)}.dmr-security strong{display:block;margin-bottom:4px;color:#f59e0b;font-size:12px}.dmr-security p{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.55}.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button{font:inherit;touch-action:manipulation;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease,opacity .18s ease}.dmr-primary,.dmr-secondary{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:9px 13px;font-weight:600}.dmr-primary{align-self:flex-start;border:1px solid var(--dmr-accent);background:var(--dmr-accent);color:#062238}.dmr-primary:hover{filter:brightness(1.05)}.dmr-secondary{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}.dmr-secondary:hover{border-color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-primary:active,.dmr-secondary:active,.dmr-icon-button:active{transform:scale(.98)}.dmr-primary:disabled,.dmr-secondary:disabled,.dmr-text-button:disabled,.dmr-icon-button:disabled{cursor:not-allowed;opacity:.5}.dmr-message{display:flex;align-items:flex-start;gap:7px;padding:10px 12px;border-radius:10px;font-size:12px}.dmr-message.success{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent)}.dmr-message.error{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}.dmr-status-head{justify-content:space-between}.dmr-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--dmr-accent)}.dmr-eyebrow i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px var(--dmr-accent-soft)}.dmr-icon-button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-secondary)}.dmr-icon-button:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor}.dmr-share{display:flex;flex-direction:column;gap:9px;padding:13px;border:1px solid color-mix(in srgb,var(--dmr-accent) 32%,var(--dsw-alias-border-l1));border-radius:13px;background:var(--dmr-accent-soft)}.dmr-share-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:center}.dmr-qr-card{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border-radius:12px;background:#fff;color:#111827;text-align:center}.dmr-qr-card img{display:block;width:176px;height:176px;max-width:100%;object-fit:contain}.dmr-qr-card strong{font-size:12px}.dmr-qr-card small{color:#4b5563;font-size:10px}.dmr-qr-loading{display:grid;place-items:center;width:176px;height:176px;color:#64748b;font-size:12px}.dmr-share-detail{min-width:0;display:flex;flex-direction:column;gap:10px}.dmr-share-detail>div:first-child{display:flex;flex-direction:column;gap:4px}.dmr-link{padding:10px 11px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:var(--dsw-alias-label-secondary)}.dmr-share-actions{display:flex;gap:8px;flex-wrap:wrap}.dmr-share-actions .dmr-primary{align-self:auto}.dmr-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dmr-overview-card{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dmr-overview-card>span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-overview-card strong{font-size:16px;letter-spacing:-.01em}.dmr-section{display:flex;flex-direction:column;gap:9px}.dmr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.dmr-section-head small{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-text-button{border:0;background:transparent;color:var(--dmr-accent);padding:8px;min-height:36px;font-weight:600}.dmr-task-list{display:flex;flex-direction:column;gap:8px}.dmr-task{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dmr-task>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.dmr-task strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dmr-phase{flex:none;border-radius:999px;padding:3px 8px;font-size:11px;background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-phase.write{color:var(--dsw-alias-state-success-primary)}.dmr-phase.code{color:#f59e0b}.dmr-phase.search{color:#14b8a6}.dmr-empty{padding:18px 12px;text-align:center;border:1px dashed var(--dsw-alias-border-l2);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}.dmr-note{display:flex;flex-direction:column;gap:9px;padding-top:2px}.dmr-note blockquote{margin:0;padding:10px 12px;border-left:3px solid var(--dmr-accent);border-radius:0 9px 9px 0;background:var(--dmr-accent-soft);white-space:pre-wrap;font-size:12px}.dmr-note textarea{min-height:88px;resize:vertical;line-height:1.5}.dmr-note .dmr-secondary{align-self:flex-start}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media (max-width:680px){.dmr{gap:14px;font-size:14px}.dmr h3{font-size:18px}.dmr-steps{grid-template-columns:1fr;gap:8px}.dmr-steps li{padding:10px}.dmr-steps small,.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{font-size:12px}.dmr-network-grid{grid-template-columns:1fr;gap:10px}.dmr-field input,.dmr-field select{font-size:16px}.dmr-primary,.dmr-secondary{width:100%;font-size:14px}.dmr-share-layout{grid-template-columns:1fr;gap:12px}.dmr-qr-card{width:min(240px,100%);margin:0 auto}.dmr-qr-card img,.dmr-qr-loading{width:210px;height:210px}.dmr-share-actions{flex-direction:column}.dmr-share-actions .dmr-primary{width:100%}.dmr-overview{gap:8px}.dmr-overview-card{padding:11px}.dmr-status-head{gap:8px}.dmr-link{font-size:11px}.dmr-note textarea{font-size:16px;min-height:104px}.dmr-note .dmr-secondary{align-self:stretch}.dmr-compact .dmr-hero-icon{width:40px;height:40px;border-radius:13px}}@media (prefers-reduced-motion:reduce){.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button,.dmr-field input,.dmr-field select,.dmr-note textarea{transition:none}}.dmr-lan{flex:none;margin-top:6px;padding-top:16px;border-top:1px solid var(--dsw-alias-border-l1)}.dmr-lan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.dmr-lan-title{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-lan-title p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-lan-badge{flex:none;display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}.dmr-lan-badge.on{border-color:color-mix(in srgb,var(--dmr-accent) 45%,transparent);background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-lan-active,.dmr-lan-idle{display:flex;flex-direction:column;gap:12px}.dmr-lan-active .dmr-share-detail small strong{color:var(--dsw-alias-state-error-primary)}.dmr-danger{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,var(--dsw-alias-border-l2));color:var(--dsw-alias-state-error-primary)}.dmr-danger:hover{border-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}`,
   View: MobileRelayView,
   HomeStat: MobileRelayHomeStat
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.8.0";
+var DOCK_VERSION = "0.8.1";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};

@@ -1,25 +1,32 @@
-// dsh-dock · 手机接力局域网安全网关
+// dsh-dock · 远程访问安全网关
 //
-// DSH 0.1.1-rc.2 有意拒绝直接绑定 0.0.0.0：浏览器表层尚无登录认证，直接开放
-// 会把代码执行能力交给同一网络里的任何人。本文件提供一个最小认证反向代理：主 DSH
-// 继续只监听 127.0.0.1，手机凭 256-bit 一次性链接换取 HttpOnly 会话后才能访问。
+// 主 DSH 实例只监听 127.0.0.1（结构上不存在无登录的远程路径）；局域网/虚拟网设备
+// 统一经本网关访问：未登录一律跳转登录页（账号 + 密码），登录成功发放 HttpOnly
+// 会话 Cookie（7 天滑动过期），支持退出登录；登录失败按来源 IP 限速。上游即 DSH
+// 主实例：绑定回环时把 Host/Origin 改写为回环（回环恒被信任），已绑 0.0.0.0 时
+// 透传以走局域网信任派生。HTML 响应注入远程标记（window.__DSH_REMOTE__，供面板
+// 显示退出按钮）与 crypto.randomUUID 兜底脚本引用。
 import { createServer, request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
 
-const COOKIE_NAME = 'dsh_mobile_session'
-const CONNECT_PATH = '/__dsh_mobile/connect'
-const HEALTH_PATH = '/__dsh_mobile/health'
+const COOKIE_NAME = 'dsh_remote_session'
+const LOGIN_PATH = '/__dsh_auth/login'
+const LOGOUT_PATH = '/__dsh_auth/logout'
+const HEALTH_PATH = '/__dsh_auth/health'
 const COMPAT_PATH = '/__dsh_mobile/compat.js'
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000
-const MAX_CONNECT_BODY = 4096
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const MAX_LOGIN_BODY = 1024
 const MAX_HTML_BYTES = 2 * 1024 * 1024
+const LOGIN_WINDOW_MS = 10 * 60 * 1000
+const MAX_LOGIN_ATTEMPTS = 10
 
-// LAN HTTP is not a browser secure context. Some mobile browsers therefore expose
+// LAN HTTP is not a browser secure context. Some browsers therefore expose
 // crypto.getRandomValues() but omit crypto.randomUUID(), while the official DSH
-// connection/workspace clients call randomUUID() directly. This tiny standards-compatible
-// UUID v4 fallback is injected before every DSH bootstrap script through the proxy only.
-const MOBILE_COMPAT_JS = `(()=>{const c=globalThis.crypto;if(!c||typeof c.randomUUID==='function'||typeof c.getRandomValues!=='function')return;const make=()=>{const b=new Uint8Array(16);c.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20)};try{Object.defineProperty(c,'randomUUID',{value:make,configurable:true})}catch{try{c.randomUUID=make}catch{}}})()`
+// connection/workspace clients call randomUUID() directly. ES5, precondition-free
+// fallback: defines randomUUID (and a getRandomValues last resort) as both an own
+// property and on Crypto.prototype. Injected before every DSH bootstrap script.
+const MOBILE_COMPAT_JS = `(function(){var g=typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:(typeof self!=='undefined'?self:undefined));if(!g)return;if(!g.crypto){try{g.crypto={}}catch(e){return}}var c=g.crypto;var nativeRng=typeof c.getRandomValues==='function'?c.getRandomValues.bind(c):null;function rng(bytes){if(nativeRng){nativeRng(bytes);return bytes}for(var i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256)&255;return bytes}function uuid(){var b=rng(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h=[];for(var i=0;i<16;i++)h.push((b[i]+256).toString(16).slice(1));return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('')}function fill(array){rng(array);return array}function define(obj,name,value){if(!obj||typeof obj[name]==='function')return;try{Object.defineProperty(obj,name,{value:value,configurable:true})}catch(e){try{obj[name]=value}catch(e2){}}}define(c,'randomUUID',uuid);if(!nativeRng)define(c,'getRandomValues',fill);define(g.Crypto&&g.Crypto.prototype||null,'randomUUID',uuid);if(!nativeRng)define(g.Crypto&&g.Crypto.prototype||null,'getRandomValues',fill);if(typeof c.randomUUID!=='function'){var fresh={getRandomValues:fill,randomUUID:uuid};if(c.subtle)fresh.subtle=c.subtle;var keyOrigin=Object.create(null);for(var k in c){try{keyOrigin[k]=c[k]}catch(e3){}}for(var k2 in keyOrigin){if(typeof fresh[k2]==='undefined')fresh[k2]=keyOrigin[k2]}try{Object.defineProperty(g,'crypto',{value:fresh,configurable:true})}catch(e4){try{g.crypto=fresh}catch(e5){}}}})()`
 
 function secret() { return randomBytes(32).toString('base64url') }
 function now() { return Date.now() }
@@ -70,7 +77,7 @@ function readSmallJson(req) {
     const chunks = []
     req.on('data', (chunk) => {
       size += chunk.length
-      if (size > MAX_CONNECT_BODY) { reject(new Error('请求过大')); req.destroy(); return }
+      if (size > MAX_LOGIN_BODY) { reject(new Error('请求过大')); req.destroy(); return }
       chunks.push(chunk)
     })
     req.on('end', () => {
@@ -80,15 +87,42 @@ function readSmallJson(req) {
     req.on('error', reject)
   })
 }
-function connectHtml() {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light"><title>连接 DSH</title><style>html{font-family:system-ui,-apple-system,sans-serif;color-scheme:dark light}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);background:#111318;color:#f4f6fa}.card{box-sizing:border-box;width:min(420px,calc(100vw - 32px));padding:28px;border:1px solid #30343d;border-radius:18px;background:#1c1f26;box-shadow:0 18px 60px #0007;text-align:center}.icon{width:48px;height:48px;margin:0 auto 16px;display:grid;place-items:center;border-radius:15px;background:#38bdf822;color:#38bdf8}.icon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}h1{margin:0 0 8px;font-size:20px}p{margin:0;color:#abb1bd;line-height:1.6;font-size:14px}.error{margin-top:16px;padding:10px 12px;border-radius:10px;background:#ef44441a;color:#ff8b8b;text-align:left}[hidden]{display:none}@media(prefers-color-scheme:light){body{background:#f1f4f8;color:#16181d}.card{background:#fff;border-color:#d8dde6}.card p{color:#586173}}</style></head><body><main class="card"><div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15"/><path d="M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.14-1.14"/></svg></div><h1>正在安全连接</h1><p id="status">验证一次性链接并进入 DSH…</p><div id="error" class="error" role="alert" hidden></div></main><script>(()=>{const status=document.getElementById('status'),error=document.getElementById('error'),token=decodeURIComponent(location.hash.slice(1));history.replaceState(null,'',location.pathname);if(!token){status.textContent='连接链接不完整';error.hidden=false;error.textContent='请回到电脑端重新复制手机接力链接。';return}fetch(${JSON.stringify(CONNECT_PATH)},{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token})}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'连接验证失败');status.textContent='验证成功，正在打开任务…';location.replace('/#dsh-mobile-relay='+encodeURIComponent(d.launch))}).catch(e=>{status.textContent='无法连接';error.hidden=false;error.textContent=e&&e.message?e.message:String(e)})})()</script></body></html>`
+// 登录/退出页面：纯静态 HTML + CSS（表单原生 POST，无内联脚本）。
+// 登录失败的错误态是另一个静态页面（?e=1 由服务端 303 带出）。
+const PAGE_STYLE = `*{box-sizing:border-box}html{font-family:system-ui,-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;color-scheme:dark light;height:100%}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(1200px 600px at 20% -10%,#1d4ed81f,transparent),radial-gradient(900px 500px at 110% 110%,#0ea5e921,transparent),#0f1115;color:#eef2f8}@media(prefers-color-scheme:light){body{background:radial-gradient(1200px 600px at 20% -10%,#3b82f614,transparent),radial-gradient(900px 500px at 110% 110%,#0ea5e918,transparent),#eef1f6;color:#16181d}}.card{width:min(400px,calc(100vw - 32px));padding:32px 28px;border:1px solid #ffffff14;border-radius:18px;background:#161a22e6;box-shadow:0 24px 80px #00000059;backdrop-filter:blur(10px)}@media(prefers-color-scheme:light){.card{background:#ffffffd9;border-color:#00000014;box-shadow:0 24px 70px #94a3b840}}.brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}.brand .icon{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#6366f1);color:#fff;box-shadow:0 8px 24px #38bdf840}.brand .icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.brand h1{margin:0;font-size:18px;letter-spacing:.01em}.brand small{display:block;margin-top:2px;color:#8b93a3;font-size:12px;font-weight:400}label{display:block;margin-bottom:14px;font-size:13px;font-weight:600;color:#aab2c0}@media(prefers-color-scheme:light){label{color:#586173}}input{width:100%;margin-top:6px;padding:11px 13px;border:1px solid #ffffff1f;border-radius:11px;background:#0d1016;color:inherit;font:inherit;font-size:15px;outline:none;transition:border-color .15s,box-shadow .15s}@media(prefers-color-scheme:light){input{background:#f4f6fa;border-color:#0000001a}}input:focus{border-color:#38bdf8;box-shadow:0 0 0 3px #38bdf82e}button{width:100%;margin-top:6px;padding:12px;border:0;border-radius:11px;background:linear-gradient(135deg,#38bdf8,#6366f1);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:filter .15s,transform .1s}button:hover{filter:brightness(1.07)}button:active{transform:scale(.99)}.error{margin:-4px 0 12px;padding:9px 12px;border-radius:10px;background:#ef44441f;color:#ff9d9d;font-size:13px;line-height:1.5}@media(prefers-color-scheme:light){.error{color:#c23434}}.noerror{display:none}.hint{margin:16px 0 0;color:#8b93a3;font-size:12px;line-height:1.6;text-align:center}.done{text-align:center}.done .ok{width:52px;height:52px;margin:4px auto 14px;display:grid;place-items:center;border-radius:50%;background:#22c55e26;color:#4ade80}.done .ok svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.done p{margin:0 0 18px;color:#8b93a3;font-size:13px}`
+const PAGE_ICON = `<span class="icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15"/><path d="M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.14-1.14"/></svg></span>`
+
+function loginPageHtml(withError) {
+  const errorRow = withError
+    ? `<div class="error" role="alert">账号或密码不正确，请重试。</div>`
+    : `<div class="noerror"></div>`
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light"><title>DSH 远程访问</title><style>${PAGE_STYLE}</style></head><body><main class="card"><form method="POST" action="/__dsh_auth/login"><div class="brand">${PAGE_ICON}<div><h1>DSH 远程访问</h1><small>登录后可使用完整功能</small></div></div>${errorRow}<label>账号<input name="username" autocomplete="username" autofocus required></label><label>密码<input type="password" name="password" autocomplete="current-password" required></label><button type="submit">登 录</button><p class="hint">仅限授权设备登录 · 会话 7 天内免重复登录</p></form></main></body></html>`
 }
-function rewriteProxyHeaders(headers, upstreamAuthority) {
-  const next = { ...headers, host: upstreamAuthority }
-  delete next.cookie
+
+function logoutPageHtml() {
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>已退出 · DSH 远程访问</title><meta http-equiv="refresh" content="2;url=/__dsh_auth/login"><style>${PAGE_STYLE}</style></head><body><main class="card done"><div class="ok"><svg viewBox="0 0 24 24"><path d="m5 12 4.2 4.2L19 6.5"/></svg></div><p>已退出登录。正在返回登录页…</p><button type="button" onclick="location.replace('/__dsh_auth/login')">立即返回</button></main></body></html>`
+}
+function passthroughProxyHeaders(headers) {
+  // 上游绑定 0.0.0.0（服务器模式）：绑定即派生局域网 IP 信任（trustedHosts），
+  // 信任栏阻（api-request-trust）校验的是请求自带的 Host/Origin 一致性——原样透传
+  // Host、Origin 与 Cookie 即可通过；仅在 HTML 注入兼容层需要时去掉 accept-encoding。
+  return { ...headers }
+}
+
+function spoofLoopbackHeaders(headers, loopbackAuthority) {
+  // 上游仅绑回环（未开服务器模式）：局域网地址不在信任列表，必须把 Host/Origin
+  // 一并改写成回环（回环恒被信任）。Cookie 仍原样透传（上游无 Cookie 需求）。
+  const next = { ...headers, host: loopbackAuthority }
+  if (next.origin) next.origin = 'http://' + loopbackAuthority
   // HTML must stay uncompressed so the proxy can inject the early compatibility script.
   delete next['accept-encoding']
-  if (next.origin) next.origin = 'http://' + upstreamAuthority
+  return next
+}
+
+function htmlInjectionHeaders(headers) {
+  // HTML must stay uncompressed so the proxy can inject the early compatibility script.
+  const next = { ...headers }
+  delete next['accept-encoding']
   return next
 }
 function injectMobileCompat(html) {
@@ -106,43 +140,80 @@ function writeUpgradeHead(socket, response) {
 }
 
 /**
- * 开启一个需要一次性链接认证的局域网代理。返回的 issue() 生成只在 fragment 中传输的令牌。
+ * 开启需要账号密码登录的远程访问网关。verifyLogin(username, password) 由宿主注入
+ * （读 settings 中的加盐哈希做常量时间比对）；会话 Cookie 7 天滑动过期；
+ * revokeAllSessions() 在账号密码变更时作废所有已登录设备。
  */
-export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', upstreamPort }) {
+export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', upstreamPort, spoofLoopback = false, verifyLogin, sessionTtlMs = SESSION_TTL_MS }) {
   return new Promise((resolve, reject) => {
-    const pending = new Map() // gateway token -> { pairId, launch, expiresAt }
-    const sessions = new Map() // cookie secret -> { pairId, expiresAt, seenAt }
-    const upgradedSockets = new Map() // client socket -> { sessionId, pairId, upstreamSocket }
-    const authority = upstreamHost + ':' + upstreamPort
+    const sessions = new Map() // cookie secret -> { expiresAt, seenAt }
+    const upgradedSockets = new Map() // client socket -> { cookie, upstreamSocket }
+    const loginAttempts = new Map() // ip -> { count, firstAt }
+    const loopbackAuthority = '127.0.0.1:' + upstreamPort
 
     function purge() {
       const stamp = now()
-      for (const [key, value] of pending) if (value.expiresAt <= stamp) pending.delete(key)
-      const expiredSessions = new Set()
-      for (const [key, value] of sessions) {
-        if (value.expiresAt <= stamp) { sessions.delete(key); expiredSessions.add(key) }
-      }
-      if (expiredSessions.size) {
+      const expired = []
+      for (const [key, value] of sessions) if (value.expiresAt <= stamp) { sessions.delete(key); expired.push(key) }
+      for (const [key, item] of loginAttempts) if (stamp - item.firstAt > LOGIN_WINDOW_MS) loginAttempts.delete(key)
+      if (expired.length) {
         for (const [socket, value] of upgradedSockets) {
-          if (expiredSessions.has(value.sessionId)) {
+          if (expired.includes(value.cookie)) {
             if (value.upstreamSocket) value.upstreamSocket.destroy()
             socket.destroy()
           }
         }
       }
     }
+    const purgeTimer = setInterval(purge, 60 * 1000)
+
+    function sessionCookieOf(req) {
+      return parseCookies(req.headers.cookie)[COOKIE_NAME] || null
+    }
     function authorize(req) {
       purge()
-      const value = parseCookies(req.headers.cookie)[COOKIE_NAME]
-      const session = value ? sessions.get(value) : null
+      const cookie = sessionCookieOf(req)
+      const session = cookie ? sessions.get(cookie) : null
       if (!session) return null
+      session.expiresAt = now() + sessionTtlMs
       session.seenAt = now()
-      return { ...session, sessionId: value }
+      return { cookie }
+    }
+    function loginAllowed(ip) {
+      purge()
+      const item = loginAttempts.get(ip)
+      return !item || now() - item.firstAt > LOGIN_WINDOW_MS || item.count < MAX_LOGIN_ATTEMPTS
+    }
+    function recordLoginFail(ip) {
+      const item = loginAttempts.get(ip) || { count: 0, firstAt: now() }
+      if (now() - item.firstAt > LOGIN_WINDOW_MS) { item.count = 0; item.firstAt = now() }
+      item.count++
+      loginAttempts.set(ip, item)
+    }
+    function issueSession(res) {
+      const cookie = secret()
+      sessions.set(cookie, { expiresAt: now() + sessionTtlMs, seenAt: now() })
+      res.setHeader('set-cookie', `${COOKIE_NAME}=${cookie}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(sessionTtlMs / 1000)}`)
+    }
+    function dropSession(req, res) {
+      const cookie = sessionCookieOf(req)
+      if (cookie) sessions.delete(cookie)
+      res.setHeader('set-cookie', `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`)
+    }
+    function proxyHeaders(req) {
+      const contentTypeHint = String(req.headers['content-type'] || '')
+      const wantsHtml = req.method === 'GET' && !contentTypeHint
+      // 先按上游信任形态决定 Host/Origin 策略，再叠加 HTML 注入所需的去压缩。
+      const next = spoofLoopback
+        ? spoofLoopbackHeaders(req.headers, loopbackAuthority)
+        : passthroughProxyHeaders(req.headers)
+      if (wantsHtml) delete next['accept-encoding']
+      return next
     }
     function proxyHttp(req, res) {
       const upstream = httpRequest({
         hostname: upstreamHost, port: upstreamPort, method: req.method, path: req.url,
-        headers: rewriteProxyHeaders(req.headers, authority),
+        headers: proxyHeaders(req),
       }, (upstreamRes) => {
         const contentType = String(upstreamRes.headers['content-type'] || '').toLowerCase()
         if (!contentType.includes('text/html')) {
@@ -177,33 +248,45 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
     }
 
     const server = createServer(async (req, res) => {
-      const url = new URL(req.url || '/', 'http://dsh-mobile.internal')
+      const url = new URL(req.url || '/', 'http://remote.internal')
+      const ip = (req.socket && req.socket.remoteAddress) || 'unknown'
+
       if (url.pathname === HEALTH_PATH) return sendJson(res, 200, { ok: true })
-      if (url.pathname === CONNECT_PATH && req.method === 'GET') {
-        res.writeHead(200, {
-          'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
-          'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-          'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer',
-        })
-        return res.end(connectHtml())
+
+      if (url.pathname === LOGIN_PATH && req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+        return res.end(loginPageHtml(url.searchParams.get('e') === '1'))
       }
-      if (url.pathname === CONNECT_PATH && req.method === 'POST') {
-        try {
-          const body = await readSmallJson(req)
-          const token = String(body && body.token || '')
-          const grant = pending.get(token)
-          if (!grant || grant.expiresAt <= now()) return sendJson(res, 403, { ok: false, error: '一次性链接无效或已过期，请在电脑端重新开启。' })
-          pending.delete(token)
-          const sessionId = secret()
-          sessions.set(sessionId, { pairId: grant.pairId, expiresAt: now() + SESSION_TTL_MS, seenAt: now() })
-          return sendJson(res, 200, { ok: true, launch: grant.launch }, {
-            'set-cookie': `${COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=Strict; Path=/`,
-          })
-        } catch (error) {
-          return sendJson(res, 400, { ok: false, error: error.message || String(error) })
+      if (url.pathname === LOGIN_PATH && req.method === 'POST') {
+        if (!loginAllowed(ip)) return sendJson(res, 429, { ok: false, error: '尝试次数过多，请 10 分钟后再试。' })
+        let body
+        try { body = await readSmallJson(req) } catch (error) { return sendJson(res, 400, { ok: false, error: error.message || String(error) }) }
+        const username = String(body && body.username || '').trim()
+        const password = String(body && body.password || '')
+        let ok = false
+        try { ok = Boolean(verifyLogin && await verifyLogin(username, password)) } catch { ok = false }
+        if (!ok) {
+          recordLoginFail(ip)
+          return sendJson(res, 401, { ok: false, error: '账号或密码不正确。' })
         }
+        loginAttempts.delete(ip)
+        issueSession(res)
+        return sendJson(res, 200, { ok: true, redirect: '/' })
       }
-      if (!authorize(req)) return sendJson(res, 401, { ok: false, error: '手机连接未认证或已过期，请使用电脑端生成的接力链接重新进入。' })
+      if (url.pathname === LOGOUT_PATH) {
+        dropSession(req, res)
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+        return res.end(logoutPageHtml())
+      }
+
+      if (!authorize(req)) {
+        // 浏览器页面访问 → 跳登录页；接口/静态资源请求 → 401（登录后由页面自身发起）。
+        if (req.method === 'GET' && String(req.headers.accept || '').includes('text/html')) {
+          res.writeHead(302, { location: LOGIN_PATH, 'cache-control': 'no-store' })
+          return res.end()
+        }
+        return sendJson(res, 401, { ok: false, error: '未登录或会话已过期，请重新登录。' })
+      }
       if (url.pathname === COMPAT_PATH && req.method === 'GET') {
         res.writeHead(200, {
           'content-type': 'text/javascript; charset=utf-8',
@@ -218,13 +301,13 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
     server.on('upgrade', (req, socket, head) => {
       const authorized = authorize(req)
       if (!authorized) { socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); return }
-      const connection = { sessionId: authorized.sessionId, pairId: authorized.pairId, upstreamSocket: null }
+      const connection = { cookie: authorized.cookie, upstreamSocket: null }
       upgradedSockets.set(socket, connection)
       const forgetSocket = () => upgradedSockets.delete(socket)
       socket.once('close', forgetSocket)
       const upstream = httpRequest({
         hostname: upstreamHost, port: upstreamPort, method: req.method, path: req.url,
-        headers: rewriteProxyHeaders(req.headers, authority),
+        headers: proxyHeaders(req),
       })
       upstream.on('upgrade', (response, upstreamSocket, upstreamHead) => {
         connection.upstreamSocket = upstreamSocket
@@ -249,23 +332,17 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
       resolve({
         port: listenedPort,
         addresses: lanAddresses(),
-        issue(pairId, launch, expiresAt) {
-          const token = secret()
-          pending.set(token, { pairId, launch, expiresAt })
-          return token
-        },
-        revokePair(pairId) {
-          for (const [key, value] of pending) if (value.pairId === pairId) pending.delete(key)
-          for (const [key, value] of sessions) if (value.pairId === pairId) sessions.delete(key)
+        revokeAllSessions() {
+          sessions.clear()
           for (const [socket, value] of upgradedSockets) {
-            if (value.pairId !== pairId) continue
             if (value.upstreamSocket) value.upstreamSocket.destroy()
             socket.destroy()
           }
+          upgradedSockets.clear()
         },
-        purge,
         close() {
-          pending.clear(); sessions.clear()
+          clearInterval(purgeTimer)
+          sessions.clear()
           for (const [socket, value] of upgradedSockets) {
             if (value.upstreamSocket) value.upstreamSocket.destroy()
             socket.destroy()
