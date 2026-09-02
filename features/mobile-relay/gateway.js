@@ -21,6 +21,17 @@ const MAX_HTML_BYTES = 2 * 1024 * 1024
 const LOGIN_WINDOW_MS = 10 * 60 * 1000
 const MAX_LOGIN_ATTEMPTS = 10
 
+// 远程设置面补丁：DSH 客户端按"页面主机名是否回环"决定设置镜像模式（非回环
+// 构造 memory 镜像、永不读档，设置/模型页全部显示 unavailable）。而服务端信任栏
+// 只看 Host/Origin——经本网关（登录后）的请求早已映射为回环信任，特权接口实际
+// 全部放行。唯一拦住手机用户的只剩客户端这一处自我判定，所以对本 bundle 做定点
+// 改写（判定恒真）。上游升级改了片段则原样透传（退化为官方行为，不影响其他功能）。
+const CONNECTION_BUNDLE_PREFIX = '/plugins/@deepseek-ai/dsh-client-connection/client.js'
+const CONNECTION_ISLOOPBACK_SNIPPET = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)'
+const CONNECTION_ISLOOPBACK_PATCHED = 'isLoopback: !0 /* dsh-dock remote gateway */'
+const MAX_ASSET_BYTES = 4 * 1024 * 1024
+const PATCH_CACHE_LIMIT = 16
+
 // LAN HTTP is not a browser secure context. Some browsers therefore expose
 // crypto.getRandomValues() but omit crypto.randomUUID(), while the official DSH
 // connection/workspace clients call randomUUID() directly. ES5, precondition-free
@@ -71,7 +82,7 @@ function sendJson(res, status, value, headers = {}) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers })
   res.end(JSON.stringify(value))
 }
-function readSmallJson(req) {
+function readSmallBody(req) {
   return new Promise((resolve, reject) => {
     let size = 0
     const chunks = []
@@ -80,15 +91,13 @@ function readSmallJson(req) {
       if (size > MAX_LOGIN_BODY) { reject(new Error('请求过大')); req.destroy(); return }
       chunks.push(chunk)
     })
-    req.on('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')) }
-      catch { reject(new Error('请求格式错误')) }
-    })
+    req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
   })
 }
-// 登录/退出页面：纯静态 HTML + CSS（表单原生 POST，无内联脚本）。
-// 登录失败的错误态是另一个静态页面（?e=1 由服务端 303 带出）。
+// 登录页表单是原生 POST（application/x-www-form-urlencoded）；面板/脚本走 JSON。
+// 表单流的成功/失败都用 303 重定向表达（失败回到 ?e=1 错误态登录页），JSON 流保持
+// JSON 响应（200/401/400），两种客户端互不干扰。
 const PAGE_STYLE = `*{box-sizing:border-box}html{font-family:system-ui,-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;color-scheme:dark light;height:100%}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(1200px 600px at 20% -10%,#1d4ed81f,transparent),radial-gradient(900px 500px at 110% 110%,#0ea5e921,transparent),#0f1115;color:#eef2f8}@media(prefers-color-scheme:light){body{background:radial-gradient(1200px 600px at 20% -10%,#3b82f614,transparent),radial-gradient(900px 500px at 110% 110%,#0ea5e918,transparent),#eef1f6;color:#16181d}}.card{width:min(400px,calc(100vw - 32px));padding:32px 28px;border:1px solid #ffffff14;border-radius:18px;background:#161a22e6;box-shadow:0 24px 80px #00000059;backdrop-filter:blur(10px)}@media(prefers-color-scheme:light){.card{background:#ffffffd9;border-color:#00000014;box-shadow:0 24px 70px #94a3b840}}.brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}.brand .icon{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:13px;background:linear-gradient(135deg,#38bdf8,#6366f1);color:#fff;box-shadow:0 8px 24px #38bdf840}.brand .icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.brand h1{margin:0;font-size:18px;letter-spacing:.01em}.brand small{display:block;margin-top:2px;color:#8b93a3;font-size:12px;font-weight:400}label{display:block;margin-bottom:14px;font-size:13px;font-weight:600;color:#aab2c0}@media(prefers-color-scheme:light){label{color:#586173}}input{width:100%;margin-top:6px;padding:11px 13px;border:1px solid #ffffff1f;border-radius:11px;background:#0d1016;color:inherit;font:inherit;font-size:15px;outline:none;transition:border-color .15s,box-shadow .15s}@media(prefers-color-scheme:light){input{background:#f4f6fa;border-color:#0000001a}}input:focus{border-color:#38bdf8;box-shadow:0 0 0 3px #38bdf82e}button{width:100%;margin-top:6px;padding:12px;border:0;border-radius:11px;background:linear-gradient(135deg,#38bdf8,#6366f1);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:filter .15s,transform .1s}button:hover{filter:brightness(1.07)}button:active{transform:scale(.99)}.error{margin:-4px 0 12px;padding:9px 12px;border-radius:10px;background:#ef44441f;color:#ff9d9d;font-size:13px;line-height:1.5}@media(prefers-color-scheme:light){.error{color:#c23434}}.noerror{display:none}.hint{margin:16px 0 0;color:#8b93a3;font-size:12px;line-height:1.6;text-align:center}.done{text-align:center}.done .ok{width:52px;height:52px;margin:4px auto 14px;display:grid;place-items:center;border-radius:50%;background:#22c55e26;color:#4ade80}.done .ok svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.done p{margin:0 0 18px;color:#8b93a3;font-size:13px}`
 const PAGE_ICON = `<span class="icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15"/><path d="M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.14-1.14"/></svg></span>`
 
@@ -149,6 +158,7 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
     const sessions = new Map() // cookie secret -> { expiresAt, seenAt }
     const upgradedSockets = new Map() // client socket -> { cookie, upstreamSocket }
     const loginAttempts = new Map() // ip -> { count, firstAt }
+    const patchedBundles = new Map() // 上游 client.js URL（含 rev）-> 改写后字节
     const loopbackAuthority = '127.0.0.1:' + upstreamPort
 
     function purge() {
@@ -215,35 +225,66 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
         hostname: upstreamHost, port: upstreamPort, method: req.method, path: req.url,
         headers: proxyHeaders(req),
       }, (upstreamRes) => {
+        // 浏览器侧中途断开时把上游响应读完丢弃（而非 destroy）——宿主对半路 RST
+        // 敏感，读完让上游 socket 干净收尾复用。缓冲分支天然读尽，无需处理。
+        if (upstreamRes) upstreamRes.on('error', () => res.destroy())
         const contentType = String(upstreamRes.headers['content-type'] || '').toLowerCase()
-        if (!contentType.includes('text/html')) {
+        // 连接客户端 bundle：设置面在远程浏览器被客户端自我判定关死（见文件头注释），
+        // 做定点改写；命中缓存直接回，改不动（上游升级）则原样透传。
+        const isConnectionBundle = req.method === 'GET' && String(req.url || '').startsWith(CONNECTION_BUNDLE_PREFIX)
+          && contentType.includes('javascript')
+        if (isConnectionBundle && patchedBundles.has(req.url)) {
+          const headers = { ...upstreamRes.headers, 'content-length': String(patchedBundles.get(req.url).length) }
+          delete headers['transfer-encoding']
+          res.writeHead(upstreamRes.statusCode || 200, headers)
+          return res.end(patchedBundles.get(req.url))
+        }
+        if (!contentType.includes('text/html') && !isConnectionBundle) {
+          // 直通分支：浏览器断开就停止写、改为耗尽上游响应（读完丢弃）。
+          res.on('close', () => { if (!upstreamRes.complete) upstreamRes.resume() })
           res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers)
           upstreamRes.pipe(res)
           return
         }
         const chunks = []
         let size = 0
+        const limit = isConnectionBundle ? MAX_ASSET_BYTES : MAX_HTML_BYTES
         upstreamRes.on('data', (chunk) => {
           size += chunk.length
-          if (size <= MAX_HTML_BYTES) chunks.push(chunk)
+          if (size <= limit) chunks.push(chunk)
         })
         upstreamRes.on('end', () => {
-          if (size > MAX_HTML_BYTES) {
+          if (size > limit) {
             if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'DSH 页面过大，无法注入手机兼容层。' })
             return
           }
           const headers = { ...upstreamRes.headers }
           delete headers['content-length']
           delete headers['content-encoding']
+          delete headers['transfer-encoding']
           headers['cache-control'] = 'no-store'
+          let body = Buffer.concat(chunks)
+          if (isConnectionBundle) {
+            const text = body.toString('utf8')
+            const at = text.indexOf(CONNECTION_ISLOOPBACK_SNIPPET)
+            if (at >= 0) {
+              body = Buffer.from(text.slice(0, at) + CONNECTION_ISLOOPBACK_PATCHED + text.slice(at + CONNECTION_ISLOOPBACK_SNIPPET.length), 'utf8')
+              if (patchedBundles.size >= PATCH_CACHE_LIMIT) patchedBundles.clear()
+              patchedBundles.set(req.url, body)
+            }
+            headers['content-length'] = String(body.length)
+            res.writeHead(upstreamRes.statusCode || 502, headers)
+            return res.end(body)
+          }
           res.writeHead(upstreamRes.statusCode || 502, headers)
-          res.end(injectMobileCompat(Buffer.concat(chunks).toString('utf8')))
+          res.end(injectMobileCompat(body.toString('utf8')))
         })
       })
       upstream.on('error', (error) => {
         if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'DSH 主服务连接失败：' + error.message })
         else res.destroy(error)
       })
+      req.on('error', () => upstream.destroy())
       req.pipe(upstream)
     }
 
@@ -259,18 +300,36 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
       }
       if (url.pathname === LOGIN_PATH && req.method === 'POST') {
         if (!loginAllowed(ip)) return sendJson(res, 429, { ok: false, error: '尝试次数过多，请 10 分钟后再试。' })
-        let body
-        try { body = await readSmallJson(req) } catch (error) { return sendJson(res, 400, { ok: false, error: error.message || String(error) }) }
-        const username = String(body && body.username || '').trim()
-        const password = String(body && body.password || '')
+        const isForm = /urlencoded/i.test(String(req.headers['content-type'] || ''))
+        let fields = null
+        try {
+          const raw = (await readSmallBody(req)).toString('utf8')
+          if (isForm) {
+            const form = new URLSearchParams(raw)
+            fields = { username: form.get('username'), password: form.get('password') }
+          } else {
+            const parsed = JSON.parse(raw || '{}')
+            fields = { username: parsed && parsed.username, password: parsed && parsed.password }
+          }
+        } catch { fields = null }
+        const username = String(fields && fields.username || '').trim()
+        const password = String(fields && fields.password || '')
         let ok = false
-        try { ok = Boolean(verifyLogin && await verifyLogin(username, password)) } catch { ok = false }
+        try { ok = Boolean(fields && verifyLogin && await verifyLogin(username, password)) } catch { ok = false }
         if (!ok) {
           recordLoginFail(ip)
-          return sendJson(res, 401, { ok: false, error: '账号或密码不正确。' })
+          if (isForm) {
+            res.writeHead(303, { location: LOGIN_PATH + '?e=1', 'cache-control': 'no-store' })
+            return res.end()
+          }
+          return sendJson(res, fields ? 401 : 400, { ok: false, error: fields ? '账号或密码不正确。' : '请求格式错误' })
         }
         loginAttempts.delete(ip)
         issueSession(res)
+        if (isForm) {
+          res.writeHead(303, { location: '/', 'cache-control': 'no-store' })
+          return res.end()
+        }
         return sendJson(res, 200, { ok: true, redirect: '/' })
       }
       if (url.pathname === LOGOUT_PATH) {
