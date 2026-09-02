@@ -4,21 +4,23 @@ import react from "react";
 import { openPanel } from "../../src/shared.js";
 
 // ---- 模型余额视图的配色与工具（沿用 dsh-balance-panel@0.1.1，MIT 同作者）----
-const ACCENT_PALETTE = ['#4d9fff', '#34d399', '#fbbf24', '#a78bfa', '#f472b6', '#38bdf8', '#fb923c', '#4ade80', '#e879f9', '#22d3ee'];
+// 调色板按色相取「亮暗主题都可读」的中深色：亮色白底下够深（可作文字色），暗色下也够亮。
+// （旧调色板全是 300–400 级浅色，亮色主题下 Provider 名/模型 chips 看不清。）
+const ACCENT_PALETTE = ['#2563eb', '#0d9488', '#b45309', '#7c3aed', '#be185d', '#0369a1', '#c2410c', '#15803d', '#a21caf', '#0e7490'];
 const CURATED_ACCENTS = {
-	'deepseek-official': '#4d9fff',
-	deepseek: '#4d9fff',
-	'qwen-token-plan-cn': '#fbbf24',
-	fangzhou: '#a78bfa',
-	openai: '#10a37f',
-	anthropic: '#d97757',
-	'google-gemini': '#4285f4'
+	'deepseek-official': '#2563eb',
+	deepseek: '#2563eb',
+	'qwen-token-plan-cn': '#b45309',
+	fangzhou: '#7c3aed',
+	openai: '#15803d',
+	anthropic: '#c2410c',
+	'google-gemini': '#1d4ed8'
 };
-const C_TOTAL = '#34d399';
-const C_GRANTED = '#22d3ee';
-const C_TOPUP = '#fbbf24';
-const C_OK = '#34d399';
-const C_ERR = '#f87171';
+const C_TOTAL = '#0d9488';
+const C_GRANTED = '#0369a1';
+const C_TOPUP = '#b45309';
+const C_OK = '#0d9488';
+const C_ERR = '#dc2626';
 // 余额接口有些 Provider 仅返回美元。功能坞统一以人民币展示，汇率与用量模块默认值保持一致。
 const USD_CNY_RATE = 7.2;
 
@@ -275,7 +277,7 @@ function BalanceChip(props) {
 	const selProvider = sel && (sel.provider || (sel.selected && sel.selected.provider)) || null;
 	const def = selProvider || (data && data.default ? data.default.provider : null);
 	const cur = def ? providers.find((p) => p.id === def) : null;
-	const accent = cur ? accentOf(cur.id) : "#94a3b8";
+	const accent = cur ? accentOf(cur.id) : "#64748b";
 	const text = snap.error ? "余额·失败" : (!data ? (snap.loading ? "余额 …" : "余额 —") : (cur ? chipBalanceText(cur) : "余额 —"));
 	const selModel = sel && (sel.model || (sel.selected && sel.selected.model)) || null;
 	const title = cur
@@ -307,10 +309,10 @@ export const feature = {
 		".dkb-row-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
 		".dkb-dot{width:8px;height:8px;border-radius:50%;flex:none;}",
 		".dkb-name{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);}",
-		".dkb-default{color:var(--dsw-alias-accent,#4d9fff);font-size:11px;border:1px solid currentColor;border-radius:999px;padding:0 6px;}",
+		".dkb-default{color:var(--dk-accent);font-size:11px;border:1px solid currentColor;border-radius:999px;padding:0 6px;}",
 		".dkb-badge{font-size:11px;border-radius:999px;padding:1px 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
 		".dkb-badge.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-		".dkb-badge.warn{color:var(--dsw-alias-state-warning-primary);border-color:currentColor;}",
+		".dkb-badge.warn{color:var(--dk-warn);border-color:currentColor;}",
 		".dkb-badge.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
 		// 模型数折叠开关（点行头右侧"N 个模型 ▾"展开/收起 chips）
 		".dkb-models-toggle{margin-left:auto;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);font-family:inherit;font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap;}",
@@ -341,7 +343,7 @@ export const feature = {
 		".dkb-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
 		// chips 点击定位后的行高亮闪烁
 		".dkb-row.dkb-flash{animation:dkb-flash 1.8s var(--ds-ease-in-out);}",
-		"@keyframes dkb-flash{0%,55%{border-color:var(--dsw-alias-accent,#4d9fff);box-shadow:0 0 0 2px color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 25%,transparent);}100%{border-color:var(--dsw-alias-border-l1);box-shadow:none;}}"
+		"@keyframes dkb-flash{0%,55%{border-color:var(--dk-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--dk-accent) 25%,transparent);}100%{border-color:var(--dsw-alias-border-l1);box-shadow:none;}}"
 	].join("\n"),
 	View: BalanceView,
 	HomeStat: BalanceStat,

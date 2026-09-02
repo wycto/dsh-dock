@@ -28,7 +28,7 @@ import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.8.1";
+const DOCK_VERSION = "0.9.1";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation, fGames, fMobileRelay];
@@ -95,6 +95,18 @@ function allModules() {
 // ⚠️ 变量名不得用 CSS：浏览器存在全局 window.CSS 命名空间，bundle 任何作用域解析歧义
 // 都会把标识符解析成该全局对象（无 .join），曾导致插件应用失败、整页启动崩溃。
 const SHELL_CSS = [
+	// ---- 主题桥接层（亮色适配的根基）----
+	// dsh 宿主没有 --dsw-alias-accent，也没有 --dsw-alias-state-warning-primary（正确名是 state-warn-primary），
+	// 旧写法全部落到暗色系回退值（浅蓝/琥珀），亮色白底下看不清。这里在 body 上按宿主主题
+	// （body / body[data-ds-dark-theme]）声明两套 dock 语义变量，各模块统一引用：
+	//   --dk-accent 主强调色（亮色用深蓝保证对比度，暗色用亮蓝）
+	//   --dk-warn   警告色（亮色用深琥珀，暗色用亮琥珀）
+	//   --dk-ok/--dk-err 成功/错误（亮色取宿主深色值，暗色保持宿主亮色值）
+	//   --dk-tdim   表格分隔线/弱边框（亮色用中性灰蓝、暗色用白透明）
+	"body{--dk-accent:#2f6fed;--dk-accent-soft:color-mix(in srgb,#2f6fed 12%,transparent);--dk-warn:#b45309;--dk-ok:var(--dsw-alias-state-success-primary,#16a34a);--dk-err:var(--dsw-alias-state-error-primary,#dc2626);--dk-tdim:rgba(100,116,139,.22);--dk-hover-tint:rgba(47,111,237,.08);--dk-games-accent:#7c3aed;}",
+	"body[data-ds-dark-theme]{--dk-accent:#4d9fff;--dk-accent-soft:color-mix(in srgb,#4d9fff 12%,transparent);--dk-warn:#fbbf24;--dk-ok:var(--dsw-alias-state-success-primary,#34d399);--dk-err:var(--dsw-alias-state-error-primary,#f87171);--dk-tdim:rgba(122,132,152,.14);--dk-hover-tint:rgba(80,110,180,.12);--dk-games-accent:#a78bfa;}",
+	// 宿主语义变量兜底别名（部分模块引用了宿主不存在的名字，统一在此补齐，取值随主题自动切换）
+	"body{--dsw-alias-accent:var(--dk-accent);--dsw-alias-accent-soft:var(--dk-accent-soft);--dsw-alias-state-warning-primary:var(--dk-warn);}",
 	".dock-root{display:flex;flex-direction:column;gap:12px;padding:4px 0;color:var(--dsw-alias-label-primary);font-size:13px;}",
 	".dock-intro{color:var(--dsw-alias-label-secondary);line-height:1.6;}",
 	".dock-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;}",
@@ -114,10 +126,11 @@ const SHELL_CSS = [
 	// 使两按钮上下成列、左右边缘完全对齐（此前右对齐/叠放都会错位）。
 	".docke2-btn{box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;border:none;background:transparent;color:var(--dsw-alias-label-primary);border-radius:12px;width:calc(100% + 4px);height:42px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
 	".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-	".docke2-btn.docke2-on{color:var(--dsw-alias-accent,#4d9fff);background:var(--dsw-alias-accent-soft,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 12%,transparent));}",
+	".docke2-btn.docke2-on{color:var(--dk-accent);background:var(--dk-accent-soft);}",
 	".docke2-btn.docke2-rail{width:36px;height:36px;margin:8px 0 10px;padding:0;border-radius:50%;justify-content:center;gap:0;}",
 	".docke2-label{white-space:nowrap;overflow:hidden;}",
-	".dockm-backdrop{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 55%,transparent);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
+	// 遮罩固定用深色半透明：亮色主题下宿主 bg-layer-1 是纯白，白底遮罩会让弹窗与页面完全无层次
+	".dockm-backdrop{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(15,17,21,.45);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
 	"@keyframes dockm-fade{from{opacity:0}to{opacity:1}}",
 	".dockm-dialog{box-sizing:border-box;position:relative;width:min(1080px,calc(100vw - 32px));height:min(700px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:16px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .32);overflow:hidden;animation:dockm-pop .18s var(--ds-ease-in-out);}",
 	"@keyframes dockm-pop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}",
@@ -137,7 +150,7 @@ const SHELL_CSS = [
 	".dockm-nav{flex:none;width:176px;display:flex;flex-direction:column;gap:2px;padding:10px 8px;overflow-y:auto;border-right:1px solid var(--dsw-alias-border-l1);}",
 	".dockm-nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:none;background:transparent;border-radius:10px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:13px;text-align:left;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
 	".dockm-nav-item:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
-	".dockm-nav-item.on{background:var(--dsw-alias-accent-soft,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 12%,transparent));color:var(--dsw-alias-label-primary);font-weight:600;}",
+	".dockm-nav-item.on{background:var(--dk-accent-soft);color:var(--dsw-alias-label-primary);font-weight:600;}",
 	".dockm-nav-item .dockm-badge{margin-left:auto;}",
 	".dockm-dot{width:8px;height:8px;border-radius:50%;flex:none;}",
 	".dockm-badge{flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
@@ -153,10 +166,10 @@ const SHELL_CSS = [
 	".dockm-switch:hover{color:var(--dsw-alias-label-primary);}",
 	".dockm-switch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
 	// 首页总揽（dockh- 前缀）：导航首项图标 + 模块卡片网格
-	".dockm-navhome{display:inline-flex;align-items:center;color:var(--dsw-alias-accent,#4d9fff);flex:none;}",
+	".dockm-navhome{display:inline-flex;align-items:center;color:var(--dk-accent);flex:none;}",
 	".dockh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;}",
 	".dockh-card{display:flex;flex-direction:column;gap:6px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;cursor:pointer;transition:border-color .15s var(--ds-ease-in-out);}",
-	".dockh-card:hover,.dockh-card:focus-visible{border-color:var(--dsw-alias-accent,#4d9fff);outline:none;}",
+	".dockh-card:hover,.dockh-card:focus-visible{border-color:var(--dk-accent);outline:none;}",
 	".dockh-head{display:flex;align-items:center;gap:8px;}",
 	".dockh-name{font-weight:600;flex:none;}",
 	".dockh-badge{flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
@@ -168,7 +181,7 @@ const SHELL_CSS = [
 	// iOS 风滑动开关（首页卡片 / 弹层页脚 / 设置页共用的启停控件）
 	".dock-sw{flex:none;position:relative;width:34px;height:19px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);cursor:pointer;padding:0;transition:background .18s var(--ds-ease-in-out),border-color .18s var(--ds-ease-in-out);}",
 	".dock-sw::after{content:\"\";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgb(0 0 0 / .35);transition:transform .18s var(--ds-ease-in-out);}",
-	".dock-sw:hover{border-color:var(--dsw-alias-accent,#4d9fff);}",
+	".dock-sw:hover{border-color:var(--dk-accent);}",
 	".dock-sw.on{background:var(--dsw-alias-state-success-primary,#34d399);border-color:transparent;}",
 	".dock-sw.on::after{transform:translateX(15px);}",
 	// 弹层页脚：文字标签 + 开关 成组
