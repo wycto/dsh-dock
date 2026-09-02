@@ -106,7 +106,7 @@ const css = `
 .dtok-btn{cursor:pointer;border-radius:6px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);padding:4px 12px;font-size:12px;font-family:inherit;flex:none;}
 .dtok-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}
 .dtok-btn[disabled]{opacity:.5;cursor:default;}
-.dtok-btn.primary{background:var(--dsw-alias-accent,#2f6fed);border-color:var(--dsw-alias-accent,#2f6fed);color:#fff;}
+.dtok-btn.primary{background:var(--dk-accent);border-color:var(--dk-accent);color:#fff;}
 .dtok-btn.primary:hover{filter:brightness(1.1);}
 .dtok-body{display:flex;flex-direction:column;gap:8px;min-width:0;}
 .dtok-cards{display:flex;gap:8px;flex-wrap:wrap;}
@@ -118,22 +118,22 @@ const css = `
 .dtok-table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap;color:var(--dsw-alias-label-primary);}
 .dtok-table th{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);text-align:left;padding:7px 10px;position:sticky;top:0;z-index:1;border-bottom:1px solid var(--dsw-alias-border-l1);font-weight:600;user-select:none;cursor:pointer;}
 .dtok-table th:hover{color:var(--dsw-alias-label-primary);}
-.dtok-table td{padding:6px 10px;border-bottom:1px solid rgba(122,132,152,0.12);}
-.dtok-table tr:hover td{background:rgba(80,110,180,0.10);}
+.dtok-table td{padding:6px 10px;border-bottom:1px solid var(--dk-tdim);}
+.dtok-table tr:hover td{background:var(--dk-hover-tint);}
 .dtok-empty{text-align:center;color:var(--dsw-alias-label-secondary);padding:32px 0;font-size:13px;}
-.dtok-sid{color:var(--dsw-alias-accent,#7ab8ff);cursor:pointer;text-decoration:underline dotted;}
+.dtok-sid{color:var(--dk-accent);cursor:pointer;text-decoration:underline dotted;}
 .dtok-sid:hover{filter:brightness(1.25);}
 .dtok-code{font-weight:700;font-family:ui-monospace,monospace;}
 .dtok-code.ok{color:var(--dsw-alias-state-success-primary,#4ade80);}
-.dtok-code.warn{color:var(--dsw-alias-state-warning-primary,#fbbf24);}
+.dtok-code.warn{color:var(--dk-warn);}
 .dtok-code.err{color:var(--dsw-alias-state-error-primary,#f87171);}
 .dtok-code.pend{color:var(--dsw-alias-label-tertiary,#94a3b8);}
-.dtok-detail-link{color:var(--dsw-alias-accent,#7ab8ff);cursor:pointer;font-size:11px;}
+.dtok-detail-link{color:var(--dk-accent);cursor:pointer;font-size:11px;}
 .dtok-detail-link:hover{text-decoration:underline;}
 .dtok-detail{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;}
 .dtok-detail-card{background:var(--dsw-alias-bg-layer-2,#1c212b);border:1px solid var(--dsw-alias-border-l2,#3a4150);border-radius:12px;padding:20px 24px;max-width:640px;width:92%;max-height:80vh;overflow:auto;color:var(--dsw-alias-label-primary,#e8eaf0);}
 .dtok-detail-card h3{margin:0 0 12px;font-size:15px;}
-.dtok-detail-row{display:flex;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid rgba(122,132,152,0.1);}
+.dtok-detail-row{display:flex;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid var(--dk-tdim);}
 .dtok-detail-row .k{color:var(--dsw-alias-label-secondary,#9aa3b5);min-width:110px;flex-shrink:0;}
 .dtok-detail-row .v{word-break:break-all;}
 .dtok-sort-mark{opacity:0.6;margin-left:3px;}
@@ -542,7 +542,7 @@ export function TokenLogChip(props) {
 	return (
 		<button type="button" className={"dockchip" + (snap.err && !t ? " err" : "")} title={title} aria-label="会话用量"
 			onClick={() => openPanel("tokenlog", { sessionId: sid })}>
-			<span className="dockchip-dot" style={{ background: "#fbbf24" }} />
+			<span className="dockchip-dot" style={{ background: "var(--dk-warn)" }} />
 			<span>{label}</span>
 		</button>
 	);
