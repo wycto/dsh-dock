@@ -77,6 +77,9 @@ function RemoteCard() {
 
   const active = Boolean(lan && lan.gatewayActive)
   const gatewayPort = lan && lan.gatewayPort ? lan.gatewayPort : 3081
+  // 未开启时的建议端口：跟随主实例端口（+1）。网关和主服务是同一台机器上的两个
+  // 监听，结构上不能同端口；主端口只留给本机，网关端口给其他设备登录用。
+  const suggestedPort = lan && lan.mainPort ? lan.mainPort + 1 : gatewayPort
   const lanLink = useMemo(() => (address && active ? 'http://' + address + ':' + gatewayPort : ''), [address, active, gatewayPort])
   useEffect(() => {
     let live = true
@@ -132,13 +135,13 @@ function RemoteCard() {
 
   return <section className={'dmr ' + (compact ? 'dmr-compact' : '')}>
     <div className="dmr-status-head"><div><span className="dmr-eyebrow"><i/> 远程访问</span><h3>{active ? '入口已开启' : '从任何设备访问这个 DSH'}</h3><p>{active ? '设备访问下方地址，用账号密码登录即可使用完整 DSH（与本机同一实例，任务进度实时一致）。' : '开启后，局域网/虚拟网设备访问网关地址并登录，即可使用与本机完全一致的 DSH。'}</p></div>{remote && <button type="button" className="dmr-secondary" onClick={logout}><RelayIcon name="close"/>退出登录</button>}</div>
-    <ol className="dmr-steps"><li><span>1</span><div><strong>设置账号密码</strong><small>远程登录的唯一凭据，改密后所有设备重新登录。</small></div></li><li><span>2</span><div><strong>开启入口</strong><small>网关监听 0.0.0.0:3081（可改端口），主实例保持仅本机。</small></div></li><li><span>3</span><div><strong>设备访问</strong><small>扫码或输入地址登录；异地组网（Tailscale 等）用组网 IP 直连。</small></div></li></ol>
+    <ol className="dmr-steps"><li><span>1</span><div><strong>设置账号密码</strong><small>远程登录的唯一凭据，改密后所有设备重新登录。</small></div></li><li><span>2</span><div><strong>开启入口</strong><small>网关监听 0.0.0.0（默认主端口+1，可改），主实例保持仅本机。</small></div></li><li><span>3</span><div><strong>设备访问</strong><small>扫码或输入地址登录；异地组网（Tailscale 等）用组网 IP 直连。</small></div></li></ol>
     {!active ? <div className="dmr-network-grid">
       <label className="dmr-field"><span>账号</span><input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="登录账号"/></label>
       <label className="dmr-field"><span>密码</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder={lan && lan.accountSet ? '已设置，留空沿用' : '至少 6 位'}/></label>
     </div> : null}
     <div className="dmr-network-grid">
-      <label className="dmr-field"><span>监听端口</span><input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" type="number" min="1024" max="65535" placeholder={'默认 ' + gatewayPort} aria-describedby="dmr-lan-port-help"/><small id="dmr-lan-port-help">留空保持当前端口 {gatewayPort}；重启 dsh web 后仍以这里设置的端口为准。</small></label>
+      <label className="dmr-field"><span>监听端口</span><input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" type="number" min="1024" max="65535" placeholder={'默认 ' + suggestedPort} aria-describedby="dmr-lan-port-help"/><small id="dmr-lan-port-help">网关和主服务是同一台机器上的两个端口，不能相同：主实例 {lan && lan.mainPort ? lan.mainPort : '…'} 只留给本机，其他设备走网关端口登录。留空即用 {suggestedPort}（主端口+1）。</small></label>
       <div className="dmr-security"><strong>安全说明</strong><p>主实例保持仅监听 127.0.0.1：远程设备只能经这个登录网关进入，不存在免登录的直连路径。账号密码只发给自己；改密后所有设备需重新登录。</p></div>
     </div>
     {active ? <div className="dmr-share"><div className="dmr-share-layout"><div className="dmr-qr-card">{qr ? <img src={qr} alt="远程访问地址二维码" width="220" height="220"/> : <div className="dmr-qr-loading">正在生成二维码…</div>}<strong>扫码或输入地址</strong><small>打开后输入账号密码登录</small></div><div className="dmr-share-detail"><div><span className="dmr-eyebrow"><i/> 登录网关已运行</span><h4>{lanLink}</h4></div><div className="dmr-link" title={lanLink}>{lanLink}</div><div className="dmr-share-actions"><button type="button" className="dmr-primary" onClick={copyLink} disabled={!lanLink}><RelayIcon name="copy"/>复制地址</button><button type="button" className="dmr-secondary dmr-danger" onClick={disable} disabled={busy === 'stop'}><RelayIcon name="close"/>{busy === 'stop' ? '正在关闭…' : '关闭远程访问'}</button></div><small>主实例保持仅本机（结构上不存在免登录直连）；账号密码只发给自己。若开启前已有旧服务器模式（0.0.0.0）配置，会一并移除并提示重启。</small></div></div></div>
