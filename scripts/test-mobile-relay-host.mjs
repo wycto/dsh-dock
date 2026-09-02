@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
-import { readFileSync, rmSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { feature } from '../features/mobile-relay/host.js'
@@ -48,39 +48,41 @@ const mainServer = createServer((req, res) => {
 const mainPort = await listen(mainServer)
 const gatewayPort = await freePort()
 
-const dispose = feature.setup({
-  inject(keys, callback) {
-    if (keys.includes('settings')) {
-      // settings 桩：内存态 DockConfig，仅支持本测试用到的 remoteAuth.set 操作。
-      const store = new Map()
-      callback({
-        settings: {
-          get(ns) {
-            const value = store.get(ns)
-            return value ? JSON.parse(JSON.stringify(value)) : undefined
-          },
-          async mutate(ns, ops) {
-            let value = store.get(ns) || {}
-            for (const op of ops) {
-              if (op.op !== 'set') throw new Error('unsupported test op: ' + op.op)
-              value = { ...value, [op.path[0]]: JSON.parse(JSON.stringify(op.value)) }
-            }
-            store.set(ns, value)
-          },
+// settings/webServer 桩（两个 setup 实例共用：内存 settings + 路由注册槽）。
+function injectMock(keys, callback) {
+  if (keys.includes('settings')) {
+    // settings 桩：内存态 DockConfig，仅支持本测试用到的 remoteAuth.set 操作。
+    const store = new Map()
+    callback({
+      settings: {
+        get(ns) {
+          const value = store.get(ns)
+          return value ? JSON.parse(JSON.stringify(value)) : undefined
         },
-      })
-    }
-    if (keys.includes('webServer')) callback({
-      webServer: {
-        host: '127.0.0.1', port: mainPort,
-        tapIndex() { return () => {} },
-        register(route) { registered = route; return () => { registered = null } },
+        async mutate(ns, ops) {
+          let value = store.get(ns) || {}
+          for (const op of ops) {
+            if (op.op !== 'set') throw new Error('unsupported test op: ' + op.op)
+            value = { ...value, [op.path[0]]: JSON.parse(JSON.stringify(op.value)) }
+          }
+          store.set(ns, value)
+        },
       },
-      effect(run) { return run() },
     })
-    return () => {}
-  },
-})
+  }
+  if (keys.includes('webServer')) callback({
+    webServer: {
+      host: '127.0.0.1', port: mainPort,
+      tapIndex() { return () => {} },
+      register(route) { registered = route; return () => { registered = null } },
+    },
+    effect(run) { return run() },
+  })
+  return () => {}
+}
+
+const dispose = feature.setup({ inject: injectMock })
+let healDispose = () => {}
 
 const mainBase = `http://127.0.0.1:${mainPort}`
 const gatewayBase = `http://127.0.0.1:${gatewayPort}`
@@ -105,6 +107,9 @@ try {
   assert.equal(started.patchApplied, true)
   const patchText = readFileSync(patchFile, 'utf8')
   assert.match(patchText, /directory-picker-browse/)
+  // browse 行必须包在 insert 块里：DSH 补丁语义对未知 id 的普通行整行跳过，
+  // 平铺写入会因 directoryPicker 服务无人提供而让 /api 整面 404。
+  assert.match(patchText, /insert:/)
   assert.doesNotMatch(patchText, /webserver/)
 
   // 登录链路：未登录 302 → 错误密码 401 → 正确密码 200 → 会话访问上游。
@@ -145,6 +150,15 @@ try {
   const again = readFileSync(patchFile, 'utf8')
   assert.equal(again.match(/- id: directory-picker-browse/g).length, 1)
 
+  // 默认端口跟主实例走（主端口+1）；与主端口相同则拒绝（同一台机器不能同端口）。
+  // 先停掉已运行的网关：默认端口仅在"没有运行中的网关"时生效，且 freePort 分配的
+  // gatewayPort 可能恰好等于 mainPort+1（此时带显式端口的 lan/start 已占住网关，
+  // 再发默认端口请求会撞 409）——这不是产品缺陷，是同一用例内的先后依赖。
+  await rpc(mainBase, 'lan/stop', {})
+  const defaulted = await rpc(mainBase, 'lan/start', {})
+  assert.equal(defaulted.gatewayPort, mainPort + 1)
+  await assert.rejects(rpc(mainBase, 'lan/start', { port: mainPort }), /不能与 DSH 主服务端口/)
+
   // 关闭：网关停、补丁行清空。
   const stopped = await rpc(mainBase, 'lan/stop', {})
   assert.equal(stopped.gatewayActive, false)
@@ -153,8 +167,26 @@ try {
   assert.doesNotMatch(readFileSync(patchFile, 'utf8'), /directory-picker-browse/)
   await assert.rejects(fetch(gatewayBase + '/__dsh_auth/health'))
 
+  // 旧版坏形态自愈：平铺 browse 行（DSH 会整行跳过，auto 又被停用 → directoryPicker
+  // 无人提供，/api 整面 404）必须在插件加载时无损改写为 insert 形态。
+  // 放在最后：自愈需要重新 setup 一个实例（会接管路由槽，不影响已断言过的流程）。
+  writeFileSync(patchFile, [
+    '- id: directory-picker',
+    '  disabled: true',
+    '- id: directory-picker-browse',
+    "  name: '@deepseek-ai/dsh-host-directory-picker-browse'",
+    '- id: ui-directory-picker-browse',
+    "  name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'",
+    '',
+  ].join('\n'), 'utf8')
+  healDispose = feature.setup({ inject: injectMock })
+  const healed = readFileSync(patchFile, 'utf8')
+  assert.match(healed, /insert:/)
+  assert.equal(healed.match(/- id: directory-picker-browse/g).length, 1)
+
   console.log(`remote access host: ok (main 127.0.0.1:${mainPort}, gateway 0.0.0.0:${gatewayPort}, credentials + patch roundtrip)`)
 } finally {
+  healDispose()
   dispose()
   rmSync(patchFile, { force: true })
   await new Promise((resolve) => mainServer.close(resolve))
