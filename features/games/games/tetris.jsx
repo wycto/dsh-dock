@@ -27,13 +27,19 @@ function rotations(shape) {
 }
 const PIECES = SHAPES.map((s) => ({ color: s.color, rots: rotations(s) }));
 
-// 精确网格线（viewBox 1000×2000，轨道与方块单元格逐一对齐，杜绝背景纹理的亚像素漂移）。
+// 精确网格（viewBox 1000×2000，与方块单元格逐一对齐，杜绝背景纹理的亚像素漂移）：
+// 每个空格画一个深色内嵌圆角坑（经典机台的"格子凹槽"），再叠亮色网格线，空格一眼可辨。
 const TETRIS_GRID = (() => {
-	const lines = [];
+	const parts = [];
 	let k = 0;
-	for (let i = 1; i < 10; i += 1) lines.push(<line key={k++} x1={i * 100} y1={0} x2={i * 100} y2={2000} />);
-	for (let j = 1; j < 20; j += 1) lines.push(<line key={k++} x1={0} y1={j * 100} x2={1000} y2={j * 100} />);
-	return lines;
+	for (let j = 0; j < 20; j += 1) {
+		for (let i = 0; i < 10; i += 1) {
+			parts.push(<rect key={k++} className="dgame-tetris-pit" x={i * 100 + 7} y={j * 100 + 7} width={86} height={86} rx={10} />);
+		}
+	}
+	for (let i = 1; i < 10; i += 1) parts.push(<line key={k++} x1={i * 100} y1={0} x2={i * 100} y2={2000} />);
+	for (let j = 1; j < 20; j += 1) parts.push(<line key={k++} x1={0} y1={j * 100} x2={1000} y2={j * 100} />);
+	return parts;
 })();
 
 function emptyBoard() {
@@ -298,5 +304,5 @@ export function TetrisPreview() {
 }
 
 export const tetrisGame = { Game: TetrisGame, Preview: TetrisPreview, css: `
-.dgame-tetris{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;align-self:center;width:fit-content;max-width:100%;margin-inline:auto;justify-content:center}.dgame-tetris-board{position:relative;flex:none;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(20,1fr);width:min(100%,188px);aspect-ratio:10/20;border:1px solid color-mix(in srgb,rgb(34 211 238) 35%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#0c1024,#131a3d);padding:0;box-shadow:inset 0 0 30px rgb(0 0 0/.45)}.dgame-tetris-board:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(34 211 238) 40%,transparent)}.dgame-tetris-cell{display:block;background:transparent;border-radius:2px;margin:1px}.dgame-tetris-nextbox{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);width:60px;height:32px}.dgame-tetris-side{flex:1 1 96px;display:flex;flex-direction:column;gap:9px;min-width:0;max-width:220px;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-tetris-side b{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-tetris-side span{font-size:11px}.dgame-tetris-nextbox .dgame-tetris-cell{margin:1px}.dgame-tetris-keys span{display:block;line-height:1.6;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}.dgame-tetris-next{display:flex;flex-direction:column;gap:5px;align-items:center}.dgame-tetris-next span{color:var(--dsw-alias-label-secondary)}.dgame-tetris-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.dgame-tetris-lines line{stroke:#60a5fa;stroke-opacity:.12;stroke-width:2}@media (max-width:680px){.dgame-tetris{width:100%;gap:8px}.dgame-tetris-board{width:min(100%,170px)}}
+.dgame-tetris{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;align-self:center;width:fit-content;max-width:100%;margin-inline:auto;justify-content:center}.dgame-tetris-board{position:relative;flex:none;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(20,1fr);width:min(100%,188px);aspect-ratio:10/20;border:1px solid color-mix(in srgb,rgb(34 211 238) 35%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#0c1024,#131a3d);padding:0;box-shadow:inset 0 0 30px rgb(0 0 0/.45)}.dgame-tetris-board:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(34 211 238) 40%,transparent)}.dgame-tetris-cell{position:relative;z-index:1;display:block;background:transparent;border-radius:2px;margin:1px}.dgame-tetris-nextbox{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);width:60px;height:32px}.dgame-tetris-side{flex:1 1 96px;display:flex;flex-direction:column;gap:9px;min-width:0;max-width:220px;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-tetris-side b{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-tetris-side span{font-size:11px}.dgame-tetris-nextbox .dgame-tetris-cell{margin:1px}.dgame-tetris-keys span{display:block;line-height:1.6;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}.dgame-tetris-next{display:flex;flex-direction:column;gap:5px;align-items:center}.dgame-tetris-next span{color:var(--dsw-alias-label-secondary)}.dgame-tetris-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.dgame-tetris-lines line{stroke:rgb(96 165 250/.28);stroke-width:3}.dgame-tetris-lines .dgame-tetris-pit{fill:rgb(0 0 0/.42);stroke:rgb(255 255 255/.07);stroke-width:2}@media (max-width:680px){.dgame-tetris{width:100%;gap:8px}.dgame-tetris-board{width:min(100%,170px)}}
 ` };
