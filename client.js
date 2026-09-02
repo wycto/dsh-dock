@@ -40,18 +40,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/can-promise.js
+// node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/utils.js
+// node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/utils.js"(exports) {
+  "node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -128,9 +128,9 @@ var require_utils = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-level.js
+// node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -173,9 +173,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-buffer.js
+// node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -208,9 +208,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-matrix.js
+// node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -237,9 +237,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alignment-pattern.js
+// node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -272,9 +272,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/finder-pattern.js
+// node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -291,9 +291,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mask-pattern.js
+// node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -433,9 +433,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-code.js
+// node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -794,9 +794,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/galois-field.js
+// node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -827,9 +827,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/polynomial.js
+// node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -863,9 +863,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -895,18 +895,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version-check.js
+// node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version-check.js"(exports) {
+  "node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/regex.js
+// node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/regex.js"(exports) {
+  "node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -932,9 +932,9 @@ var require_regex = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mode.js
+// node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/mode.js"(exports) {
+  "node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1013,9 +1013,9 @@ var require_mode = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version.js
+// node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/version.js"(exports) {
+  "node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1108,9 +1108,9 @@ var require_version = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/format-info.js
+// node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/format-info.js"(exports) {
+  "node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1126,9 +1126,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/numeric-data.js
+// node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1161,9 +1161,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alphanumeric-data.js
+// node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1240,9 +1240,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/byte-data.js
+// node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1270,9 +1270,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/kanji-data.js
+// node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1309,9 +1309,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/dijkstrajs/dijkstra.js
+// node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1410,9 +1410,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/segments.js
+// node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/segments.js"(exports) {
+  "node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1596,9 +1596,9 @@ var require_segments = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/qrcode.js
+// node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1857,9 +1857,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/utils.js
+// node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1937,9 +1937,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/canvas.js
+// node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1990,9 +1990,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/svg-tag.js
+// node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2048,9 +2048,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/browser.js
+// node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  "C:/Users/wzy60/.dsh/profiles/web/node_modules/qrcode/lib/browser.js"(exports) {
+  "node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -9429,7 +9429,7 @@ var baseCss = `
 .dgwin-picker{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;gap:10px;padding:13px;background:rgb(10 14 32 / .86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow-y:auto;animation:dgentry-in .15s ease-out}.dgwin-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.dgwin-picker-head>div{display:flex;flex-direction:column;gap:3px}.dgwin-picker-head b{font-size:14px}.dgwin-picker-head span{font-size:11px;color:#aab3e8}.dgwin-picker-close{cursor:pointer;border:none;background:transparent;color:#7d86c0;border-radius:8px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}.dgwin-picker-close:hover{background:rgb(255 255 255 / .08);color:#e7ecff}.dgwin-picker .dgcov-grid{flex-direction:column;--dsw-alias-label-primary:#e7ecff;--dsw-alias-label-secondary:#aab3e8;--dsw-alias-border-l1:rgb(255 255 255 / .12)}.dgwin-picker .dgcov{min-width:0;background:rgb(255 255 255 / .04)}
 .dgwin-resize{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3;touch-action:none}.dgwin-resize::after{content:'';position:absolute;right:4px;bottom:4px;width:8px;height:8px;border-right:2px solid rgb(255 255 255 / .3);border-bottom:2px solid rgb(255 255 255 / .3);border-radius:0 0 3px 0}
 @keyframes dgentry-in{from{opacity:0}}
-@media (max-width:680px){.dgame{gap:12px;font-size:14px}.dgame-hero{padding:15px}.dgame-hero h2{font-size:20px}.dgame-planet{width:58px;height:58px}.dgame-planet::after{left:-12px;top:25px;width:80px;height:20px}.dgame-game{padding:12px}.dgame-dash-grid{grid-template-rows:repeat(5,48px)}.dgame-controls{grid-template-columns:1fr 1fr}.dgame-controls span{grid-column:1 / -1;grid-row:2}.dgame-reactor{gap:8px}.dgcov-grid{flex-direction:column}.dgcov{min-width:0}.dgfab{width:32px}.dgwin-title span,.dgwin-task{display:none}.dgwin-bar{gap:7px;padding:8px 10px}.dgwin-btn{padding:6px 8px}.dgwin-body{padding:10px}}
+@media (max-width:680px){.dgame{gap:12px;font-size:14px}.dgame-hero{padding:15px}.dgame-hero h2{font-size:20px}.dgame-planet{width:58px;height:58px}.dgame-planet::after{left:-12px;top:25px;width:80px;height:20px}.dgame-game{padding:12px}.dgame-dash-grid{grid-template-rows:repeat(5,48px)}.dgame-controls{grid-template-columns:1fr 1fr}.dgame-controls span{grid-column:1 / -1;grid-row:2}.dgame-reactor{gap:8px}.dgcov-grid{flex-direction:column}.dgcov{min-width:0}.dgfab{width:32px;opacity:.72}.dgfab:hover{opacity:1}.dgwin-title span,.dgwin-task{display:none}.dgwin-bar{gap:7px;padding:8px 10px}.dgwin-btn{padding:6px 8px}.dgwin-body{padding:10px}}
 @media (prefers-reduced-motion:reduce){.dgame *,.dgcov *,.dgfab,.dgwin,.dgwin-picker *{animation:none!important;transition:none!important}}
 `;
 var dgcovGroupCss = `
@@ -9544,6 +9544,7 @@ function RemoteCard() {
   }, []);
   const active = Boolean(lan && lan.gatewayActive);
   const gatewayPort = lan && lan.gatewayPort ? lan.gatewayPort : 3081;
+  const suggestedPort = lan && lan.mainPort ? lan.mainPort + 1 : gatewayPort;
   const lanLink = (0, import_react19.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
   (0, import_react19.useEffect)(() => {
     let live = true;
@@ -9658,7 +9659,7 @@ function RemoteCard() {
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "2" }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
           /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5F00\u542F\u5165\u53E3" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u7F51\u5173\u76D1\u542C 0.0.0.0:3081\uFF08\u53EF\u6539\u7AEF\u53E3\uFF09\uFF0C\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u7F51\u5173\u76D1\u542C 0.0.0.0\uFF08\u9ED8\u8BA4\u4E3B\u7AEF\u53E3+1\uFF0C\u53EF\u6539\uFF09\uFF0C\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\u3002" })
         ] })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
@@ -9682,11 +9683,13 @@ function RemoteCard() {
     /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u76D1\u542C\u7AEF\u53E3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", placeholder: "\u9ED8\u8BA4 " + gatewayPort, "aria-describedby": "dmr-lan-port-help" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", placeholder: "\u9ED8\u8BA4 " + suggestedPort, "aria-describedby": "dmr-lan-port-help" }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { id: "dmr-lan-port-help", children: [
-          "\u7559\u7A7A\u4FDD\u6301\u5F53\u524D\u7AEF\u53E3 ",
-          gatewayPort,
-          "\uFF1B\u91CD\u542F dsh web \u540E\u4ECD\u4EE5\u8FD9\u91CC\u8BBE\u7F6E\u7684\u7AEF\u53E3\u4E3A\u51C6\u3002"
+          "\u7F51\u5173\u548C\u4E3B\u670D\u52A1\u662F\u540C\u4E00\u53F0\u673A\u5668\u4E0A\u7684\u4E24\u4E2A\u7AEF\u53E3\uFF0C\u4E0D\u80FD\u76F8\u540C\uFF1A\u4E3B\u5B9E\u4F8B ",
+          lan && lan.mainPort ? lan.mainPort : "\u2026",
+          " \u53EA\u7559\u7ED9\u672C\u673A\uFF0C\u5176\u4ED6\u8BBE\u5907\u8D70\u7F51\u5173\u7AEF\u53E3\u767B\u5F55\u3002\u7559\u7A7A\u5373\u7528 ",
+          suggestedPort,
+          "\uFF08\u4E3B\u7AEF\u53E3+1\uFF09\u3002"
         ] })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-security", children: [
@@ -9851,7 +9854,7 @@ var SHELL_CSS = [
   ".docke2-btn.docke2-on{color:var(--dsw-alias-accent,#4d9fff);background:var(--dsw-alias-accent-soft,color-mix(in srgb,var(--dsw-alias-accent,#4d9fff) 12%,transparent));}",
   ".docke2-btn.docke2-rail{width:36px;height:36px;margin:8px 0 10px;padding:0;border-radius:50%;justify-content:center;gap:0;}",
   ".docke2-label{white-space:nowrap;overflow:hidden;}",
-  ".dockm-backdrop{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 55%,transparent);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
+  ".dockm-backdrop{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 55%,transparent);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
   "@keyframes dockm-fade{from{opacity:0}to{opacity:1}}",
   ".dockm-dialog{box-sizing:border-box;position:relative;width:min(1080px,calc(100vw - 32px));height:min(700px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:16px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .32);overflow:hidden;animation:dockm-pop .18s var(--ds-ease-in-out);}",
   "@keyframes dockm-pop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}",
