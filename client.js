@@ -6151,11 +6151,16 @@ function rotations(shape) {
 }
 var PIECES = SHAPES.map((s) => ({ color: s.color, rots: rotations(s) }));
 var TETRIS_GRID = (() => {
-  const lines = [];
+  const parts = [];
   let k = 0;
-  for (let i = 1; i < 10; i += 1) lines.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: i * 100, y1: 0, x2: i * 100, y2: 2e3 }, k++));
-  for (let j = 1; j < 20; j += 1) lines.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: 0, y1: j * 100, x2: 1e3, y2: j * 100 }, k++));
-  return lines;
+  for (let j = 0; j < 20; j += 1) {
+    for (let i = 0; i < 10; i += 1) {
+      parts.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { className: "dgame-tetris-pit", x: i * 100 + 7, y: j * 100 + 7, width: 86, height: 86, rx: 10 }, k++));
+    }
+  }
+  for (let i = 1; i < 10; i += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: i * 100, y1: 0, x2: i * 100, y2: 2e3 }, k++));
+  for (let j = 1; j < 20; j += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: 0, y1: j * 100, x2: 1e3, y2: j * 100 }, k++));
+  return parts;
 })();
 function emptyBoard() {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -6461,7 +6466,7 @@ function TetrisPreview() {
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dgcov-prev dgcov-prev-tetris", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dgp-tet-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: COLORS2[ch] ? "c" + COLORS2[ch] + (isFall(r) ? " fall" : "") : "" }, r + "-" + c))) }) });
 }
 var tetrisGame = { Game: TetrisGame, Preview: TetrisPreview, css: `
-.dgame-tetris{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;align-self:center;width:fit-content;max-width:100%;margin-inline:auto;justify-content:center}.dgame-tetris-board{position:relative;flex:none;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(20,1fr);width:min(100%,188px);aspect-ratio:10/20;border:1px solid color-mix(in srgb,rgb(34 211 238) 35%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#0c1024,#131a3d);padding:0;box-shadow:inset 0 0 30px rgb(0 0 0/.45)}.dgame-tetris-board:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(34 211 238) 40%,transparent)}.dgame-tetris-cell{display:block;background:transparent;border-radius:2px;margin:1px}.dgame-tetris-nextbox{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);width:60px;height:32px}.dgame-tetris-side{flex:1 1 96px;display:flex;flex-direction:column;gap:9px;min-width:0;max-width:220px;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-tetris-side b{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-tetris-side span{font-size:11px}.dgame-tetris-nextbox .dgame-tetris-cell{margin:1px}.dgame-tetris-keys span{display:block;line-height:1.6;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}.dgame-tetris-next{display:flex;flex-direction:column;gap:5px;align-items:center}.dgame-tetris-next span{color:var(--dsw-alias-label-secondary)}.dgame-tetris-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.dgame-tetris-lines line{stroke:#60a5fa;stroke-opacity:.12;stroke-width:2}@media (max-width:680px){.dgame-tetris{width:100%;gap:8px}.dgame-tetris-board{width:min(100%,170px)}}
+.dgame-tetris{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;align-self:center;width:fit-content;max-width:100%;margin-inline:auto;justify-content:center}.dgame-tetris-board{position:relative;flex:none;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(20,1fr);width:min(100%,188px);aspect-ratio:10/20;border:1px solid color-mix(in srgb,rgb(34 211 238) 35%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#0c1024,#131a3d);padding:0;box-shadow:inset 0 0 30px rgb(0 0 0/.45)}.dgame-tetris-board:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(34 211 238) 40%,transparent)}.dgame-tetris-cell{position:relative;z-index:1;display:block;background:transparent;border-radius:2px;margin:1px}.dgame-tetris-nextbox{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);width:60px;height:32px}.dgame-tetris-side{flex:1 1 96px;display:flex;flex-direction:column;gap:9px;min-width:0;max-width:220px;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-tetris-side b{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-tetris-side span{font-size:11px}.dgame-tetris-nextbox .dgame-tetris-cell{margin:1px}.dgame-tetris-keys span{display:block;line-height:1.6;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}.dgame-tetris-next{display:flex;flex-direction:column;gap:5px;align-items:center}.dgame-tetris-next span{color:var(--dsw-alias-label-secondary)}.dgame-tetris-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.dgame-tetris-lines line{stroke:rgb(96 165 250/.28);stroke-width:3}.dgame-tetris-lines .dgame-tetris-pit{fill:rgb(0 0 0/.42);stroke:rgb(255 255 255/.07);stroke-width:2}@media (max-width:680px){.dgame-tetris{width:100%;gap:8px}.dgame-tetris-board{width:min(100%,170px)}}
 ` };
 
 // features/games/games/sokoban.jsx
@@ -7314,6 +7319,18 @@ var XIANGQI_LINES = (() => {
   }
   return parts;
 })();
+var CN_NUMS = ["\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D", "\u4E03", "\u516B", "\u4E5D"];
+function moveNotation(board, fr, fc, tr, tc) {
+  const p = board[fr][fc];
+  if (!p) return "";
+  const red = p.c === "r";
+  const num = (n) => red ? CN_NUMS[n - 1] : String(n);
+  const file = (c) => red ? 9 - c : c + 1;
+  const forward = red ? tr < fr : tr > fr;
+  const verb = fr === tr ? "\u5E73" : forward ? "\u8FDB" : "\u9000";
+  const to = fr === tr || p.t === "h" || p.t === "e" || p.t === "a" ? file(tc) : Math.abs(tr - fr);
+  return pieceChar(p) + num(file(fc)) + verb + num(to);
+}
 function XiangqiGame(props) {
   const [board, setBoard] = (0, import_react13.useState)(initialBoard);
   const [turn, setTurn] = (0, import_react13.useState)("r");
@@ -7322,6 +7339,9 @@ function XiangqiGame(props) {
   const [over, setOver] = (0, import_react13.useState)(null);
   const [check, setCheck] = (0, import_react13.useState)(false);
   const [last, setLast] = (0, import_react13.useState)(null);
+  const [lastMove, setLastMove] = (0, import_react13.useState)(null);
+  const [moveLog, setMoveLog] = (0, import_react13.useState)([]);
+  const [moving, setMoving] = (0, import_react13.useState)(null);
   const [thinking, setThinking] = (0, import_react13.useState)(false);
   const [history, setHistory] = (0, import_react13.useState)([]);
   const [repKeys, setRepKeys] = (0, import_react13.useState)(() => [posKey(initialBoard())]);
@@ -7337,7 +7357,43 @@ function XiangqiGame(props) {
   thinkingRef.current = thinking;
   const historyRef = (0, import_react13.useRef)(history);
   historyRef.current = history;
+  const movingRef = (0, import_react13.useRef)(false);
+  const pendingRef = (0, import_react13.useRef)(null);
+  const animTimerRef = (0, import_react13.useRef)(null);
+  const animateMove = (0, import_react13.useCallback)((b, fr, fc, tr, tc, after) => {
+    const piece = boardRef.current[fr][fc];
+    const capture = !!boardRef.current[tr][tc];
+    pendingRef.current = { board: b, after };
+    movingRef.current = true;
+    setSel(null);
+    setTargets([]);
+    setMoving({ fr, fc, tr, tc, piece, capture });
+    playSfx(capture ? "capture" : "step");
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    animTimerRef.current = setTimeout(() => {
+      animTimerRef.current = null;
+      const pend = pendingRef.current;
+      pendingRef.current = null;
+      movingRef.current = false;
+      setMoving(null);
+      if (pend) {
+        const text = moveNotation(boardRef.current, fr, fc, tr, tc);
+        boardRef.current = pend.board;
+        setBoard(pend.board);
+        setLastMove({ fr, fc, tr, tc, text });
+        setMoveLog((log) => log.concat({ side: piece.c, text }));
+        setLast([tr, tc]);
+        if (pend.after) pend.after();
+      }
+    }, 260);
+  }, []);
   const restart = (0, import_react13.useCallback)(() => {
+    if (animTimerRef.current) {
+      clearTimeout(animTimerRef.current);
+      animTimerRef.current = null;
+    }
+    pendingRef.current = null;
+    movingRef.current = false;
     const b = initialBoard();
     boardRef.current = b;
     setBoard(b);
@@ -7349,10 +7405,13 @@ function XiangqiGame(props) {
     setLast(null);
     setThinking(false);
     setHistory([]);
+    setLastMove(null);
+    setMoveLog([]);
+    setMoving(null);
     setRepKeys([posKey(b)]);
   }, []);
   const undo2 = (0, import_react13.useCallback)(() => {
-    if (thinkingRef.current || overRef.current || turnRef.current !== "r") return;
+    if (thinkingRef.current || overRef.current || turnRef.current !== "r" || movingRef.current) return;
     const h = historyRef.current;
     if (h.length < 2) return;
     const hist = h.slice(0, -2);
@@ -7363,31 +7422,28 @@ function XiangqiGame(props) {
     setSel(null);
     setTargets([]);
     setLast(null);
+    setLastMove(null);
+    setMoveLog((prevLog) => prevLog.slice(0, -2));
     setOver(null);
     setCheck(inCheck(b, "r"));
     setRepKeys(hist.map(posKey).concat(posKey(b)));
   }, []);
   const moveRed = (0, import_react13.useCallback)((tr, tc) => {
-    if (turnRef.current !== "r" || overRef.current || !sel) return;
+    if (turnRef.current !== "r" || overRef.current || !sel || movingRef.current) return;
     const fr = sel[0], fc = sel[1];
-    if (boardRef.current[tr][tc]) playSfx("capture");
-    else playSfx("step");
     const nb = applyMove(boardRef.current, fr, fc, tr, tc);
     setHistory((h) => [...h, boardRef.current]);
-    boardRef.current = nb;
     pushKey(nb);
-    setBoard(nb);
-    setSel(null);
-    setTargets([]);
-    setLast([tr, tc]);
-    setTurn("b");
-    if (!hasLegalMoves(nb, "b")) {
-      setOver("r");
-      setCheck(false);
-    } else setCheck(inCheck(nb, "b"));
-  }, [sel, pushKey]);
+    animateMove(nb, fr, fc, tr, tc, () => {
+      setTurn("b");
+      if (!hasLegalMoves(nb, "b")) {
+        setOver("r");
+        setCheck(false);
+      } else setCheck(inCheck(nb, "b"));
+    });
+  }, [sel, pushKey, animateMove]);
   const select = (0, import_react13.useCallback)((r, c) => {
-    if (overRef.current || turnRef.current !== "r" || thinkingRef.current) return;
+    if (overRef.current || turnRef.current !== "r" || thinkingRef.current || movingRef.current) return;
     const p = boardRef.current[r][c];
     if (p && p.c === "r") {
       setSel([r, c]);
@@ -7403,32 +7459,29 @@ function XiangqiGame(props) {
     setTargets([]);
   }, [sel, targets, moveRed]);
   (0, import_react13.useEffect)(() => {
-    if (turn !== "b" || over || props.paused) return;
+    if (turn !== "b" || over || props.paused || movingRef.current) return;
     const t = setTimeout(() => {
       const seenCounts = /* @__PURE__ */ new Map();
       for (const k of repKeys) seenCounts.set(k, (seenCounts.get(k) || 0) + 1);
       const mv = bestMove(boardRef.current, "b", 3, seenCounts);
       if (mv) {
         const [fr, fc, tr, tc] = mv;
-        if (boardRef.current[tr][tc]) playSfx("capture");
-        else playSfx("step");
         const nb = applyMove(boardRef.current, fr, fc, tr, tc);
         setHistory((h) => [...h, boardRef.current]);
-        boardRef.current = nb;
         pushKey(nb);
-        setBoard(nb);
-        setLast([tr, tc]);
-        setTurn("r");
-        if (!hasLegalMoves(nb, "r")) {
-          setOver("b");
-          setCheck(false);
-        } else setCheck(inCheck(nb, "r"));
+        animateMove(nb, fr, fc, tr, tc, () => {
+          setTurn("r");
+          if (!hasLegalMoves(nb, "r")) {
+            setOver("b");
+            setCheck(false);
+          } else setCheck(inCheck(nb, "r"));
+        });
       } else setOver("r");
       setThinking(false);
-    }, 90);
+    }, 420);
     setThinking(true);
     return () => clearTimeout(t);
-  }, [turn, over, props.paused, repKeys, pushKey]);
+  }, [turn, over, props.paused, repKeys, pushKey, animateMove]);
   const onKeyDown = (0, import_react13.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
@@ -7439,7 +7492,7 @@ function XiangqiGame(props) {
     }
   }, [restart, undo2]);
   useGameControls(stageRef, props.paused, onKeyDown);
-  const status = over === "r" ? "\u7EA2\u65B9\u80DC \xB7 \u606D\u559C" : over === "b" ? "\u9ED1\u65B9\u80DC \xB7 AI \u8D62" : thinking ? "AI \u601D\u8003\u4E2D\u2026" : check ? "\u5C06\u519B\uFF01" : turn === "r" ? "\u8F6E\u5230\u4F60\uFF08\u7EA2\u65B9\uFF09" : "\u8F6E\u5230 AI\uFF08\u9ED1\u65B9\uFF09";
+  const status = over === "r" ? "\u7EA2\u65B9\u80DC \xB7 \u606D\u559C" : over === "b" ? "\u9ED1\u65B9\u80DC \xB7 AI \u8D62" : moving ? moving.piece.c === "r" ? "\u7EA2\u65B9\u8D70\u5B50\u2026" : "AI \u8D70\u5B50\u2026" : thinking ? "AI \u601D\u8003\u4E2D\u2026" : check ? "\u5C06\u519B\uFF01" : turn === "r" ? "\u8F6E\u5230\u4F60\uFF08\u7EA2\u65B9\uFF09" : "\u8F6E\u5230 AI\uFF08\u9ED1\u65B9\uFF09";
   const prevCheck = (0, import_react13.useRef)(false);
   (0, import_react13.useEffect)(() => {
     if (over === "r") playSfx("win");
@@ -7447,6 +7500,9 @@ function XiangqiGame(props) {
     else if (!thinking && check && !prevCheck.current) playSfx("check");
     prevCheck.current = !thinking && check;
   }, [check, thinking, over]);
+  (0, import_react13.useEffect)(() => () => {
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+  }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "dgame-game", "aria-label": "\u8C61\u68CB", children: [
     /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-game-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
@@ -7467,26 +7523,47 @@ function XiangqiGame(props) {
         /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgame-xiangqi-rivertext", x: 670, y: 505, children: "\u6F22 \u754C" })
       ] }),
       board.map((row, r) => row.map((p, c) => {
+        const mv = moving;
+        const isFlyFrom = mv && mv.fr === r && mv.fc === c;
+        const isDying = mv && mv.capture && mv.tr === r && mv.tc === c;
         const isSel = sel && sel[0] === r && sel[1] === c;
         const isTargetMark = targets.some(([tr, tc]) => tr === r && tc === c);
+        const isLastMoveFrom = lastMove && lastMove.fr === r && lastMove.fc === c;
+        const isLand = !mv && lastMove && lastMove.tr === r && lastMove.tc === c;
         const isLast = last && last[0] === r && last[1] === c;
         return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
           "button",
           {
             type: "button",
             role: "gridcell",
-            className: "dgame-xiangqi-cell" + (isSel ? " sel" : "") + (isTargetMark ? " target" : "") + (isLast ? " last" : ""),
+            className: "dgame-xiangqi-cell" + (isSel ? " sel" : "") + (isTargetMark ? " target" : "") + (isLastMoveFrom ? " from" : "") + (isLand ? " land" : "") + (isLast ? " last" : ""),
             "aria-label": "\u7B2C" + (r + 1) + "\u884C\u7B2C" + (c + 1) + "\u5217" + (p ? pieceChar(p) : " \u7A7A"),
             onClick: () => {
               focusStage(stageRef);
               select(r, c);
             },
-            children: p ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-pc " + p.c, children: pieceChar(p) }) : isTargetMark ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-dot", "aria-hidden": "true" }) : null
+            children: p && !isFlyFrom ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-pc " + p.c + (isDying ? " dying" : ""), children: pieceChar(p) }) : !p && isTargetMark ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-dot", "aria-hidden": "true" }) : null
           },
           r + "-" + c
         );
-      }))
+      })),
+      moving ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        "span",
+        {
+          className: "dgame-xiangqi-pc dgame-xiangqi-fly " + moving.piece.c,
+          style: {
+            "--fx0": (moving.fc + 0.5) / 9,
+            "--fy0": (moving.fr + 0.5) / 10,
+            "--fx1": (moving.tc + 0.5) / 9,
+            "--fy1": (moving.tr + 0.5) / 10
+          },
+          "aria-hidden": "true",
+          children: pieceChar(moving.piece)
+        },
+        moving.fr + "-" + moving.fc + "-" + moving.tr + "-" + moving.tc + "-" + moving.piece.c
+      ) : null
     ] }),
+    moveLog.length ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "dgame-xiangqi-log", role: "status", "aria-live": "polite", children: moveLog.slice(-4).map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: m.side, children: m.text }, moveLog.length - 4 + i)) }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-controls", children: [
       /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
       /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
@@ -7524,7 +7601,7 @@ function XiangqiPreview() {
   ] }) });
 }
 var xiangqiGame = { Game: XiangqiGame, Preview: XiangqiPreview, css: `
-.dgame-xiangqi-board{position:relative;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(10,1fr);align-self:center;width:min(100%,min(90vw,340px));aspect-ratio:9/10;padding:13px;border-radius:12px;border:1px solid color-mix(in srgb,#7c4f16 65%,transparent);box-shadow:0 12px 32px rgb(0 0 0/.5),inset 0 1px 0 rgba(255,236,200,.55),inset 0 -3px 9px rgba(90,50,10,.35),inset 3px 0 8px rgba(255,224,170,.28),inset -3px 0 8px rgba(120,70,20,.25);outline:none;background:repeating-linear-gradient(94deg,rgba(124,79,22,.05) 0 2px,transparent 2px 11px),repeating-linear-gradient(87deg,rgba(255,238,196,.05) 0 2px,transparent 2px 14px),radial-gradient(130% 105% at 26% 8%,#f0cd86,#ddb067 48%,#cb9a51 78%,#bb8844)}.dgame-xiangqi-lines{position:absolute;inset:13px;pointer-events:none}.dgame-xiangqi-lines line,.dgame-xiangqi-lines path{stroke:#66431a;stroke-width:3.4;fill:none;stroke-linecap:square}.dgame-xiangqi-lines .dgame-xiangqi-mark{stroke-width:2.6}.dgame-xiangqi-rivertext{fill:rgba(102,67,26,.7);font-family:KaiTi,"Kaiti SC","STKaiti","FangSong",serif;font-size:46px;letter-spacing:7px;text-anchor:middle;dominant-baseline:central}.dgame-xiangqi-board:focus-visible{box-shadow:0 0 0 3px rgba(0,0,0,.25)}.dgame-xiangqi-cell{position:relative;z-index:1;background:transparent;border:none;cursor:pointer;padding:0;margin:0;outline:none;display:grid;place-items:center;min-width:0;min-height:0}.dgame-xiangqi-cell.target .dgame-xiangqi-dot{width:12px;height:12px;border-radius:50%;background:rgba(34,211,238,.6);box-shadow:0 0 10px rgba(34,211,238,.65),0 0 0 2px rgba(255,255,255,.28)}.dgame-xiangqi-cell.target .dgame-xiangqi-pc{box-shadow:0 0 0 2px rgba(248,113,113,.85),0 0 10px rgba(248,113,113,.5),0 2px 4px rgb(0 0 0/.4),inset 0 0 0 1.5px rgba(96,62,18,.5),inset 0 1px 2px rgba(255,255,255,.95),inset 0 -2px 3px rgba(120,80,20,.4)}.dgame-xiangqi-cell.sel .dgame-xiangqi-pc::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:2.5px solid rgba(251,191,36,.95);box-shadow:0 0 12px rgba(251,191,36,.6)}.dgame-xiangqi-cell.last .dgame-xiangqi-pc::after{content:'';position:absolute;right:5%;bottom:5%;width:5px;height:5px;border-radius:50%;background:#ef4444;box-shadow:0 0 4px rgba(239,68,68,.8)}.dgame-xiangqi-pc{position:relative;display:grid;place-items:center;z-index:1;width:min(80%,30px);aspect-ratio:1/1;border-radius:50%;box-sizing:border-box;font-family:KaiTi,"Kaiti SC","STKaiti","FangSong","SimSun",serif;font-size:clamp(12px,1.4vw,15px);font-weight:700;line-height:1;background:radial-gradient(circle at 34% 28%,#fff3d4,#eedaa6 46%,#d8b675 72%,#bd9650);box-shadow:0 2px 4px rgb(0 0 0/.45),inset 0 0 0 1.5px rgba(96,62,18,.5),inset 0 1px 2px rgba(255,255,255,.95),inset 0 -2px 3px rgba(120,80,20,.4)}.dgame-xiangqi-pc.r{color:#b91c1c;text-shadow:0 1px 0 rgba(255,255,255,.5)}.dgame-xiangqi-pc.b{color:#1f2937;text-shadow:0 1px 0 rgba(255,255,255,.35)}
+.dgame-xiangqi-board{position:relative;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(10,1fr);align-self:center;width:min(100%,min(90vw,340px));aspect-ratio:9/10;padding:13px;border-radius:12px;border:1px solid color-mix(in srgb,#7c4f16 65%,transparent);box-shadow:0 12px 32px rgb(0 0 0/.5),inset 0 1px 0 rgba(255,236,200,.55),inset 0 -3px 9px rgba(90,50,10,.35),inset 3px 0 8px rgba(255,224,170,.28),inset -3px 0 8px rgba(120,70,20,.25);outline:none;background:repeating-linear-gradient(94deg,rgba(124,79,22,.05) 0 2px,transparent 2px 11px),repeating-linear-gradient(87deg,rgba(255,238,196,.05) 0 2px,transparent 2px 14px),radial-gradient(130% 105% at 26% 8%,#f0cd86,#ddb067 48%,#cb9a51 78%,#bb8844)}.dgame-xiangqi-lines{position:absolute;inset:13px;pointer-events:none}.dgame-xiangqi-lines line,.dgame-xiangqi-lines path,.dgame-xiangqi-lines rect{stroke:#66431a;stroke-width:3.4;fill:none;stroke-linecap:square}.dgame-xiangqi-lines rect{stroke-width:7}.dgame-xiangqi-lines .dgame-xiangqi-mark{stroke-width:2.6}.dgame-xiangqi-rivertext{fill:rgba(102,67,26,.7);font-family:KaiTi,"Kaiti SC","STKaiti","FangSong",serif;font-size:46px;letter-spacing:7px;text-anchor:middle;dominant-baseline:central}.dgame-xiangqi-board:focus-visible{box-shadow:0 0 0 3px rgba(0,0,0,.25)}.dgame-xiangqi-cell{position:relative;z-index:1;background:transparent;border:none;cursor:pointer;padding:0;margin:0;outline:none;display:grid;place-items:center;min-width:0;min-height:0}.dgame-xiangqi-cell.target .dgame-xiangqi-dot{width:12px;height:12px;border-radius:50%;background:rgba(34,211,238,.6);box-shadow:0 0 10px rgba(34,211,238,.65),0 0 0 2px rgba(255,255,255,.28)}.dgame-xiangqi-cell.target .dgame-xiangqi-pc{box-shadow:0 0 0 2px rgba(248,113,113,.85),0 0 10px rgba(248,113,113,.5),0 2px 4px rgb(0 0 0/.4),inset 0 0 0 1.5px rgba(96,62,18,.5),inset 0 1px 2px rgba(255,255,255,.95),inset 0 -2px 3px rgba(120,80,20,.4)}.dgame-xiangqi-cell.sel .dgame-xiangqi-pc::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:2.5px solid rgba(251,191,36,.95);box-shadow:0 0 12px rgba(251,191,36,.6)}.dgame-xiangqi-cell.from::before{content:'';position:absolute;inset:50% auto auto 50%;width:34%;height:34%;transform:translate(-50%,-50%);border-radius:50%;border:2.5px dashed rgba(102,67,26,.75);pointer-events:none}.dgame-xiangqi-cell.land .dgame-xiangqi-pc{animation:dgame-xq-land .28s cubic-bezier(.2,.85,.3,1.25)}.dgame-xiangqi-cell.last .dgame-xiangqi-pc::after{content:'';position:absolute;right:5%;bottom:5%;width:5px;height:5px;border-radius:50%;background:#ef4444;box-shadow:0 0 4px rgba(239,68,68,.8)}.dgame-xiangqi-pc{position:relative;display:grid;place-items:center;z-index:1;width:min(80%,30px);aspect-ratio:1/1;border-radius:50%;box-sizing:border-box;font-family:KaiTi,"Kaiti SC","STKaiti","FangSong","SimSun",serif;font-size:clamp(12px,1.4vw,15px);font-weight:700;line-height:1;background:radial-gradient(circle at 34% 28%,#fff3d4,#eedaa6 46%,#d8b675 72%,#bd9650);box-shadow:0 2px 4px rgb(0 0 0/.45),inset 0 0 0 1.5px rgba(96,62,18,.5),inset 0 1px 2px rgba(255,255,255,.95),inset 0 -2px 3px rgba(120,80,20,.4)}.dgame-xiangqi-pc.dying{animation:dgame-xq-die .26s ease forwards}.dgame-xiangqi-fly{position:absolute;z-index:5;width:calc((100% - 26px)*.0889);aspect-ratio:1/1;border-radius:50%;display:grid;place-items:center;box-sizing:border-box;font-family:KaiTi,"Kaiti SC","STKaiti","FangSong","SimSun",serif;font-size:clamp(12px,1.4vw,15px);font-weight:700;line-height:1;pointer-events:none;background:radial-gradient(circle at 34% 28%,#fff3d4,#eedaa6 46%,#d8b675 72%,#bd9650);box-shadow:0 6px 14px rgb(0 0 0/.5),0 0 0 1.5px rgba(96,62,18,.35),inset 0 0 0 1.5px rgba(96,62,18,.5),inset 0 1px 2px rgba(255,255,255,.95),inset 0 -2px 3px rgba(120,80,20,.4);animation:dgame-xq-hop .26s cubic-bezier(.3,.7,.4,1) forwards}.dgame-xiangqi-fly.r{color:#b91c1c;text-shadow:0 1px 0 rgba(255,255,255,.5)}.dgame-xiangqi-fly.b{color:#1f2937;text-shadow:0 1px 0 rgba(255,255,255,.35)}@keyframes dgame-xq-hop{0%{left:calc(13px + var(--fx0)*(100% - 26px));top:calc(13px + var(--fy0)*(100% - 26px));transform:translate(-50%,-50%) scale(.9);opacity:.85}55%{transform:translate(-50%,-64%) scale(1.16);opacity:1}100%{left:calc(13px + var(--fx1)*(100% - 26px));top:calc(13px + var(--fy1)*(100% - 26px));transform:translate(-50%,-50%) scale(1)}}@keyframes dgame-xq-land{0%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes dgame-xq-die{to{opacity:0;transform:scale(.55)}}.dgame-xiangqi-log{display:flex;flex-wrap:wrap;justify-content:center;gap:5px 12px;align-self:center;min-height:22px;color:var(--dsw-alias-label-secondary);font-family:KaiTi,"Kaiti SC","STKaiti","FangSong",serif;font-size:13px}.dgame-xiangqi-log span{opacity:.65}.dgame-xiangqi-log span:last-child{opacity:1;font-weight:700}.dgame-xiangqi-log .r{color:#c03434}.dgame-xiangqi-log .b{color:var(--dsw-alias-label-primary)}
 ` };
 
 // features/games/games/snake.jsx
@@ -7858,7 +7935,7 @@ function BreakoutGame(props) {
       if (keys.current.right) g.paddle.x += 5.5;
       g.paddle.x = Math.max(0, Math.min(W - PADDLE_W, g.paddle.x));
       const b = g.ball;
-      if (!b.launched) {
+      if (!g.launched) {
         b.x = g.paddle.x + PADDLE_W / 2;
         b.y = g.paddle.y - BALL_R - 1;
       } else {
@@ -7985,7 +8062,10 @@ function BreakoutGame(props) {
       ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-breakout", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("canvas", { ref: canvasRef, width: W, height: H, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: () => focusStage(canvasRef), className: "dgame-breakout-canvas", "aria-label": "\u6253\u7816\u5757\u6E38\u620F\u533A\u57DF\uFF0C\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u9F20\u6807\u79FB\u52A8\u6321\u677F\uFF0C\u7A7A\u683C\u53D1\u7403" }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("canvas", { ref: canvasRef, width: W, height: H, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: (e) => {
+        focusStage(canvasRef);
+        launchBall();
+      }, className: "dgame-breakout-canvas", "aria-label": "\u6253\u7816\u5757\u6E38\u620F\u533A\u57DF\uFF0C\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u9F20\u6807\u79FB\u52A8\u6321\u677F\uFF0C\u7A7A\u683C\u6216\u70B9\u51FB\u53D1\u7403" }),
       status === "win" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
         /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("strong", { children: [
           "\u5168\u6D88\uFF01\u8FDB\u5165\u7B2C ",
@@ -8019,7 +8099,7 @@ function BreakoutGame(props) {
         keys.current.left = false;
         game.current && (game.current.paddle.x = Math.max(0, game.current.paddle.x - 12));
       }, children: "\u2190 \u5DE6\u79FB" }),
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C\u53D1\u7403" }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C/\u70B9\u51FB\u53D1\u7403" }),
       /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3\u79FB\u52A8", onClick: () => {
         keys.current.right = false;
         game.current && (game.current.paddle.x = Math.min(W - PADDLE_W, game.current.paddle.x + 12));
@@ -8083,7 +8163,7 @@ function RacerGame(props) {
   const reset = (0, import_react16.useCallback)(() => {
     game.current = {
       stars: Array.from({ length: 50 }, () => ({ x: Math.random() * W2, y: Math.random() * H2, a: 0.2 + Math.random() * 0.5 })),
-      player: { x: laneX(1), y: H2 - CAR_H - 16 },
+      player: { x: laneX(1), y: H2 - CAR_H - 16, w: CAR_W, h: CAR_H },
       enemies: [],
       coins: [],
       dist: 0,
@@ -8955,7 +9035,7 @@ var GAMES = [
     cat: "classic",
     accent: "#38bdf8",
     desc: "\u79FB\u52A8\u6321\u677F\u53CD\u5F39\u5C0F\u7403\uFF0C\u51FB\u788E\u5168\u90E8\u7816\u5757\uFF1B\u7403\u6389\u5230\u5E95\u90E8\u4E22\u4E00\u6761\u547D\u3002",
-    tip: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C\u53D1\u7403",
+    tip: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C/\u70B9\u51FB\u53D1\u7403",
     Game: breakoutGame.Game,
     Preview: breakoutGame.Preview
   },

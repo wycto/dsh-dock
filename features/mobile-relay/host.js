@@ -16,6 +16,7 @@
 // 配对状态、在线设备与接力备注只存内存；会话数据始终只有 ~/.dsh 这一份。
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import yaml from 'js-yaml'
@@ -192,6 +193,58 @@ export const feature = {
     } catch { /* 补丁层不可读时交给 lanStatus 的错误呈现，不在启动路径上放大 */ }
 
     disposers.push(ctx.inject(['settings'], (sctx) => { settingsCtx = sctx }))
+
+    // ── 浏览模式目录选择器的 Windows 跨盘补全 ──
+    // 官方 browse 后端从主目录起步，只能列出当前盘内的子目录，面包屑在主目录之上
+    // 全部折叠——Windows 开着远程访问时，选工作区根本到不了其他磁盘。
+    // 这里在运行时包装 browse 能力的 list()：主目录层级注入全部盘符入口，盘根目录
+    // 注入其他盘符入口，远程浏览即可像资源管理器一样跨盘选工作区。非 Windows 或
+    // 非浏览模式（原生对话框本身可跨盘）零改动。
+    const DRIVE_SCAN_TTL = 5000
+    let driveScan = { at: 0, letters: null }
+    function sameWinPath(a, b) {
+      return a.replace(/[\\/]+/g, '\\').toLowerCase() === b.replace(/[\\/]+/g, '\\').toLowerCase()
+    }
+    function winDriveLetterOf(p) {
+      return /^[A-Za-z]:[\\/]?$/.test(p) ? p.slice(0, 1).toUpperCase() : null
+    }
+    async function windowsDrivePaths() {
+      if (driveScan.letters && Date.now() - driveScan.at < DRIVE_SCAN_TTL) return driveScan.letters
+      const probes = []
+      for (const letter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+        probes.push(stat(letter + ':\\').then(() => letter, () => null))
+      }
+      const letters = (await Promise.all(probes)).filter(Boolean).sort()
+      driveScan = { at: Date.now(), letters }
+      return letters
+    }
+    disposers.push(ctx.inject(['directoryPicker'], (dpCtx) => {
+      if (process.platform !== 'win32') return
+      const picker = dpCtx.directoryPicker
+      if (!picker || typeof picker.capability !== 'function') return
+      let cap
+      try { cap = picker.capability() } catch { return }
+      if (!cap || cap.kind !== 'browse' || typeof cap.list !== 'function' || cap.__dshDockDrives) return
+      cap.__dshDockDrives = true
+      const origList = cap.list
+      cap.list = async (path, signal) => {
+        const listing = await origList(path, signal)
+        try {
+          const target = String((listing && listing.path) || '')
+          const atHome = sameWinPath(target, String(listing.home || '\u0000'))
+          const driveRoot = winDriveLetterOf(target)
+          // 只在主目录与盘根两级注入：这两级是跨盘的必经之地，其余层级保持官方原样
+          if (atHome || driveRoot) {
+            const letters = await windowsDrivePaths()
+            const rows = letters
+              .filter((letter) => !driveRoot || letter !== driveRoot)
+              .map((letter) => ({ name: letter + ':\\', path: letter + ':\\', hidden: false }))
+            if (rows.length) listing.entries = atHome ? rows.concat(listing.entries) : listing.entries.concat(rows)
+          }
+        } catch { /* 盘符探测失败保持原列表，不让补全拖垮选目录 */ }
+        return listing
+      }
+    }))
 
     // ── 远程访问账号（settings 持久化；密码只存加盐哈希） ──
     function hashPassword(salt, password) {

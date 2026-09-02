@@ -123,7 +123,7 @@ export function BreakoutGame(props) {
 			g.paddle.x = Math.max(0, Math.min(W - PADDLE_W, g.paddle.x));
 			// 球
 			const b = g.ball;
-			if (!b.launched) {
+			if (!g.launched) {
 				b.x = g.paddle.x + PADDLE_W / 2;
 				b.y = g.paddle.y - BALL_R - 1;
 			} else {
@@ -203,11 +203,11 @@ export function BreakoutGame(props) {
 	return <section className="dgame-game" aria-label="打砖块">
 		<div className="dgame-game-head"><div><h3>打砖块</h3><p>移动挡板反弹小球，击碎所有砖块；球落到底部扣一条命。</p></div><div className="dgame-score"><span>得分 <strong>{score}</strong></span><span>命 {lives} · 第 {level} 关</span></div></div>
 		<div className="dgame-breakout">
-			<canvas ref={canvasRef} width={W} height={H} tabIndex={0} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPointerMove={onPointerMove} onClick={() => focusStage(canvasRef)} className="dgame-breakout-canvas" aria-label="打砖块游戏区域，左右方向键或鼠标移动挡板，空格发球" />
+			<canvas ref={canvasRef} width={W} height={H} tabIndex={0} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onPointerMove={onPointerMove} onClick={(e) => { focusStage(canvasRef); launchBall(); }} className="dgame-breakout-canvas" aria-label="打砖块游戏区域，左右方向键或鼠标移动挡板，空格或点击发球" />
 			{status === "win" ? <div className="dgame-over"><strong>全消！进入第 {level} 关</strong><button type="button" onClick={() => { start(level); setStatus("play"); statusRef.current = "play"; }}>下一关</button></div> : null}
 			{status === "over" ? <div className="dgame-over"><strong>球掉光了 · 得 {score} 分</strong><button type="button" onClick={() => { start(1); setScore(0); setLives(3); setStatus("play"); statusRef.current = "play"; livesRef.current = 3; }}>重新开始</button></div> : null}
 		</div>
-		<div className="dgame-controls"><button type="button" aria-label="向左移动" onClick={() => { keys.current.left = false; game.current && (game.current.paddle.x = Math.max(0, game.current.paddle.x - 12)); }}>← 左移</button><span>←/→ 或鼠标移动 · 空格发球</span><button type="button" aria-label="向右移动" onClick={() => { keys.current.right = false; game.current && (game.current.paddle.x = Math.min(W - PADDLE_W, game.current.paddle.x + 12)); }}>右移 {'->'}</button></div>
+		<div className="dgame-controls"><button type="button" aria-label="向左移动" onClick={() => { keys.current.left = false; game.current && (game.current.paddle.x = Math.max(0, game.current.paddle.x - 12)); }}>← 左移</button><span>←/→ 或鼠标移动 · 空格/点击发球</span><button type="button" aria-label="向右移动" onClick={() => { keys.current.right = false; game.current && (game.current.paddle.x = Math.min(W - PADDLE_W, game.current.paddle.x + 12)); }}>右移 {'->'}</button></div>
 	</section>;
 }
 
