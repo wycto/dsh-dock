@@ -1,4 +1,4 @@
-// dsh-dock · Host 半部（Node 侧入口）· v0.4.0 模块化架构
+// dsh-dock · Host 半部（Node 侧入口）· v0.9.0 模块化架构
 //
 // 功能坞 = hub + 一个个独立功能模块（像 dsh 本身由小包组成）：
 //   - 每个功能是一个 features/<id>/ 目录：host.js（宿主半部）+ view.js(x)（客户端视图），
