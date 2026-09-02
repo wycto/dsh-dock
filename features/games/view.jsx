@@ -210,7 +210,7 @@ const GAMES = [
 	{
 		id: "breakout", name: "打砖块", cat: "classic", accent: "#38bdf8",
 		desc: "移动挡板反弹小球，击碎全部砖块；球掉到底部丢一条命。",
-		tip: "←/→ 或鼠标移动 · 空格发球",
+		tip: "←/→ 或鼠标移动 · 空格/点击发球",
 		Game: breakoutGame.Game, Preview: breakoutGame.Preview,
 	},
 	{
