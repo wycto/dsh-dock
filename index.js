@@ -30,6 +30,22 @@ export const inject = ['webServer', 'llm', 'settings']
 /** 测试钩子：清空识别缓存（冒烟在用例间隔离；实现在 visionproxy 模块）。 */
 export { __clearDescribeCache } from './features/visionproxy/host.js'
 
+// 宿主进程健壮性护栏：Node 对已半脱离 HTTP 管理的 socket 上到达的传输层重置
+// 没有兜底监听——手机锁屏/切后台、页面跳转中断请求等日常 RST 会以未捕获异常
+// 打崩整个 dsh web（实测：Error: read ECONNRESET, Emitted 'error' on Socket）。
+// 这里只吞 ECONNRESET/EPIPE 这类纯传输层错误（连接本身已死，吞掉等价于 nginx
+// 对客户端断连的处理），其余未捕获异常照常抛出。
+if (typeof process !== 'undefined' && typeof process.on === 'function' && !process.listenerCount('uncaughtException')) {
+  process.on('uncaughtException', (err) => {
+    const code = err && err.code
+    if (code === 'ECONNRESET' || code === 'EPIPE') {
+      console.error('[dsh-dock] swallowed transport error:', code, (err && err.message) || err)
+      return
+    }
+    throw err
+  })
+}
+
 export function apply(ctx) {
   // ---- 功能注册表（Host 侧）：每个条目来自对应功能模块的 feature 描述符 ----
   // defaultEnabled：与 Client 半部保持一致。已接入的功能默认打开，
