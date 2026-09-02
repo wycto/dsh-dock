@@ -33,7 +33,7 @@ export function RacerGame(props) {
 	const reset = useCallback(() => {
 		game.current = {
 			stars: Array.from({ length: 50 }, () => ({ x: Math.random() * W, y: Math.random() * H, a: .2 + Math.random() * .5 })),
-			player: { x: laneX(1), y: H - CAR_H - 16 },
+			player: { x: laneX(1), y: H - CAR_H - 16, w: CAR_W, h: CAR_H },
 			enemies: [], coins: [],
 			dist: 0, coinsGot: 0, spawn: 0, coinSpawn: 0,
 			speed: 3.4, over: false,
