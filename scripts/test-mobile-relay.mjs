@@ -19,11 +19,23 @@ function listen(server, host = '127.0.0.1') {
 }
 
 const upstreamUpgrades = new Set()
+const CONNECTION_SNIPPET = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)'
 const upstream = createServer((req, res) => {
   if (req.url === '/app') {
     const page = '<!doctype html><html><head><script>window.booted=true</script></head><body>DSH</body></html>'
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': String(Buffer.byteLength(page)) })
     res.end(page)
+    return
+  }
+  if (req.url && req.url.startsWith('/plugins/@deepseek-ai/dsh-client-connection/client.js')) {
+    // ?plain=1 模拟上游升级后片段消失：应原样透传，不做改写。
+    // 不带 content-length（chunked），贴近 DSH 真实形态——改写后必须重设长度并
+    // 去掉 transfer-encoding，否则两种长度语义并存是协议错误。
+    const body = req.url.includes('plain=1')
+      ? `var keep=1;isLoopbackHostname(pageLocation.hostname);`
+      : `var x=1;${CONNECTION_SNIPPET};var y=2`
+    res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' })
+    res.end(body)
     return
   }
   res.writeHead(200, { 'content-type': 'application/json' })
@@ -103,6 +115,40 @@ try {
   const good = await login(ACCOUNT.username, ACCOUNT.password)
   assert.equal(good.res.status, 200)
   assert.match(good.cookie, /^dsh_remote_session=/)
+
+  // 原生表单流（登录页 <form> 原生 POST 的 urlencoded 形态）：
+  // 失败 303 回错误态登录页；成功 303 回首页并发放会话 Cookie。
+  const formBad = await fetch(base + '/__dsh_auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: ACCOUNT.username, password: 'nope' }).toString(),
+    redirect: 'manual',
+  })
+  assert.equal(formBad.status, 303)
+  assert.match(formBad.headers.get('location') || '', /\/__dsh_auth\/login\?e=1$/)
+  const formGood = await fetch(base + '/__dsh_auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: ACCOUNT.username, password: ACCOUNT.password }).toString(),
+    redirect: 'manual',
+  })
+  assert.equal(formGood.status, 303)
+  assert.equal(formGood.headers.get('location'), '/')
+  assert.match((formGood.headers.get('set-cookie') || '').split(';')[0], /^dsh_remote_session=/)
+
+  // 连接客户端 bundle 定点改写：远程设置面的自我判定改为恒真（手机端设置/模型页可用）。
+  const bundleRes = await fetch(base + '/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=abc', { headers: { cookie: good.cookie } })
+  const patched = await bundleRes.text()
+  assert.match(patched, /isLoopback: !0 \/\* dsh-dock remote gateway \*\//)
+  assert.doesNotMatch(patched, /isLoopback: pageLocation === void 0/)
+  assert.equal(bundleRes.headers.get('content-length'), String(Buffer.byteLength(patched)))
+  // 上游升级后片段消失：原样透传。
+  const plain = await (await fetch(base + '/plugins/@deepseek-ai/dsh-client-connection/client.js?plain=1', { headers: { cookie: good.cookie } })).text()
+  assert.match(plain, /isLoopbackHostname\(pageLocation\.hostname\)/)
+  assert.doesNotMatch(plain, /dsh-dock remote gateway/)
+  // 缓存命中：再次请求改写版内容一致。
+  const againBundle = await (await fetch(base + '/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=abc', { headers: { cookie: good.cookie } })).text()
+  assert.equal(againBundle, patched)
 
   // 登录后：页面带远程标记与兼容脚本注入；Host/Origin 已改写为回环；Cookie 透传。
   const page = await fetch(base + '/app', { headers: { cookie: good.cookie } })
