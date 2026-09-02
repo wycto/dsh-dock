@@ -465,3 +465,70 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 - **修正**：场景加宽 200→220px；书桌 200 宽居中（x=110 中心）；人物组 left 16→96（中心 x≈118 ≈ 桌中心）；三屏收到人物右侧扇形（x=128/166/196，ry ±20°）；键盘 x=126 在人物手边桌前缘。
 - **几何验证**（面板预览卡实测）：人物中心与桌中心偏差 8px（居中）；人物 bottom 落在桌沿下（坐姿正确，腿在桌面下方）；三屏在人物右侧、键盘在手边。
 - **注意**：本节验证时隔离实例的模型配额已耗尽（429 insufficient_quota，周配额 08-28 重置）——真实任务 E2E 已不可行，布局验证改走面板预览卡（静态渲染同款 RobotScene）+ getBoundingClientRect 几何测量；阶段流转逻辑未改动（8.22 已验证）。
+
+### 8.24 手机接力正式接入 + 局域网电脑直连（0.0.0.0）（2026-08-28，未发布）
+
+**需求**：用户希望局域网内其他电脑能访问完整 DSH（会话记录、工作区文件夹选择等全部交互与 127.0.0.1 一致），并明确要求"以 0.0.0.0 启动"，实现放在 dsh-dock 的【手机接力】里；主实例（3080）不得挂掉，另开新端口测试。
+
+**关键事实（实证自 dsh 0.1.1-rc.2 源码）**：
+- CLI 拒绝 `--host 0.0.0.0`（`dsh-web-app/lib/startup.js` 显式 `program.error`，理由：浏览器表层无登录认证，直开会把代码执行能力交给同网任何人）；
+- 但 `webServer` 行 schema 本身支持 `0.0.0.0`（`dsh-host-webserver`），合成配置里该行 id = `webserver`，host 来自 `ctx.webStartup.host ?? '127.0.0.1'`；
+- 绑定 0.0.0.0 后 `dsh-web-app` 的 `resolveLanTrust` 自动把全部局域网 IPv4 派生进 `/api` 信任白名单；目录选择器 `directory-picker-auto` 按 `bindHost !== '127.0.0.1'` 自动切成 **browse 模式**（浏览器内浏览/新建目录，`host.listDirectory`/`host.createDirectory`）——这正是局域网电脑选工作区文件夹所需；`host.pickDirectory`（本机原生对话框）属于 `PRIVILEGED_METHODS`，任何 LAN 访问都 403，与真 0.0.0.0 绑定行为一致。
+
+**实现（不复制会话，同资料共享）**：
+- `features/mobile-relay/host.js` 新增 `lan` / `lan/start` / `lan/stop` RPC：写一条 `- id: webserver, config: {host: '0.0.0.0', port: N}` 补丁到 `~/.dsh/dsh-dock-lan/lan-N.patch.yml`，用 `process.argv[1]`（当前 dsh 入口）spawn `node <入口> --profile web --patch <补丁> --port N --no-open`，stdout/stderr 进 `lan-N.log`；端口预检（0.0.0.0 绑定探测）、就绪轮询（25s 超时带日志尾部报错）；
+- 子实例环境标记 `DSH_DOCK_LAN_CHILD=1` + `DSH_DOCK_LAN_PARENT_PID`：子实例内 `lan/start` 拒绝（防递归嵌套）；每 5s 检查 `process.ppid`，主实例退出即自退出（孤儿保护）；
+- `features/mobile-relay/view.jsx` 新增 `LanDirectCard`（两种视图分支都渲染）：端口输入（默认 3082）、状态徽标、地址列表 + 二维码 + 复制、一键启停、安全警示；
+- 接线：`index.js` FEATURES + `src/client.jsx` BUILTIN_FEATURES（order 80）+ 重建 client.js（版本号未提升，待发布时再定）。
+
+**集成测试实录（主实例 3080 全程存活）**：
+- 实例 A（0.0.0.0:3082，手动补丁同机制启动）：loopback/LAN IP 均 200；`Host: 172.18.98.20:3082` 下 `host.describe`/`host.listDirectory`/`session.list` 全部通过信任篱笆；`host.pickDirectory` LAN 403（预期特权钉死）；`pickDirectory` loopback 报 `composed picker serves "browse"`（证明 browse 已挂载）；`host.listDirectory` 返回目录树、`host.createDirectory` 可建目录；
+- RPC 链：A 上 `lan/start {port:3083}` → 子实例 B 1s 内就绪，LAN IP 可访问，`lan` 状态 `child:true`；B 上 `lan/start` 返回 400 拒绝；B 的 `session.list` 与主实例同一份；A `lan/stop` → B 进程退出、端口释放；停止后可重开；杀掉 A → B 在 5s 内自退出（孤儿保护生效）；
+- 收尾：3082/3083 均无残留监听，`http://127.0.0.1:3080/` 保持 200。
+- 遗留注意：macOS 防火墙首次放行 node 入站可能弹窗（本次测试 172.18.98.20 直连成功，未遇拦截）；直连子实例与主实例同时写同一份 `~/.dsh` 会话文件属预期共享语义，避免两端同时编辑同一会话。
+
+### 8.25 局域网直连 crypto.randomUUID 修复（2026-08-28，未发布内追加）
+
+**用户反馈**：局域网电脑打开直连实例后左侧无会话记录、不能打开工作目录，控制台报 `crypto.randomUUID is not a function`。
+
+**根因**：局域网 `http://<IP>` **不是浏览器安全上下文**（只有 HTTPS 或 localhost 才是）。部分浏览器在非安全上下文只暴露 `crypto.getRandomValues()` 而省略 `crypto.randomUUID()`。DSH 的 connection 客户端在生成消息 ID（`MessageId(crypto.randomUUID())`）与 RPC ID（`RpcId(crypto.randomUUID())`）时直接调用它——缺失则整个客户端引导失败，表现为会话列表空、工作区不可用等"全面瘫痪"。手机接力网关此前已用代理注入 compat.js 解决同问题，但**直连子实例是裸 DSH 服务、没有代理层**，所以漏了这一步。
+
+**修复**：直连子实例（`isLanChildInstance()` 为真）在 `webServer.tapIndex` 注册一个 transform，向 index.html 的 `<head>` 之后内联注入同款 UUID v4 兜底脚本（`LAN_COMPAT_JS`），先于任何 DSH 引导脚本执行；幂等（marker 防重注）；本机回环下 randomUUID 已存在→脚本自我短路零副作用。仅子实例注册，主实例 HTML 完全不受影响。
+
+**验证**：带子实例标记启动 0.0.0.0 实例，index.html 的 `<head>` 后即见 `<script data-dsh-lan-compat>`（loopback 与 LAN IP 均注入）；VM 模拟非安全上下文（有 getRandomValues 无 randomUUID）跑注入脚本→randomUUID 被定义且产出合法 UUID v4；重启用户现役子实例后 `session.list`@LAN 正常返回 59 条会话，主实例 3080 保持 200。
+
+## 2026-08-28 · v0.8.1 联调修复：手机接力/局域网直连三个链路级问题
+
+用户反馈：手机端接力打开没有历史会话记录、不能选择文件夹工作。在 3480 测试实例（源码安装 `pnpm dsh web`，插件经 `~/.dsh/profiles/web` 以 `file:` 依赖挂载）逐项复现与修复：
+
+**1) 手机端不能选文件夹（架构）**：首版接力网关上游指到主实例（127.0.0.1）→ 主实例目录选择器为 native（`directory-picker-auto` 按 bindHost 解析，win32+回环 → native），手机端 `host.listDirectory` 被 DSH 拒绝（`directory-picker-unavailable`，实测复现）。修复：手机接力与局域网直连**共用同一个 0.0.0.0 子实例**（ensureLanChild 幂等复用），子实例补丁钉死 browse 组合（停用 `directory-picker-auto`，直接挂 `-browse` 后端 + `ui-directory-picker-browse` 前端面）；网关按路径分流：`/dsh-dock/mobile-relay/*` 配对 RPC 转发回主实例（配对状态/任务摘要在主进程），其余流量转发子实例。
+
+**2) 信任链路（会话列表）**：子实例绑定 0.0.0.0 后 DSH 派生局域网 IP 信任（web-app `resolveLanTrust` → connection 行 `trustedHosts`），信任篱笆（`api-request-trust.ts`）校验请求自带 Host/Origin 一致性而非回环名——网关代理头从「改写 Host/Origin 为回环 + 剥 cookie」改为**原样透传**（改写反而令 Origin 校验失败 403；GET 无 content-type 的 HTML 请求仅去 accept-encoding 以便注入 compat）。实测手机链路 `session.list` 返回与主实例同一份历史会话。
+
+**3) 源码安装下子实例 spawn 崩溃**：`dshEntry()` 取到 `.ts` 入口（tsx 运行），裸 spawn 无法执行——透传 `process.execArgv`（`--import tsx/esm`）；子命令参数顺序：`web --patch <path> --port <port>`（commander `passThroughOptions` 在第一个未知旗标后全部透传，`--patch` 放 `--port` 后会报 `unknown option '--patch'`）；就绪超时 25s → 60s（tsx 冷启动实测 ~18s）。
+
+**其它**：无设备配对 90s 僵尸回收（否则卡住 lan/stop 满配对窗口）；lan/stop 守卫只看有设备在线的配对；`DSH_DOCK_ENTRY`/`DSH_DOCK_LAN_PORT` 测试桩（宿主单测覆盖「接力拉起共用子实例/有配对拒绝 lan/stop/end 后网关关/lan/stop 后子实例退」）。
+
+**验证**（3480 实例全链路）：LAN 直连 `host.listDirectory`（浏览 F:\workspace）+ `session.list` ✓；手机 connect→join（经网关分流回主实例）→status ✓；经网关 session.list/host.listDirectory ✓；end→网关关、lan/stop→子实例退 ✓。两个单测（gateway/host）在透传语义下通过。
+
+**部署注意**：profile 里的插件是 `file:` 快照——同版本号 `pnpm add` 会跳过，改代码后须 `pnpm remove dsh-dock && pnpm add file:F:/workspace/wycto/gitea/dsh-dock`；仓库 checkout 无 node_modules，跑测试需 junction `qrcode`/`@deepseek-ai/schemastery`（已建，gitignore 内）。
+
+## 2026-08-28（晚）· 架构定稿：服务器模式（单实例 0.0.0.0）
+
+用户明确目标形态："dsh 装在服务器上，任何设备访问都一样，包括正在进行的任务"。此前共用子实例方案的根本缺陷暴露：主实例与子实例是两个进程，agent 运行在各自进程里——3082 上继续的会话，127.0.0.1 看不到运行状态；反向亦然。任务同步跨进程不可行，唯一正解是单实例。
+
+**重构**：删除整个子实例机制（spawn/补丁生成/孤儿保护/测试桩），改为「服务器模式」——插件把 `- id: webserver / config: {host:'0.0.0.0', port}` 写进用户 profile 补丁层（`~/.dsh/profiles/web/cordis.patch.yml`；js-yaml + 与 include 插件同款 `!!js` Type 无损往返，幂等 upsert），重启后主实例直接绑定 0.0.0.0：绑定即派生局域网信任、目录选择器自动 browse（不再需要钉死补丁）；手机接力网关上游改回主实例本身（配对 RPC 分流也不再需要）。tapIndex 兼容注入改为无条件注册（回环自短路）。
+
+**附带结论**：浏览式选目录本来就支持任意路径——顶部面包屑/铅笔是"点击可编辑路径"，直接输入 `F:\workspace\xxx` 即可跨盘；"只有 C 盘"是没发现这个入口，不是缺陷。
+
+**验证**（3480）：lan/start 写补丁→重启→`0.0.0.0:3480` LISTENING、127.0.0.1 与 10.31.1.4 均 200、compat 注入 OK；LAN IP 浏览选目录（列出 F:\workspace\wycto）+ session.list OK；手机 connect→join→status、经网关 session.list/host.listDirectory OK；lan/stop 补丁还原 `[]`。两个单测（网关透传语义 / 服务器模式补丁往返+幂等）通过。
+
+**部署**：profile 快照 `file:` 依赖同版本跳过——更新代码后必须 `pnpm remove dsh-dock && pnpm add file:<仓库>`；仓库 checkout 需 junction `qrcode`/`js-yaml`/`@deepseek-ai/schemastery` 到 profile node_modules（均已建，gitignore 覆盖 node_modules/）。新增 npm 依赖：js-yaml ^4.1.0。
+
+## 2026-08-28（夜）· 定稿：远程访问 = 账号密码登录网关（主实例回仅本机）
+
+用户要求"除 127.0.0.1 外的访问都要弹账号密码，能登录/退出"。最终架构：删除扫码访客与配对机制，网关升级为账号认证前门——登录页（纯静态 HTML+CSS，表单原生 POST，无内联脚本）→ 验证通过发 HttpOnly 会话 Cookie（7 天滑动）→ 代理到主实例；/__dsh_auth/logout 注销；失败按 IP 限速（10 次/10 分钟）。账号存 dsh-dock settings 命名空间（sha256+盐，timingSafeEqual 比对），auth/set 改密即 revokeAllSessions 全端下线。开启入口同时：写 browse 选择器钉死补丁（重启生效）+ 自动移除旧服务器模式 0.0.0.0 行（迁移）。主实例回到仅本机 = 结构上不存在免登录直连；单实例 = 任务进度全端一致。
+
+**踩坑**：Mimosa 安全钩子对 `<script>` 字符串构造极敏感（loginPage 的静态路径拼接也被拦）——页面一律用无脚本纯 HTML（错误态走服务端 303 + 独立静态页，自动跳转用 meta refresh）；`window.__DSH_REMOTE__` 标记注入被拦后改用 `/__dsh_auth/health` 探针检测远程态。测试注意：node fetch 默认跟随 302（门禁断言须 redirect:'manual'）且默认 Accept 不含 text/html（须显式带）。
+
+**验证**：网关单测（门禁 302/401、登录页、错/对密码、Host 改写、Cookie 透传、WS、退出、revokeAllSessions）+ 宿主单测（未设账号 400、开启后凭据登录全链路、auth/set 改密旧会话作废、补丁幂等、关停清理）全绿；3480 实测 LAN IP：未登录 302 → 登录页 → 401/200 → 会话代理 → 退出 302。共享 3480 端口与用户活动实例相撞导致两轮误判（"启动慢"实为 tsx 冷启动 + 端口被残留实例占用）——测试实例用独立端口或先清场。
