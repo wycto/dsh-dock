@@ -1,4 +1,4 @@
-// dsh-dock · Host 半部（Node 侧入口）· v0.4.0 模块化架构
+// dsh-dock · Host 半部（Node 侧入口）· v0.9.0 模块化架构
 //
 // 功能坞 = hub + 一个个独立功能模块（像 dsh 本身由小包组成）：
 //   - 每个功能是一个 features/<id>/ 目录：host.js（宿主半部）+ view.js(x)（客户端视图），
@@ -13,12 +13,14 @@
 //   - balance     模型余额（v0.2.0）：各 Provider 账户余额/配额
 //   - tokenlog    用量记录（v0.4.0）：LLM 调用记账与统计（移植自 @wycto/dsh-token-usage）
 //   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效/通知配置持久化（参照 @wycto/dsh-task-pulse）
+//   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
 import { DOCK_NS, DockConfig } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
 import { feature as fTokenlog } from './features/tokenlog/host.js'
 import { feature as fAnimation } from './features/animation/host.js'
+import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 
 export const name = 'dsh-dock'
 
@@ -27,6 +29,22 @@ export const inject = ['webServer', 'llm', 'settings']
 
 /** 测试钩子：清空识别缓存（冒烟在用例间隔离；实现在 visionproxy 模块）。 */
 export { __clearDescribeCache } from './features/visionproxy/host.js'
+
+// 宿主进程健壮性护栏：Node 对已半脱离 HTTP 管理的 socket 上到达的传输层重置
+// 没有兜底监听——手机锁屏/切后台、页面跳转中断请求等日常 RST 会以未捕获异常
+// 打崩整个 dsh web（实测：Error: read ECONNRESET, Emitted 'error' on Socket）。
+// 这里只吞 ECONNRESET/EPIPE 这类纯传输层错误（连接本身已死，吞掉等价于 nginx
+// 对客户端断连的处理），其余未捕获异常照常抛出。
+if (typeof process !== 'undefined' && typeof process.on === 'function' && !process.listenerCount('uncaughtException')) {
+  process.on('uncaughtException', (err) => {
+    const code = err && err.code
+    if (code === 'ECONNRESET' || code === 'EPIPE') {
+      console.error('[dsh-dock] swallowed transport error:', code, (err && err.message) || err)
+      return
+    }
+    throw err
+  })
+}
 
 export function apply(ctx) {
   // ---- 功能注册表（Host 侧）：每个条目来自对应功能模块的 feature 描述符 ----
@@ -38,6 +56,7 @@ export function apply(ctx) {
     fBalance,
     fTokenlog,
     fAnimation,
+    fMobileRelay,
   ]
 
   const state = new Map()
