@@ -22,8 +22,6 @@ import yaml from 'js-yaml'
 import { DOCK_NS, readBody, sendJson } from '../../src/host-core.js'
 import { lanAddresses, startProtectedLanGateway } from './gateway.js'
 
-const DEFAULT_GATEWAY_PORT = 3081
-
 function dshHome() { return process.env.DSH_HOME || join(homedir(), '.dsh') }
 /** 远程访问开关所在的用户补丁层（web profile 专属；测试可用环境变量指到临时文件）。 */
 function serverPatchFile() {
@@ -69,29 +67,49 @@ function writePatchList(file, list) {
     throw err
   }
 }
+// 补丁层的扁平行视图：insert 块（{insert:[…]}）展开成行，其余原样。
+// DSH 补丁语义里，非 insert 行只能改已存在 id 的 config/disabled——想新增行必须包
+// insert（applyEntryPatches 对未知 id 的普通行只告警后跳过，对 name 不一致的行同样
+// 整行跳过）。展开后统一按行检测/清理，兼容旧版写坏的平铺文件。
+function patchRows(list) {
+  if (!Array.isArray(list)) return []
+  return list.flatMap((row) => (row && Array.isArray(row.insert)) ? row.insert : [row])
+}
 function serverPatchApplied(list) {
   // 远程访问补丁：目录选择器钉死为浏览模式（远程设备不能弹本机对话框）。
-  return Array.isArray(list) && list.some((row) => row && row.id === 'directory-picker-browse')
+  return patchRows(list).some((row) => row && row.id === 'directory-picker-browse')
 }
 function legacyWebserverRowPresent(list) {
   // 旧「服务器模式」残留：0.0.0.0 的 webserver 覆盖行。账号认证架构下主实例必须回到仅本机，
   // 否则局域网设备可以绕过登录网关直连。
-  return Array.isArray(list) && list.some((row) => row && row.id === 'webserver'
+  return patchRows(list).some((row) => row && row.id === 'webserver'
     && row.config && row.config.host === '0.0.0.0')
 }
+function stripRemoteRows(list) {
+  // 清掉全部远程访问相关行：平铺的 browse 行、webserver 行、auto 钉死行，以及
+  // insert 块里的 browse 行（块清空则整块移除，块里混有用户自己的行则只摘除 browse）。
+  return list
+    .map((row) => {
+      if (!(row && Array.isArray(row.insert))) return row
+      const rest = row.insert.filter((item) => !(item && (item.id === 'directory-picker-browse' || item.id === 'ui-directory-picker-browse')))
+      return rest.length ? { insert: rest } : null
+    })
+    .filter((row) => row && !(row.id === 'webserver'
+      || row.id === 'directory-picker' || row.id === 'directory-picker-browse' || row.id === 'ui-directory-picker-browse'))
+}
 function upsertRemotePatches(list) {
-  const cleaned = list.filter((row) => !(row && (row.id === 'webserver'
-    || row.id === 'directory-picker' || row.id === 'directory-picker-browse' || row.id === 'ui-directory-picker-browse')))
+  const cleaned = stripRemoteRows(list)
   cleaned.push(
     { id: 'directory-picker', disabled: true },
-    { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },
-    { id: 'ui-directory-picker-browse', name: '@deepseek-ai/dsh-client-ui-directory-picker-browse' },
+    { insert: [
+      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },
+      { id: 'ui-directory-picker-browse', name: '@deepseek-ai/dsh-client-ui-directory-picker-browse' },
+    ] },
   )
   return cleaned
 }
 function removeRemotePatches(list) {
-  return list.filter((row) => !(row && (row.id === 'webserver'
-    || row.id === 'directory-picker' || row.id === 'directory-picker-browse' || row.id === 'ui-directory-picker-browse')))
+  return stripRemoteRows(list)
 }
 
 // LAN HTTP 不是浏览器安全上下文：部分浏览器在 http://<局域网IP> 下只暴露
@@ -106,14 +124,45 @@ function removeRemotePatches(list) {
 // 回环/安全上下文下 randomUUID 原生存在，脚本自我短路零副作用。
 const LAN_COMPAT_JS = "(function(){var g=typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:(typeof self!=='undefined'?self:undefined));if(!g)return;if(!g.crypto){try{g.crypto={}}catch(e){return}}var c=g.crypto;var nativeRng=typeof c.getRandomValues==='function'?c.getRandomValues.bind(c):null;function rng(bytes){if(nativeRng){nativeRng(bytes);return bytes}for(var i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256)&255;return bytes}function uuid(){var b=rng(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h=[];for(var i=0;i<16;i++)h.push((b[i]+256).toString(16).slice(1));return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('')}function fill(array){rng(array);return array}function define(obj,name,value){if(!obj||typeof obj[name]==='function')return;try{Object.defineProperty(obj,name,{value:value,configurable:true})}catch(e){try{obj[name]=value}catch(e2){}}}define(c,'randomUUID',uuid);if(!nativeRng)define(c,'getRandomValues',fill);define(g.Crypto&&g.Crypto.prototype||null,'randomUUID',uuid);if(!nativeRng)define(g.Crypto&&g.Crypto.prototype||null,'getRandomValues',fill);if(typeof c.randomUUID!=='function'){var fresh={getRandomValues:fill,randomUUID:uuid};if(c.subtle)fresh.subtle=c.subtle;var keyOrigin=Object.create(null);for(var k in c){try{keyOrigin[k]=c[k]}catch(e3){}}for(var k2 in keyOrigin){if(typeof fresh[k2]==='undefined')fresh[k2]=keyOrigin[k2]}try{Object.defineProperty(g,'crypto',{value:fresh,configurable:true})}catch(e4){try{g.crypto=fresh}catch(e5){}}}})()"
 const LAN_COMPAT_MARKER = 'data-dsh-lan-compat'
-/** 把兼容脚本内联注入 index.html 的 <head> 之后（幂等）。 */
+// 手机端排版补丁（窄屏媒体查询护栏，桌面零影响）：
+// 1) 设置弹窗官方只有"左导航+右内容"两栏，窄屏内容栏被压到不足百像素（一字一行）；
+//    改纵向堆叠：导航横排在上、内容占满。
+// 2) 侧边栏展开是 grid 栅格挤占会话区（窄屏会话区只剩 ~110px）；改为浮层覆盖。
+// 类名用语义后缀匹配（哈希前缀随 DSH 版本会变，后缀稳定）；DSH 升级改了结构时
+// 选择器自然失效，不影响其他功能。
+const MOBILE_LAYOUT_CSS = [
+  '@media (max-width:700px){',
+  '  [role="dialog"][class*="panel"]{flex-direction:column;width:100vw!important;max-width:100vw!important;height:100vh!important;height:100dvh!important;max-height:none!important;border-radius:0!important}',
+  '  [role="dialog"][class*="panel"]>[class*="nav"]{flex:none!important;width:auto!important;height:auto!important;flex-direction:row;align-items:center;gap:2px;padding:6px 8px;overflow-x:auto;border-bottom:1px solid color-mix(in srgb,gray 25%,transparent)}',
+  '  [role="dialog"][class*="panel"] [class*="navList"]{flex-direction:row;overflow-x:auto;gap:2px}',
+  '  [role="dialog"][class*="panel"] [class*="navTitle"]{flex:none;white-space:nowrap;margin-right:6px}',
+  '  [role="dialog"][class*="panel"]>[class*="nav"] [class*="navCell"]{flex:none}',
+  '  [role="dialog"][class*="panel"]>[class*="content"]{flex:1 1 auto!important;width:auto!important;min-width:0!important;max-width:none!important}',
+  '  [class$="frame"]{grid-template-columns:0px minmax(0,1fr) 0px!important}',
+  '  [class$="_handle"]{display:none!important}',
+  '  [class$="frame"]:not([data-sidebar-collapsed]) [class*="sidebarCol"]{position:fixed!important;top:0!important;bottom:0!important;left:0!important;width:min(85vw,320px)!important;z-index:80!important;box-shadow:0 12px 48px rgba(0,0,0,.45)}',
+  '  [class$="frame"]:not([data-details-collapsed="true"]) [class*="detailsCol"]{position:fixed!important;top:0!important;bottom:0!important;right:0!important;left:auto!important;width:min(85vw,320px)!important;z-index:85!important;box-shadow:-12px 0 48px rgba(0,0,0,.45)}',
+  '  [class*="overlayLayer"]{z-index:90!important}',
+  '}',
+].join('\n')
+const MOBILE_LAYOUT_MARKER = 'data-dsh-mobile-layout'
+// 窄屏行为补丁：侧边栏浮层化后，原生的"保持展开"会一直挡住半屏——
+// 点会话行/新会话后自动收起；点侧栏外的页面区域也收起（浮层语义）。
+// 侧栏内的其他点击（工作区折叠、搜索、功能坞入口）保持原生行为不收。
+const MOBILE_BEHAVIOR_JS = ";(function(){var mq=window.matchMedia?window.matchMedia('(max-width:700px)'):null;if(!mq)return;function narrow(){return mq.matches}function collapse(){var b=document.querySelector('button[aria-label=\"收起侧边栏\"],button[aria-label=\"Collapse sidebar\"]');if(b)b.click()}function closeDetails(){var d=document.querySelector('[class*=\"detailsCol\"]');if(!d||!d.getBoundingClientRect().width)return;var c=d.querySelector('button[aria-label=\"关闭详情\"]');if(c)c.click()}document.addEventListener('click',function(e){if(!narrow())return;var t=e.target;if(!t||!t.closest)return;var expanded=!!document.querySelector('button[aria-label=\"收起侧边栏\"],button[aria-label=\"Collapse sidebar\"]');var col=document.querySelector('[class*=\"sidebarCol\"]');var inSidebar=col&&col.contains(t);if(!expanded&&!inSidebar)return;if(inSidebar){var row=t.closest('[role=\"treeitem\"]');var leaf=row&&!row.querySelector('[role=\"treeitem\"]')&&row.closest('[role=\"tree\"]');var fresh=t.closest('[class*=\"newSession\"]');if(leaf||fresh)setTimeout(function(){collapse();closeDetails()},300);return}if(t.closest('[role=\"dialog\"],[class*=\"dockm\"],[class*=\"dgfab\"],[class*=\"dgwin\"],[class*=\"dgame\"],[class*=\"detailsCol\"]'))return;collapse()},true)})();"
+const MOBILE_BEHAVIOR_MARKER = 'data-dsh-mobile-behave'
+/** 把兼容脚本、移动端排版样式与行为脚本内联注入 index.html 的 <head> 之后（幂等）。 */
 function injectLanCompat(html) {
-  if (html.includes(LAN_COMPAT_MARKER)) return html
-  const script = `<script ${LAN_COMPAT_MARKER}>${LAN_COMPAT_JS}</script>`
-  const match = /<head(?:\s[^>]*)?>/i.exec(html)
-  if (!match) return script + html
-  const at = match.index + match[0].length
-  return html.slice(0, at) + script + html.slice(at)
+  let out = html
+  const match = /<head(?:\s[^>]*)?>/i.exec(out)
+  const at = match ? match.index + match[0].length : 0
+  const parts = []
+  if (!out.includes(LAN_COMPAT_MARKER)) parts.push(`<script ${LAN_COMPAT_MARKER}>${LAN_COMPAT_JS}</script>`)
+  if (!out.includes(MOBILE_LAYOUT_MARKER)) parts.push(`<style ${MOBILE_LAYOUT_MARKER}>${MOBILE_LAYOUT_CSS}</style>`)
+  if (!out.includes(MOBILE_BEHAVIOR_MARKER)) parts.push(`<script ${MOBILE_BEHAVIOR_MARKER}>${MOBILE_BEHAVIOR_JS}</script>`)
+  if (!parts.length) return out
+  const injected = parts.join('')
+  return at > 0 ? out.slice(0, at) + injected + out.slice(at) : injected + out
 }
 function routeMethod(req) {
   const url = new URL(req.url || '/', 'http://dsh.internal')
@@ -130,6 +179,17 @@ export const feature = {
     let gateway = null
     let gatewayStarting = null
     let settingsCtx = null
+
+    // 自愈：早期版本把 browse 行平铺写进补丁层——DSH 会把未知 id 的普通补丁行整行
+    // 跳过（且 auto 已被停用），结果 directoryPicker 服务无人提供，/api 整面 404，
+    // 重启时更会因条目未激活直接起不来。这里把旧形态无损改写成 insert 形态。
+    try {
+      const file = serverPatchFile()
+      const list = readPatchList(file)
+      if (list && list.some((row) => row && (row.id === 'directory-picker-browse' || row.id === 'ui-directory-picker-browse'))) {
+        writePatchList(file, upsertRemotePatches(list))
+      }
+    } catch { /* 补丁层不可读时交给 lanStatus 的错误呈现，不在启动路径上放大 */ }
 
     disposers.push(ctx.inject(['settings'], (sctx) => { settingsCtx = sctx }))
 
@@ -183,6 +243,7 @@ export const feature = {
       return {
         gatewayActive: Boolean(gateway),
         gatewayPort: gateway ? gateway.port : null,
+        mainPort: webServer.port,
         addresses: lanAddresses(),
         patchApplied: applied,
         webserverActive,
@@ -201,8 +262,10 @@ export const feature = {
 
     /** 远程访问网关：上游即主实例；主实例保持仅本机，远程一律经账号登录进入。 */
     async function ensureGateway(webServer, requestedPort) {
+      // 默认端口跟主实例走（主端口+1）：网关和主服务是同一台机器上的两个监听，
+      // 结构上不能同端口；跟随主端口让"哪个口是哪个"一目了然。
       const port = Number(requestedPort === undefined || requestedPort === null || requestedPort === ''
-        ? DEFAULT_GATEWAY_PORT : requestedPort)
+        ? webServer.port + 1 : requestedPort)
       if (!Number.isInteger(port) || port < 1024 || port > 65535) {
         const error = new Error('局域网端口需为 1024 到 65535 之间的整数')
         error.statusCode = 400
