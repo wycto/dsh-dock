@@ -27,6 +27,8 @@ export const DockConfig = z.object({
     notifyEnabled: z.boolean().default(true),
     notifyOnComplete: z.boolean().default(true),
     notifyOnError: z.boolean().default(true),
+    // 工具等待用户确认/批准时提醒（dsh 会话流 approval/asked → decided）
+    notifyOnConfirm: z.boolean().default(true),
     // 通知停留毫秒数（0 = 常驻直到手动关闭）
     notifyStayMs: z.number().default(8000),
     // 浏览器系统通知（页面后台时推送）

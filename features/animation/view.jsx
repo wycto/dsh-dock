@@ -66,6 +66,15 @@ function phaseLabel(p) { return PHASE_LABELS[p] || "工作中"; }
 const PHASE_COLORS = { think: "#2f6fed", write: "#0d9488", code: "#b45309", search: "#0e7490" };
 function phaseColor(p) { return PHASE_COLORS[p] || "#2f6fed"; }
 
+// 工具名 → 中文场景（"需确认"通知里说清楚是什么在等确认）
+function toolLabel(name) {
+	const n = String(name || "").toLowerCase();
+	if (/bash|shell|terminal|cmd|pwsh|powershell|exec/.test(n)) return "执行命令";
+	if (/write|edit|patch|apply|create|mkdir|remove|delete/.test(n)) return "修改文件";
+	if (/web|fetch|browser|navigate|search/.test(n)) return "访问网页";
+	return "";
+}
+
 // ---------- 结束原因 ----------
 const END_LABELS = {
 	completed: { label: "完成", cls: "ok" },
@@ -305,15 +314,16 @@ function RobotScene(props) {
 }
 
 // ---------- 提示音（WebAudio 合成；macOS/Windows 通用，无音频文件） ----------
-// 音效库：每种含完成音（done）与异常音（err）两套音符序列。
-// 音符 [频率, 起始秒, 时长秒, 波形?]，波形缺省 sine。
+// 音效库：每种含完成音（done）、异常音（err）与确认音（ask）三套音符序列。
+// 音符 [频率, 起始秒, 时长秒, 波形?]，波形缺省 sine。确认音双音上扬、偏长，
+// 听感是"来人搭话"，和完成音的收束感、异常音的下坠感区分开。
 const SOUND_LIBRARY = {
-	chime:  { name: "清脆双音", notes: { done: [[659.25, 0, .14], [880, .13, .24]], err: [[220, 0, .16], [164.81, .15, .3]] } },
-	ding:   { name: "叮",       notes: { done: [[987.77, 0, .35]], err: [[246.94, 0, .4]] } },
-	coin:   { name: "金币",     notes: { done: [[988, 0, .08], [1319, .08, .35], [988, 0, .08, "square"], [1319, .08, .3, "square"]], err: [[196, 0, .12], [147, .11, .35]] } },
-	bell:   { name: "钟声",     notes: { done: [[523.25, 0, .5], [659.25, .02, .45], [783.99, .04, .4]], err: [[174.61, 0, .5], [130.81, .05, .5]] } },
-	pulse:  { name: "脉冲",     notes: { done: [[440, 0, .09], [440, .14, .09], [440, .28, .16]], err: [[174.61, 0, .1], [174.61, .14, .1], [174.61, .28, .18]] } },
-	arp:    { name: "琶音",     notes: { done: [[523.25, 0, .12], [659.25, .09, .12], [783.99, .18, .12], [1046.5, .27, .3]], err: [[392, 0, .12], [329.63, .1, .12], [261.63, .2, .12], [196, .3, .32]] } },
+	chime:  { name: "清脆双音", notes: { done: [[659.25, 0, .14], [880, .13, .24]], err: [[220, 0, .16], [164.81, .15, .3]], ask: [[587.33, 0, .16], [880, .19, .34]] } },
+	ding:   { name: "叮",       notes: { done: [[987.77, 0, .35]], err: [[246.94, 0, .4]], ask: [[783.99, 0, .18], [1174.66, .2, .42]] } },
+	coin:   { name: "金币",     notes: { done: [[988, 0, .08], [1319, .08, .35], [988, 0, .08, "square"], [1319, .08, .3, "square"]], err: [[196, 0, .12], [147, .11, .35]], ask: [[880, 0, .09], [1108.73, .1, .12], [1318.51, .22, .3]] } },
+	bell:   { name: "钟声",     notes: { done: [[523.25, 0, .5], [659.25, .02, .45], [783.99, .04, .4]], err: [[174.61, 0, .5], [130.81, .05, .5]], ask: [[659.25, 0, .4], [523.25, .05, .55]] } },
+	pulse:  { name: "脉冲",     notes: { done: [[440, 0, .09], [440, .14, .09], [440, .28, .16]], err: [[174.61, 0, .1], [174.61, .14, .1], [174.61, .28, .18]], ask: [[523.25, 0, .09], [523.25, .15, .09], [659.25, .3, .22]] } },
+	arp:    { name: "琶音",     notes: { done: [[523.25, 0, .12], [659.25, .09, .12], [783.99, .18, .12], [1046.5, .27, .3]], err: [[392, 0, .12], [329.63, .1, .12], [261.63, .2, .12], [196, .3, .32]], ask: [[440, 0, .11], [554.37, .12, .11], [659.25, .24, .11], [880, .36, .34]] } },
 };
 // AudioContext 按需创建（浏览器自动播放策略：首次用户交互后才能出声，静默失败不报错）
 let soundCtx = null;
@@ -338,10 +348,14 @@ function playTone(seq) {
 		}
 	} catch { /* 音频不可用静默 */ }
 }
-// 按音效播放：完成音 / 异常音（未知音效回退 chime）
+// 按音效播放：完成音 / 异常音 / 确认音（未知音效回退 chime）
 function playDoneSound(success, effect) {
 	const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
 	playTone(success ? lib.notes.done : lib.notes.err);
+}
+function playAskSound(effect) {
+	const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+	playTone(lib.notes.ask || lib.notes.done);
 }
 // 试听：完成音 + 异常音 连播（间隔 0.55s）
 function previewSound(effect) {
@@ -371,12 +385,14 @@ function Toast(props) {
 		? "var(--dk-ok)"
 		: t.kind === "error"
 			? "var(--dk-err)"
-			: "var(--dk-warn)";
+			: t.kind === "confirm"
+				? "var(--dk-warn)"
+				: "var(--dk-warn)";
 	return (
-		<div className={"dkan-toast" + (closing ? " out" : "")}>
+		<div className={"dkan-toast" + (t.kind === "confirm" ? " dkan-toast-confirm" : "") + (closing ? " out" : "")}>
 			<div className="dkan-toast-head">
 				<span className="dkan-toast-mark" style={{ background: markColor }} />
-				<span className="dkan-toast-title" title={t.title}>{t.title}</span>
+				<span className="dkan-toast-title" title={t.title}>{t.kind === "confirm" ? "✋ " : ""}{t.title}</span>
 				<button type="button" className="dkan-toast-close" aria-label="关闭" onClick={close}>✕</button>
 			</div>
 			{t.body ? <div className="dkan-toast-body">{t.body}</div> : null}
@@ -587,6 +603,28 @@ function visibleRect(el) {
 	const r = el.getBoundingClientRect();
 	return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight ? r : null;
 }
+// 当前正在看的会话标题（侧栏高亮行）。dsh 会话树行 = role="treeitem" + aria-selected，
+// 行文本即会话标题；据此把"需确认/卡住"这类会话级卡片限定到当前会话，别的会话等待时不打扰。
+function currentSessionTitle() {
+	if (typeof document === "undefined") return "";
+	for (const el of document.querySelectorAll('[role="treeitem"][aria-selected="true"]')) {
+		const r = el.getBoundingClientRect();
+		// 侧栏在左：跳过正文区可能出现的同名高亮节点（右上搜索结果等）
+		if (r.width > 0 && r.height > 0 && r.right <= window.innerWidth * .35) {
+			const text = (el.textContent || "").trim();
+			if (text) return text;
+		}
+	}
+	return "";
+}
+// 指定任务是否属于当前正在看的会话（按标题对齐；侧栏不可见时退回"是"避免整层失效）
+function taskOnScreen(task, titleCache) {
+	const title = task && (task.title || "");
+	if (!title) return true;
+	const current = titleCache !== undefined ? titleCache : currentSessionTitle();
+	if (!current) return true;
+	return current === title || current.indexOf(title) !== -1 || title.indexOf(current) !== -1;
+}
 const COMPOSER_SEND_SELECTOR = 'button[aria-label="Send message"],button[aria-label*="发送"],button[data-testid*="send"],button[data-testid*="submit"],button[type="submit"]';
 function conversationComposer() {
 	if (typeof document === "undefined" || typeof window === "undefined") return null;
@@ -651,7 +689,6 @@ function useSpaceDocks(enabled) {
 		let frame = 0;
 		let idle = 0;
 		let timer = 0;
-		let pollTimer = 0;
 		let retries = 0;
 		let pending = false;
 		let observedComposer = null;
@@ -710,7 +747,21 @@ function useSpaceDocks(enabled) {
 		if (mutationObserver && document.body) mutationObserver.observe(document.body, { childList: true, subtree: true });
 		schedule(0, true);
 		// 部分会话会复用同一输入框节点、只改变祖先布局；低频校准覆盖这种无 DOM 替换的位移。
-		pollTimer = window.setInterval(() => schedule(), 700);
+		// 校准只在任务活动时才值得跑：空闲期每 700ms 一次全页 querySelectorAll + getBoundingClientRect
+		// 是持续掉帧的来源（每次都强制布局）。空闲 20s 后降频到 5s，任务恢复立即回到快节奏。
+		let calibrationInterval = 700;
+		let lastActivityAt = Date.now();
+		const markActivity = () => { lastActivityAt = Date.now(); if (calibrationInterval !== 700) { calibrationInterval = 700; restartPoll(); } };
+		const unsubscribeActivity = animationStore.subscribe(markActivity);
+		let pollTimer = 0;
+		function restartPoll() {
+			if (pollTimer) window.clearInterval(pollTimer);
+			pollTimer = window.setInterval(() => {
+				if (Date.now() - lastActivityAt > 20000 && calibrationInterval !== 5000) calibrationInterval = 5000;
+				schedule();
+			}, calibrationInterval);
+		}
+		restartPoll();
 		const onResize = () => {
 			if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
 			if (timer) window.clearTimeout(timer);
@@ -726,6 +777,7 @@ function useSpaceDocks(enabled) {
 			if (pollTimer) window.clearInterval(pollTimer);
 			if (mutationObserver) mutationObserver.disconnect();
 			if (resizeObserver) resizeObserver.disconnect();
+			unsubscribeActivity();
 			window.removeEventListener("resize", onResize);
 		};
 	}, [enabled]);
@@ -787,7 +839,8 @@ function MissionDeparture(props) {
 	}} aria-hidden="true"><FreighterHull units={3} empty /></div>;
 }
 function ProgrammingStuck(props) {
-	return <div className="dkan-space-stuck" aria-hidden="true"><FreighterHull units={3} empty /><span className="dkan-stuck-code"><i />{`{ }`}</span><strong>编程等待中</strong><small>{truncate((props.task && props.task.title) || "工具暂无新响应", 28)}</small></div>;
+	const waiting = !!props.waiting;
+	return <div className={"dkan-space-stuck" + (waiting ? " waiting" : "")} aria-hidden="true"><FreighterHull units={3} empty /><span className="dkan-stuck-code"><i />{`{ }`}</span><strong>{waiting ? "等待确认" : "编程等待中"}</strong><small>{truncate((props.task && props.task.title) || "工具暂无新响应", 28)}</small></div>;
 }
 
 // ---------- 全局浮层：轮询 + 动效 + 通知（功能启用即常驻） ----------
@@ -915,6 +968,58 @@ export function AnimationOverlay(props) {
 		prevActiveRef.current = st.active.slice();
 	}, [snap.status]);
 
+	// ===== 需确认检测：工具等待用户批准时通知（页内卡片 + 确认音 + 后台系统通知） =====
+	// host 从会话流 approval/asked 收集待确认项，approval/decided 后移除；
+	// 这里对"任务首次出现待确认"触发一次提醒，已提醒过的会话不再重复打扰。
+	const remindedApprovalsRef = useRef(new Map()); // sessionId -> 提醒过的 approvalId 集合
+	useEffect(() => {
+		const st = snap.status;
+		if (!st || !st.active) return;
+		const cfg = st.config || {};
+		const activeIds = new Set(st.active.map((x) => x.sessionId));
+		for (const [sid, seen] of remindedApprovalsRef.current) {
+			if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
+		}
+		for (const task of st.active) {
+			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+			if (approvals.length === 0) continue;
+			let seen = remindedApprovalsRef.current.get(task.sessionId);
+			if (!seen) { seen = new Set(); remindedApprovalsRef.current.set(task.sessionId, seen); }
+			const fresh = approvals.filter((a) => a && !seen.has(a.id));
+			if (fresh.length === 0) continue;
+			for (const a of fresh) seen.add(a.id);
+			// 提醒开关在"收到新确认项"时检查，保证开关中途打开对下一项生效
+			if (!cfg.notifyEnabled || cfg.notifyOnConfirm === false) continue;
+			const toolName = fresh[0].toolName || "";
+			const scene = toolLabel(toolName);
+			const lines = [
+				"任务：" + (task.title || "(无标题)"),
+				"工具：" + (toolName || "未知") + (scene ? "（" + scene + "）" : ""),
+			];
+			if (fresh[0].reason) lines.push("说明：" + truncate(fresh[0].reason, 140));
+			lines.push(fresh.length > 1 ? "共 " + fresh.length + " 项等待你的确认" : "请在会话里确认后继续");
+			const toast = {
+				id: Date.now() + Math.random(),
+				kind: "confirm",
+				title: "任务需要确认",
+				body: lines.join("\n"),
+				// 需确认常驻到用户处理（notifyStayMs=0 同款语义），关掉开关的间隙也不会自动消失
+				stayMs: 0,
+			};
+			setToasts((prev) => prev.concat([toast]).slice(-4));
+			if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
+			if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
+				&& typeof Notification !== "undefined" && Notification.permission === "granted") {
+				try {
+					new Notification("dsh 任务需要确认", {
+						body: (task.title || "(无标题)") + " · " + (toolName || "工具") + " 等待确认",
+						tag: "dsh-dock-approval-" + task.sessionId,
+					});
+				} catch { /* 系统通知失败不影响页面内通知 */ }
+			}
+		}
+	}, [snap.status]);
+
 	const handleTaskEnd = (task, record, cfg) => {
 		const reason = (record && record.endReason) || "";
 		const success = isSuccessReason(reason);
@@ -1002,6 +1107,21 @@ export function AnimationOverlay(props) {
 	const phase = active.length > 0
 		? active.reduce((best, x) => (!best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best), null).phase
 		: "think";
+	// 有会话在等用户确认时，状态文字让位给"等待确认"（优先级最高：不动手就卡住）。
+	// 会话级卡片（等待确认/编程等待中）只对"当前正在看的会话"出现，别的会话等待不打扰。
+	const waitingTask = active.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
+	const sessionTitleRef = useRef({ at: 0, title: "" });
+	const currentTitle = useMemo(() => {
+		// 标题查询要 getBoundingClientRect（强制布局），限频 1s；面板页/任务行为不受此限制
+		const c = sessionTitleRef.current;
+		if (typeof window === "undefined") return "";
+		if (Date.now() - c.at < 1000) return c.title;
+		c.at = Date.now();
+		c.title = currentSessionTitle();
+		return c.title;
+	}, [snap.status]);
+	const onScreenTasks = useMemo(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
+	const waitingTaskOnScreen = onScreenTasks.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
 	useTicker(ctx, animOn);
 	// 徽标计时：以最早开始的任务为基准
 	const now = Date.now();
@@ -1033,7 +1153,8 @@ export function AnimationOverlay(props) {
 	const spaceDocks = useSpaceDocks(spaceModeOn);
 	const spaceGalaxies = spaceModeOn && spaceDocks ? spaceGalaxyLayout() : null;
 	// Host 在编程阶段持续 18 秒没有 chunk/tool 活动，才把它视为卡住；正常长任务不会误触发。
-	const stuckTask = active.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18000) || null;
+	// 卡住卡片同样只对当前会话出现。
+	const stuckTask = onScreenTasks.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18000) || null;
 	const robotScaleFromConfig = Math.max(.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
 	const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
 	const saveRobotScale = useCallback((robotScale) => {
@@ -1147,7 +1268,7 @@ export function AnimationOverlay(props) {
 			? <AmbientLayer mode={mode} phase={phase} speed={Number(speed).toFixed(2)} tasks={active} galaxies={spaceGalaxies} /> : null}
 		{/* 星际模式：空闲时在输入框上方待命；任务卡住时在中央呈现编程等待状态。 */}
 		{spaceModeOn && spaceDocks && active.length === 0 && deliveries.length === 0 ? <ReadyFreighter dock={spaceDocks.ready} /> : null}
-		{spaceModeOn && stuckTask ? <ProgrammingStuck task={stuckTask} /> : null}
+		{spaceModeOn && stuckTask ? <ProgrammingStuck task={stuckTask} waiting={!!(stuckTask.approvals && stuckTask.approvals.length)} /> : null}
 		{!panelOpen ? departures.map((departure) => <MissionDeparture key={departure.id} departure={departure} />) : null}
 		{/* 环屏巡航：一颗光点沿屏幕边缘转圈（orbit 模式） */}
 		{ambientOn && mode === "orbit" ? <div className="dkan-orbit" style={speedStyle} aria-hidden="true" /> : null}
@@ -1155,8 +1276,8 @@ export function AnimationOverlay(props) {
 		<BurstLayer bursts={bursts} />
 		{/* 桌面伙伴：背侧视角紧凑双工位人物，阶段与任务同步；整卡可拖到任意位置（robot 模式） */}
 		{ambientOn && mode === "robot" ? (
-			<div className="dkan-botcard" role="button" tabIndex={0} style={botCardStyle}
-				title={active.length + " 个任务 · " + phaseLabel(phase) + " · 点击查看任务动画页 · 可拖动到任意位置"}
+			<div className="dkan-botcard" role="button" tabIndex={0} style={Object.assign({}, botCardStyle, waitingTask ? { "--dkan-phase": "#b45309" } : null)}
+				title={active.length + " 个任务 · " + (waitingTask ? "等待确认" : phaseLabel(phase)) + " · 点击查看任务动画页 · 可拖动到任意位置"}
 				onPointerDown={onBotPointerDown}
 				onPointerMove={onBotPointerMove}
 				onPointerUp={onBotPointerUp}
@@ -1165,7 +1286,7 @@ export function AnimationOverlay(props) {
 				onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onBotClick(); } }}>
 				<RobotScene phase={phase} tasks={active} />
 				<span className="dkan-bot-cap">
-					<span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {phaseLabel(phase)}
+					<span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {waitingTask ? "等待确认" : phaseLabel(phase)}
 				</span>
 				<button type="button" className="dkan-bot-resize" aria-label="调整桌面伙伴大小"
 					title="拖动调整桌面伙伴大小"
@@ -1185,15 +1306,15 @@ export function AnimationOverlay(props) {
 		{/* 右下角状态徽标：dot 随模式变化（breathe/ring 装饰），颜色随任务阶段、呼吸随吞吐；点击进功能坞动画页 */}
 		{ambientOn && mode !== "robot" ? (
 			<button type="button" className={"dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : "")}
-				style={Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(phase) })}
-				title={active.length + " 个任务进行中 · " + phaseLabel(phase) + " · 点击查看任务动画页"}
+				style={Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) })}
+				title={active.length + " 个任务进行中 · " + (waitingTask ? "等待确认" : phaseLabel(phase)) + " · 点击查看任务动画页"}
 				onClick={() => openPanel("animation")}>
 				<span className="dkan-dotwrap">
 					<span className="dkan-dot" />
 					{mode === "breathe" ? <span className="dkan-halo" /> : null}
 					{mode === "ring" ? <span className="dkan-ring" /> : null}
 				</span>
-				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {phaseLabel(phase)}</span>
+				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {waitingTask ? "等待确认" : phaseLabel(phase)}</span>
 			</button>
 		) : null}
 		{/* 完成瞬间的一次性流光（成功绿 / 异常红），动画结束自动清场 */}
@@ -1273,12 +1394,14 @@ function ModePreview({ id }) {
 function TaskRow(props) {
 	const t = props.t;
 	const info = endInfo(t.endReason);
+	const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
 	return (
 		<div className="dkan-task">
 		<div className="dkan-task-head">
 			<span className="dkan-task-title" title={t.title}>{t.title || "(无标题)"}</span>
 			{props.done ? <span className={"dkan-tag " + info.cls}>{info.label}</span>
-				: <span className="dkan-tag on">{phaseLabel(t.phase)}</span>}
+				: waiting ? <span className="dkan-tag warn">等待确认</span>
+					: <span className="dkan-tag on">{phaseLabel(t.phase)}</span>}
 		</div>
 			<div className="dkan-task-meta">
 				<span>{(t.models && t.models.length ? t.models.join(", ") : "未知") + (t.provider ? "（" + t.provider + "）" : "")}</span>
@@ -1287,6 +1410,11 @@ function TaskRow(props) {
 				{t.totalTokens ? <span>{"↧" + fmtCompact(t.inputTokens) + " ↥" + fmtCompact(t.outputTokens)}</span> : null}
 				{props.done && t.endTime ? <span>{fmtTime(t.endTime)}</span> : null}
 			</div>
+			{waiting ? (
+				<div className="dkan-task-err">
+					{t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "未知工具") + (a && a.reason ? "：" + truncate(a.reason, 80) : "")).join("；")}
+				</div>
+			) : null}
 			{props.done && t.errorMessage ? <div className="dkan-task-err">{truncate(t.errorMessage, 120)}</div> : null}
 		</div>
 	);
@@ -1434,6 +1562,7 @@ function AnimationView(props) {
 	if (!cfg) {
 		rows.push(<div key="load" className="dkan-note">{snap.error ? "状态不可用：" + snap.error : (snap.loading ? "正在拉取任务状态…" : "等待任务状态")}</div>);
 	} else {
+		const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
 		rows.push(
 			<div key="anim" className="dkan-sec">
 				<div className="dkan-sec-head">
@@ -1511,6 +1640,14 @@ function AnimationView(props) {
 						<span className="dkan-row-sub">出错 / 中止 / 达输出上限时通知</span>
 					</div>
 					<div className="dkan-row">
+						<span className="dkan-row-label">需确认提醒</span>
+						<button type="button" className={"dkm-miniswitch" + (cfg.notifyOnConfirm !== false ? " on" : "")}
+							onClick={() => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false })}>
+							{cfg.notifyOnConfirm !== false ? "开" : "关"}
+						</button>
+						<span className="dkan-row-sub">工具等待你批准时弹卡片并响确认音（常驻不自动消失）</span>
+					</div>
+					<div className="dkan-row">
 						<span className="dkan-row-label">停留时长</span>
 						<select className="dkan-select" value={String(cfg.notifyStayMs)}
 							onChange={(e) => patch({ notifyStayMs: Number(e.target.value) })}>
@@ -1535,7 +1672,7 @@ function AnimationView(props) {
 							onClick={() => patch({ soundNotify: cfg.soundNotify === false })}>
 							{cfg.soundNotify !== false ? "开" : "关"}
 						</button>
-						<span className="dkan-row-sub">任务结束时播放（试听为先播完成音、后播异常音）</span>
+						<span className="dkan-row-sub">任务结束/需确认时播放（试听为先播完成音、后播异常音）</span>
 					</div>
 					{cfg.soundNotify !== false ? (
 						<div className="dkan-sounds">
@@ -1646,8 +1783,9 @@ function AnimationView(props) {
 				<span className="dkan-sec-title">运行状态</span>
 				<span className="dkan-sec-sub">
 					{snap.error ? "状态拉取失败：" + snap.error
-						: active.length > 0 ? active.length + " 个任务进行中"
-							: recent.length > 0 ? "空闲 · 显示最近完成" : "空闲 · 暂无任务记录"}
+						: waitingCount > 0 ? waitingCount + " 项等待确认 · " + active.length + " 个任务进行中"
+							: active.length > 0 ? active.length + " 个任务进行中"
+								: recent.length > 0 ? "空闲 · 显示最近完成" : "空闲 · 暂无任务记录"}
 				</span>
 				<button type="button" className="dkan-refresh" onClick={() => animationStore.refresh()}>
 					{snap.loading ? "刷新中…" : "刷新"}
@@ -1727,7 +1865,9 @@ const css = [
 	".dkan-delivery-label{position:absolute;left:21px;top:58px;display:flex;align-items:baseline;gap:6px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 30%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-delivery-label b{color:var(--dsw-alias-label-primary);font-weight:650}.dkan-delivery-label span{color:var(--dk-accent);}",
 	"@media (max-width:1100px){.dkan-space-system,.dkan-space-runner{display:none}}",
 	".dkan-ready-freighter{position:fixed;width:210px;height:88px;z-index:9994;pointer-events:none;filter:drop-shadow(0 10px 14px rgb(0 0 0 / .18));}.dkan-ready-freighter>span:last-child{position:absolute;left:21px;top:58px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 28%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 80%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-departure{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-departure-flight var(--dkan-departure-duration,8600ms) cubic-bezier(.42,0,.85,.45) forwards;}@keyframes dkan-departure-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}100%{opacity:0;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(.24) rotate(var(--dkan-flight-angle,0deg))}}",
-	".dkan-space-stuck{position:fixed;left:50%;top:50%;width:244px;height:160px;z-index:9993;pointer-events:none;transform:translate(-50%,-50%);border:1px solid color-mix(in srgb,#f59e0b 48%,var(--dsw-alias-border-l1));border-radius:20px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgb(0 0 0 / .28),0 0 30px color-mix(in srgb,#f59e0b 15%,transparent);}.dkan-space-stuck .dkan-freighter{left:37px;top:11px;transform:scale(.9);transform-origin:top left;}.dkan-stuck-code{position:absolute;left:17px;right:17px;top:60px;height:36px;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,#f59e0b 18%,transparent),transparent);color:var(--dk-warn);font:700 14px/36px var(--ds-font-family-code,monospace);letter-spacing:.12em;text-align:center;overflow:hidden;}.dkan-stuck-code::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,#fef3c7 70%,transparent),transparent);transform:translateX(-110%);animation:dkan-stuck-scan 1.25s linear infinite;}.dkan-stuck-code i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 9px #f59e0b;animation:dkan-stuck-pulse .8s ease-in-out infinite alternate;}.dkan-space-stuck strong{position:absolute;left:0;right:0;top:108px;color:var(--dsw-alias-label-primary);font:650 13px/1.2 var(--ds-font-family,system-ui,sans-serif);text-align:center;}.dkan-space-stuck small{position:absolute;left:18px;right:18px;top:128px;color:var(--dsw-alias-label-secondary);font:11px/1.25 var(--ds-font-family,system-ui,sans-serif);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}@keyframes dkan-stuck-scan{to{transform:translateX(110%)}}@keyframes dkan-stuck-pulse{to{transform:scale(.55);opacity:.45}}",
+	".dkan-space-stuck{position:fixed;right:20px;top:88px;width:244px;height:160px;z-index:9993;pointer-events:none;border:1px solid color-mix(in srgb,#f59e0b 48%,var(--dsw-alias-border-l1));border-radius:20px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgb(0 0 0 / .28),0 0 30px color-mix(in srgb,#f59e0b 15%,transparent);}.dkan-space-stuck .dkan-freighter{left:37px;top:11px;transform:scale(.9);transform-origin:top left;}.dkan-stuck-code{position:absolute;left:17px;right:17px;top:60px;height:36px;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,#f59e0b 18%,transparent),transparent);color:var(--dk-warn);font:700 14px/36px var(--ds-font-family-code,monospace);letter-spacing:.12em;text-align:center;overflow:hidden;}.dkan-stuck-code::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,#fef3c7 70%,transparent),transparent);transform:translateX(-110%);animation:dkan-stuck-scan 1.25s linear infinite;}.dkan-stuck-code i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 9px #f59e0b;animation:dkan-stuck-pulse .8s ease-in-out infinite alternate;}.dkan-space-stuck strong{position:absolute;left:0;right:0;top:108px;color:var(--dsw-alias-label-primary);font:650 13px/1.2 var(--ds-font-family,system-ui,sans-serif);text-align:center;}.dkan-space-stuck small{position:absolute;left:18px;right:18px;top:128px;color:var(--dsw-alias-label-secondary);font:11px/1.25 var(--ds-font-family,system-ui,sans-serif);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}@keyframes dkan-stuck-scan{to{transform:translateX(110%)}}@keyframes dkan-stuck-pulse{to{transform:scale(.55);opacity:.45}}",
+	// 窄屏（手机/分屏）贴右会溢出：回落到水平居中、屏幕上方，避开正文重心
+	"@media (max-width:760px){.dkan-space-stuck{right:50%;transform:translateX(50%);top:64px;}}",
 	// 极光：顶部柔光带呼吸流动（加浓）
 	".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(50px);opacity:.32;animation:dkan-aurora ease-in-out infinite alternate;}",
 	".dkan-aurora i:nth-child(1){background:#4d9fff;}",
@@ -1816,6 +1956,9 @@ const css = [
 	".dkan-toast-close{cursor:pointer;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:6px;width:22px;height:22px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;}",
 	".dkan-toast-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
 	".dkan-toast-body{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.7;white-space:pre-line;word-break:break-word;}",
+	// 需确认卡片：琥珀描边 + 缓慢呼吸光晕，常驻提醒直到用户处理
+	".dkan-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dkan-toast-in .32s var(--ds-ease-in-out),dkan-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
+	"@keyframes dkan-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
 	// 面板页布局
 	".dkan-root{display:flex;flex-direction:column;gap:10px;}",
 	".dkan-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",

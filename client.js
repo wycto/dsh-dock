@@ -3876,6 +3876,13 @@ var PHASE_COLORS = { think: "#2f6fed", write: "#0d9488", code: "#b45309", search
 function phaseColor(p) {
   return PHASE_COLORS[p] || "#2f6fed";
 }
+function toolLabel(name) {
+  const n = String(name || "").toLowerCase();
+  if (/bash|shell|terminal|cmd|pwsh|powershell|exec/.test(n)) return "\u6267\u884C\u547D\u4EE4";
+  if (/write|edit|patch|apply|create|mkdir|remove|delete/.test(n)) return "\u4FEE\u6539\u6587\u4EF6";
+  if (/web|fetch|browser|navigate|search/.test(n)) return "\u8BBF\u95EE\u7F51\u9875";
+  return "";
+}
 var END_LABELS = {
   completed: { label: "\u5B8C\u6210", cls: "ok" },
   error: { label: "\u51FA\u9519", cls: "err" },
@@ -4109,12 +4116,12 @@ function RobotScene(props) {
   ] });
 }
 var SOUND_LIBRARY = {
-  chime: { name: "\u6E05\u8106\u53CC\u97F3", notes: { done: [[659.25, 0, 0.14], [880, 0.13, 0.24]], err: [[220, 0, 0.16], [164.81, 0.15, 0.3]] } },
-  ding: { name: "\u53EE", notes: { done: [[987.77, 0, 0.35]], err: [[246.94, 0, 0.4]] } },
-  coin: { name: "\u91D1\u5E01", notes: { done: [[988, 0, 0.08], [1319, 0.08, 0.35], [988, 0, 0.08, "square"], [1319, 0.08, 0.3, "square"]], err: [[196, 0, 0.12], [147, 0.11, 0.35]] } },
-  bell: { name: "\u949F\u58F0", notes: { done: [[523.25, 0, 0.5], [659.25, 0.02, 0.45], [783.99, 0.04, 0.4]], err: [[174.61, 0, 0.5], [130.81, 0.05, 0.5]] } },
-  pulse: { name: "\u8109\u51B2", notes: { done: [[440, 0, 0.09], [440, 0.14, 0.09], [440, 0.28, 0.16]], err: [[174.61, 0, 0.1], [174.61, 0.14, 0.1], [174.61, 0.28, 0.18]] } },
-  arp: { name: "\u7436\u97F3", notes: { done: [[523.25, 0, 0.12], [659.25, 0.09, 0.12], [783.99, 0.18, 0.12], [1046.5, 0.27, 0.3]], err: [[392, 0, 0.12], [329.63, 0.1, 0.12], [261.63, 0.2, 0.12], [196, 0.3, 0.32]] } }
+  chime: { name: "\u6E05\u8106\u53CC\u97F3", notes: { done: [[659.25, 0, 0.14], [880, 0.13, 0.24]], err: [[220, 0, 0.16], [164.81, 0.15, 0.3]], ask: [[587.33, 0, 0.16], [880, 0.19, 0.34]] } },
+  ding: { name: "\u53EE", notes: { done: [[987.77, 0, 0.35]], err: [[246.94, 0, 0.4]], ask: [[783.99, 0, 0.18], [1174.66, 0.2, 0.42]] } },
+  coin: { name: "\u91D1\u5E01", notes: { done: [[988, 0, 0.08], [1319, 0.08, 0.35], [988, 0, 0.08, "square"], [1319, 0.08, 0.3, "square"]], err: [[196, 0, 0.12], [147, 0.11, 0.35]], ask: [[880, 0, 0.09], [1108.73, 0.1, 0.12], [1318.51, 0.22, 0.3]] } },
+  bell: { name: "\u949F\u58F0", notes: { done: [[523.25, 0, 0.5], [659.25, 0.02, 0.45], [783.99, 0.04, 0.4]], err: [[174.61, 0, 0.5], [130.81, 0.05, 0.5]], ask: [[659.25, 0, 0.4], [523.25, 0.05, 0.55]] } },
+  pulse: { name: "\u8109\u51B2", notes: { done: [[440, 0, 0.09], [440, 0.14, 0.09], [440, 0.28, 0.16]], err: [[174.61, 0, 0.1], [174.61, 0.14, 0.1], [174.61, 0.28, 0.18]], ask: [[523.25, 0, 0.09], [523.25, 0.15, 0.09], [659.25, 0.3, 0.22]] } },
+  arp: { name: "\u7436\u97F3", notes: { done: [[523.25, 0, 0.12], [659.25, 0.09, 0.12], [783.99, 0.18, 0.12], [1046.5, 0.27, 0.3]], err: [[392, 0, 0.12], [329.63, 0.1, 0.12], [261.63, 0.2, 0.12], [196, 0.3, 0.32]], ask: [[440, 0, 0.11], [554.37, 0.12, 0.11], [659.25, 0.24, 0.11], [880, 0.36, 0.34]] } }
 };
 var soundCtx = null;
 function playTone(seq) {
@@ -4146,6 +4153,10 @@ function playDoneSound(success, effect) {
   const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
   playTone(success ? lib.notes.done : lib.notes.err);
 }
+function playAskSound(effect) {
+  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+  playTone(lib.notes.ask || lib.notes.done);
+}
 function previewSound(effect) {
   const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
   playTone(lib.notes.done);
@@ -4168,11 +4179,14 @@ function Toast(props) {
     const timer = setTimeout(() => props.onClose(t.id), 240);
     return () => clearTimeout(timer);
   }, [closing]);
-  const markColor = t.kind === "success" ? "var(--dk-ok)" : t.kind === "error" ? "var(--dk-err)" : "var(--dk-warn)";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-toast" + (closing ? " out" : ""), children: [
+  const markColor = t.kind === "success" ? "var(--dk-ok)" : t.kind === "error" ? "var(--dk-err)" : t.kind === "confirm" ? "var(--dk-warn)" : "var(--dk-warn)";
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-toast" + (t.kind === "confirm" ? " dkan-toast-confirm" : "") + (closing ? " out" : ""), children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-toast-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-toast-mark", style: { background: markColor } }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-toast-title", title: t.title, children: t.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-toast-title", title: t.title, children: [
+        t.kind === "confirm" ? "\u270B " : "",
+        t.title
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
     ] }),
     t.body ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toast-body", children: t.body }) : null
@@ -4376,6 +4390,24 @@ function visibleRect(el) {
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight ? r : null;
 }
+function currentSessionTitle() {
+  if (typeof document === "undefined") return "";
+  for (const el of document.querySelectorAll('[role="treeitem"][aria-selected="true"]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0 && r.right <= window.innerWidth * 0.35) {
+      const text = (el.textContent || "").trim();
+      if (text) return text;
+    }
+  }
+  return "";
+}
+function taskOnScreen(task, titleCache) {
+  const title = task && (task.title || "");
+  if (!title) return true;
+  const current = titleCache !== void 0 ? titleCache : currentSessionTitle();
+  if (!current) return true;
+  return current === title || current.indexOf(title) !== -1 || title.indexOf(current) !== -1;
+}
 var COMPOSER_SEND_SELECTOR = 'button[aria-label="Send message"],button[aria-label*="\u53D1\u9001"],button[data-testid*="send"],button[data-testid*="submit"],button[type="submit"]';
 function conversationComposer() {
   if (typeof document === "undefined" || typeof window === "undefined") return null;
@@ -4445,7 +4477,6 @@ function useSpaceDocks(enabled) {
     let frame = 0;
     let idle = 0;
     let timer = 0;
-    let pollTimer = 0;
     let retries = 0;
     let pending = false;
     let observedComposer = null;
@@ -4501,7 +4532,25 @@ function useSpaceDocks(enabled) {
     }) : null;
     if (mutationObserver && document.body) mutationObserver.observe(document.body, { childList: true, subtree: true });
     schedule(0, true);
-    pollTimer = window.setInterval(() => schedule(), 700);
+    let calibrationInterval = 700;
+    let lastActivityAt = Date.now();
+    const markActivity = () => {
+      lastActivityAt = Date.now();
+      if (calibrationInterval !== 700) {
+        calibrationInterval = 700;
+        restartPoll();
+      }
+    };
+    const unsubscribeActivity = animationStore.subscribe(markActivity);
+    let pollTimer = 0;
+    function restartPoll() {
+      if (pollTimer) window.clearInterval(pollTimer);
+      pollTimer = window.setInterval(() => {
+        if (Date.now() - lastActivityAt > 2e4 && calibrationInterval !== 5e3) calibrationInterval = 5e3;
+        schedule();
+      }, calibrationInterval);
+    }
+    restartPoll();
     const onResize = () => {
       if (idle && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
       if (timer) window.clearTimeout(timer);
@@ -4517,6 +4566,7 @@ function useSpaceDocks(enabled) {
       if (pollTimer) window.clearInterval(pollTimer);
       if (mutationObserver) mutationObserver.disconnect();
       if (resizeObserver) resizeObserver.disconnect();
+      unsubscribeActivity();
       window.removeEventListener("resize", onResize);
     };
   }, [enabled]);
@@ -4597,13 +4647,14 @@ function MissionDeparture(props) {
   }, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }) });
 }
 function ProgrammingStuck(props) {
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-space-stuck", "aria-hidden": "true", children: [
+  const waiting = !!props.waiting;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-space-stuck" + (waiting ? " waiting" : ""), "aria-hidden": "true", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-stuck-code", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
       `{ }`
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u7F16\u7A0B\u7B49\u5F85\u4E2D" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: waiting ? "\u7B49\u5F85\u786E\u8BA4" : "\u7F16\u7A0B\u7B49\u5F85\u4E2D" }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("small", { children: truncate(props.task && props.task.title || "\u5DE5\u5177\u6682\u65E0\u65B0\u54CD\u5E94", 28) })
   ] });
 }
@@ -4725,6 +4776,56 @@ function AnimationOverlay(props) {
     }
     prevActiveRef.current = st2.active.slice();
   }, [snap.status]);
+  const remindedApprovalsRef = (0, import_react8.useRef)(/* @__PURE__ */ new Map());
+  (0, import_react8.useEffect)(() => {
+    const st2 = snap.status;
+    if (!st2 || !st2.active) return;
+    const cfg2 = st2.config || {};
+    const activeIds = new Set(st2.active.map((x) => x.sessionId));
+    for (const [sid, seen] of remindedApprovalsRef.current) {
+      if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
+    }
+    for (const task of st2.active) {
+      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+      if (approvals.length === 0) continue;
+      let seen = remindedApprovalsRef.current.get(task.sessionId);
+      if (!seen) {
+        seen = /* @__PURE__ */ new Set();
+        remindedApprovalsRef.current.set(task.sessionId, seen);
+      }
+      const fresh = approvals.filter((a) => a && !seen.has(a.id));
+      if (fresh.length === 0) continue;
+      for (const a of fresh) seen.add(a.id);
+      if (!cfg2.notifyEnabled || cfg2.notifyOnConfirm === false) continue;
+      const toolName = fresh[0].toolName || "";
+      const scene = toolLabel(toolName);
+      const lines = [
+        "\u4EFB\u52A1\uFF1A" + (task.title || "(\u65E0\u6807\u9898)"),
+        "\u5DE5\u5177\uFF1A" + (toolName || "\u672A\u77E5") + (scene ? "\uFF08" + scene + "\uFF09" : "")
+      ];
+      if (fresh[0].reason) lines.push("\u8BF4\u660E\uFF1A" + truncate(fresh[0].reason, 140));
+      lines.push(fresh.length > 1 ? "\u5171 " + fresh.length + " \u9879\u7B49\u5F85\u4F60\u7684\u786E\u8BA4" : "\u8BF7\u5728\u4F1A\u8BDD\u91CC\u786E\u8BA4\u540E\u7EE7\u7EED");
+      const toast = {
+        id: Date.now() + Math.random(),
+        kind: "confirm",
+        title: "\u4EFB\u52A1\u9700\u8981\u786E\u8BA4",
+        body: lines.join("\n"),
+        // 需确认常驻到用户处理（notifyStayMs=0 同款语义），关掉开关的间隙也不会自动消失
+        stayMs: 0
+      };
+      setToasts((prev) => prev.concat([toast]).slice(-4));
+      if (cfg2.soundNotify !== false) playAskSound(cfg2.soundEffect);
+      if (cfg2.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("dsh \u4EFB\u52A1\u9700\u8981\u786E\u8BA4", {
+            body: (task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + (toolName || "\u5DE5\u5177") + " \u7B49\u5F85\u786E\u8BA4",
+            tag: "dsh-dock-approval-" + task.sessionId
+          });
+        } catch {
+        }
+      }
+    }
+  }, [snap.status]);
   const handleTaskEnd = (task, record, cfg2) => {
     const reason = record && record.endReason || "";
     const success = isSuccessReason(reason);
@@ -4795,6 +4896,18 @@ function AnimationOverlay(props) {
   const animOn = !!(cfg && cfg.animationEnabled && active.length > 0);
   const mode = cfg && cfg.effectMode ? cfg.effectMode : "flow";
   const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
+  const waitingTask = active.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
+  const sessionTitleRef = (0, import_react8.useRef)({ at: 0, title: "" });
+  const currentTitle = (0, import_react8.useMemo)(() => {
+    const c = sessionTitleRef.current;
+    if (typeof window === "undefined") return "";
+    if (Date.now() - c.at < 1e3) return c.title;
+    c.at = Date.now();
+    c.title = currentSessionTitle();
+    return c.title;
+  }, [snap.status]);
+  const onScreenTasks = (0, import_react8.useMemo)(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
+  const waitingTaskOnScreen = onScreenTasks.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
   useTicker(ctx, animOn);
   const now = Date.now();
   const elapsed = active.length > 0 ? fmtClock(now - Math.min(...active.map((x) => x.startTime || now))) : "";
@@ -4828,7 +4941,7 @@ function AnimationOverlay(props) {
   const spaceModeOn = !!(cfg && cfg.animationEnabled && mode === "space" && !panelOpen);
   const spaceDocks = useSpaceDocks(spaceModeOn);
   const spaceGalaxies = spaceModeOn && spaceDocks ? spaceGalaxyLayout() : null;
-  const stuckTask = active.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18e3) || null;
+  const stuckTask = onScreenTasks.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18e3) || null;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
   const saveRobotScale = (0, import_react8.useCallback)((robotScale) => {
@@ -4943,7 +5056,7 @@ function AnimationOverlay(props) {
     ambientOn && mode === "flow" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-line", style: speedStyle, "aria-hidden": "true" }) : null,
     ambientOn && AMBIENT_EFFECT_MODES.has(mode) && (mode !== "space" || spaceGalaxies) ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AmbientLayer, { mode, phase, speed: Number(speed).toFixed(2), tasks: active, galaxies: spaceGalaxies }) : null,
     spaceModeOn && spaceDocks && active.length === 0 && deliveries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ReadyFreighter, { dock: spaceDocks.ready }) : null,
-    spaceModeOn && stuckTask ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ProgrammingStuck, { task: stuckTask }) : null,
+    spaceModeOn && stuckTask ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ProgrammingStuck, { task: stuckTask, waiting: !!(stuckTask.approvals && stuckTask.approvals.length) }) : null,
     !panelOpen ? departures.map((departure) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MissionDeparture, { departure }, departure.id)) : null,
     ambientOn && mode === "orbit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-orbit", style: speedStyle, "aria-hidden": "true" }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(BurstLayer, { bursts }),
@@ -4953,8 +5066,8 @@ function AnimationOverlay(props) {
         className: "dkan-botcard",
         role: "button",
         tabIndex: 0,
-        style: botCardStyle,
-        title: active.length + " \u4E2A\u4EFB\u52A1 \xB7 " + phaseLabel(phase) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875 \xB7 \u53EF\u62D6\u52A8\u5230\u4EFB\u610F\u4F4D\u7F6E",
+        style: Object.assign({}, botCardStyle, waitingTask ? { "--dkan-phase": "#b45309" } : null),
+        title: active.length + " \u4E2A\u4EFB\u52A1 \xB7 " + (waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875 \xB7 \u53EF\u62D6\u52A8\u5230\u4EFB\u610F\u4F4D\u7F6E",
         onPointerDown: onBotPointerDown,
         onPointerMove: onBotPointerMove,
         onPointerUp: onBotPointerUp,
@@ -4973,7 +5086,7 @@ function AnimationOverlay(props) {
             " \u4E2A\u4EFB\u52A1",
             elapsed ? " \xB7 " + elapsed : "",
             " \xB7 ",
-            phaseLabel(phase)
+            waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
             "button",
@@ -5004,8 +5117,8 @@ function AnimationOverlay(props) {
       {
         type: "button",
         className: "dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : ""),
-        style: Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(phase) }),
-        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + phaseLabel(phase) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
+        style: Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) }),
+        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + (waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
         onClick: () => openPanel("animation"),
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap", children: [
@@ -5018,7 +5131,7 @@ function AnimationOverlay(props) {
             " \u4E2A\u4EFB\u52A1",
             elapsed ? " \xB7 " + elapsed : "",
             " \xB7 ",
-            phaseLabel(phase)
+            waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)
           ] })
         ]
       }
@@ -5093,10 +5206,11 @@ function ModePreview({ id }) {
 function TaskRow(props) {
   const t = props.t;
   const info = endInfo(t.endReason);
+  const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-task", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-task-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-task-title", title: t.title, children: t.title || "(\u65E0\u6807\u9898)" }),
-      props.done ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-tag " + info.cls, children: info.label }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-tag on", children: phaseLabel(t.phase) })
+      props.done ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-tag " + info.cls, children: info.label }) : waiting ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-tag warn", children: "\u7B49\u5F85\u786E\u8BA4" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-tag on", children: phaseLabel(t.phase) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-task-meta", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: (t.models && t.models.length ? t.models.join(", ") : "\u672A\u77E5") + (t.provider ? "\uFF08" + t.provider + "\uFF09" : "") }),
@@ -5105,6 +5219,7 @@ function TaskRow(props) {
       t.totalTokens ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u21A7" + fmtCompact2(t.inputTokens) + " \u21A5" + fmtCompact2(t.outputTokens) }) : null,
       props.done && t.endTime ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: fmtTime2(t.endTime) }) : null
     ] }),
+    waiting ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-task-err", children: t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "\u672A\u77E5\u5DE5\u5177") + (a && a.reason ? "\uFF1A" + truncate(a.reason, 80) : "")).join("\uFF1B") }) : null,
     props.done && t.errorMessage ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-task-err", children: truncate(t.errorMessage, 120) }) : null
   ] });
 }
@@ -5232,6 +5347,7 @@ function AnimationView(props) {
   if (!cfg) {
     rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: snap.error ? "\u72B6\u6001\u4E0D\u53EF\u7528\uFF1A" + snap.error : snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" : "\u7B49\u5F85\u4EFB\u52A1\u72B6\u6001" }, "load"));
   } else {
+    const waitingCount2 = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
     rows.push(
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
@@ -5352,6 +5468,19 @@ function AnimationView(props) {
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u51FA\u9519 / \u4E2D\u6B62 / \u8FBE\u8F93\u51FA\u4E0A\u9650\u65F6\u901A\u77E5" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u9700\u786E\u8BA4\u63D0\u9192" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dkm-miniswitch" + (cfg.notifyOnConfirm !== false ? " on" : ""),
+                onClick: () => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false }),
+                children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF08\u5E38\u9A7B\u4E0D\u81EA\u52A8\u6D88\u5931\uFF09" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u505C\u7559\u65F6\u957F" }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
               "select",
@@ -5393,7 +5522,7 @@ function AnimationView(props) {
                 children: cfg.soundNotify !== false ? "\u5F00" : "\u5173"
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u65F6\u64AD\u653E\uFF08\u8BD5\u542C\u4E3A\u5148\u64AD\u5B8C\u6210\u97F3\u3001\u540E\u64AD\u5F02\u5E38\u97F3\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F/\u9700\u786E\u8BA4\u65F6\u64AD\u653E\uFF08\u8BD5\u542C\u4E3A\u5148\u64AD\u5B8C\u6210\u97F3\u3001\u540E\u64AD\u5F02\u5E38\u97F3\uFF09" })
           ] }),
           cfg.soundNotify !== false ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-sounds", children: Object.keys(SOUND_LIBRARY).map((key) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
             "button",
@@ -5558,7 +5687,7 @@ function AnimationView(props) {
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u8FD0\u884C\u72B6\u6001" }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: snap.error ? "\u72B6\u6001\u62C9\u53D6\u5931\u8D25\uFF1A" + snap.error : active.length > 0 ? active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : recent.length > 0 ? "\u7A7A\u95F2 \xB7 \u663E\u793A\u6700\u8FD1\u5B8C\u6210" : "\u7A7A\u95F2 \xB7 \u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: snap.error ? "\u72B6\u6001\u62C9\u53D6\u5931\u8D25\uFF1A" + snap.error : waitingCount > 0 ? waitingCount + " \u9879\u7B49\u5F85\u786E\u8BA4 \xB7 " + active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : active.length > 0 ? active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : recent.length > 0 ? "\u7A7A\u95F2 \xB7 \u663E\u793A\u6700\u8FD1\u5B8C\u6210" : "\u7A7A\u95F2 \xB7 \u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55" }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-refresh", onClick: () => animationStore.refresh(), children: snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u5237\u65B0" })
       ] }),
       active.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-tasks", children: active.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TaskRow, { t }, t.sessionId)) }) : null,
@@ -5630,7 +5759,9 @@ var css2 = [
   ".dkan-delivery-label{position:absolute;left:21px;top:58px;display:flex;align-items:baseline;gap:6px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 30%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-delivery-label b{color:var(--dsw-alias-label-primary);font-weight:650}.dkan-delivery-label span{color:var(--dk-accent);}",
   "@media (max-width:1100px){.dkan-space-system,.dkan-space-runner{display:none}}",
   ".dkan-ready-freighter{position:fixed;width:210px;height:88px;z-index:9994;pointer-events:none;filter:drop-shadow(0 10px 14px rgb(0 0 0 / .18));}.dkan-ready-freighter>span:last-child{position:absolute;left:21px;top:58px;padding:4px 8px;border:1px solid color-mix(in srgb,#93c5fd 28%,var(--dsw-alias-border-l1));border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 80%,transparent);backdrop-filter:blur(10px);color:var(--dsw-alias-label-secondary);font:10px/1.2 var(--ds-font-family,system-ui,sans-serif);white-space:nowrap;}.dkan-departure{position:fixed;left:0;top:0;width:210px;height:88px;z-index:9994;pointer-events:none;will-change:transform,opacity;contain:layout paint style;isolation:isolate;animation:dkan-departure-flight var(--dkan-departure-duration,8600ms) cubic-bezier(.42,0,.85,.45) forwards;}@keyframes dkan-departure-flight{0%{opacity:0;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}6%{opacity:1;transform:translate3d(var(--dkan-from-x),var(--dkan-from-y),0) scale(1) rotate(var(--dkan-flight-angle,0deg))}100%{opacity:0;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0) scale(.24) rotate(var(--dkan-flight-angle,0deg))}}",
-  ".dkan-space-stuck{position:fixed;left:50%;top:50%;width:244px;height:160px;z-index:9993;pointer-events:none;transform:translate(-50%,-50%);border:1px solid color-mix(in srgb,#f59e0b 48%,var(--dsw-alias-border-l1));border-radius:20px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgb(0 0 0 / .28),0 0 30px color-mix(in srgb,#f59e0b 15%,transparent);}.dkan-space-stuck .dkan-freighter{left:37px;top:11px;transform:scale(.9);transform-origin:top left;}.dkan-stuck-code{position:absolute;left:17px;right:17px;top:60px;height:36px;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,#f59e0b 18%,transparent),transparent);color:var(--dk-warn);font:700 14px/36px var(--ds-font-family-code,monospace);letter-spacing:.12em;text-align:center;overflow:hidden;}.dkan-stuck-code::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,#fef3c7 70%,transparent),transparent);transform:translateX(-110%);animation:dkan-stuck-scan 1.25s linear infinite;}.dkan-stuck-code i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 9px #f59e0b;animation:dkan-stuck-pulse .8s ease-in-out infinite alternate;}.dkan-space-stuck strong{position:absolute;left:0;right:0;top:108px;color:var(--dsw-alias-label-primary);font:650 13px/1.2 var(--ds-font-family,system-ui,sans-serif);text-align:center;}.dkan-space-stuck small{position:absolute;left:18px;right:18px;top:128px;color:var(--dsw-alias-label-secondary);font:11px/1.25 var(--ds-font-family,system-ui,sans-serif);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}@keyframes dkan-stuck-scan{to{transform:translateX(110%)}}@keyframes dkan-stuck-pulse{to{transform:scale(.55);opacity:.45}}",
+  ".dkan-space-stuck{position:fixed;right:20px;top:88px;width:244px;height:160px;z-index:9993;pointer-events:none;border:1px solid color-mix(in srgb,#f59e0b 48%,var(--dsw-alias-border-l1));border-radius:20px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgb(0 0 0 / .28),0 0 30px color-mix(in srgb,#f59e0b 15%,transparent);}.dkan-space-stuck .dkan-freighter{left:37px;top:11px;transform:scale(.9);transform-origin:top left;}.dkan-stuck-code{position:absolute;left:17px;right:17px;top:60px;height:36px;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,#f59e0b 18%,transparent),transparent);color:var(--dk-warn);font:700 14px/36px var(--ds-font-family-code,monospace);letter-spacing:.12em;text-align:center;overflow:hidden;}.dkan-stuck-code::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,#fef3c7 70%,transparent),transparent);transform:translateX(-110%);animation:dkan-stuck-scan 1.25s linear infinite;}.dkan-stuck-code i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 9px #f59e0b;animation:dkan-stuck-pulse .8s ease-in-out infinite alternate;}.dkan-space-stuck strong{position:absolute;left:0;right:0;top:108px;color:var(--dsw-alias-label-primary);font:650 13px/1.2 var(--ds-font-family,system-ui,sans-serif);text-align:center;}.dkan-space-stuck small{position:absolute;left:18px;right:18px;top:128px;color:var(--dsw-alias-label-secondary);font:11px/1.25 var(--ds-font-family,system-ui,sans-serif);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}@keyframes dkan-stuck-scan{to{transform:translateX(110%)}}@keyframes dkan-stuck-pulse{to{transform:scale(.55);opacity:.45}}",
+  // 窄屏（手机/分屏）贴右会溢出：回落到水平居中、屏幕上方，避开正文重心
+  "@media (max-width:760px){.dkan-space-stuck{right:50%;transform:translateX(50%);top:64px;}}",
   // 极光：顶部柔光带呼吸流动（加浓）
   ".dkan-aurora i{position:absolute;top:-40%;left:-20%;width:70%;height:80%;border-radius:50%;filter:blur(50px);opacity:.32;animation:dkan-aurora ease-in-out infinite alternate;}",
   ".dkan-aurora i:nth-child(1){background:#4d9fff;}",
@@ -5719,6 +5850,9 @@ var css2 = [
   ".dkan-toast-close{cursor:pointer;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:6px;width:22px;height:22px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;}",
   ".dkan-toast-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
   ".dkan-toast-body{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.7;white-space:pre-line;word-break:break-word;}",
+  // 需确认卡片：琥珀描边 + 缓慢呼吸光晕，常驻提醒直到用户处理
+  ".dkan-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dkan-toast-in .32s var(--ds-ease-in-out),dkan-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
+  "@keyframes dkan-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
   // 面板页布局
   ".dkan-root{display:flex;flex-direction:column;gap:10px;}",
   ".dkan-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
@@ -9861,7 +9995,7 @@ var feature8 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.9.1";
+var DOCK_VERSION = "0.9.3";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
