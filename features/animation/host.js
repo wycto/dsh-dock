@@ -9,7 +9,7 @@
 //
 // 配置模型（schemastery schema 见 src/host-core.js DockConfig.animation）：
 //   animationEnabled / effectMode / notifyEnabled / notifyOnComplete /
-//   notifyOnError / notifyStayMs / systemNotify
+//   notifyOnError / notifyOnConfirm / notifyStayMs / systemNotify
 // 动画与通知是两个独立开关，可只开其一；全部经 settings 持久化，重启后恢复。
 import { DOCK_NS, ANIMATION_MODES, SOUND_EFFECTS, sendJson, readBody } from '../../src/host-core.js'
 
@@ -22,6 +22,7 @@ function defaultConfig() {
     notifyEnabled: true,
     notifyOnComplete: true,
     notifyOnError: true,
+    notifyOnConfirm: true,
     notifyStayMs: 8000,
     systemNotify: false,
     soundNotify: true,
@@ -132,6 +133,8 @@ export const feature = {
         errorMessage: '',
         lastText: '',
         firstPrompt: '',
+        // 工具等待用户确认（dsh 会话流 approval/asked）：浏览器侧据此弹"需确认"通知
+        approvals: new Map(), // approvalId -> { toolName, reason, askedAt }
         phase: 'think',
         phaseAt: Date.now(),
         lastActivityAt: Date.now(),
@@ -393,6 +396,19 @@ export const feature = {
           const msg = (reason.error && (reason.error.message || reason.error.code)) || ''
           s.errorMessage = typeof msg === 'string' ? msg : String(msg)
         }
+      } else if (event.type === 'approval/asked' && event.data) {
+        // 工具等待用户确认/批准：挂在会话记录上，/status 下发给浏览器弹"需确认"通知
+        const id = typeof event.data.id === 'string' ? event.data.id : ''
+        if (id) {
+          s.approvals.set(id, {
+            toolName: typeof event.data.toolName === 'string' ? event.data.toolName : '',
+            reason: typeof event.data.reason === 'string' ? truncate(event.data.reason, 200) : '',
+            askedAt: event.time || Date.now(),
+          })
+        }
+        s.lastActivityAt = now
+      } else if (event.type === 'approval/decided' && event.data) {
+        s.approvals.delete(typeof event.data.id === 'string' ? event.data.id : '')
       } else if (event.type === 'tool/call') {
         s.toolCalls++
         s.phase = phaseOfToolName(event.data && event.data.name)
@@ -506,6 +522,7 @@ export const feature = {
                   lastActivityAt: s.lastActivityAt,
                   motionTicks: s.motionTicks,
                   lastMotionAt: s.lastMotionAt,
+                  approvals: [...s.approvals.entries()].map(([id, v]) => ({ id, ...v })),
                 })
               }
               return sendJson(res, 200, {
@@ -531,6 +548,7 @@ export const feature = {
               if (typeof p.notifyEnabled === 'boolean') cfg.notifyEnabled = p.notifyEnabled
               if (typeof p.notifyOnComplete === 'boolean') cfg.notifyOnComplete = p.notifyOnComplete
               if (typeof p.notifyOnError === 'boolean') cfg.notifyOnError = p.notifyOnError
+              if (typeof p.notifyOnConfirm === 'boolean') cfg.notifyOnConfirm = p.notifyOnConfirm
               if (typeof p.notifyStayMs === 'number' && Number.isFinite(p.notifyStayMs)) {
                 cfg.notifyStayMs = Math.max(0, Math.min(600000, Math.round(p.notifyStayMs)))
               }
