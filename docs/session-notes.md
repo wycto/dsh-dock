@@ -532,3 +532,38 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 **踩坑**：Mimosa 安全钩子对 `<script>` 字符串构造极敏感（loginPage 的静态路径拼接也被拦）——页面一律用无脚本纯 HTML（错误态走服务端 303 + 独立静态页，自动跳转用 meta refresh）；`window.__DSH_REMOTE__` 标记注入被拦后改用 `/__dsh_auth/health` 探针检测远程态。测试注意：node fetch 默认跟随 302（门禁断言须 redirect:'manual'）且默认 Accept 不含 text/html（须显式带）。
 
 **验证**：网关单测（门禁 302/401、登录页、错/对密码、Host 改写、Cookie 透传、WS、退出、revokeAllSessions）+ 宿主单测（未设账号 400、开启后凭据登录全链路、auth/set 改密旧会话作废、补丁幂等、关停清理）全绿；3480 实测 LAN IP：未登录 302 → 登录页 → 401/200 → 会话代理 → 退出 302。共享 3480 端口与用户活动实例相撞导致两轮误判（"启动慢"实为 tsx 冷启动 + 端口被残留实例占用）——测试实例用独立端口或先清场。
+
+## 2026-09-04 · v0.9.4 手机端抽屉按钮：侧栏「只收不放」修复
+
+**用户反馈**：远程访问手机端只有默认会话视图，侧边栏不显示、也没有任何按钮能把会话抽屉拉出来。
+
+**根因**（实证自 dsh-client-ui-layout/sidebar bundle）：窄屏（<700px）下侧栏显隐由 layout store 的 `narrowExpanded` 驱动（`toggleSidebar` 翻转它），原生「打开侧边栏」按钮渲染在侧栏窄轨（rail）里；而 v0.8 的手机适配 CSS 把 `[class$="frame"]` 栅格压成 `0px minmax(0,1fr) 0px`——**窄轨连同里面唯一的展开按钮一起被裁掉**，侧栏从此只收不放。
+
+**修复**（features/mobile-relay/host.js 注入层，本机与远程网关同层生效）：
+- **悬浮抽屉按钮** `.dsh-mobile-drawer-btn`：行为脚本创建，窄屏 + 侧栏收起 + 无设置弹窗时才显示；停泊输入卡上方左下（`bottom: calc(var(--dsh-composer-height,152px) + 14px)`，与任务动画徽标右侧停泊镜像），点击转发原生 `button[aria-label="打开侧边栏"]` toggle。
+- **抽屉遮罩** `.dsh-mobile-scrim`：抽屉展开时显示（z 序：按钮 70 < 遮罩 75 < 侧栏 80 < overlayLayer 90），点击经全局捕获 handler 收起——**单一路径**，不给同一事件两次 toggle 的机会（遮罩自身不挂 click，避免捕获/冒泡双触发把抽屉又顶开）。
+- 显隐同步：MutationObserver（`data-sidebar-collapsed` 属性翻转即时）+ 1.5s 低速轮询（覆盖路由重渲边角）；注入点在 `<head>` 后 body 未解析，DOM 创建推迟到 DOMContentLoaded。全局捕获 handler 排除 `.dsh-mobile-drawer-btn`（否则展开动作会被"点外部收起"规则当场撤销）。
+
+**验证**：host 单测新增 tapIndex 注入断言（抽屉按钮/遮罩/UUID 兜底 + 幂等）全绿；网关单测无回归；注入 JS 独立 `node --check`；手写最小 DOM 仿真（/tmp/dsh-inspect/behave-sim.mjs）跑通窄屏全交互（收起显按钮→点击展开→外部点击收起→选会话 300ms 自动收起）与宽屏零副作用。
+**部署注意**：注入层在宿主进程（tapIndex 注册于插件加载时）——**需重启 `dsh web` 后手机端刷新生效**；client bundle 仅版本号变化。
+
+## 2026-09-04（续）· 抽屉按钮改走客户端 Overlay：刷新即生效，免重启
+
+**转折**：用户反馈"刷新了还是一样"。实证：宿主 tapIndex 注入在进程启动时注册（旧进程仍是旧注入，刷新无效），但 **client bundle 的 rev 是按内容 hash 每请求实时算的**（boot entries 里的 dsh-dock rev 随磁盘 client.js 变化）——客户端改动浏览器刷新即可生效，无需重启 dsh web。
+
+**落地**：抽屉按钮 + 遮罩 + 行为逻辑复制为 `MobileRelayOverlay`（features/mobile-relay/view.jsx 的 feature.Overlay，渲染返回 null、effect 里直接操作 document.body 下的 DOM——必须逃出 overlayLayer z90 堆叠上下文才能压住侧栏抽屉 z80）；抽屉 CSS 挂进模块 css（dock ensureCss 注入，同样刷新即生效）。
+
+**双版互斥**：`window.__dshDockMobileDrawer` 先到先得——宿主注入脚本在 <head> 先跑（重启后总是宿主版接管，设 "host"）；客户端 Overlay 看到旗标自动让位（自己设 "client"，HMR 卸载时清理）。与旧版宿主行为脚本（无按钮只有自动收起）并存安全：收起链路同一事件内第二次 collapse() 因 aria-label 已翻转而空转。
+
+**注意**：本机有个外部 watch 进程会在源文件变更后自动重建 client.js（字节数两次在无手动构建下变化、时间戳紧随编辑）——手动构建后若发现产物被"覆盖重建"属正常现象，以最新产物为准。macOS BSD grep 不支持 BRE 的 `\|` 交替，多模式用 `grep -E`。
+
+## 2026-09-04（续2）· 抽屉把手改贴左边缘 + 趣味游戏浮标上方
+
+**用户反馈**：把手停在输入卡上方左下，遮挡内容、不直观。
+
+**改法**（客户端 Overlay 与宿主注入两版同步改）：
+- 视觉改为**贴左边缘的抽屉把手**（width 30 / height 48、右圆角、无左边框、玻璃底，与趣味游戏浮标 dgfab 同款边缘吸附语言），图标换通用抽屉符号（汉堡线 `M4 7h16M4 12h16M4 17h10`）。
+- `place()`：动态定位在 `.dgfab` 正上方（`fabTop - btnH - 8`）；浮标太靠上（top<64，会压顶栏标题）改放它下面；浮标隐藏（`dgfab-hide`）或不存在时兜底左侧中部 38% 视高。sync 每 1.5s 复测（拖拽浮标最迟一个周期跟上）+ window resize 立即复测。
+- 顶部左侧方案否决理由：手机端顶栏左上是会话标题，按钮必遮挡。
+
+**验证**：注入 JS node --check、DOM 仿真全交互绿（仿真器 window 桩补 addEventListener/innerHeight）、host/网关单测绿、线上 3080 bundle（rev 54a2fc8ddd1e）与仓库一致。刷新即生效。
