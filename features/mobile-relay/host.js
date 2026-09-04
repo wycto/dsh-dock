@@ -129,6 +129,9 @@ const LAN_COMPAT_MARKER = 'data-dsh-lan-compat'
 // 1) 设置弹窗官方只有"左导航+右内容"两栏，窄屏内容栏被压到不足百像素（一字一行）；
 //    改纵向堆叠：导航横排在上、内容占满。
 // 2) 侧边栏展开是 grid 栅格挤占会话区（窄屏会话区只剩 ~110px）；改为浮层覆盖。
+// 3) 侧栏栅格归零后，原生「打开侧边栏」按钮随窄轨一起被裁掉——补贴左边缘的抽屉把手
+//    （.dsh-mobile-drawer-btn，行为脚本创建，点击转发原生 toggle，位置在趣味游戏
+//    浮标正上方、兜底左侧中部）与抽屉遮罩（.dsh-mobile-scrim，点击即收起，阻断滚动穿透）。
 // 类名用语义后缀匹配（哈希前缀随 DSH 版本会变，后缀稳定）；DSH 升级改了结构时
 // 选择器自然失效，不影响其他功能。
 const MOBILE_LAYOUT_CSS = [
@@ -144,13 +147,100 @@ const MOBILE_LAYOUT_CSS = [
   '  [class$="frame"]:not([data-sidebar-collapsed]) [class*="sidebarCol"]{position:fixed!important;top:0!important;bottom:0!important;left:0!important;width:min(85vw,320px)!important;z-index:80!important;box-shadow:0 12px 48px rgba(0,0,0,.45)}',
   '  [class$="frame"]:not([data-details-collapsed="true"]) [class*="detailsCol"]{position:fixed!important;top:0!important;bottom:0!important;right:0!important;left:auto!important;width:min(85vw,320px)!important;z-index:85!important;box-shadow:-12px 0 48px rgba(0,0,0,.45)}',
   '  [class*="overlayLayer"]{z-index:90!important}',
+  // 抽屉把手：贴左边缘（同趣味游戏浮标的边缘吸附语言），top 由 place() 动态设定
+  // （趣味游戏浮标正上方，兜底左侧中部）；z 序 70 < 遮罩 75 < 侧栏 80 < overlayLayer 90，
+  // 面板/弹窗打开时自然被盖，无需额外隐藏逻辑。
+  '  .dsh-mobile-drawer-btn{position:fixed;left:0;top:38vh;z-index:70;box-sizing:border-box;width:30px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.35));border-left:none;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);box-shadow:4px 0 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}',
+  '  .dsh-mobile-drawer-btn:active{transform:scale(.94)}',
+  '  .dsh-mobile-drawer-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
+  '  .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}',
   '}',
 ].join('\n')
 const MOBILE_LAYOUT_MARKER = 'data-dsh-mobile-layout'
 // 窄屏行为补丁：侧边栏浮层化后，原生的"保持展开"会一直挡住半屏——
 // 点会话行/新会话后自动收起；点侧栏外的页面区域也收起（浮层语义）。
 // 侧栏内的其他点击（工作区折叠、搜索、功能坞入口）保持原生行为不收。
-const MOBILE_BEHAVIOR_JS = ";(function(){var mq=window.matchMedia?window.matchMedia('(max-width:700px)'):null;if(!mq)return;function narrow(){return mq.matches}function collapse(){var b=document.querySelector('button[aria-label=\"收起侧边栏\"],button[aria-label=\"Collapse sidebar\"]');if(b)b.click()}function closeDetails(){var d=document.querySelector('[class*=\"detailsCol\"]');if(!d||!d.getBoundingClientRect().width)return;var c=d.querySelector('button[aria-label=\"关闭详情\"]');if(c)c.click()}document.addEventListener('click',function(e){if(!narrow())return;var t=e.target;if(!t||!t.closest)return;var expanded=!!document.querySelector('button[aria-label=\"收起侧边栏\"],button[aria-label=\"Collapse sidebar\"]');var col=document.querySelector('[class*=\"sidebarCol\"]');var inSidebar=col&&col.contains(t);if(!expanded&&!inSidebar)return;if(inSidebar){var row=t.closest('[role=\"treeitem\"]');var leaf=row&&!row.querySelector('[role=\"treeitem\"]')&&row.closest('[role=\"tree\"]');var fresh=t.closest('[class*=\"newSession\"]');if(leaf||fresh)setTimeout(function(){collapse();closeDetails()},300);return}if(t.closest('[role=\"dialog\"],[class*=\"dockm\"],[class*=\"dgfab\"],[class*=\"dgwin\"],[class*=\"dgame\"],[class*=\"detailsCol\"]'))return;collapse()},true)})();"
+// 另创建抽屉按钮（窄屏 + 侧栏收起时才显示，点击转发原生「打开侧边栏」toggle；
+// 侧栏展开或设置弹窗打开时自动隐藏）与抽屉遮罩（点击经全局捕获 handler 收起，
+// 单一路径防止同一事件两次 toggle）。注入点在 <head> 后，body 尚未解析，
+// DOM 创建一律推迟到 DOMContentLoaded；显隐同步走 MutationObserver（属性翻转即时）
+// + 低速轮询（覆盖路由重渲等一切边角）。
+const MOBILE_BEHAVIOR_JS = [
+  ';(function(){',
+  'var mq=window.matchMedia?window.matchMedia("(max-width:700px)"):null;',
+  'if(!mq)return;',
+  // 与 dsh-dock 客户端 Overlay 版（features/mobile-relay/view.jsx，刷新即生效）互斥：
+  // 本脚本在 <head> 先执行，存在即接管；客户端版看到旗标自动让位。
+  'if(window.__dshDockMobileDrawer)return;',
+  'window.__dshDockMobileDrawer="host";',
+  'function narrow(){return mq.matches}',
+  'function frameEl(){return document.querySelector(\'[class$="frame"]\')}',
+  'function sidebarCollapsed(){var f=frameEl();return !!f&&f.hasAttribute("data-sidebar-collapsed")}',
+  'function dialogOpen(){return !!document.querySelector(\'[role="dialog"][class*="panel"]\')}',
+  'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
+  'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
+  'function closeDetails(){var d=document.querySelector(\'[class*="detailsCol"]\');if(!d||!d.getBoundingClientRect().width)return;var c=d.querySelector(\'button[aria-label="关闭详情"]\');if(c)c.click()}',
+  'var fab=null,scrim=null;',
+  'function ensureChrome(){',
+  '  if(!fab){fab=document.createElement("button");fab.type="button";fab.className="dsh-mobile-drawer-btn";fab.setAttribute("aria-label","打开会话列表");fab.innerHTML=\'<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>\';fab.addEventListener("click",function(){expand()});document.body.appendChild(fab)}',
+  '  if(!scrim){scrim=document.createElement("div");scrim.className="dsh-mobile-scrim";document.body.appendChild(scrim)}',
+  '}',
+  // 把手定位：贴着趣味游戏浮标（.dgfab，可拖拽）正上方；浮标太靠上时改放它下面
+  // （避开顶栏标题），被拖走/隐藏/不存在时兜底左侧中部（38% 视高）。
+  'function place(){',
+  '  if(!fab)return;',
+  '  var vh=window.innerHeight,top=null;',
+  '  var g=document.querySelector(".dgfab");',
+  '  if(g&&!g.classList.contains("dgfab-hide")&&g.getBoundingClientRect){',
+  '    var r=g.getBoundingClientRect();',
+  '    if(r&&r.height>0&&r.top>0){',
+  '      top=r.top-fab.offsetHeight-8;',
+  '      if(top<64)top=r.bottom+8;',
+  '      if(top+fab.offsetHeight>vh-16)top=null;',
+  '    }',
+  '  }',
+  '  if(top==null)top=Math.round(vh*.38);',
+  '  fab.style.top=top+"px";',
+  '}',
+  'function syncChrome(){',
+  '  if(!fab||!scrim)return;',
+  '  var on=narrow()&&!!frameEl()&&!dialogOpen();',
+  '  var col=sidebarCollapsed();',
+  '  var showFab=on&&col;',
+  '  fab.style.display=showFab?"":"none";',
+  '  if(showFab)place();',
+  '  scrim.style.display=on&&!col?"":"none";',
+  '}',
+  'function boot(){',
+  '  ensureChrome();syncChrome();',
+  '  if(typeof MutationObserver!=="undefined"){new MutationObserver(function(){syncChrome()}).observe(document.documentElement,{attributes:true,attributeFilter:["data-sidebar-collapsed"],subtree:true})}',
+  '  setInterval(syncChrome,1500);',
+  '  var onMq=function(){syncChrome()};',
+  '  if(mq.addEventListener)mq.addEventListener("change",onMq);else if(mq.addListener)mq.addListener(onMq);',
+  '  window.addEventListener("resize",place);',
+  '}',
+  'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();',
+  'document.addEventListener("click",function(e){',
+  '  if(!narrow())return;',
+  '  var t=e.target;',
+  '  if(!t||!t.closest)return;',
+  '  if(t.closest(".dsh-mobile-drawer-btn"))return;',
+  '  var expanded=!!document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');',
+  '  var col=document.querySelector(\'[class*="sidebarCol"]\');',
+  '  var inSidebar=col&&col.contains(t);',
+  '  if(!expanded&&!inSidebar)return;',
+  '  if(inSidebar){',
+  '    var row=t.closest(\'[role="treeitem"]\');',
+  '    var leaf=row&&!row.querySelector(\'[role="treeitem"]\')&&row.closest(\'[role="tree"]\');',
+  '    var fresh=t.closest(\'[class*="newSession"]\');',
+  '    if(leaf||fresh)setTimeout(function(){collapse();closeDetails()},300);',
+  '    return',
+  '  }',
+  '  if(t.closest(\'[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[class*="detailsCol"]\'))return;',
+  '  collapse()',
+  '},true)',
+  '})();',
+].join('\n')
 const MOBILE_BEHAVIOR_MARKER = 'data-dsh-mobile-behave'
 /** 把兼容脚本、移动端排版样式与行为脚本内联注入 index.html 的 <head> 之后（幂等）。 */
 function injectLanCompat(html) {

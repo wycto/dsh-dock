@@ -40,6 +40,7 @@ const patchFile = join(tmpdir(), `dsh-dock-remote-patch-test-${process.pid}.yml`
 process.env.DSH_DOCK_PATCH_FILE = patchFile
 
 let registered = null
+const indexTransforms = []
 const mainServer = createServer((req, res) => {
   if (registered && String(req.url).startsWith('/dsh-dock/mobile-relay')) return registered.handler(req, res)
   res.writeHead(200, { 'content-type': 'text/plain' })
@@ -73,7 +74,7 @@ function injectMock(keys, callback) {
   if (keys.includes('webServer')) callback({
     webServer: {
       host: '127.0.0.1', port: mainPort,
-      tapIndex() { return () => {} },
+      tapIndex(fn) { indexTransforms.push(fn); return () => {} },
       register(route) { registered = route; return () => { registered = null } },
     },
     effect(run) { return run() },
@@ -83,6 +84,24 @@ function injectMock(keys, callback) {
 
 const dispose = feature.setup({ inject: injectMock })
 let healDispose = () => {}
+
+// 手机端适配注入（tapIndex）：必须含抽屉按钮/遮罩与 UUID 兜底，且幂等。
+assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
+{
+  const sample = '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>'
+  const once1 = indexTransforms.reduce((html, fn) => fn(html), sample)
+  assert.match(once1, /data-dsh-lan-compat/)
+  assert.match(once1, /data-dsh-mobile-layout/)
+  assert.match(once1, /dsh-mobile-drawer-btn/)
+  assert.match(once1, /dsh-mobile-scrim/)
+  assert.match(once1, /data-dsh-mobile-behave/)
+  assert.match(once1, /打开侧边栏/)
+  const twice = indexTransforms.reduce((html, fn) => fn(html), once1)
+  assert.equal(countOf(twice, 'data-dsh-mobile-layout'), 1, 'injection must be idempotent')
+  assert.equal(countOf(twice, 'data-dsh-mobile-behave'), 1)
+  assert.equal(countOf(twice, 'data-dsh-lan-compat'), 1)
+}
+function countOf(text, needle) { return text.split(needle).length - 1 }
 
 const mainBase = `http://127.0.0.1:${mainPort}`
 const gatewayBase = `http://127.0.0.1:${gatewayPort}`
