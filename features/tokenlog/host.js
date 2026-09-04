@@ -28,7 +28,7 @@ export const feature = {
   id: 'tokenlog',
   name: '用量记录',
   description: '记录全部 LLM API 调用并统计 Token 用量与花费',
-  defaultEnabled: true,
+  defaultEnabled: false,
   setup(ctx) {
     const disposers = []
     const dispose = () => {
