@@ -475,7 +475,7 @@ export const feature = {
   id: 'balance',
   name: '模型余额',
   description: '拉取所有模型 Provider 账户余额并展示',
-  defaultEnabled: true,
+  defaultEnabled: false,
   setup(ctx) {
     const webServer = ctx.get('webServer')
     if (webServer === undefined) throw new Error('webServer 服务不可用，无法提供余额查询路由')

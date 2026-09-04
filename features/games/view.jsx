@@ -631,7 +631,7 @@ export const feature = {
 	order: 135,
 	accent: "#a78bfa",
 	description: "任务等待时可玩的十款小游戏：五子棋、中国象棋（你 vs AI）、俄罗斯方块、推箱子、贪吃蛇、打砖块、极速赛车、坦克大战、星际躲避、反应堆点亮。浮动窗口运行（可拖动、可调大小、可最大化最小化，不遮挡会话），屏幕侧边磁吸快捷入口贴在左侧边栏右缘（不挡工作区目录），可上下挪位、左右换边；均支持键盘",
-	defaultEnabled: true,
+	defaultEnabled: false,
 	css,
 	View: GamesView,
 	HomeStat: GamesHomeStat,
