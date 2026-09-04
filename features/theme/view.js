@@ -55,6 +55,7 @@ export const feature = {
 	order: 150,
 	accent: "#a78bfa",
 	description: "读取当前主题快照：偏好与实际生效主题（纯 Client，主题切换实时刷新）",
+	defaultEnabled: false,
 	View: ThemeView,
 	HomeStat: ThemeStat,
 };

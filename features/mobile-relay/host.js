@@ -264,7 +264,7 @@ export const feature = {
   id: 'mobile-relay',
   name: '远程访问',
   description: '账号密码登录的远程入口：局域网/虚拟网设备访问同一个 DSH，任务进度实时一致',
-  defaultEnabled: true,
+  defaultEnabled: false,
   setup(ctx) {
     const disposers = []
     let gateway = null

@@ -44,11 +44,12 @@ function persistFeatureEnabled() {
 		if (typeof localStorage !== "undefined") localStorage.setItem(FEATURE_STORE_KEY, JSON.stringify(featurePersist.map));
 	} catch { /* 持久化失败静默 */ }
 }
-/** 外壳 apply 时初始化内置功能的默认开关（持久化过的值优先于模块默认）。 */
+/** 外壳 apply 时初始化内置功能的默认开关（持久化过的值优先于模块默认）。
+ * 默认全部停用、按需开启：仅当模块显式声明 defaultEnabled: true 才默认启用。 */
 export function initFeatureState(defs) {
 	for (const f of defs) {
 		if (featureState.has(f.id)) continue;
-		let enabled = !f.planned && f.defaultEnabled !== false;
+		let enabled = !f.planned && f.defaultEnabled === true;
 		const saved = featurePersist.map[f.id];
 		if (typeof saved === "boolean") enabled = saved;
 		featureState.set(f.id, { enabled, error: null });

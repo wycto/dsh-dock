@@ -359,7 +359,7 @@ export const feature = {
   id: 'models',
   name: '模型设置',
   description: '模型目录读写：编辑输入类型与思考强度，写回官方配置热生效',
-  defaultEnabled: true,
+  defaultEnabled: false,
   setup(ctx) {
     const webServer = ctx.get('webServer')
     if (webServer === undefined) throw new Error('webServer 服务不可用，无法提供模型设置路由')

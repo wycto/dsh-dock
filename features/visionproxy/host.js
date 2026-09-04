@@ -296,7 +296,7 @@ export const feature = {
   id: 'visionproxy',
   name: '图片理解代理',
   description: '纯文本模型收图时自动调用视觉模型识别（多模态模型不受影响）',
-  defaultEnabled: true,
+  defaultEnabled: false,
   setup(ctx) {
     // 模型目录的 TTL 缓存：图片代理判定目标模型是否纯文本时用（避免每个请求都全量 describe）
     let dockDirCache = { at: 0, data: { providers: [] } }
