@@ -56,7 +56,7 @@ export const feature = {
   id: 'animation',
   name: '任务动画',
   description: '任务运行动画与完成通知（动画/通知独立开关，配置持久化）',
-  defaultEnabled: true,
+  defaultEnabled: false,
   setup(ctx) {
     const disposers = []
     const dispose = () => {

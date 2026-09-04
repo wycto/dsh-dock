@@ -29,6 +29,7 @@ export const feature = {
 	order: 140,
 	accent: "#34d399",
 	description: "示例功能：面板侧运行时长心跳（纯 Client）",
+	defaultEnabled: false,
 	View: HeartbeatView,
 	HomeStat: HeartbeatStat,
 };
