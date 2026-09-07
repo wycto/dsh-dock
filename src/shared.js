@@ -54,19 +54,56 @@ export function initFeatureState(defs) {
 		if (typeof saved === "boolean") enabled = saved;
 		featureState.set(f.id, { enabled, error: null });
 	}
+	// 宿主侧持久化开关（settings，跨浏览器/重启）优先：拉过来覆盖本地默认值。
+	// localStorage 里已有记录的 id 视为用户在这台浏览器已表态，保持本地值。
+	syncFeatureStateFromHost(defs);
 }
-/** 取功能开关（外部功能默认启用；未登记的 id 惰性建项）。 */
-export function stateOf(id) {
-	let st = featureState.get(id);
-	if (!st) { st = { enabled: true, error: null }; featureState.set(id, st); }
-	return st;
+
+/** 从宿主 /dsh-dock/features 拉取持久化开关，覆盖尚未本地表态的功能默认值。
+ * 拉取失败（宿主旧版本无此路由）静默降级——沿用本地默认。 */
+function syncFeatureStateFromHost(defs) {
+	if (typeof fetch !== "function") return;
+	fetch("/dsh-dock/features").then(async (res) => {
+		if (!res.ok) return;
+		const data = await res.json().catch(() => null);
+		const persisted = data && data.ok && data.data && data.data.persisted;
+		if (!persisted || typeof persisted !== "object") return;
+		let changed = false;
+		for (const f of defs) {
+			if (featurePersist.map[f.id] !== undefined) continue;
+			const v = persisted[f.id];
+			if (typeof v === "boolean") {
+				const st = stateOf(f.id);
+				if (st.enabled !== v) { st.enabled = v; changed = true; }
+			}
+		}
+		if (changed) notifyState();
+	}).catch(() => { /* 宿主不可达时用本地默认 */ });
+}
+
+/** 把开关同步到宿主（settings 持久化 + 宿主半部即时 setup/dispose）。失败静默：
+ * 宿主侧开关只影响路由注册等 Host 能力，本地 UI 状态仍然即时生效。 */
+function pushFeatureEnabledToHost(id, enabled) {
+	if (typeof fetch !== "function") return;
+	fetch("/dsh-dock/features", {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ id, enabled }),
+	}).catch(() => { /* 宿主旧版本或不可达：本地开关仍生效（仅本浏览器） */ });
 }
 export function toggleFeature(id) {
 	const st = stateOf(id);
 	st.enabled = !st.enabled;
 	featurePersist.map[id] = st.enabled;
 	persistFeatureEnabled();
+	pushFeatureEnabledToHost(id, st.enabled);
 	notifyState();
+}
+/** 取功能开关（外部功能默认启用；未登记的 id 惰性建项）。 */
+export function stateOf(id) {
+	let st = featureState.get(id);
+	if (!st) { st = { enabled: true, error: null }; featureState.set(id, st); }
+	return st;
 }
 export function subscribeFeatureState(fn) {
 	stateListeners.add(fn);
