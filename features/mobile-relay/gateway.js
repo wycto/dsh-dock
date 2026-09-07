@@ -4,8 +4,10 @@
 // 统一经本网关访问：未登录一律跳转登录页（账号 + 密码），登录成功发放 HttpOnly
 // 会话 Cookie（7 天滑动过期），支持退出登录；登录失败按来源 IP 限速。上游即 DSH
 // 主实例：绑定回环时把 Host/Origin 改写为回环（回环恒被信任），已绑 0.0.0.0 时
-// 透传以走局域网信任派生。HTML 响应注入远程标记（window.__DSH_REMOTE__，供面板
-// 显示退出按钮）与 crypto.randomUUID 兜底脚本引用。
+// 透传以走局域网信任派生。宿主可注入 mintUpstreamCookie：服务端兑换 dsh web 的
+// 启动令牌会话并在代理时自动附带（含 WebSocket 升级），远程浏览器只需账号密码。
+// HTML 响应注入远程标记（window.__DSH_REMOTE__，供面板显示退出按钮）与
+// crypto.randomUUID 兜底脚本引用。
 import { createServer, request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
@@ -153,13 +155,53 @@ function writeUpgradeHead(socket, response) {
  * （读 settings 中的加盐哈希做常量时间比对）；会话 Cookie 7 天滑动过期；
  * revokeAllSessions() 在账号密码变更时作废所有已登录设备。
  */
-export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', upstreamPort, spoofLoopback = false, verifyLogin, sessionTtlMs = SESSION_TTL_MS }) {
+export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', upstreamPort, spoofLoopback = false, verifyLogin, mintUpstreamCookie, sessionTtlMs = SESSION_TTL_MS }) {
   return new Promise((resolve, reject) => {
     const sessions = new Map() // cookie secret -> { expiresAt, seenAt }
     const upgradedSockets = new Map() // client socket -> { cookie, upstreamSocket }
     const loginAttempts = new Map() // ip -> { count, firstAt }
     const patchedBundles = new Map() // 上游 client.js URL（含 rev）-> 改写后字节
     const loopbackAuthority = '127.0.0.1:' + upstreamPort
+
+    // 上游会话（dsh web 自己的启动令牌认证）：mintUpstreamCookie 由宿主注入，
+    // 服务端完成 /?token= 兑换并持有上游会话 Cookie，代理请求时自动附带——远程
+    // 浏览器只需网关账号登录，无需再手动访问令牌地址。仅在改写回环（上游仅绑
+    // 回环、Cookie 与该 authority 绑定）时附带；兑换失败退回官方行为。
+    let upstreamCookie = null
+    let minting = null
+    let lastMintAt = 0
+    async function ensureUpstreamCookie() {
+      if (!spoofLoopback || typeof mintUpstreamCookie !== 'function') return null
+      if (upstreamCookie) return upstreamCookie
+      if (minting) return minting
+      if (now() - lastMintAt < 5000) return null
+      lastMintAt = now()
+      minting = Promise.resolve().then(mintUpstreamCookie).then((cookie) => {
+        minting = null
+        upstreamCookie = typeof cookie === 'string' && cookie.includes('=') ? cookie : null
+        return upstreamCookie
+      }).catch(() => { minting = null; return null })
+      return minting
+    }
+    function dropUpstreamCookie() {
+      upstreamCookie = null
+      lastMintAt = 0
+    }
+    // 同名 Cookie 浏览器侧可能持有旧值（换 secret 后失效），附加以我们的为准
+    async function upstreamRequestHeaders(req) {
+      const headers = proxyHeaders(req)
+      const cookie = await ensureUpstreamCookie()
+      if (cookie) {
+        const name = cookie.slice(0, cookie.indexOf('=')).trim()
+        const own = String(headers.cookie || '')
+          .split(';')
+          .map((part) => part.trim())
+          .filter((part) => part && part.slice(0, part.indexOf('=')).trim() !== name)
+          .join('; ')
+        headers.cookie = own ? own + '; ' + cookie : cookie
+      }
+      return headers
+    }
 
     function purge() {
       const stamp = now()
@@ -220,72 +262,80 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
       if (wantsHtml) delete next['accept-encoding']
       return next
     }
-    function proxyHttp(req, res) {
-      const upstream = httpRequest({
-        hostname: upstreamHost, port: upstreamPort, method: req.method, path: req.url,
-        headers: proxyHeaders(req),
-      }, (upstreamRes) => {
-        // 浏览器侧中途断开时把上游响应读完丢弃（而非 destroy）——宿主对半路 RST
-        // 敏感，读完让上游 socket 干净收尾复用。缓冲分支天然读尽，无需处理。
-        if (upstreamRes) upstreamRes.on('error', () => res.destroy())
-        const contentType = String(upstreamRes.headers['content-type'] || '').toLowerCase()
-        // 连接客户端 bundle：设置面在远程浏览器被客户端自我判定关死（见文件头注释），
-        // 做定点改写；命中缓存直接回，改不动（上游升级）则原样透传。
-        const isConnectionBundle = req.method === 'GET' && String(req.url || '').startsWith(CONNECTION_BUNDLE_PREFIX)
-          && contentType.includes('javascript')
-        if (isConnectionBundle && patchedBundles.has(req.url)) {
-          const headers = { ...upstreamRes.headers, 'content-length': String(patchedBundles.get(req.url).length) }
-          delete headers['transfer-encoding']
-          res.writeHead(upstreamRes.statusCode || 200, headers)
-          return res.end(patchedBundles.get(req.url))
-        }
-        if (!contentType.includes('text/html') && !isConnectionBundle) {
-          // 直通分支：浏览器断开就停止写、改为耗尽上游响应（读完丢弃）。
-          res.on('close', () => { if (!upstreamRes.complete) upstreamRes.resume() })
-          res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers)
-          upstreamRes.pipe(res)
-          return
-        }
-        const chunks = []
-        let size = 0
-        const limit = isConnectionBundle ? MAX_ASSET_BYTES : MAX_HTML_BYTES
-        upstreamRes.on('data', (chunk) => {
-          size += chunk.length
-          if (size <= limit) chunks.push(chunk)
-        })
-        upstreamRes.on('end', () => {
-          if (size > limit) {
-            if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'DSH 页面过大，无法注入手机兼容层。' })
+    async function proxyHttp(req, res) {
+      let upstream
+      try {
+        upstream = httpRequest({
+          hostname: upstreamHost, port: upstreamPort, method: req.method, path: req.url,
+          headers: await upstreamRequestHeaders(req),
+        }, (upstreamRes) => {
+          // 上游 401 说明持有的会话已失效（secret 轮换/过期），丢弃后下次请求重兑
+          if (upstreamRes.statusCode === 401) dropUpstreamCookie()
+          // 浏览器侧中途断开时把上游响应读完丢弃（而非 destroy）——宿主对半路 RST
+          // 敏感，读完让上游 socket 干净收尾复用。缓冲分支天然读尽，无需处理。
+          if (upstreamRes) upstreamRes.on('error', () => res.destroy())
+          const contentType = String(upstreamRes.headers['content-type'] || '').toLowerCase()
+          // 连接客户端 bundle：设置面在远程浏览器被客户端自我判定关死（见文件头注释），
+          // 做定点改写；命中缓存直接回，改不动（上游升级）则原样透传。
+          const isConnectionBundle = req.method === 'GET' && String(req.url || '').startsWith(CONNECTION_BUNDLE_PREFIX)
+            && contentType.includes('javascript')
+          if (isConnectionBundle && patchedBundles.has(req.url)) {
+            const headers = { ...upstreamRes.headers, 'content-length': String(patchedBundles.get(req.url).length) }
+            delete headers['transfer-encoding']
+            res.writeHead(upstreamRes.statusCode || 200, headers)
+            return res.end(patchedBundles.get(req.url))
+          }
+          if (!contentType.includes('text/html') && !isConnectionBundle) {
+            // 直通分支：浏览器断开就停止写、改为耗尽上游响应（读完丢弃）。
+            res.on('close', () => { if (!upstreamRes.complete) upstreamRes.resume() })
+            res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers)
+            upstreamRes.pipe(res)
             return
           }
-          const headers = { ...upstreamRes.headers }
-          delete headers['content-length']
-          delete headers['content-encoding']
-          delete headers['transfer-encoding']
-          headers['cache-control'] = 'no-store'
-          let body = Buffer.concat(chunks)
-          if (isConnectionBundle) {
-            const text = body.toString('utf8')
-            const at = text.indexOf(CONNECTION_ISLOOPBACK_SNIPPET)
-            if (at >= 0) {
-              body = Buffer.from(text.slice(0, at) + CONNECTION_ISLOOPBACK_PATCHED + text.slice(at + CONNECTION_ISLOOPBACK_SNIPPET.length), 'utf8')
-              if (patchedBundles.size >= PATCH_CACHE_LIMIT) patchedBundles.clear()
-              patchedBundles.set(req.url, body)
+          const chunks = []
+          let size = 0
+          const limit = isConnectionBundle ? MAX_ASSET_BYTES : MAX_HTML_BYTES
+          upstreamRes.on('data', (chunk) => {
+            size += chunk.length
+            if (size <= limit) chunks.push(chunk)
+          })
+          upstreamRes.on('end', () => {
+            if (size > limit) {
+              if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'DSH 页面过大，无法注入手机兼容层。' })
+              return
             }
-            headers['content-length'] = String(body.length)
+            const headers = { ...upstreamRes.headers }
+            delete headers['content-length']
+            delete headers['content-encoding']
+            delete headers['transfer-encoding']
+            headers['cache-control'] = 'no-store'
+            let body = Buffer.concat(chunks)
+            if (isConnectionBundle) {
+              const text = body.toString('utf8')
+              const at = text.indexOf(CONNECTION_ISLOOPBACK_SNIPPET)
+              if (at >= 0) {
+                body = Buffer.from(text.slice(0, at) + CONNECTION_ISLOOPBACK_PATCHED + text.slice(at + CONNECTION_ISLOOPBACK_SNIPPET.length), 'utf8')
+                if (patchedBundles.size >= PATCH_CACHE_LIMIT) patchedBundles.clear()
+                patchedBundles.set(req.url, body)
+              }
+              headers['content-length'] = String(body.length)
+              res.writeHead(upstreamRes.statusCode || 502, headers)
+              return res.end(body)
+            }
             res.writeHead(upstreamRes.statusCode || 502, headers)
-            return res.end(body)
-          }
-          res.writeHead(upstreamRes.statusCode || 502, headers)
-          res.end(injectMobileCompat(body.toString('utf8')))
+            res.end(injectMobileCompat(body.toString('utf8')))
+          })
         })
-      })
-      upstream.on('error', (error) => {
-        if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'DSH 主服务连接失败：' + error.message })
+        upstream.on('error', (error) => {
+          if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'DSH 主服务连接失败：' + error.message })
+          else res.destroy(error)
+        })
+        req.on('error', () => upstream.destroy())
+        req.pipe(upstream)
+      } catch (error) {
+        if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'DSH 主服务连接失败：' + (error && error.message || String(error)) })
         else res.destroy(error)
-      })
-      req.on('error', () => upstream.destroy())
-      req.pipe(upstream)
+      }
     }
 
     const server = createServer(async (req, res) => {
@@ -357,17 +407,23 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
       return proxyHttp(req, res)
     })
 
-    server.on('upgrade', (req, socket, head) => {
+    server.on('upgrade', async (req, socket, head) => {
       const authorized = authorize(req)
       if (!authorized) { socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); return }
       const connection = { cookie: authorized.cookie, upstreamSocket: null }
       upgradedSockets.set(socket, connection)
       const forgetSocket = () => upgradedSockets.delete(socket)
       socket.once('close', forgetSocket)
-      const upstream = httpRequest({
-        hostname: upstreamHost, port: upstreamPort, method: req.method, path: req.url,
-        headers: proxyHeaders(req),
-      })
+      let upstream
+      try {
+        upstream = httpRequest({
+          hostname: upstreamHost, port: upstreamPort, method: req.method, path: req.url,
+          headers: await upstreamRequestHeaders(req),
+        })
+      } catch {
+        socket.destroy()
+        return
+      }
       upstream.on('upgrade', (response, upstreamSocket, upstreamHead) => {
         connection.upstreamSocket = upstreamSocket
         writeUpgradeHead(socket, response)
@@ -378,6 +434,7 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
         socket.pipe(upstreamSocket).pipe(socket)
       })
       upstream.on('response', (response) => {
+        if (response.statusCode === 401) dropUpstreamCookie()
         socket.end(`HTTP/1.1 ${response.statusCode || 502} ${response.statusMessage || 'Bad Gateway'}\r\nConnection: close\r\n\r\n`)
       })
       upstream.on('error', () => socket.destroy())

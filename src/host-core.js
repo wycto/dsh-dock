@@ -5,8 +5,11 @@ import z from '@deepseek-ai/schemastery'
 /** dsh-dock 自有 settings 命名空间（插件级配置，如图片理解代理）。 */
 export const DOCK_NS = 'dsh-dock'
 
-/** 自有命名空间的 schema（图片理解代理 + 任务动画配置 + 远程访问账号）。 */
+/** 自有命名空间的 schema（功能开关 + 图片理解代理 + 任务动画配置 + 远程访问账号）。 */
 export const DockConfig = z.object({
+  // 宿主侧功能开关（id -> boolean）：客户端面板 toggle 即时同步过来，
+  // 重启 dsh 后按此表决定宿主半部 setup 哪些功能（路由注册、事件订阅等）。
+  features: z.dict(z.boolean()).default({}),
   remoteAuth: z.object({
     /** 远程访问登录账号（明文用户名；密码只存加盐哈希）。 */
     username: z.string().default(''),

@@ -264,7 +264,10 @@ export const feature = {
   id: 'mobile-relay',
   name: '远程访问',
   description: '账号密码登录的远程入口：局域网/虚拟网设备访问同一个 DSH，任务进度实时一致',
-  defaultEnabled: false,
+  // 宿主半部必须随插件加载（网关路由/账号服务都在这里），techfunway-dsh 等部署
+  // 完全依赖它——保持默认开启。v0.9.6 起面板开关会同步到宿主：显式停用会连网关
+  // 一起关掉（并持久化，重启后仍停用），部署环境请勿在面板里关闭本功能。
+  defaultEnabled: true,
   setup(ctx) {
     const disposers = []
     let gateway = null
@@ -372,6 +375,26 @@ export const feature = {
       return sameText(username, auth.username) && sameText(hashPassword(auth.salt, password), auth.passwordHash)
     }
 
+    // 上游会话自动兑换：dsh web 自身还有一层启动令牌认证（首次访问 /?token= 换
+    // 30 天会话 Cookie，绑定回环 authority）。网关与主实例同进程，直接取
+    // connection.authenticatedUrl 生成的带令牌地址，服务端完成兑换并返回 Cookie
+    // 对，由网关在代理时自动附带——远程浏览器只需网关账号登录，无需再手动访问
+    // 令牌地址。老版本 dsh 没有 connection 服务时返回空，网关退回官方行为。
+    async function mintUpstreamSession(mainPort) {
+      try {
+        const connection = ctx.get('connection')
+        if (!connection || typeof connection.authenticatedUrl !== 'function') return null
+        const url = connection.authenticatedUrl(`http://127.0.0.1:${mainPort}`)
+        const res = await fetch(url, { redirect: 'manual' })
+        const cookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('set-cookie')].filter(Boolean)
+        for (const raw of cookies) {
+          const pair = String(raw).split(';')[0].trim()
+          if (pair.includes('=')) return pair
+        }
+        return null
+      } catch { return null }
+    }
+
     /** 远程访问状态：网关、账号、浏览模式补丁、旧服务器模式残留。 */
     function lanStatus(webServer) {
       const file = serverPatchFile()
@@ -404,7 +427,7 @@ export const feature = {
     }
 
     /** 远程访问网关：上游即主实例；主实例保持仅本机，远程一律经账号登录进入。 */
-    async function ensureGateway(webServer, requestedPort) {
+    async function ensureGateway(webServer, requestedPort, mintUpstreamCookie) {
       // 默认端口跟主实例走（主端口+1）：网关和主服务是同一台机器上的两个监听，
       // 结构上不能同端口；跟随主端口让"哪个口是哪个"一目了然。
       const port = Number(requestedPort === undefined || requestedPort === null || requestedPort === ''
@@ -435,6 +458,7 @@ export const feature = {
           upstreamPort: webServer.port,
           spoofLoopback: true,
           verifyLogin,
+          mintUpstreamCookie: typeof mintUpstreamCookie === 'function' ? mintUpstreamCookie : undefined,
         })
           .then((started) => { gateway = started; gatewayStarting = null; return started })
           .catch((error) => { gatewayStarting = null; throw error })
@@ -511,7 +535,7 @@ export const feature = {
               const list = readPatchList(file) || []
               const changed = !serverPatchApplied(list) || legacyWebserverRowPresent(list)
               writePatchList(file, upsertRemotePatches(list))
-              await ensureGateway(wsCtx.webServer, payload && payload.port)
+              await ensureGateway(wsCtx.webServer, payload && payload.port, () => mintUpstreamSession(wsCtx.webServer.port))
               return sendJson(res, 200, { ok: true, data: { ...lanStatus(wsCtx.webServer), needsRestart: changed } })
             }
             if (method === 'lan/stop') {
