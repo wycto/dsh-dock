@@ -2,6 +2,18 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.9.7 — 2026-09-07
+
+修复 v0.9.5 引入的严重回归：功能默认关闭后**宿主侧半部从未启用**，用量记录、模型余额等所有依赖宿主路由的功能全部 404。
+
+### 修复
+
+- **宿主侧功能开关与面板彻底打通**：v0.9.5 把所有功能 `defaultEnabled` 翻转为 false，但宿主侧路由注册只认 `defaultEnabled`——浏览器面板里开开关只写 localStorage（仅影响 UI），宿主半部的路由从未注册，导致用量记录/模型余额/图片理解代理等所有 Host 路由 404。
+- 现在开关持久化到 settings（`dsh-dock.features`，id → boolean）：浏览器面板 toggle 即时 POST 到新路由 `/dsh-dock/features`，宿主半部即时 setup/dispose；重启 dsh 后按持久化表恢复宿主侧功能（初始读取放在 settings 注册回调里——apply() 同步执行时命名空间尚未生效）。
+- 客户端 `initFeatureState` 启动时从 `/dsh-dock/features` 拉取宿主持久化开关：跨浏览器/换电脑后默认值不再各说各话（本浏览器 localStorage 已表态的 id 仍保持本地值）；宿主旧版本无此路由时静默降级。
+- `/dsh-dock/features` GET 返回各功能宿主侧状态（enabled/error）与持久化表，POST `{ id, enabled }` 同步开关。
+- **远程访问网关上游会话自动兑换**（恢复 npm 0.9.6 已发布但未入 git 的改动）：网关经 `connection.authenticatedUrl` 服务端兑换 dsh web 启动令牌会话，代理请求（含 WebSocket 升级）自动附带上游 Cookie——远程浏览器只需网关账号密码，不再需要手动访问令牌地址；上游 401 自动重兑。远程访问宿主半部 `defaultEnabled` 回到 `true`（网关路由/账号服务随插件加载，部署依赖）；注意 v0.9.6 起面板开关会同步到宿主，显式停用远程访问会连网关一起关掉。
+
 ## v0.9.5 — 2026-09-04
 
 功能坞所有功能默认关闭、按需开启（用户反馈：默认不应全开）。

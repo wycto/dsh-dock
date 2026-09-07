@@ -14,7 +14,7 @@
 //   - tokenlog    用量记录（v0.4.0）：LLM 调用记账与统计（移植自 @wycto/dsh-token-usage）
 //   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效/通知配置持久化（参照 @wycto/dsh-task-pulse）
 //   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
-import { DOCK_NS, DockConfig } from './src/host-core.js'
+import { DOCK_NS, DockConfig, sendJson, readBody } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
@@ -62,11 +62,17 @@ export function apply(ctx) {
   const state = new Map()
   for (const f of FEATURES) state.set(f.id, { enabled: false, dispose: null, error: null })
 
-  // 自有 settings 命名空间（dsh-dock）：图片理解代理等插件配置的持久化；
-  // 读取走 settings.get（内存 resolved 值，写入经 settings.mutate，均热生效）
-  ctx.inject(['settings'], (sctx) => {
-    sctx.settings.register(DOCK_NS, DockConfig, {})
-  })
+  /** 读宿主侧功能开关表（settings 持久化；settings 未挂载时回退 defaultEnabled）。 */
+  function persistedFeatureMap() {
+    try {
+      const settings = ctx.get('settings')
+      const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : null
+      if (v && typeof v === 'object' && v.features && typeof v.features === 'object') return v.features
+    } catch {
+      // settings 未挂载
+    }
+    return null
+  }
 
   // 每个功能的 Host 半部安装函数：setup 返回 disposer，关闭功能时调用。
   function setEnabled(id, enabled) {
@@ -94,11 +100,62 @@ export function apply(ctx) {
     }
   }
 
-  // 默认启用已实现的功能（与 Client 半部 defaultEnabled 对齐）。
-  // Client 侧功能开关已 localStorage 持久化（v0.5.0）；Host↔Client 的开关双向同步仍未打通，
-  // 在此之前 Host 侧开关以本处 defaultEnabled 为准（面板停用某功能只影响浏览器侧 UI）。
-  for (const f of FEATURES) {
-    if (f.defaultEnabled) setEnabled(f.id, true)
+  // 自有 settings 命名空间（dsh-dock）：功能开关与各功能配置的持久化；
+  // 读取走 settings.get（内存 resolved 值，写入经 settings.mutate，均热生效）。
+  // 宿主侧初始开关也在这里应用：settings 命名空间注册完成后才能读到持久化开关表
+  // （apply() 同步执行时注册尚未生效，读到的永远是空值）。
+  let initialTogglesApplied = false
+  ctx.inject(['settings'], (sctx) => {
+    sctx.settings.register(DOCK_NS, DockConfig, {})
+    if (initialTogglesApplied) return
+    initialTogglesApplied = true
+    const persisted = persistedFeatureMap()
+    for (const f of FEATURES) {
+      const saved = persisted ? persisted[f.id] : undefined
+      setEnabled(f.id, typeof saved === 'boolean' ? saved : !!f.defaultEnabled)
+    }
+  })
+
+  // 功能开关管理路由（无条件注册）：GET 查询各功能宿主侧状态；POST 同步开关——
+  // 浏览器面板 toggle 经此写入 settings（跨浏览器/重启保持）并即时 setup/dispose 宿主半部。
+  {
+    const webServer = ctx.get('webServer')
+    if (webServer) {
+      webServer.register({
+        kind: 'exact',
+        path: '/dsh-dock/features',
+        handler: async (req, res) => {
+          try {
+            if (req.method === 'POST') {
+              const body = await readBody(req)
+              const id = body && typeof body.id === 'string' ? body.id : ''
+              const enabled = !!(body && body.enabled)
+              if (!state.has(id)) return sendJson(res, 404, { ok: false, error: { message: `未知功能：${id}` } })
+              setEnabled(id, enabled)
+              const settings = ctx.get('settings')
+              if (settings && typeof settings.mutate === 'function') {
+                const features = Object.assign({}, persistedFeatureMap() || {}, { [id]: enabled })
+                await settings.mutate(DOCK_NS, [{ op: 'set', path: ['features'], value: features }])
+              }
+            }
+            const persisted = persistedFeatureMap() || {}
+            sendJson(res, 200, {
+              ok: true,
+              data: {
+                features: Array.from(state.entries()).map(([id, st]) => ({
+                  id,
+                  enabled: st.enabled,
+                  error: st.error,
+                })),
+                persisted,
+              },
+            })
+          } catch (e) {
+            sendJson(res, 500, { ok: false, error: { message: e instanceof Error ? e.message : String(e) } })
+          }
+        },
+      })
+    }
   }
 
   console.log('[dsh-dock] host half loaded; features registered:', FEATURES.map((f) => f.id).join(', '))
