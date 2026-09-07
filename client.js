@@ -2179,6 +2179,47 @@ function initFeatureState(defs) {
     if (typeof saved === "boolean") enabled = saved;
     featureState.set(f.id, { enabled, error: null });
   }
+  syncFeatureStateFromHost(defs);
+}
+function syncFeatureStateFromHost(defs) {
+  if (typeof fetch !== "function") return;
+  fetch("/dsh-dock/features").then(async (res) => {
+    if (!res.ok) return;
+    const data = await res.json().catch(() => null);
+    const persisted = data && data.ok && data.data && data.data.persisted;
+    if (!persisted || typeof persisted !== "object") return;
+    let changed = false;
+    for (const f of defs) {
+      if (featurePersist.map[f.id] !== void 0) continue;
+      const v = persisted[f.id];
+      if (typeof v === "boolean") {
+        const st = stateOf(f.id);
+        if (st.enabled !== v) {
+          st.enabled = v;
+          changed = true;
+        }
+      }
+    }
+    if (changed) notifyState();
+  }).catch(() => {
+  });
+}
+function pushFeatureEnabledToHost(id, enabled) {
+  if (typeof fetch !== "function") return;
+  fetch("/dsh-dock/features", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id, enabled })
+  }).catch(() => {
+  });
+}
+function toggleFeature(id) {
+  const st = stateOf(id);
+  st.enabled = !st.enabled;
+  featurePersist.map[id] = st.enabled;
+  persistFeatureEnabled();
+  pushFeatureEnabledToHost(id, st.enabled);
+  notifyState();
 }
 function stateOf(id) {
   let st = featureState.get(id);
@@ -2187,13 +2228,6 @@ function stateOf(id) {
     featureState.set(id, st);
   }
   return st;
-}
-function toggleFeature(id) {
-  const st = stateOf(id);
-  st.enabled = !st.enabled;
-  featurePersist.map[id] = st.enabled;
-  persistFeatureEnabled();
-  notifyState();
 }
 function subscribeFeatureState(fn) {
   stateListeners.add(fn);
@@ -10107,7 +10141,7 @@ var feature8 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.9.5";
+var DOCK_VERSION = "0.9.7";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
