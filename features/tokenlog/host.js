@@ -448,8 +448,13 @@ export const feature = {
     }
 
     // 历史扫描: 遍历所有会话, 读取完整日志, 重建索引
+    // 说明: 读取失败的多是旧版(v0→v1 迁移)、中途损坏或缺 seq 的会话——这类日志无法解码是常态,
+    // 不应视为异常。若逐条 console.error 会把终端刷屏, 改为统计失败数并只打印少量样例明细。
     async function scanHistory() {
       if (!sessionQuery) return
+      const failures = [] // { sid, msg } 保留前 MAX 条明细供排查
+      const MAX_FAIL_SAMPLES = 3
+      let failCount = 0
       try {
         const sessions = await sessionQuery.listSessions()
         let added = 0
@@ -466,8 +471,15 @@ export const feature = {
             for (const r of recs) records.set(r.id, r)
             added += recs.length
           } catch (e) {
-            console.error('[dsh-dock] tokenlog scan session failed', sid, e && e.message)
+            failCount += 1
+            if (failures.length < MAX_FAIL_SAMPLES) failures.push(sid + ': ' + ((e && e.message) || String(e)))
           }
+        }
+        // 失败会话统一汇总为一行(仅列前几条样例), 不逐条刷屏。
+        if (failCount > 0) {
+          console.warn('[dsh-dock] tokenlog 历史扫描: ' + failCount + ' 个会话未能读取' +
+            (failCount > MAX_FAIL_SAMPLES ? ', 前 ' + MAX_FAIL_SAMPLES + ' 条如下:' : ':') )
+          for (const f of failures) console.warn('  - ' + f)
         }
         console.log('[dsh-dock] tokenlog history scanned: +' + added + ' records, total ' + records.size)
       } catch (e) {
