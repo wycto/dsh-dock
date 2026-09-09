@@ -8,11 +8,13 @@
  * - 源码：src/client.jsx（面板外壳）+ src/shared.js + features 各模块的 view.js(x)（功能模块），
  *   bundle 成单文件 client.js（构建产物，提交仓库、随包发布；勿手改）
  *
- * 构建：node scripts/build-client.mjs   （内部调用 npx esbuild，无需本地安装依赖）
+ * 构建：node scripts/build-client.mjs
+ *   （esbuild 解析顺序：环境变量 DSH_DOCK_ESBUILD 显式指定 → 仓库本地安装 → npx 动态拉取）
  */
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -20,12 +22,21 @@ const src = join(root, "src", "client.jsx");
 const outFile = join(root, "client.js");
 const tmpFile = join(root, "client.tmp.cjs");
 const PACKAGE_ID = "dsh-dock";
+const LOCAL_ESBUILD = join(root, "node_modules", "esbuild", "bin", "esbuild");
 
 function runEsbuild(args) {
-  // npx 自动解析 esbuild（含 npx 缓存）；Windows 下经 shell 调用
-  // stdio: inherit — esbuild 输出直通终端，不捕获管道（沙箱/CI 下避免管道 EPERM）
+  // esbuild 来源三级解析：
+  //   1) DSH_DOCK_ESBUILD 环境变量：显式指定 esbuild 的 JS 入口（沙箱/离线环境指着现成二进制跑）；
+  //   2) 仓库本地安装（node_modules/esbuild）：装了 devDependency 就直接用；
+  //   3) npx 动态解析（含 npx 缓存）。缓存目录用系统临时目录——曾写死 /tmp/npm-cache，
+  //      Windows 下 npx 解析不到 esbuild 直接构建失败。
+  // Windows 下经 shell 调用；stdio: inherit — esbuild 输出直通终端，不捕获管道（沙箱/CI 下避免管道 EPERM）
+  const explicit = process.env.DSH_DOCK_ESBUILD;
+  const line = explicit || existsSync(LOCAL_ESBUILD)
+    ? `node ${JSON.stringify(explicit || LOCAL_ESBUILD)} ${args.map((a) => JSON.stringify(a)).join(" ")}`
+    : `npx --cache ${JSON.stringify(join(tmpdir(), "npm-cache"))} --yes esbuild ${args.map((a) => JSON.stringify(a)).join(" ")}`;
   try {
-    execSync(`npx --cache /tmp/npm-cache --yes esbuild ${args.map((a) => JSON.stringify(a)).join(" ")}`, {
+    execSync(line, {
       stdio: "inherit",
       shell: process.platform === "win32",
     });

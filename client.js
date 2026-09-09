@@ -2218,6 +2218,8 @@ function pushFeatureEnabledToHost(id, enabled) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id, enabled })
+  }).then((res) => {
+    if (!res.ok) console.warn(`[dsh-dock] \u529F\u80FD\u5F00\u5173\u540C\u6B65\u5BBF\u4E3B\u5931\u8D25\uFF1A${id}=${enabled} \u2192 HTTP ${res.status}\uFF08\u5BBF\u4E3B\u4E0D\u8BA4\u8BC6\u8BE5 id \u6216\u63D2\u4EF6\u672A\u5C31\u7EEA\uFF09`);
   }).catch(() => {
   });
 }

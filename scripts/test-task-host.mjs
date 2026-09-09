@@ -284,4 +284,37 @@ assert.equal(host.routes.has('/dsh-dock/runstate'), false, '运行状态停用�
   assert.equal(fresh.settings.get(DOCK_NS), undefined, '不应凭空创建 notify 段')
 }
 
+// ---------- 用例 6：一次性迁移（宿主功能 id 旧键 models → modelconfig） ----------
+// 真实事故：宿主【模型设置】id 曾叫 models、客户端叫 modelconfig，面板开关 POST 永远
+// 404 被静默吞掉，宿主半部从不 setup → 目录接口整片 404。id 已改齐，这里锁死旧键迁移。
+{
+  const { migrateModelsFeatureId } = await import('../src/host-core.js')
+  const legacy = makeHost()
+  await legacy.settings.mutate(DOCK_NS, [{
+    op: 'set', path: ['features'], value: { balance: true, models: true },
+  }])
+  const before = legacy.mutateCount()
+  await migrateModelsFeatureId(legacy.ctx)
+  const after = legacy.settings.get(DOCK_NS)
+  assert.equal(legacy.mutateCount(), before + 1, '迁移应写一次 features 段')
+  assert.equal(after.features.modelconfig, true, '旧 models 键的值应继承到 modelconfig')
+  assert.equal(after.features.models, undefined, '旧 models 键应删除')
+  assert.equal(after.features.balance, true, '其余功能开关不受影响')
+
+  // 第二次调用：旧键已删，幂等早退，不重复写
+  const before2 = legacy.mutateCount()
+  await migrateModelsFeatureId(legacy.ctx)
+  assert.equal(legacy.mutateCount(), before2, '迁移完成后不得重复写')
+
+  // 新键已存在时不覆盖（多设备/手工配置优先）
+  const both = makeHost()
+  await both.settings.mutate(DOCK_NS, [{
+    op: 'set', path: ['features'], value: { models: false, modelconfig: true },
+  }])
+  const before3 = both.mutateCount()
+  await migrateModelsFeatureId(both.ctx)
+  assert.equal(both.mutateCount(), before3, '新键已存在时不得写 settings')
+  assert.equal(both.settings.get(DOCK_NS).features.modelconfig, true, '新键原值保留')
+}
+
 console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移)')

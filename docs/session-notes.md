@@ -654,3 +654,22 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 
 **教训**：拆功能时「重复区块」要一并处置——留着旧区块比多写几行代码更糟，用户看到的是三份一样的东西。
 
+## 2026-09-09（续4）· 模型设置整页 404：宿主/客户端功能 id 劈叉（models vs modelconfig）
+
+**用户反馈**：功能坞【模型设置】页报「模型目录拉取失败：模型目录接口 HTTP 404」，重试无效。
+
+**反馈回路**（本次一分钟定位的关键）：插件无条件注册的 `GET /dsh-dock/features` 就是现成探针——`GET /dsh-dock/models` 404、features 表里 `models enabled:false` 且 `persisted` 没有它；再对比 POST：`{id:"modelconfig"}` → 404「未知功能」，`{id:"models"}` → 200 且路由立刻活了。全程 HTTP 探测，零代码插桩。
+
+**根因**：客户端视图 id `modelconfig`（features/modelconfig/view.js）≠ 宿主功能 id `models`（features/modelconfig/host.js）——唯一不一致的模块（其余模块目录名 = 视图 id = 宿主 id 三方一致）。面板开关与 v0.9.7 的补推都 POST 客户端 id → 宿主 404 被客户端 `.catch(()=>{})` 静默吞掉 → 宿主半部从不 setup → 路由不存在。v0.9.5 之前宿主默认开启所以从未暴露；用户浏览器 localStorage 还留着旧「已启用」标记，所以页面能进、看到的是 404 报错而非「已停用」提示。**404 之所以无声：fetch 对 HTTP 404 是正常 resolve，`.catch` 根本接不住。**
+
+**修法**：
+- 宿主 id 改为 `modelconfig`（features/modelconfig/host.js）；`index.js` 功能清单注释同步。
+- `src/host-core.js` 新增 `migrateModelsFeatureId(ctx)`：开关表旧键 `features.models` → `features.modelconfig`（幂等早退、新键已存在不覆盖），settings 注册回调里与 `migrateNotifyConfig` 并列调用；`index.js` 的 `persistedFeatureMap()` 读取侧做兼容别名——异步迁移落盘前，启动开关表与 `/dsh-dock/features` 响应第一时间就是新口径。
+- `src/shared.js` 开关补推失败改 `console.warn`（查 `res.ok`；网络错误仍静默——宿主旧版本/不可达时本地开关照常生效的设计不变）。
+- 回归测试：`test-client-views.mjs` 新增「双半部 id 一致」用例（7 个双半部模块：host.js 真导入 + view 源码正则抽 id）；`test-task-host.mjs` 新增迁移用例（迁一次 / 幂等 / 新键已存在不覆盖）。
+- 顺手修构建（上个会话 587 行备忘的根治版）：`build-client.mjs` npx 缓存 `/tmp/npm-cache` → `os.tmpdir()`（Windows 下 npx 解析不到 esbuild），esbuild 来源三级解析（`DSH_DOCK_ESBUILD` 环境变量 → `node_modules/esbuild` 本地安装 → npx 兜底）；本次沙箱内 npm 缓存目录不可写（`_cacache` EPERM）且 npm install 会因存量 peer 冲突 ERESOLVE，用 `DSH_DOCK_ESBUILD` 指到系统 npx 缓存里现成的 esbuild 完成重建。
+
+**验证**：`npm run test:client` 全绿（11 用例含新增 id 一致）；`npm run test:host` 全绿（含新迁移用例）；线上 3080 应急开启后 `GET /dsh-dock/models` 200（13KB 目录）。宿主半部改动 → **重启 `dsh web` 生效**：重启后迁移把 `features.models:true` 换成 `features.modelconfig:true`，开关状态无缝延续；不重启当前实例也已恢复（应急开启时路由已注册）。
+
+**教训**：「目录名 = 视图 id = 宿主 id」的功能模块三方一致是开关同步的隐形契约。v0.9.7 的补推修复修的是**时机**（宿主旧进程时 POST 404），没查**id 本身对不对得上**——补推把错误 id 原样再推一遍，照样 404。跨半部契约必须用测试锁死，不能靠约定自觉。
+

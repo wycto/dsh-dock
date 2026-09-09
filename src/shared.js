@@ -102,14 +102,18 @@ function syncFeatureStateFromHost(defs) {
 	}).catch(() => { /* 宿主不可达时用本地默认 */ });
 }
 
-/** 把开关同步到宿主（settings 持久化 + 宿主半部即时 setup/dispose）。失败静默：
- * 宿主侧开关只影响路由注册等 Host 能力，本地 UI 状态仍然即时生效。 */
+/** 把开关同步到宿主（settings 持久化 + 宿主半部即时 setup/dispose）。失败只 warn 不打断：
+ * 宿主侧开关只影响路由注册等 Host 能力，本地 UI 状态仍然即时生效。
+ * （注意 fetch 对 404 这类 HTTP 错误是正常 resolve，必须查 res.ok——曾因 id 不一致
+ * 开关永远 404 而这里毫无声息，排查了两个版本才发现。） */
 function pushFeatureEnabledToHost(id, enabled) {
 	if (typeof fetch !== "function") return;
 	fetch("/dsh-dock/features", {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify({ id, enabled }),
+	}).then((res) => {
+		if (!res.ok) console.warn(`[dsh-dock] 功能开关同步宿主失败：${id}=${enabled} → HTTP ${res.status}（宿主不认识该 id 或插件未就绪）`);
 	}).catch(() => { /* 宿主旧版本或不可达：本地开关仍生效（仅本浏览器） */ });
 }
 export function toggleFeature(id) {
