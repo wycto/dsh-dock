@@ -12,14 +12,16 @@
 //   - visionproxy 图片理解代理（v0.3.1）：纯文本模型收图自动走视觉模型识别
 //   - balance     模型余额（v0.2.0）：各 Provider 账户余额/配额
 //   - tokenlog    用量记录（v0.4.0）：LLM 调用记账与统计（移植自 @wycto/dsh-token-usage）
-//   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效/通知配置持久化（参照 @wycto/dsh-task-pulse）
+//   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效配置持久化（参照 @wycto/dsh-task-pulse）
+//   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
 //   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
-import { DOCK_NS, DockConfig, sendJson, readBody } from './src/host-core.js'
+import { DOCK_NS, DockConfig, sendJson, readBody, migrateNotifyConfig } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
 import { feature as fTokenlog } from './features/tokenlog/host.js'
 import { feature as fAnimation } from './features/animation/host.js'
+import { feature as fNotify } from './features/notify/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 
 export const name = 'dsh-dock'
@@ -56,6 +58,7 @@ export function apply(ctx) {
     fBalance,
     fTokenlog,
     fAnimation,
+    fNotify,
     fMobileRelay,
   ]
 
@@ -107,6 +110,9 @@ export function apply(ctx) {
   let initialTogglesApplied = false
   ctx.inject(['settings'], (sctx) => {
     sctx.settings.register(DOCK_NS, DockConfig, {})
+    // 一次性迁移：通知配置从 animation 段搬到 notify 段（【任务通知】独立成模块）。
+    // 必须在任何面板保存动作之前跑——animation 模块保存时整段写回，旧字段会被覆盖丢失。
+    migrateNotifyConfig(sctx)
     if (initialTogglesApplied) return
     initialTogglesApplied = true
     const persisted = persistedFeatureMap()
