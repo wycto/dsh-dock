@@ -9,9 +9,9 @@
  * 做法：在 vm 沙箱里加载构建产物 client.js（与浏览器里真正跑的是同一份代码），
  * 用极简 React 替身做渲染，逐个启用内置功能渲染设置页面板，断言：
  *   1) 渲染不抛错；2) 页面出现该功能的实际内容。
- * 「任务动画」额外跑一遍带状态的多趟渲染（拉取到配置 + 有进行中任务），覆盖数据分支。
+ * 每个功能都跑多趟渲染直到状态稳定（覆盖「拉取到配置 / 任务状态后」的数据分支）。
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -165,11 +165,22 @@ function createRuntime() {
 }
 
 // ---------- 宿主桩：最小浏览器环境 + 按 URL 返回数据的 fetch ----------
-function makeFetch(animationStatus) {
-	return (url) => {
+// 状态既可以直接给对象（每轮返回同一引用），也可以给函数（每轮返回新对象——
+// 覆盖「轮询到新快照 → 触发任务结束检测」这类按引用变化才生效的分支）。
+// posts 记录所有 POST /dsh-dock/features（开关同步断言用）。
+function resolveStatus(s) { return typeof s === "function" ? s() : s; }
+function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus) {
+	return (url, init) => {
+		// 只拦截功能开关的同步 POST；功能自己的 RPC 也是 POST，不能一起吃掉
+		if (init && init.method === "POST" && String(url).includes("/dsh-dock/features")) {
+			posts.push({ url: String(url), body: JSON.parse(init.body || "{}") });
+			return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, data: {} }) });
+		}
 		let data = {};
-		if (url.includes("/dsh-dock/animation/status")) data = animationStatus;
-		else if (url.includes("/dsh-dock/features")) data = { persisted: {} };
+		if (url.includes("/dsh-dock/animation/status")) data = resolveStatus(animationStatus);
+		else if (url.includes("/dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
+		else if (url.includes("/dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
+		else if (url.includes("/dsh-dock/features")) data = { persisted: persisted || {} };
 		return Promise.resolve({
 			ok: true,
 			status: 200,
@@ -191,14 +202,15 @@ function makeWindow() {
 }
 let loaded = null;
 
-function loadDock(enabled, animationStatus) {
+function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus) {
 	const runtime = createRuntime();
+	const posts = [];
 	const store = { "dsh-dock/features/v1": JSON.stringify(enabled) };
 	const win = makeWindow();
 	const sandbox = {
 		console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
-		fetch: makeFetch(animationStatus),
+		fetch: makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
 		localStorage: {
 			getItem: (k) => (k in store ? store[k] : null),
 			setItem: (k, v) => { store[k] = String(v); },
@@ -227,7 +239,7 @@ function loadDock(enabled, animationStatus) {
 		register: (def, comp) => regs.push({ def, comp }),
 	};
 	dock.apply({ get: (name) => (name === "slots" ? slots : undefined), interval: () => () => {} });
-	return { runtime, regs, dock };
+	return { runtime, regs, dock, posts };
 }
 
 /** 多趟渲染：跑到状态稳定（最多 10 趟），覆盖「拉数据后」的渲染分支。 */
@@ -256,18 +268,31 @@ const ANIMATION_STATUS = {
 		models: ["deepseek-chat"], duration: 30_000, turns: 2, steps: 4, endTime: 1_700_000_000_000,
 		endReason: "completed", totalTokens: 4_000, inputTokens: 3_000, outputTokens: 1_000,
 	}],
+	config: { animationEnabled: true, effectMode: "robot", robotScale: 1.35 },
+};
+
+const NOTIFY_STATUS = {
+	active: ANIMATION_STATUS.active,
+	recent: ANIMATION_STATUS.recent,
 	config: {
-		animationEnabled: true, effectMode: "robot", robotScale: 1.35,
-		notifyEnabled: true, notifyOnComplete: true, notifyOnError: true, notifyOnConfirm: true,
+		notifyOnComplete: true, notifyOnError: true, notifyOnConfirm: true,
 		notifyStayMs: 8000, systemNotify: false, soundNotify: true, soundEffect: "chime",
 		dingtalkEnabled: true, dingtalkWebhook: "https://oapi.dingtalk.com/robot/send?access_token=x",
 		feishuEnabled: true, feishuWebhook: "https://open.feishu.cn/open-apis/bot/v2/hook/x",
 	},
 };
 
+// 运行状态模块的 /status 没有 config 段（只读共享追踪快照）
+const RUNSTATE_STATUS = {
+	active: ANIMATION_STATUS.active,
+	recent: ANIMATION_STATUS.recent,
+};
+
 // ---------- 用例：每个内置功能单独启用后，设置页面板必须渲染出内容且不抛错 ----------
 const FEATURES = [
 	{ id: "animation", name: "任务动画", marker: "运行动画", deep: true },
+	{ id: "notify", name: "任务通知", marker: "通知事件", deep: true },
+	{ id: "runstate", name: "运行状态", marker: "运行状态", deep: true },
 	{ id: "tokenlog", name: "用量记录", marker: "用量", deep: true },
 	{ id: "balance", name: "模型余额", marker: "余额", deep: true },
 	{ id: "modelconfig", name: "模型设置", marker: "模型", deep: true },
@@ -284,7 +309,7 @@ for (const f of FEATURES) {
 	let html = "";
 	let error = null;
 	try {
-		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS);
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
 		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
 		if (!reg) throw new Error("没有注册 settings.section（设置 → 功能坞）");
 		const node = runtime.react.createElement(reg.comp, null);
@@ -316,7 +341,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	for (const f of FEATURES) enabled[f.id] = false;
 	let detail = "";
 	try {
-		const { runtime, regs, dock } = loadDock(enabled, ANIMATION_STATUS);
+		const { runtime, regs, dock } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
 		dock.dockBridge.register({
 			id: "boom", name: "会崩的功能",
 			View: () => { throw new Error("boom-test"); },
@@ -337,9 +362,10 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 
 // ---------- 用例 3：内置视图抛错同样要被隔离（v0.9.3~0.9.8 正是内置视图抛错打没了面板） ----------
 {
+	// 拿【运行状态】当靶子：它渲染期会 active.reduce 统计等待确认项（与当年 animation 的
+	// waitingCount 同一类写法），给 active 一个 reduce 就抛错的 Proxy 即可稳定复现。
 	const enabled = {};
-	for (const f of FEATURES) enabled[f.id] = f.id === "animation";
-	// 让内置的 animation 视图在渲染期抛错：状态里的 active 是个数组，但取 reduce 时抛错。
+	for (const f of FEATURES) enabled[f.id] = f.id === "runstate";
 	const boomActive = new Proxy([], {
 		get(target, key) {
 			if (key === "reduce") throw new Error("boom-builtin");
@@ -348,7 +374,8 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	});
 	let detail = "";
 	try {
-		const { runtime, regs } = loadDock(enabled, Object.assign({}, ANIMATION_STATUS, { active: boomActive }));
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined,
+			Object.assign({}, RUNSTATE_STATUS, { active: boomActive }));
 		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
 		const html = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
 		if (!html.includes("渲染出错")) detail = "内置视图抛错没有被隔离（页面里没有错误提示）";
@@ -361,6 +388,136 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 内置视图错误隔离：内置视图抛错也只降级为一行提示");
+}
+
+// ---------- 用例 4：功能坞弹层左侧菜单必须列出「任务动画」「任务通知」「运行状态」三个独立菜单项 ----------
+// 通知、运行状态先后从任务动画里拆成独立菜单项，这条断言防的就是「拆完菜单里看不到」。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
+		const panel = regs.find((r) => r.def && r.def.name === "shell.overlay" && r.def.id === "dsh-dock-panel");
+		if (!panel) throw new Error("没有注册功能坞弹层（shell.overlay / dsh-dock-panel）");
+		const html = await renderSettled(runtime, runtime.react.createElement(panel.comp, null));
+		for (const name of ["任务动画", "任务通知", "运行状态"]) {
+			if (!html.includes(name)) { detail = "左侧菜单缺少「" + name + "」"; break; }
+		}
+		if (!detail) {
+			// 各功能的全局浮层（任务动效 / 通知卡片栈）也必须能挂载渲染
+			const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+			if (!overlays) detail = "没有注册功能全局浮层（shell.overlay / dsh-dock-feature-overlays）";
+			else runtime.render(runtime.react.createElement(overlays.comp, null));
+		}
+	} catch (e) {
+		detail = "弹层 / 浮层渲染抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 左侧菜单 / 全局浮层：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 左侧菜单：功能坞弹层含「任务动画」「任务通知」「运行状态」三个独立菜单项，全局浮层渲染正常");
+}
+
+// ---------- 用例 5：任务结束时【任务通知】浮层真的弹出通知卡片 ----------
+// 通知逻辑全靠「轮询到新快照 → 上一轮活跃、本轮消失 → 弹卡片」，所以这里用函数式状态桩
+// 让每次轮询返回新对象，并在两轮之间把任务从「活跃」挪到「最近完成」。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		active: [Object.assign({}, NOTIFY_STATUS.active[0])],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus);
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		await renderSettled(runtime, runtime.react.createElement(overlays.comp, null));
+		// 任务结束：活跃清空、最近完成出现（同一 sessionId，通知侧才能取到完成记录补全信息）
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		const html = await renderSettled(runtime, runtime.react.createElement(overlays.comp, null));
+		if (!html.includes("任务完成")) detail = "任务结束没有弹出通知卡片（渲染结果里没有「任务完成」）";
+		else if (!html.includes("任务：上一个任务")) detail = "通知卡片缺少任务详情（正文里没有任务标题）";
+	} catch (e) {
+		detail = "通知浮层渲染抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 任务通知浮层：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 任务通知浮层：任务结束时弹出通知卡片（轮询 → 检测 → 卡片）");
+}
+
+// ---------- 用例 6：开关补推（浏览器已表态、宿主从未收到过该功能） ----------
+// 真实事故：点【任务通知】开关时宿主还是旧进程 → POST 404 → 开关只留在浏览器
+// 本地；宿主重启后 persisted 里没有 notify → 宿主从不 setup → 路由整片 404，面板还误报
+// 「宿主进程是旧版本」。修法：启动时若宿主没记录过该功能，就补推一次本浏览器的选择。
+{
+	const cases = [
+		{ name: "宿主没记录过 notify → 补推 true", local: { notify: true }, persisted: { animation: true }, expect: { id: "notify", enabled: true } },
+		{ name: "宿主显式记过 notify=false → 不覆盖", local: { notify: true }, persisted: { notify: false }, expect: null },
+		{ name: "本地关着、宿主也没记录 → 补推 false", local: { notify: false }, persisted: {}, expect: { id: "notify", enabled: false } },
+	];
+	let detail = "";
+	for (const c of cases) {
+		try {
+			const { posts } = loadDock(c.local, ANIMATION_STATUS, NOTIFY_STATUS, c.persisted);
+			await new Promise((resolve) => setTimeout(resolve, 30)); // 等 syncFeatureStateFromHost 的 fetch 回来
+			const pushes = posts.filter((p) => p.url.includes("/dsh-dock/features")).map((p) => p.body);
+			const got = pushes.find((b) => b.id === "notify") || null;
+			if (c.expect === null && got) { detail = `${c.name}：不该补推，却推了 ${JSON.stringify(got)}`; break; }
+			if (c.expect && (!got || got.enabled !== c.expect.enabled)) {
+				detail = `${c.name}：期望 ${JSON.stringify(c.expect)}，实际 ${JSON.stringify(got)}`;
+				break;
+			}
+		} catch (e) {
+			detail = `${c.name} 抛错：${(e && e.message) || e}`;
+			break;
+		}
+	}
+	if (detail) {
+		console.log(`✗ 开关补推：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 开关补推：宿主没记录过的功能按本浏览器选择补推一次，宿主已显式关掉的不覆盖");
+}
+
+// ---------- 用例 7：双半部功能 id 一致（视图描述符 id === 宿主 feature id） ----------
+// 真实事故：模型设置的宿主 id 叫 "models"、客户端视图 id 叫 "modelconfig"——面板开关
+// 按 id POST /dsh-dock/features 被宿主当「未知功能」404（客户端静默吞掉），宿主半部
+// 永远不 setup，目录接口整片 404；v0.9.5 默认全关后暴露成「模型设置不行了」。
+// 其余模块三方一致（目录名 = 视图 id = 宿主 id），这里把该约定锁死，防再次劈叉。
+{
+	const { readdirSync } = await import("node:fs");
+	let detail = "";
+	let checked = 0;
+	for (const dir of readdirSync(join(root, "features"), { withFileTypes: true })) {
+		if (!dir.isDirectory()) continue;
+		const hostPath = join(root, "features", dir.name, "host.js");
+		const viewPath = ["view.js", "view.jsx"].map((f) => join(root, "features", dir.name, f)).find((p) => existsSync(p));
+		if (!existsSync(hostPath) || !viewPath) continue; // 单半部模块（纯客户端/纯宿主）不约束
+		checked++;
+		try {
+			const { feature } = await import(`file://${hostPath.replace(/\\/g, "/")}`);
+			const m = readFileSync(viewPath, "utf8").match(/export\s+const\s+feature\s*=\s*\{\s*id:\s*["']([^"']+)["']/);
+			if (!m) { detail = `${dir.name}/view 视图描述符里找不到 id 声明（正则失配，请同步更新本用例）`; break; }
+			if (feature.id !== m[1]) { detail = `${dir.name}：宿主 id="${feature.id}" ≠ 视图 id="${m[1]}"（面板开关会推不到宿主）`; break; }
+		} catch (e) {
+			detail = `${dir.name} 双半部 id 校验抛错：${(e && e.message) || e}`;
+			break;
+		}
+	}
+	if (detail) {
+		console.log(`✗ 双半部功能 id 一致：${detail}`);
+		process.exit(1);
+	}
+	console.log(`✓ 双半部功能 id 一致：${checked} 个双半部模块的视图 id 与宿主 id 全部相同`);
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

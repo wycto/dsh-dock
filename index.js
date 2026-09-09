@@ -8,18 +8,22 @@
 //     不含任何具体功能逻辑。
 //
 // 功能清单（宿主半部；客户端菜单次序由 view 模块的 order 字段决定）：
-//   - models      模型设置（v0.3.0）：模型目录读 + 官方配置写
+//   - modelconfig 模型设置（v0.3.0）：模型目录读 + 官方配置写
 //   - visionproxy 图片理解代理（v0.3.1）：纯文本模型收图自动走视觉模型识别
 //   - balance     模型余额（v0.2.0）：各 Provider 账户余额/配额
 //   - tokenlog    用量记录（v0.4.0）：LLM 调用记账与统计（移植自 @wycto/dsh-token-usage）
-//   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效/通知配置持久化（参照 @wycto/dsh-task-pulse）
+//   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效配置持久化（参照 @wycto/dsh-task-pulse）
+//   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
+//   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
 //   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
-import { DOCK_NS, DockConfig, sendJson, readBody } from './src/host-core.js'
+import { DOCK_NS, DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
 import { feature as fTokenlog } from './features/tokenlog/host.js'
 import { feature as fAnimation } from './features/animation/host.js'
+import { feature as fNotify } from './features/notify/host.js'
+import { feature as fRunState } from './features/runstate/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 
 export const name = 'dsh-dock'
@@ -56,18 +60,29 @@ export function apply(ctx) {
     fBalance,
     fTokenlog,
     fAnimation,
+    fNotify,
+    fRunState,
     fMobileRelay,
   ]
 
   const state = new Map()
   for (const f of FEATURES) state.set(f.id, { enabled: false, dispose: null, error: null })
 
-  /** 读宿主侧功能开关表（settings 持久化；settings 未挂载时回退 defaultEnabled）。 */
+  /** 读宿主侧功能开关表（settings 持久化；settings 未挂载时回退 defaultEnabled）。
+   *  兼容别名：宿主侧【模型设置】功能 id 曾叫 models（与客户端 modelconfig 对不上，
+   *  开关永远推不到宿主）；迁移落盘前（异步）在这里读时兜底换算，保证启动开关表
+   *  与 /dsh-dock/features 响应第一时间就是新口径。 */
   function persistedFeatureMap() {
     try {
       const settings = ctx.get('settings')
       const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : null
-      if (v && typeof v === 'object' && v.features && typeof v.features === 'object') return v.features
+      if (v && typeof v === 'object' && v.features && typeof v.features === 'object') {
+        const map = v.features
+        if (typeof map.models === 'boolean' && typeof map.modelconfig !== 'boolean') {
+          return Object.assign({}, map, { modelconfig: map.models })
+        }
+        return map
+      }
     } catch {
       // settings 未挂载
     }
@@ -107,6 +122,11 @@ export function apply(ctx) {
   let initialTogglesApplied = false
   ctx.inject(['settings'], (sctx) => {
     sctx.settings.register(DOCK_NS, DockConfig, {})
+    // 一次性迁移：通知配置从 animation 段搬到 notify 段（【任务通知】独立成模块）。
+    // 必须在任何面板保存动作之前跑——animation 模块保存时整段写回，旧字段会被覆盖丢失。
+    migrateNotifyConfig(sctx)
+    // 一次性迁移：宿主侧【模型设置】功能 id models → modelconfig（开关表键名对齐客户端）。
+    migrateModelsFeatureId(sctx)
     if (initialTogglesApplied) return
     initialTogglesApplied = true
     const persisted = persistedFeatureMap()

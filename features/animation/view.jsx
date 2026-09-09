@@ -1,14 +1,16 @@
-// dsh-dock · 功能模块【任务动画】· 客户端视图（v0.5.0，参照 @wycto/dsh-task-pulse client 会话追踪消费，同作者 MIT）
+// dsh-dock · 功能模块【任务动画】· 客户端视图
 //
 // 三部分：
-//  1. View      —— 功能坞面板页：动画/通知两组独立开关 + 动画模式选择（带缩微预览）+ 运行状态列表；
-//  2. HomeStat  —— 首页总揽概要（N 个任务进行中 / 空闲）；
+//  1. View      —— 功能坞面板页：动画开关 + 19 种模式选择（带缩微预览）；
+//  2. HomeStat  —— 首页总揽概要（当前动效模式 + 开关状态）；
 //  3. Overlay   —— 全局浮层（shell.overlay 常驻，功能启用即挂载）：轮询 Host 状态，
 //                  任务进行中渲染克制的动效（顶部流光细线 / 呼吸光点 / 轨道光环）+ 右下角状态徽标，
-//                  任务结束时弹通知卡片（可选浏览器系统通知），完成瞬间一缕流光掠过。
+//                  完成瞬间一缕流光掠过（星际远征另有货运舰归航）。
 //
 // 设计取向：不做满屏粒子彩带，动效全部走主题变量（暗/亮色自适应）、低透明度、慢节奏。
-// 动画与通知是两个独立开关（可只开其一）；配置全部经 Host settings 持久化，重启后恢复。
+// 通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书推送）独立在 features/notify/，
+// 运行状态（进行中任务与最近完成）独立在 features/runstate/：三个功能各自启停、互不依赖，
+// 会话级任务追踪在宿主侧共用一份。
 //
 // Host 通信：fetch('/dsh-dock/animation/<method>')（见 features/animation/host.js）。
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -24,9 +26,9 @@ function rpcCall(method, args) {
 		.then(async (res) => {
 			const data = await res.json().catch(() => ({}));
 			if (res.ok && data && data.ok === true) return data.data;
-			// 旧宿主进程没有动画路由（405/404）：给出可操作提示而非裸状态码
+			// 宿主侧没有动画路由（405/404）：宿主进程可能是旧版本，或本功能在宿主侧未 setup
 			if (res.status === 405 || res.status === 404) {
-				throw new Error("宿主进程是旧版本（没有任务动画路由），重启 dsh web 后重试");
+				throw new Error("宿主侧没有「任务动画」接口：宿主进程可能是旧版本，或该功能在宿主侧未启用（重启 dsh web，或把功能坞里的开关关掉再打开）");
 			}
 			if (data && data.ok === false) throw new Error((data.error && data.error.message) || ("HTTP " + res.status));
 			throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
@@ -66,46 +68,18 @@ function phaseLabel(p) { return PHASE_LABELS[p] || "工作中"; }
 const PHASE_COLORS = { think: "#2f6fed", write: "#0d9488", code: "#b45309", search: "#0e7490" };
 function phaseColor(p) { return PHASE_COLORS[p] || "#2f6fed"; }
 
-// 工具名 → 中文场景（"需确认"通知里说清楚是什么在等确认）
-function toolLabel(name) {
-	const n = String(name || "").toLowerCase();
-	if (/bash|shell|terminal|cmd|pwsh|powershell|exec/.test(n)) return "执行命令";
-	if (/write|edit|patch|apply|create|mkdir|remove|delete/.test(n)) return "修改文件";
-	if (/web|fetch|browser|navigate|search/.test(n)) return "访问网页";
-	return "";
-}
-
 // ---------- 结束原因 ----------
-const END_LABELS = {
-	completed: { label: "完成", cls: "ok" },
-	error: { label: "出错", cls: "err" },
-	aborted: { label: "已中止", cls: "warn" },
-	blocked: { label: "受阻", cls: "warn" },
-	"max-tokens": { label: "达输出上限", cls: "warn" },
-	interrupted: { label: "中断", cls: "warn" },
-};
-function endInfo(reason) {
-	return END_LABELS[reason] || END_LABELS.completed;
-}
+// （结束原因的展示文案随「运行状态」页一起搬去 features/runstate/，这里只保留动效判断用的成功判定）
 function isSuccessReason(reason) {
 	return !reason || reason === "completed";
 }
 
 // ---------- 格式化 ----------
-function fmtNum(n) { return (Number(n) || 0).toLocaleString("en-US"); }
 function fmtCompact(n) {
 	n = Number(n) || 0;
 	if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
 	if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
 	return String(Math.round(n));
-}
-// 毫秒 → "3分21秒" / "1小时2分"
-function fmtDur(ms) {
-	const s = Math.max(0, Math.round((ms || 0) / 1000));
-	const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-	if (h > 0) return h + "小时" + m + "分" + sec + "秒";
-	if (m > 0) return m + "分" + sec + "秒";
-	return sec + "秒";
 }
 // 毫秒 → "12:34" / "1:02:11"（徽标计时）
 function fmtClock(ms) {
@@ -113,12 +87,6 @@ function fmtClock(ms) {
 	const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
 	const p = (x) => String(x).padStart(2, "0");
 	return h > 0 ? h + ":" + p(m) + ":" + p(sec) : p(m) + ":" + p(sec);
-}
-function fmtTime(ts) {
-	if (!ts) return "";
-	const d = new Date(ts);
-	const p = (x) => String(x).padStart(2, "0");
-	return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
 }
 function truncate(str, max) {
 	if (!str) return "";
@@ -309,93 +277,6 @@ function RobotScene(props) {
 			</div>
 			{/* 思考泡泡（贴镜头的 2D 层，think 阶段显示） */}
 			<span className="dkan-bubble"><i /><i /><i /></span>
-		</div>
-	);
-}
-
-// ---------- 提示音（WebAudio 合成；macOS/Windows 通用，无音频文件） ----------
-// 音效库：每种含完成音（done）、异常音（err）与确认音（ask）三套音符序列。
-// 音符 [频率, 起始秒, 时长秒, 波形?]，波形缺省 sine。确认音双音上扬、偏长，
-// 听感是"来人搭话"，和完成音的收束感、异常音的下坠感区分开。
-const SOUND_LIBRARY = {
-	chime:  { name: "清脆双音", notes: { done: [[659.25, 0, .14], [880, .13, .24]], err: [[220, 0, .16], [164.81, .15, .3]], ask: [[587.33, 0, .16], [880, .19, .34]] } },
-	ding:   { name: "叮",       notes: { done: [[987.77, 0, .35]], err: [[246.94, 0, .4]], ask: [[783.99, 0, .18], [1174.66, .2, .42]] } },
-	coin:   { name: "金币",     notes: { done: [[988, 0, .08], [1319, .08, .35], [988, 0, .08, "square"], [1319, .08, .3, "square"]], err: [[196, 0, .12], [147, .11, .35]], ask: [[880, 0, .09], [1108.73, .1, .12], [1318.51, .22, .3]] } },
-	bell:   { name: "钟声",     notes: { done: [[523.25, 0, .5], [659.25, .02, .45], [783.99, .04, .4]], err: [[174.61, 0, .5], [130.81, .05, .5]], ask: [[659.25, 0, .4], [523.25, .05, .55]] } },
-	pulse:  { name: "脉冲",     notes: { done: [[440, 0, .09], [440, .14, .09], [440, .28, .16]], err: [[174.61, 0, .1], [174.61, .14, .1], [174.61, .28, .18]], ask: [[523.25, 0, .09], [523.25, .15, .09], [659.25, .3, .22]] } },
-	arp:    { name: "琶音",     notes: { done: [[523.25, 0, .12], [659.25, .09, .12], [783.99, .18, .12], [1046.5, .27, .3]], err: [[392, 0, .12], [329.63, .1, .12], [261.63, .2, .12], [196, .3, .32]], ask: [[440, 0, .11], [554.37, .12, .11], [659.25, .24, .11], [880, .36, .34]] } },
-};
-// AudioContext 按需创建（浏览器自动播放策略：首次用户交互后才能出声，静默失败不报错）
-let soundCtx = null;
-function playTone(seq) {
-	try {
-		if (typeof window === "undefined" || !window.AudioContext && !window.webkitAudioContext) return;
-		const AC = window.AudioContext || window.webkitAudioContext;
-		if (!soundCtx) soundCtx = new AC();
-		if (soundCtx.state === "suspended") { soundCtx.resume().catch(() => {}); }
-		const t0 = soundCtx.currentTime;
-		for (const [f, at, dur, wave] of seq) {
-			const osc = soundCtx.createOscillator();
-			const gain = soundCtx.createGain();
-			osc.type = wave || "sine";
-			osc.frequency.value = f;
-			gain.gain.setValueAtTime(0, t0 + at);
-			gain.gain.linearRampToValueAtTime(0.18, t0 + at + 0.015);
-			gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
-			osc.connect(gain).connect(soundCtx.destination);
-			osc.start(t0 + at);
-			osc.stop(t0 + at + dur + 0.05);
-		}
-	} catch { /* 音频不可用静默 */ }
-}
-// 按音效播放：完成音 / 异常音 / 确认音（未知音效回退 chime）
-function playDoneSound(success, effect) {
-	const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
-	playTone(success ? lib.notes.done : lib.notes.err);
-}
-function playAskSound(effect) {
-	const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
-	playTone(lib.notes.ask || lib.notes.done);
-}
-// 试听：完成音 + 异常音 连播（间隔 0.55s）
-function previewSound(effect) {
-	const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
-	playTone(lib.notes.done);
-	const delayed = lib.notes.err.map(([f, at, dur, wave]) => [f, at + 0.55, dur, wave]);
-	playTone(delayed);
-}
-
-
-function Toast(props) {
-	const t = props.t;
-	const [closing, setClosing] = useState(false);
-	const close = useCallback(() => { if (!closing) setClosing(true); }, [closing]);
-	// 停留时长（stayMs=0 常驻，仅手动关闭）
-	useEffect(() => {
-		if (!t.stayMs) return;
-		const timer = setTimeout(close, t.stayMs);
-		return () => clearTimeout(timer);
-	}, []);
-	useEffect(() => {
-		if (!closing) return;
-		const timer = setTimeout(() => props.onClose(t.id), 240);
-		return () => clearTimeout(timer);
-	}, [closing]);
-	const markColor = t.kind === "success"
-		? "var(--dk-ok)"
-		: t.kind === "error"
-			? "var(--dk-err)"
-			: t.kind === "confirm"
-				? "var(--dk-warn)"
-				: "var(--dk-warn)";
-	return (
-		<div className={"dkan-toast" + (t.kind === "confirm" ? " dkan-toast-confirm" : "") + (closing ? " out" : "")}>
-			<div className="dkan-toast-head">
-				<span className="dkan-toast-mark" style={{ background: markColor }} />
-				<span className="dkan-toast-title" title={t.title}>{t.kind === "confirm" ? "✋ " : ""}{t.title}</span>
-				<button type="button" className="dkan-toast-close" aria-label="关闭" onClick={close}>✕</button>
-			</div>
-			{t.body ? <div className="dkan-toast-body">{t.body}</div> : null}
 		</div>
 	);
 }
@@ -843,11 +724,10 @@ function ProgrammingStuck(props) {
 	return <div className={"dkan-space-stuck" + (waiting ? " waiting" : "")} aria-hidden="true"><FreighterHull units={3} empty /><span className="dkan-stuck-code"><i />{`{ }`}</span><strong>{waiting ? "等待确认" : "编程等待中"}</strong><small>{truncate((props.task && props.task.title) || "工具暂无新响应", 28)}</small></div>;
 }
 
-// ---------- 全局浮层：轮询 + 动效 + 通知（功能启用即常驻） ----------
+// ---------- 全局浮层：轮询 + 动效（功能启用即常驻；通知在 features/notify/） ----------
 export function AnimationOverlay(props) {
 	const ctx = props && props.ctx;
 	const snap = useAnimation();
-	const [toasts, setToasts] = useState([]);
 	const [flourish, setFlourish] = useState(null); // { key, err } 完成瞬间的一次性流光
 	const [bursts, setBursts] = useState([]); // 交互反馈动画队列
 	const [deliveries, setDeliveries] = useState([]); // 星际模式完成时停泊在输入框上方的归航货运舰
@@ -952,7 +832,7 @@ export function AnimationOverlay(props) {
 		return () => { stopped = true; if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
 	}, []);
 
-	// 任务结束检测：上一轮活跃、本轮消失 → 通知 + 流光（找最近完成记录补全信息）
+	// 任务结束检测：上一轮活跃、本轮消失 → 完成瞬间的流光（找最近完成记录补全信息）
 	useEffect(() => {
 		const st = snap.status;
 		if (!st || !st.active) return;
@@ -968,133 +848,35 @@ export function AnimationOverlay(props) {
 		prevActiveRef.current = st.active.slice();
 	}, [snap.status]);
 
-	// ===== 需确认检测：工具等待用户批准时通知（页内卡片 + 确认音 + 后台系统通知） =====
-	// host 从会话流 approval/asked 收集待确认项，approval/decided 后移除；
-	// 这里对"任务首次出现待确认"触发一次提醒，已提醒过的会话不再重复打扰。
-	const remindedApprovalsRef = useRef(new Map()); // sessionId -> 提醒过的 approvalId 集合
-	useEffect(() => {
-		const st = snap.status;
-		if (!st || !st.active) return;
-		const cfg = st.config || {};
-		const activeIds = new Set(st.active.map((x) => x.sessionId));
-		for (const [sid, seen] of remindedApprovalsRef.current) {
-			if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
-		}
-		for (const task of st.active) {
-			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
-			if (approvals.length === 0) continue;
-			let seen = remindedApprovalsRef.current.get(task.sessionId);
-			if (!seen) { seen = new Set(); remindedApprovalsRef.current.set(task.sessionId, seen); }
-			const fresh = approvals.filter((a) => a && !seen.has(a.id));
-			if (fresh.length === 0) continue;
-			for (const a of fresh) seen.add(a.id);
-			// 提醒开关在"收到新确认项"时检查，保证开关中途打开对下一项生效
-			if (!cfg.notifyEnabled || cfg.notifyOnConfirm === false) continue;
-			const toolName = fresh[0].toolName || "";
-			const scene = toolLabel(toolName);
-			const lines = [
-				"任务：" + (task.title || "(无标题)"),
-				"工具：" + (toolName || "未知") + (scene ? "（" + scene + "）" : ""),
-			];
-			if (fresh[0].reason) lines.push("说明：" + truncate(fresh[0].reason, 140));
-			lines.push(fresh.length > 1 ? "共 " + fresh.length + " 项等待你的确认" : "请在会话里确认后继续");
-			const toast = {
-				id: Date.now() + Math.random(),
-				kind: "confirm",
-				title: "任务需要确认",
-				body: lines.join("\n"),
-				// 需确认常驻到用户处理（notifyStayMs=0 同款语义），关掉开关的间隙也不会自动消失
-				stayMs: 0,
-			};
-			setToasts((prev) => prev.concat([toast]).slice(-4));
-			if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
-			if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
-				&& typeof Notification !== "undefined" && Notification.permission === "granted") {
-				try {
-					new Notification("dsh 任务需要确认", {
-						body: (task.title || "(无标题)") + " · " + (toolName || "工具") + " 等待确认",
-						tag: "dsh-dock-approval-" + task.sessionId,
-					});
-				} catch { /* 系统通知失败不影响页面内通知 */ }
-			}
-		}
-	}, [snap.status]);
-
 	const handleTaskEnd = (task, record, cfg) => {
-		const reason = (record && record.endReason) || "";
-		const success = isSuccessReason(reason);
-		const info = endInfo(reason);
-		// 动画侧：完成瞬间一缕流光掠过 + 成功时顶部彩带庆祝（动画关时不渲染）
-		if (cfg.animationEnabled) {
-			setFlourish({ key: Date.now(), err: !success });
-			// 星际远征把完成结果送回用户正在输入的位置。速度继承最后一帧任务节奏；
-			// 货舱数量及标签只取 Host 已记录的真实 outputTokens。
-			if (cfg.effectMode === "space") {
-				const cargo = outputCargo((record && record.outputTokens) || task.outputTokens);
-				const id = ++deliveryIdRef.current;
-				const taskSpeed = Math.max(.9, Number(speed) || 1);
-				const duration = Math.round(Math.max(8000, Math.min(9400, 10000 / Math.sqrt(taskSpeed))));
-				// 从三个星系中随机挑选归航起点，任务完成时才能知道本次货舰从哪里回来。
-				const galaxies = spaceGalaxyLayout();
-				const returnGalaxy = galaxies[["alpha", "beta", "gamma"][Math.floor(Math.random() * 3)]];
-				const from = freighterAnchorAt({ x: returnGalaxy.cx, y: returnGalaxy.cy });
-				const to = composerDockPoint("left");
-				// 满载舰最终停入左侧归航位，和右上出发星系形成清晰的往返方向。
-				const delivery = Object.assign({ id, from, to, duration }, cargo);
-				setDeliveries([delivery]);
-			}
-			if (success) {
-				pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
-					l: 4 + (i / 18) * 92 + Math.random() * 3,
-					dx: (Math.random() - 0.5) * 60,
-					r: Math.random() * 720 - 360,
-					d: Math.random() * 0.35,
-					c: ["#2563eb", "#0d9488", "#b45309", "#be185d", "#7c3aed"][i % 5],
-				})));
-			}
+		if (!cfg.animationEnabled) return;
+		const success = isSuccessReason((record && record.endReason) || "");
+		setFlourish({ key: Date.now(), err: !success });
+		// 星际远征把完成结果送回用户正在输入的位置。速度继承最后一帧任务节奏；
+		// 货舱数量及标签只取 Host 已记录的真实 outputTokens。
+		if (cfg.effectMode === "space") {
+			const cargo = outputCargo((record && record.outputTokens) || task.outputTokens);
+			const id = ++deliveryIdRef.current;
+			const taskSpeed = Math.max(.9, Number(speed) || 1);
+			const duration = Math.round(Math.max(8000, Math.min(9400, 10000 / Math.sqrt(taskSpeed))));
+			// 从三个星系中随机挑选归航起点，任务完成时才能知道本次货舰从哪里回来。
+			const galaxies = spaceGalaxyLayout();
+			const returnGalaxy = galaxies[["alpha", "beta", "gamma"][Math.floor(Math.random() * 3)]];
+			const from = freighterAnchorAt({ x: returnGalaxy.cx, y: returnGalaxy.cy });
+			const to = composerDockPoint("left");
+			// 满载舰最终停入左侧归航位，和右上出发星系形成清晰的往返方向。
+			const delivery = Object.assign({ id, from, to, duration }, cargo);
+			setDeliveries([delivery]);
 		}
-		// 通知侧：与动画开关完全独立
-		if (!cfg.notifyEnabled) return;
-		const wanted = success ? cfg.notifyOnComplete : cfg.notifyOnError;
-		if (!wanted) return;
-		const models = record && record.models && record.models.length ? record.models.join(", ")
-			: (task.models && task.models.length ? task.models.join(", ") : "未知模型");
-		const provider = (record && record.provider) || task.provider || "";
-		const startTs = (record && record.startTime) || task.startTime;
-		const endTs = (record && record.endTime) || Date.now();
-		const lines = [
-			"任务：" + ((record && record.title) || task.title || "(无标题)"),
-			"模型：" + models + (provider ? "（" + provider + "）" : ""),
-			"耗时：" + fmtDur((record && record.duration) || (endTs - startTs))
-				+ "（" + fmtTime(startTs) + " → " + fmtTime(endTs) + "）",
-			"回合 " + ((record && record.turns) || task.turns || 0)
-				+ " · 步骤 " + ((record && record.steps) || task.steps || 0)
-				+ (((record && record.toolCalls) || task.toolCalls) ? " · 工具 " + ((record && record.toolCalls) || task.toolCalls) + " 次" : ""),
-			"Token：输入 " + fmtNum((record && record.inputTokens) || task.inputTokens)
-				+ " / 输出 " + fmtNum((record && record.outputTokens) || task.outputTokens),
-		];
-		if (record && record.lastText) lines.push("摘要：" + truncate(record.lastText, 140));
-		if (!success && record && record.errorMessage) lines.push("错误：" + truncate(record.errorMessage, 120));
-		const title = success ? "任务完成" : "任务" + info.label;
-		const toast = {
-			id: Date.now() + Math.random(),
-			kind: success ? "success" : (info.cls === "err" ? "error" : "warn"),
-			title,
-			body: lines.join("\n"),
-			stayMs: typeof cfg.notifyStayMs === "number" ? cfg.notifyStayMs : 8000,
-		};
-		setToasts((prev) => prev.concat([toast]).slice(-4));
-		// 提示音：任务结束时播放（完成/异常配套音）；与系统通知独立开关
-		if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
-		// 系统通知：仅页面处于后台时推送，避免前台重复打扰
-		if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
-			&& typeof Notification !== "undefined" && Notification.permission === "granted") {
-			try {
-				new Notification("dsh " + title, {
-					body: ((record && record.title) || task.title || "(无标题)") + " · " + fmtDur((record && record.duration) || (endTs - startTs)),
-					tag: "dsh-dock-animation-" + task.sessionId,
-				});
-			} catch { /* 系统通知失败不影响页面内通知 */ }
+		// 成功时顶部彩带庆祝（通知卡片由【任务通知】模块负责，与本模块无关）
+		if (success) {
+			pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
+				l: 4 + (i / 18) * 92 + Math.random() * 3,
+				dx: (Math.random() - 0.5) * 60,
+				r: Math.random() * 720 - 360,
+				d: Math.random() * 0.35,
+				c: ["#2563eb", "#0d9488", "#b45309", "#be185d", "#7c3aed"][i % 5],
+			})));
 		}
 	};
 
@@ -1324,12 +1106,6 @@ export function AnimationOverlay(props) {
 		) : null}
 		{/* 星际任务完成：货运舰沿航线飞到输入框上方并保持停泊，直到下一次任务出航。 */}
 		{!panelOpen ? deliveries.map((delivery) => <DeliveryFreighter key={delivery.id} delivery={delivery} />) : null}
-		{/* 通知卡片栈（右下→右上不遮 dsh 自身 UI；右上角更常规） */}
-		{toasts.length > 0 ? (
-			<div className="dkan-toasts">
-				{toasts.map((t) => <Toast key={t.id} t={t} onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />)}
-			</div>
-		) : null}
 	</>);
 }
 
@@ -1391,53 +1167,18 @@ function ModePreview({ id }) {
 	);
 }
 
-function TaskRow(props) {
-	const t = props.t;
-	const info = endInfo(t.endReason);
-	const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
-	return (
-		<div className="dkan-task">
-		<div className="dkan-task-head">
-			<span className="dkan-task-title" title={t.title}>{t.title || "(无标题)"}</span>
-			{props.done ? <span className={"dkan-tag " + info.cls}>{info.label}</span>
-				: waiting ? <span className="dkan-tag warn">等待确认</span>
-					: <span className="dkan-tag on">{phaseLabel(t.phase)}</span>}
-		</div>
-			<div className="dkan-task-meta">
-				<span>{(t.models && t.models.length ? t.models.join(", ") : "未知") + (t.provider ? "（" + t.provider + "）" : "")}</span>
-				<span>{props.done ? fmtDur(t.duration) : fmtClock(t.elapsed)}</span>
-				{"turns" in t ? <span>{"回合 " + (t.turns || 0) + " · 步骤 " + (t.steps || 0) + (t.toolCalls ? " · 工具 " + t.toolCalls : "")}</span> : null}
-				{t.totalTokens ? <span>{"↧" + fmtCompact(t.inputTokens) + " ↥" + fmtCompact(t.outputTokens)}</span> : null}
-				{props.done && t.endTime ? <span>{fmtTime(t.endTime)}</span> : null}
-			</div>
-			{waiting ? (
-				<div className="dkan-task-err">
-					{t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "未知工具") + (a && a.reason ? "：" + truncate(a.reason, 80) : "")).join("；")}
-				</div>
-			) : null}
-			{props.done && t.errorMessage ? <div className="dkan-task-err">{truncate(t.errorMessage, 120)}</div> : null}
-		</div>
-	);
-}
-
 function AnimationView(props) {
 	const ctx = props && props.ctx;
 	const snap = useAnimation(ctx);
 	const [cfg, setCfg] = useState(null); // null = 尚未加载
 	const [saveErr, setSaveErr] = useState("");
-	const [testing, setTesting] = useState(false);
-	const [testState, setTestState] = useState(null); // { ok, msg } 机器人测试结果
-	const [feishuTestState, setFeishuTestState] = useState(null); // { ok, msg } 飞书测试结果
-	const [feishuTesting, setFeishuTesting] = useState(false);
 	const cfgRef = useRef(null);
 	const pendingSavesRef = useRef(0); // 进行中的保存（轮询回包不覆盖乐观值）
-	const editingWebhookRef = useRef(false); // 钉钉 Webhook 输入中（轮询不覆盖草稿）
-	const editingFeishuRef = useRef(false); // 飞书 Webhook 输入中（轮询不覆盖草稿）
-	// 拉到新配置（含保存回包）后同步本地编辑态；保存中/输入中不覆盖
+	// 拉到新配置（含保存回包）后同步本地编辑态；保存中不覆盖
 	useEffect(() => {
 		const c = snap.status && snap.status.config;
 		if (!c) return;
-		if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
+		if (pendingSavesRef.current > 0) return;
 		if (c !== cfgRef.current) {
 			cfgRef.current = c;
 			setCfg(Object.assign({}, c));
@@ -1447,7 +1188,7 @@ function AnimationView(props) {
 	useEffect(() => {
 		if (!animationStore.snap.status) animationStore.refresh();
 	}, []);
-	// 乐观更新 + 立即持久化（每个开关独立保存）；返回 Promise 供需要串联的操作使用
+	// 乐观更新 + 立即持久化（每个开关独立保存）
 	const patch = (p) => {
 		setSaveErr("");
 		setCfg(Object.assign({}, cfg, p));
@@ -1462,105 +1203,6 @@ function AnimationView(props) {
 				setSaveErr("保存失败：" + ((e && e.message) || String(e)));
 			});
 	};
-	// Webhook 草稿保存：清编辑态后立即对齐一次（同步 effect 在编辑期被跳过）
-	const saveWebhook = async () => {
-		if (!editingWebhookRef.current) return;
-		const hook = String(cfg.dingtalkWebhook || "").trim();
-		await patch({ dingtalkWebhook: hook });
-		editingWebhookRef.current = false;
-		const c = animationStore.snap.status && animationStore.snap.status.config;
-		if (c && c !== cfgRef.current) {
-			cfgRef.current = c;
-			setCfg(Object.assign({}, c));
-		}
-	};
-	// 飞书 Webhook 草稿保存
-	const saveFeishuWebhook = async () => {
-		if (!editingFeishuRef.current) return;
-		const hook = String(cfg.feishuWebhook || "").trim();
-		await patch({ feishuWebhook: hook });
-		editingFeishuRef.current = false;
-		const c = animationStore.snap.status && animationStore.snap.status.config;
-		if (c && c !== cfgRef.current) {
-			cfgRef.current = c;
-			setCfg(Object.assign({}, c));
-		}
-	};
-	// 钉钉测试：草稿未保存先保存，再发测试消息
-	const runDingtalkTest = async () => {
-		setTesting(true);
-		setTestState(null);
-		try {
-			if (editingWebhookRef.current) {
-				const hook = String(cfg.dingtalkWebhook || "").trim();
-				if (!hook) throw new Error("请先填写 Webhook 地址");
-				const d = await rpcCall("config", { dingtalkWebhook: hook });
-				animationStore.applyConfig(d && d.config);
-				editingWebhookRef.current = false;
-				cfgRef.current = (d && d.config) || cfgRef.current;
-				setCfg(Object.assign({}, cfg, { dingtalkWebhook: hook }));
-			}
-			const r = await rpcCall("test");
-			setTestState(r && r.sent
-				? { ok: true, msg: "测试消息已发送，去群里看看" }
-				: { ok: false, msg: (r && r.error) || "发送失败" });
-		} catch (e) {
-			setTestState({ ok: false, msg: (e && e.message) || String(e) });
-		} finally {
-			setTesting(false);
-		}
-	};
-	// 飞书测试：草稿未保存先保存，再发测试消息
-	const runFeishuTest = async () => {
-		setFeishuTesting(true);
-		setFeishuTestState(null);
-		try {
-			if (editingFeishuRef.current) {
-				const hook = String(cfg.feishuWebhook || "").trim();
-				if (!hook) throw new Error("请先填写 Webhook 地址");
-				const d = await rpcCall("config", { feishuWebhook: hook });
-				animationStore.applyConfig(d && d.config);
-				editingFeishuRef.current = false;
-				cfgRef.current = (d && d.config) || cfgRef.current;
-				setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
-			}
-			const r = await rpcCall("test", { target: "feishu" });
-			setFeishuTestState(r && r.sent
-				? { ok: true, msg: "测试消息已发送，去群里看看" }
-				: { ok: false, msg: (r && r.error) || "发送失败" });
-		} catch (e) {
-			setFeishuTestState({ ok: false, msg: (e && e.message) || String(e) });
-		} finally {
-			setFeishuTesting(false);
-		}
-	};
-	const enableSystemNotify = async (next) => {
-		if (next && typeof Notification !== "undefined" && Notification.permission !== "granted") {
-			try {
-				const perm = await Notification.requestPermission(); // 开关点击即用户手势
-				if (perm !== "granted") {
-					setSaveErr("浏览器未授权系统通知（可在地址栏权限设置里重新允许）");
-					return;
-				}
-			} catch {
-				setSaveErr("浏览器不支持系统通知");
-				return;
-			}
-		}
-		patch({ systemNotify: next });
-	};
-
-	const st = snap.status;
-	const active = st && st.active ? st.active : [];
-	const recent = st && st.recent ? st.recent.slice(0, 6) : [];
-	// 等待确认的审批项总数：运行状态标题与页脚都用，必须在 if/else 之外声明。
-	// ⚠️ 曾误写在 if(!cfg) 的 else 块内、却在块外引用 → ReferenceError: waitingCount is not defined，
-	// 整个视图渲染抛错、宿主把面板插槽换成空 div（点「任务动画」界面直接消失）。
-	const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
-	const permNote = typeof Notification === "undefined"
-		? "当前浏览器不支持系统通知"
-		: Notification.permission === "granted" ? "已授权 · 仅页面后台时推送"
-			: Notification.permission === "denied" ? "已被浏览器拒绝（需在浏览器权限设置里重新允许）" : "未授权 · 开启时会请求授权，仅页面后台时推送";
 
 	const rows = [];
 	if (!cfg) {
@@ -1611,209 +1253,34 @@ function AnimationView(props) {
 						</div>
 					</div> : null}
 					</>
-				) : <div className="dkan-note">动画已关闭——只保留通知（或全部关闭）时，页面不会有任何动效。</div>}
-			</div>,
-			<div key="notify" className="dkan-sec">
-				<div className="dkan-sec-head">
-					<span className="dkan-sec-title">完成通知</span>
-					<span className="dkan-sec-sub">与动画互不依赖，可单独开启</span>
-					<span className="dkan-sec-sw">
-						<span className={"dkan-sec-swlabel" + (cfg.notifyEnabled ? " on" : "")}>{cfg.notifyEnabled ? "已开启" : "已关闭"}</span>
-						<button type="button" className={"dock-sw" + (cfg.notifyEnabled ? " on" : "")}
-							role="switch" aria-checked={cfg.notifyEnabled} aria-label="开关完成通知"
-							title={cfg.notifyEnabled ? "关闭完成通知" : "开启完成通知"}
-							onClick={() => patch({ notifyEnabled: !cfg.notifyEnabled })} />
-					</span>
-				</div>
-				{cfg.notifyEnabled ? <div className="dkan-rows-narrow">
-					<div className="dkan-row">
-						<span className="dkan-row-label">完成通知</span>
-						<button type="button" className={"dkm-miniswitch" + (cfg.notifyOnComplete ? " on" : "")}
-							onClick={() => patch({ notifyOnComplete: !cfg.notifyOnComplete })}>
-							{cfg.notifyOnComplete ? "开" : "关"}
-						</button>
-						<span className="dkan-row-sub">任务正常完成时通知</span>
-					</div>
-					<div className="dkan-row">
-						<span className="dkan-row-label">异常通知</span>
-						<button type="button" className={"dkm-miniswitch" + (cfg.notifyOnError ? " on" : "")}
-							onClick={() => patch({ notifyOnError: !cfg.notifyOnError })}>
-							{cfg.notifyOnError ? "开" : "关"}
-						</button>
-						<span className="dkan-row-sub">出错 / 中止 / 达输出上限时通知</span>
-					</div>
-					<div className="dkan-row">
-						<span className="dkan-row-label">需确认提醒</span>
-						<button type="button" className={"dkm-miniswitch" + (cfg.notifyOnConfirm !== false ? " on" : "")}
-							onClick={() => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false })}>
-							{cfg.notifyOnConfirm !== false ? "开" : "关"}
-						</button>
-						<span className="dkan-row-sub">工具等待你批准时弹卡片并响确认音（常驻不自动消失）</span>
-					</div>
-					<div className="dkan-row">
-						<span className="dkan-row-label">停留时长</span>
-						<select className="dkan-select" value={String(cfg.notifyStayMs)}
-							onChange={(e) => patch({ notifyStayMs: Number(e.target.value) })}>
-							<option value="4000">4 秒</option>
-							<option value="8000">8 秒</option>
-							<option value="15000">15 秒</option>
-							<option value="30000">30 秒</option>
-							<option value="0">常驻（手动关闭）</option>
-						</select>
-					</div>
-					<div className="dkan-row">
-						<span className="dkan-row-label">系统通知</span>
-						<button type="button" className={"dkm-miniswitch" + (cfg.systemNotify ? " on" : "")}
-							onClick={() => enableSystemNotify(!cfg.systemNotify)}>
-							{cfg.systemNotify ? "开" : "关"}
-						</button>
-						<span className="dkan-row-sub">{permNote}</span>
-					</div>
-					<div className="dkan-row">
-						<span className="dkan-row-label">提示音</span>
-						<button type="button" className={"dkm-miniswitch" + (cfg.soundNotify !== false ? " on" : "")}
-							onClick={() => patch({ soundNotify: cfg.soundNotify === false })}>
-							{cfg.soundNotify !== false ? "开" : "关"}
-						</button>
-						<span className="dkan-row-sub">任务结束/需确认时播放（试听为先播完成音、后播异常音）</span>
-					</div>
-					{cfg.soundNotify !== false ? (
-						<div className="dkan-sounds">
-							{Object.keys(SOUND_LIBRARY).map((key) => (
-								<button type="button" key={key}
-									className={"dkan-sound" + (cfg.soundEffect === key ? " on" : "")}
-									onClick={() => patch({ soundEffect: key })}>
-									<span className="dkan-sound-name">
-										{SOUND_LIBRARY[key].name}
-										{cfg.soundEffect === key ? <span className="dkan-sound-cur">✓</span> : null}
-									</span>
-									<span className="dkan-sound-play" role="button" tabIndex={0}
-										title={"试听 " + SOUND_LIBRARY[key].name}
-										onClick={(e) => { e.stopPropagation(); previewSound(key); }}
-										onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); previewSound(key); } }}>▶</span>
-								</button>
-							))}
-						</div>
-					) : null}
-				</div> : <div className="dkan-note">通知已关闭——任务结束时既不弹卡片也不推系统通知。</div>}
-			</div>,
-			<div key="dingtalk" className="dkan-sec">
-				<div className="dkan-sec-head">
-					<span className="dkan-sec-title">钉钉推送</span>
-					<span className="dkan-sec-sub">任务结束推送到钉钉群机器人（宿主直发，浏览器关着也能推；事件跟随上方完成/异常开关）</span>
-					<span className="dkan-sec-sw">
-						<span className={"dkan-sec-swlabel" + (cfg.dingtalkEnabled ? " on" : "")}>{cfg.dingtalkEnabled ? "已开启" : "已关闭"}</span>
-						<button type="button" className={"dock-sw" + (cfg.dingtalkEnabled ? " on" : "")}
-							role="switch" aria-checked={cfg.dingtalkEnabled} aria-label="开关钉钉推送"
-							title={cfg.dingtalkEnabled ? "关闭钉钉推送" : "开启钉钉推送"}
-							onClick={() => patch({ dingtalkEnabled: !cfg.dingtalkEnabled })} />
-					</span>
-				</div>
-				{cfg.dingtalkEnabled ? <div className="dkan-rows-narrow">
-					<div className="dkan-row dkan-row-webhook">
-						<span className="dkan-row-label">Webhook</span>
-						<input type="text" className="dkan-input" spellCheck={false}
-							value={cfg.dingtalkWebhook || ""}
-							placeholder="https://oapi.dingtalk.com/robot/send?access_token=…"
-							onChange={(e) => {
-								editingWebhookRef.current = true;
-								setCfg(Object.assign({}, cfg, { dingtalkWebhook: e.target.value }));
-							}} />
-						<button type="button" className="dkan-btn" disabled={!editingWebhookRef.current}
-							onClick={saveWebhook}>
-							{editingWebhookRef.current ? "保存" : "已保存"}
-						</button>
-					</div>
-					<div className="dkan-row">
-						<span className="dkan-row-label">连通测试</span>
-						<button type="button" className="dkan-btn" disabled={testing} onClick={runDingtalkTest}>
-							{testing ? "发送中…" : "发送测试消息"}
-						</button>
-						{testState ? <span className={"dkan-row-sub" + (testState.ok ? " dkan-ok" : " dkan-err")}>
-							{testState.ok ? "✓ " : "✗ "}{testState.msg}
-						</span> : <span className="dkan-row-sub">用当前保存的 Webhook 发一条测试消息</span>}
-					</div>
-					<div className="dkan-note">机器人创建：钉钉群 → 设置 → 智能群助手 → 添加机器人 → 自定义（Webhook），
-						安全设置选「自定义关键词」填「任务」或「dsh」（推送标题含「任务」即可命中）。</div>
-				</div> : <div className="dkan-note">未开启——任务结束不推送钉钉。</div>}
-			</div>,
-			<div key="feishu" className="dkan-sec">
-				<div className="dkan-sec-head">
-					<span className="dkan-sec-title">飞书推送</span>
-					<span className="dkan-sec-sub">任务结束推送到飞书群机器人（宿主直发，浏览器关着也能推；事件跟随上方完成/异常开关）</span>
-					<span className="dkan-sec-sw">
-						<span className={"dkan-sec-swlabel" + (cfg.feishuEnabled ? " on" : "")}>{cfg.feishuEnabled ? "已开启" : "已关闭"}</span>
-						<button type="button" className={"dock-sw" + (cfg.feishuEnabled ? " on" : "")}
-							role="switch" aria-checked={cfg.feishuEnabled} aria-label="开关飞书推送"
-							title={cfg.feishuEnabled ? "关闭飞书推送" : "开启飞书推送"}
-							onClick={() => patch({ feishuEnabled: !cfg.feishuEnabled })} />
-					</span>
-				</div>
-				{cfg.feishuEnabled ? <div className="dkan-rows-narrow">
-					<div className="dkan-row dkan-row-webhook">
-						<span className="dkan-row-label">Webhook</span>
-						<input type="text" className="dkan-input" spellCheck={false}
-							value={cfg.feishuWebhook || ""}
-							placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…"
-							onChange={(e) => {
-								editingFeishuRef.current = true;
-								setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
-							}} />
-						<button type="button" className="dkan-btn" disabled={!editingFeishuRef.current}
-							onClick={saveFeishuWebhook}>
-							{editingFeishuRef.current ? "保存" : "已保存"}
-						</button>
-					</div>
-					<div className="dkan-row">
-						<span className="dkan-row-label">连通测试</span>
-						<button type="button" className="dkan-btn" disabled={feishuTesting} onClick={runFeishuTest}>
-							{feishuTesting ? "发送中…" : "发送测试消息"}
-						</button>
-						{feishuTestState ? <span className={"dkan-row-sub" + (feishuTestState.ok ? " dkan-ok" : " dkan-err")}>
-							{feishuTestState.ok ? "✓ " : "✗ "}{feishuTestState.msg}
-						</span> : <span className="dkan-row-sub">用当前保存的 Webhook 发一条测试消息</span>}
-					</div>
-					<div className="dkan-note">机器人创建：飞书群 → 设置 → 群机器人 → 添加机器人 → 自定义机器人（获取 Webhook 地址）；
-						安全设置如选「自定义关键词」填「任务」或「dsh」（推送标题含「任务」即可命中）。</div>
-				</div> : <div className="dkan-note">未开启——任务结束不推送飞书。</div>}
+				) : <div className="dkan-note">动画已关闭——任务进行中不会有任何动效（通知设置见左侧「任务通知」）。</div>}
 			</div>
 		);
 	}
 	if (saveErr) rows.push(<div key="err" className="dkan-note dkan-err">{saveErr}</div>);
+	// 运行状态（进行中任务 / 最近完成 / 等待确认）已独立成左侧菜单项，这里只留一句指路
 	rows.push(
-		<div key="state" className="dkan-sec">
-			<div className="dkan-sec-head">
-				<span className="dkan-sec-title">运行状态</span>
-				<span className="dkan-sec-sub">
-					{snap.error ? "状态拉取失败：" + snap.error
-						: waitingCount > 0 ? waitingCount + " 项等待确认 · " + active.length + " 个任务进行中"
-							: active.length > 0 ? active.length + " 个任务进行中"
-								: recent.length > 0 ? "空闲 · 显示最近完成" : "空闲 · 暂无任务记录"}
-				</span>
-				<button type="button" className="dkan-refresh" onClick={() => animationStore.refresh()}>
-					{snap.loading ? "刷新中…" : "刷新"}
-				</button>
-			</div>
-			{active.length > 0 ? <div className="dkan-tasks">{active.map((t) => <TaskRow key={t.sessionId} t={t} />)}</div> : null}
-			{active.length === 0 && recent.length === 0
-				? <div className="dkan-note">发起新会话任务后，这里会显示进行中与最近完成的任务；动画与通知同时在页面生效。</div> : null}
-			{recent.length > 0 ? <div className="dkan-tasks dkan-tasks-done">{recent.map((t) => <TaskRow key={t.sessionId + ":" + t.endTime} t={t} done />)}</div> : null}
+		<div key="hint" className="dkan-note">
+			任务运行状态（进行中任务、阶段、Token、等待确认与最近完成）已独立成左侧「运行状态」菜单；本页只负责动效。
 		</div>
 	);
 	return <div className="dkan-root">{rows}</div>;
 }
 
 // ---------- 首页总揽概要 ----------
+// 任务进行中 / 空闲这类任务信息归【运行状态】模块，这里只报动画自身的状态：
+// 动效开关 + 当前模式（桌面伙伴另报大小），与面板页开关一一对应。
 function AnimationStat(props) {
 	const snap = useAnimation(props && props.ctx);
 	const st = snap.status;
-	if (snap.error) return <span className="dkan-err">任务状态不可用（宿主需重启加载动画路由）</span>;
-	if (!st) return <span>等待任务状态…</span>;
-	if (st.active && st.active.length > 0) {
-		return <span>{st.active.length + " 个任务进行中 · " + fmtDur(Math.max(...st.active.map((x) => x.elapsed || 0)))}</span>;
-	}
-	const last = st.recent && st.recent[0];
-	return <span>{last ? "空闲 · 最近完成 " + truncate(last.title, 24) : "空闲 · 暂无任务记录"}</span>;
+	if (snap.error) return <span className="dkan-err">动画状态不可用（宿主需重启加载动画路由）</span>;
+	if (!st) return <span>等待动画配置…</span>;
+	const cfg = st.config;
+	if (!cfg) return <span>等待动画配置…</span>;
+	if (!cfg.animationEnabled) return <span>动效已关闭 · 任务进行中不显示动画</span>;
+	const mode = EFFECT_MODES.find((m) => m.id === cfg.effectMode) || EFFECT_MODES[0];
+	const scale = Math.round((Number(cfg.robotScale) || 1.35) * 100);
+	return <span>{"动效：" + mode.name + (cfg.effectMode === "robot" ? " · 大小 " + scale + "%" : "")}</span>;
 }
 
 // ---------- 样式（dkan- 前缀；全部走主题变量，暗/亮色自适应；动效时长 = 基准 / --dkan-speed） ----------
@@ -1947,21 +1414,6 @@ const css = [
 	"@keyframes dkan-badge-breathe{0%,100%{box-shadow:0 0 6px color-mix(in srgb,var(--dkan-phase,#4d9fff) 22%,transparent),0 6px 24px rgb(0 0 0 / .16)}50%{box-shadow:0 0 18px color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent),0 6px 24px rgb(0 0 0 / .16)}}",
 	".dkan-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 68%,var(--dk-accent) 92%,#fff);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));animation:dkan-spin calc(2.2s / var(--dkan-speed,1)) linear infinite;opacity:.9;}",
 	"@keyframes dkan-spin{to{transform:rotate(360deg)}}",
-	// 通知卡片栈（右上角）
-	".dkan-toasts{position:fixed;top:16px;right:16px;z-index:9995;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));}",
-	".dkan-toast{border-radius:12px;padding:12px 14px;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 10px 36px rgb(0 0 0 / .22);animation:dkan-toast-in .32s var(--ds-ease-in-out);}",
-	".dkan-toast.out{animation:dkan-toast-out .24s var(--ds-ease-in-out) forwards;}",
-	"@keyframes dkan-toast-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}",
-	"@keyframes dkan-toast-out{to{opacity:0;transform:translateX(10px)}}",
-	".dkan-toast-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}",
-	".dkan-toast-mark{width:8px;height:8px;border-radius:50%;flex:none;}",
-	".dkan-toast-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-	".dkan-toast-close{cursor:pointer;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:6px;width:22px;height:22px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;}",
-	".dkan-toast-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
-	".dkan-toast-body{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.7;white-space:pre-line;word-break:break-word;}",
-	// 需确认卡片：琥珀描边 + 缓慢呼吸光晕，常驻提醒直到用户处理
-	".dkan-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dkan-toast-in .32s var(--ds-ease-in-out),dkan-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
-	"@keyframes dkan-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
 	// 面板页布局
 	".dkan-root{display:flex;flex-direction:column;gap:10px;}",
 	".dkan-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
@@ -1973,8 +1425,6 @@ const css = [
 	".dkan-sec-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
 	".dkan-sec-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
 	".dkan-sec-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
-	".dkan-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
-	".dkan-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
 	// 模式选择卡（带缩微预览）
 	".dkan-modes{display:flex;gap:8px;flex-wrap:wrap;}",
 	".dkan-mode{flex:1;min-width:150px;display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;text-align:left;transition:border-color .15s var(--ds-ease-in-out);}",
@@ -2197,44 +1647,6 @@ const css = [
 	"@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
 	// 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
 	"@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
-	// 通知子选项行
-	".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
-	".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
-	".dkan-row-label{flex:none;min-width:60px;color:var(--dsw-alias-label-primary);}",
-	".dkan-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
-	".dkm-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
-	".dkm-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-		".dkan-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
-	// 音效选择卡（名称 + 播放键；选中态描边）
-	".dkan-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
-	".dkan-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
-	".dkan-sound:hover{border-color:var(--dk-accent);}",
-	".dkan-sound.on{border-color:var(--dk-accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--dk-accent) 40%,transparent);}",
-	".dkan-sound-name{font-size:12px;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:5px;}",
-	".dkan-sound-cur{color:var(--dk-accent);font-size:11px;}",
-	".dkan-sound-play{flex:none;cursor:pointer;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:1;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l2);}",
-	".dkan-sound-play:hover{color:var(--dsw-alias-label-primary);border-color:currentColor;}",
-	".dkan-input{flex:1;min-width:220px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;}",
-	".dkan-input:focus{outline:none;border-color:var(--dk-accent);}",
-	".dkan-row-webhook{flex-wrap:nowrap;}",
-	".dkan-row-webhook .dkan-input{min-width:0;}",
-	".dkan-btn{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 12px;font-family:inherit;font-size:12px;}",
-	".dkan-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-	".dkan-btn[disabled]{opacity:.5;cursor:default;}",
-	".dkan-ok{color:var(--dsw-alias-state-success-primary);}",
-	// 任务列表
-	".dkan-tasks{display:flex;flex-direction:column;gap:6px;}",
-	".dkan-tasks-done{border-top:1px dashed var(--dsw-alias-border-l2);padding-top:6px;}",
-	".dkan-task{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px;}",
-	".dkan-task-head{display:flex;align-items:center;gap:8px;min-width:0;}",
-	".dkan-task-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-	".dkan-task-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-tertiary);}",
-	".dkan-task-err{font-size:11px;color:var(--dsw-alias-state-error-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-	".dkan-tag{flex:none;font-size:10px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
-	".dkan-tag.on{color:var(--dk-accent);border-color:currentColor;}",
-	".dkan-tag.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-	".dkan-tag.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
-	".dkan-tag.warn{color:var(--dk-warn);border-color:currentColor;}",
 ].join("\n");
 
 export const feature = {
@@ -2242,7 +1654,7 @@ export const feature = {
 	name: "任务动画",
 	order: 130,
 	accent: "#f472b6",
-	description: "19 种任务运行动画与完成通知：速度随任务活动联动，两组开关独立、配置持久化",
+	description: "19 种任务运行动画：速度随任务活动联动，配置持久化（通知见「任务通知」，任务状态见「运行状态」）",
 	css,
 	View: AnimationView,
 	HomeStat: AnimationStat,

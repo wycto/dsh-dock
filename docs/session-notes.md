@@ -585,3 +585,91 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 **验证**：`npm run test:client` 全绿（8 视图 + 2 隔离）；`client.js` 重建后 `waitingCount` 声明与引用同为函数体作用域；无 `[DEBUG-]` 残留。
 **部署**：纯客户端改动——浏览器刷新即生效（boot entries 的 rev 按 client.js 内容实时计算），无需重启 `dsh web`。
 **环境备忘**：本机 `npx esbuild` 找不到包（`/tmp/npm-cache` 在 Windows 下无效）；可用 `C:\Users\wzy60\AppData\Local\npm-cache\_npx\beb367dfa21eb3f5\node_modules\.bin` 前置到 PATH 后再跑 `node scripts/build-client.mjs`。
+
+## 2026-09-09 · 通知从「任务动画」拆出，独立成【任务通知】菜单项
+
+**需求**：把【任务动画】里的通知部分独立出来做一个左侧菜单，同样支持启动停止。
+
+**拆法**（`features/notify/`，宿主 + 客户端两半，功能坞左侧菜单独立项，`order: 140`，accent 琥珀 `#f59e0b`）：
+- 搬走：通知事件（完成 / 异常 / 需确认）、提醒方式（停留时长 / 系统通知 / 提示音 6 音效试听）、钉钉推送、飞书推送，外加一个「运行状态」（等待确认项 + 最近完成列表）；提示音库、Toast 组件、`.dkan-toast*` / `.dkan-row*` / `.dkan-sound*` 等样式全部改前缀为 `dknt-`，两个模块样式自洽（各自可单独提取发布）。
+- 留在动画：运行动画开关 + 19 种模式 + 桌面伙伴大小 + 运行状态；浮层只做动效（流光/彩带/货运舰/徽标），不再有卡片栈。
+
+**关键设计**：
+1. **宿主侧任务追踪抽成共享模块** `src/task-track.js`，用引用计数共享一份实例：两个功能都开也只订阅一次 `session/event`（每 token 一条，不能订阅两份），两个都关立刻退订。API：`acquireTaskTracker(ctx)` → `{ tracker: { snapshot(now), onFinish(fn), dispose() }, release() }`。通知模块用 `onFinish` 接任务结束做群机器人推送。
+2. **配置分段**：`DockConfig.animation` 只剩动画字段，新增 `notify` 段。`/dsh-dock/animation/*` 与 `/dsh-dock/notify/*` 各写自己的段，互不污染（宿主机测试有断言）。
+3. **一次性迁移**：`migrateNotifyConfig(ctx)` 在 `index.js` 的 settings 注册回调里跑（早于任何面板保存——animation 保存整段写回会丢掉旧通知字段），把老 `animation` 段的通知字段搬进 `notify` 段并置 `migratedFromAnimation: true`，只写一次。schemastery 不剥离未知键，所以旧字段即使不在 schema 里也读得到。
+4. **模块启停 = 功能坞开关**：notify 不再有第二个总开关（原 `notifyEnabled` 去掉），停用功能即卸载浮层 + 注销宿主路由与推送订阅。沿用 v0.9.5 默认关闭：升级后需在功能坞里手动开启「任务通知」。
+
+**验证**：`npm run test:client` 全绿（9 视图 + 2 隔离 + 新增「弹层左侧菜单含任务动画/任务通知」断言）；新增 `npm run test:host`（`scripts/test-task-notify-host.mjs`）断言共享追踪只有一份订阅且停用后归零、双路由配置隔离、Webhook 校验与测试消息 400、钉钉推送跟随 `notifyOnComplete/notifyOnError`、迁移字段与幂等。`client.js` 重建后 `dkan-toasts` / `dkm-miniswitch` 在产物里为 0 处。
+
+**部署**：宿主半部改了（新增路由 + 迁移），必须重启 `dsh web` 才生效；重启后到功能坞开启「任务通知」，旧的通知配置（含 Webhook）会自动迁移过来。
+
+**顺手修掉的提取脚本老毛病**（验证「模块可单独提取发布」时发现，`scripts/extract-feature.mjs` 此前跑任何模块都会中途崩）：① 生成的客户端入口硬编码 `view.js`，.jsx 模块直接 import 失败；② `outDir/scripts/` 没创建就写 `build-client.mjs` → ENOENT；③ 生成 package.json 的 description 引用了脚本里根本不存在的 `feature` 变量 → ReferenceError。现按 `view.jsx`/`view.js` 自动选择、显式 mkdir、description 用 featureId；实测 `notify`（.jsx）与 `balance`（.js）都产出完整骨架。同时把 `src/task-track.js` 一并复制进独立包（notify 宿主依赖它）。
+
+## 2026-09-09（续）· 用户实测「不得行」：开关只落在浏览器、宿主从未 setup
+
+**现象**：重启 `dsh web` 后打开【任务通知】，页面报「宿主进程是旧版本（没有任务通知路由）」，首页卡片也报「通知状态不可用」。
+
+**排查**（先排除「没重启」）：`netstat` 查到 3080 由 PID 57640 监听、启动于 12:51:05，晚于本次改动（12:48）；`~/.dsh/settings.yaml` 里 `notify` 段已迁移（`migratedFromAnimation: true`、钉钉 Webhook 完好）→ 宿主新代码确实在跑、迁移也跑了。但同一份文件里 `features` 只有 `animation: true`——**宿主侧从未收到 notify 的开关**，`fNotify.setup()` 从没执行，路由自然不存在。面板那句「宿主进程是旧版本」是误报。
+
+**根因（客户端开关同步的缺口）**：`toggleFeature` 只在点击时推宿主，`syncFeatureStateFromHost` 启动时只对「本浏览器没表态过」的 id 跟随宿主。于是「本浏览器已表态 true、宿主从未记录过」这种组合永远补不上：点开关时宿主还是旧进程 → POST 404 → 只留在 localStorage；重启后宿主按 `defaultEnabled=false` 不 setup → 路由 404 → 面板误报。用户当时的手动绕过（开关关掉再打开）让 POST 打到了新宿主，`features.notify` 才落盘。
+
+**修法**（`src/shared.js`）：启动同步时若某功能在宿主 `persisted` 里**根本没有记录**，就补推一次本浏览器的选择（true/false 都推）；宿主显式记过 false 的绝不覆盖——多设备（手机 + 桌面）场景下不能拿本浏览器的旧值去顶别人的新决定。404/405 提示同步改成「宿主进程可能是旧版本，或该功能在宿主侧未启用（重启 dsh web，或把开关关掉再打开）」。
+
+**验证**：新增用例「开关补推」（三种组合：宿主无记录→补推 true；宿主记过 false→不推；本地 false 且宿主无记录→补推 false），`npm run test:client` 全绿；线上实测 `GET /dsh-dock/features` 返回 `notify enabled=true`、`POST /dsh-dock/notify/status` 200 且带回迁移后的钉钉 Webhook、`POST /dsh-dock/animation/status` 200。**教训**：功能拆成新菜单项时，宿主侧「开关落地」必须与客户端状态对齐，否则表现为「面板好好的、功能全 404」。
+
+## 2026-09-09（续2）· 开发/发版流程落地：git 修正 + 流程文档 + `dsh-dock` 开发预设
+
+**用户指正**：开发阶段提交备注不要写「发版」；不要同步代码到发版库 github；只有用户明确说「发版」时才改包版本、发 npm、写发版备注、推 github 并打 tag。
+
+**处置**（当轮全部完成）：
+1. **撤销 github**：`git push github +ea08c46:main --force-with-lease=refs/heads/main:df14934` → 发版库回到上一个发版提交（开发提交不再出现在 github）。
+2. **改写本地提交**：`功能：通知从任务动画拆出成【任务通知】独立菜单项（各自启停）+ 开关补推修复`（正文保留需求/根因/改法/验证），并 force-with-lease 同步到 origin。
+3. **回退版本号**：`package.json` 与 `src/client.jsx` 的 `DOCK_VERSION` 都回到 `0.9.9`（重建 `client.js` 后产物里也是 0.9.9）；`CHANGELOG.md` 顶部段改成 `## 未发布（下一版）— 开发中`；清掉代码注释里的 `v0.10.0` 字样（版本号未定，写死会在改号时全变错）。
+4. **新增 `docs/workflow.md`**：开发/发版流程的唯一真源（远端角色、开发阶段 6 条铁律、每次改动必跑的检查、发版 12 步、模块架构约定、环境坑、预设维护）。
+5. **新建用户预设 `dsh-dock 插件开发`**（`~/.dsh/.agent-presets/dsh-dock/`）：`standard` 的副本 + persona 里注入开发/发版铁律 + 预设自带技能 `skills/dsh-dock-release/SKILL.md`；`standingKeyFor('dsh-dock')` 挂载校验通过。
+
+**教训**：跨会话的流程约定必须落到文件里（本文件 + `docs/workflow.md` + 预设 persona），只存在于会话记忆里的约定，下一次会话就会漂回旧习惯。
+
+## 2026-09-09（续3）· 运行状态从「任务动画」拆出，独立成【运行状态】菜单
+
+**需求**：把【任务动画】下面的【运行状态】也独立成一个左侧面板菜单出来。
+
+**拆法**（`features/runstate/`，宿主 + 客户端两半，左侧独立菜单项 `order: 150`，accent 天蓝 `#38bdf8`）：
+- 搬走：进行中任务（阶段标签 / 耗时 / 回合 / 步骤 / 工具 / Token）、等待确认横幅 + 每张卡的等待工具与说明、最近完成（最多 10 条，含结束原因与结束时间）。
+- 新模块**只读**：宿主半部只有 `POST /dsh-dock/runstate/status`（返回共享追踪快照），没有 settings 配置段、不写盘；客户端没有常驻浮层，只在面板打开时轮询（有任务 2s / 空闲 8s / 出错 15s），关掉面板即零开销。首页概要卡片首次进入拉一次。
+- 【任务动画】只剩动画（运行动画开关 + 19 种模式 + 桌面伙伴大小），【任务通知】只剩四组通知设置；两页各留一行指路。首页概要各归其位：运行状态报任务（进行中 / 等待确认 / 空闲·最近完成）、动画报当前动效模式与开关、通知报事件 + 提醒方式 + 已开启的推送通道。
+
+**为什么两个旧面板的运行状态都删**：用户确认「两处都删，只留新菜单」——上一次拆分已经让 animation 与 notify 各有一份运行状态，再加新菜单就是三处重复；现在运行状态只有一个归属。
+
+**共享追踪**：`src/task-track.js` 仍按引用计数共享一份实例，三个功能都开也只订阅一次 `session/event`，全部停用才退订（宿主测试有断言）。
+
+**清理**：动画页的 `TaskRow` / `END_LABELS` / `fmtDur` / `fmtTime` 与 `dkan-task*`、`dkan-tag*`、`dkan-refresh` 样式，通知页的 `NotifyTaskRow` / `phaseLabel` 与 `dknt-task*`、`dknt-tag*`、`dknt-refresh`、`dknt-warn` 样式全部删掉；新模块用 `dkrs-` 前缀自成一套（同样可单独提取发布）。
+
+**测试**：
+- `npm run test:client`：新增运行状态视图用例（10 个内置视图全绿）；「左侧菜单」断言改为三个独立菜单项；**内置视图错误隔离用例改用运行状态视图当靶子**——动画视图已不再做 `active.reduce`，原来那个 Proxy 触发器不再会崩。
+- `npm run test:host`（脚本由 `test-task-notify-host.mjs` 更名 `test-task-host.mjs`，npm 入口不变）：断言三个模块共用一份订阅、逐个停用后引用计数正确、`/dsh-dock/runstate` 只有只读 status（`config` 404 且不写 settings）、完成记录三处共享。
+
+**部署**：宿主新增路由 → 必须重启 `dsh web` 才生效；重启后在功能坞开启「运行状态」（新功能默认关闭，开关会经 `/dsh-dock/features` 持久化到宿主）。纯客户端部分刷新页面即可。
+
+**教训**：拆功能时「重复区块」要一并处置——留着旧区块比多写几行代码更糟，用户看到的是三份一样的东西。
+
+## 2026-09-09（续4）· 模型设置整页 404：宿主/客户端功能 id 劈叉（models vs modelconfig）
+
+**用户反馈**：功能坞【模型设置】页报「模型目录拉取失败：模型目录接口 HTTP 404」，重试无效。
+
+**反馈回路**（本次一分钟定位的关键）：插件无条件注册的 `GET /dsh-dock/features` 就是现成探针——`GET /dsh-dock/models` 404、features 表里 `models enabled:false` 且 `persisted` 没有它；再对比 POST：`{id:"modelconfig"}` → 404「未知功能」，`{id:"models"}` → 200 且路由立刻活了。全程 HTTP 探测，零代码插桩。
+
+**根因**：客户端视图 id `modelconfig`（features/modelconfig/view.js）≠ 宿主功能 id `models`（features/modelconfig/host.js）——唯一不一致的模块（其余模块目录名 = 视图 id = 宿主 id 三方一致）。面板开关与 v0.9.7 的补推都 POST 客户端 id → 宿主 404 被客户端 `.catch(()=>{})` 静默吞掉 → 宿主半部从不 setup → 路由不存在。v0.9.5 之前宿主默认开启所以从未暴露；用户浏览器 localStorage 还留着旧「已启用」标记，所以页面能进、看到的是 404 报错而非「已停用」提示。**404 之所以无声：fetch 对 HTTP 404 是正常 resolve，`.catch` 根本接不住。**
+
+**修法**：
+- 宿主 id 改为 `modelconfig`（features/modelconfig/host.js）；`index.js` 功能清单注释同步。
+- `src/host-core.js` 新增 `migrateModelsFeatureId(ctx)`：开关表旧键 `features.models` → `features.modelconfig`（幂等早退、新键已存在不覆盖），settings 注册回调里与 `migrateNotifyConfig` 并列调用；`index.js` 的 `persistedFeatureMap()` 读取侧做兼容别名——异步迁移落盘前，启动开关表与 `/dsh-dock/features` 响应第一时间就是新口径。
+- `src/shared.js` 开关补推失败改 `console.warn`（查 `res.ok`；网络错误仍静默——宿主旧版本/不可达时本地开关照常生效的设计不变）。
+- 回归测试：`test-client-views.mjs` 新增「双半部 id 一致」用例（7 个双半部模块：host.js 真导入 + view 源码正则抽 id）；`test-task-host.mjs` 新增迁移用例（迁一次 / 幂等 / 新键已存在不覆盖）。
+- 顺手修构建（上个会话 587 行备忘的根治版）：`build-client.mjs` npx 缓存 `/tmp/npm-cache` → `os.tmpdir()`（Windows 下 npx 解析不到 esbuild），esbuild 来源三级解析（`DSH_DOCK_ESBUILD` 环境变量 → `node_modules/esbuild` 本地安装 → npx 兜底）；本次沙箱内 npm 缓存目录不可写（`_cacache` EPERM）且 npm install 会因存量 peer 冲突 ERESOLVE，用 `DSH_DOCK_ESBUILD` 指到系统 npx 缓存里现成的 esbuild 完成重建。
+
+**验证**：`npm run test:client` 全绿（11 用例含新增 id 一致）；`npm run test:host` 全绿（含新迁移用例）；线上 3080 应急开启后 `GET /dsh-dock/models` 200（13KB 目录）。宿主半部改动 → **重启 `dsh web` 生效**：重启后迁移把 `features.models:true` 换成 `features.modelconfig:true`，开关状态无缝延续；不重启当前实例也已恢复（应急开启时路由已注册）。
+
+**教训**：「目录名 = 视图 id = 宿主 id」的功能模块三方一致是开关同步的隐形契约。v0.9.7 的补推修复修的是**时机**（宿主旧进程时 POST 404），没查**id 本身对不对得上**——补推把错误 id 原样再推一遍，照样 404。跨半部契约必须用测试锁死，不能靠约定自觉。
+
