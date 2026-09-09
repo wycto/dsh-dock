@@ -356,7 +356,10 @@ async function writeModelConfig(ctx, body) {
 
 /** 功能注册表条目：index.js 组装 hostSetups 时使用。 */
 export const feature = {
-  id: 'models',
+  // id 必须与客户端视图描述符（view.js 的 feature.id）一致：面板开关 / 补推同步都按它
+  // POST /dsh-dock/features，历史上这里叫 'models' 而客户端叫 'modelconfig'，
+  // 开关永远被宿主当「未知功能」拒掉，目录接口随之 404（迁移见 host-core 的 migrateModelsFeatureId）。
+  id: 'modelconfig',
   name: '模型设置',
   description: '模型目录读写：编辑输入类型与思考强度，写回官方配置热生效',
   defaultEnabled: false,

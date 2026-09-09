@@ -22,6 +22,8 @@
 
 ### 修复
 
+- **【模型设置】开关永远开不起来 → 目录接口整片 404**（v0.9.5 起存在）：宿主功能 id 叫 `models`、客户端视图 id 叫 `modelconfig`——面板开关与启动补推都按客户端 id `POST /dsh-dock/features`，宿主注册表里没有这个 id，一律 404「未知功能」（客户端静默吞掉），宿主半部从不 setup，`/dsh-dock/models` 从未注册；v0.9.5「默认全关」之前宿主默认开着才没暴露。现宿主 id 改齐为 `modelconfig`（回归「目录名 = 视图 id = 宿主 id」约定，新增双半部 id 一致性测试锁死），启动时一次性迁移开关表旧键 `features.models` → `features.modelconfig`（幂等，新键已存在不覆盖），读取侧在迁移落盘前做兼容别名兜底；开关补推失败改为 `console.warn`（fetch 对 404 是正常 resolve，`.catch` 接不住 HTTP 错误——本次排查半个版本才定位就是因为无声）。
+- **Windows 下 `npm run build:client` 直接失败**：npx 缓存目录写死 `/tmp/npm-cache`（POSIX 路径），Windows 下 npx 解析不到 esbuild。改为系统临时目录，且 esbuild 来源支持三级解析：`DSH_DOCK_ESBUILD` 环境变量显式指定 → 仓库本地安装（`node_modules/esbuild`）→ npx 兜底。
 - **新功能「面板显示已启用、宿主却从未 setup」→ 路由整片 404**（升级后第一次开【任务通知】必踩）：点开关时宿主进程还是旧版本，POST `/dsh-dock/features` 打了 404，开关只落在浏览器本地；宿主重启后其持久化表里没有 `notify`，宿主便从不 setup 该功能，`/dsh-dock/notify/*` 全 404，而面板把 404 一律说成「宿主进程是旧版本」，看着像没重启。现在 `initFeatureState` 拉宿主开关表时，若某功能**宿主从未记录过**（`persisted` 里没有它），就补推一次本浏览器的选择；宿主已显式记过 `false` 的不覆盖（多设备场景不能拿旧值去顶）。
 - **404/405 提示不再误报**：点明两种可能（宿主进程为旧版本 / 该功能在宿主侧未启用）并给出可操作办法（重启 `dsh web`，或把功能坞里的开关关掉再打开）；任务动画页、任务通知页与运行状态页同步改。
 

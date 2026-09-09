@@ -11,7 +11,7 @@
  *   1) 渲染不抛错；2) 页面出现该功能的实际内容。
  * 每个功能都跑多趟渲染直到状态稳定（覆盖「拉取到配置 / 任务状态后」的数据分支）。
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -486,6 +486,38 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 开关补推：宿主没记录过的功能按本浏览器选择补推一次，宿主已显式关掉的不覆盖");
+}
+
+// ---------- 用例 7：双半部功能 id 一致（视图描述符 id === 宿主 feature id） ----------
+// 真实事故：模型设置的宿主 id 叫 "models"、客户端视图 id 叫 "modelconfig"——面板开关
+// 按 id POST /dsh-dock/features 被宿主当「未知功能」404（客户端静默吞掉），宿主半部
+// 永远不 setup，目录接口整片 404；v0.9.5 默认全关后暴露成「模型设置不行了」。
+// 其余模块三方一致（目录名 = 视图 id = 宿主 id），这里把该约定锁死，防再次劈叉。
+{
+	const { readdirSync } = await import("node:fs");
+	let detail = "";
+	let checked = 0;
+	for (const dir of readdirSync(join(root, "features"), { withFileTypes: true })) {
+		if (!dir.isDirectory()) continue;
+		const hostPath = join(root, "features", dir.name, "host.js");
+		const viewPath = ["view.js", "view.jsx"].map((f) => join(root, "features", dir.name, f)).find((p) => existsSync(p));
+		if (!existsSync(hostPath) || !viewPath) continue; // 单半部模块（纯客户端/纯宿主）不约束
+		checked++;
+		try {
+			const { feature } = await import(`file://${hostPath.replace(/\\/g, "/")}`);
+			const m = readFileSync(viewPath, "utf8").match(/export\s+const\s+feature\s*=\s*\{\s*id:\s*["']([^"']+)["']/);
+			if (!m) { detail = `${dir.name}/view 视图描述符里找不到 id 声明（正则失配，请同步更新本用例）`; break; }
+			if (feature.id !== m[1]) { detail = `${dir.name}：宿主 id="${feature.id}" ≠ 视图 id="${m[1]}"（面板开关会推不到宿主）`; break; }
+		} catch (e) {
+			detail = `${dir.name} 双半部 id 校验抛错：${(e && e.message) || e}`;
+			break;
+		}
+	}
+	if (detail) {
+		console.log(`✗ 双半部功能 id 一致：${detail}`);
+		process.exit(1);
+	}
+	console.log(`✓ 双半部功能 id 一致：${checked} 个双半部模块的视图 id 与宿主 id 全部相同`);
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

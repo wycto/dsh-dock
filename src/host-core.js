@@ -96,6 +96,30 @@ export async function migrateNotifyConfig(ctx) {
   }
 }
 
+/**
+ * 一次性迁移：宿主侧【模型设置】功能 id 从 models 改为 modelconfig（与客户端视图 id 对齐）。
+ *
+ * 为什么必须迁：面板开关按客户端 id（modelconfig）POST /dsh-dock/features，
+ * 旧宿主 id 叫 models → 永远「未知功能」404（客户端静默吞掉），开关表里因此
+ * 只可能出现 API 手工写入的 models 键。新键未落盘时继承旧值并删掉旧键；
+ * 判断条件本身幂等（迁完后 models 键不存在，直接早退），无需额外标记位。
+ */
+export async function migrateModelsFeatureId(ctx) {
+  try {
+    const settings = ctx.get('settings')
+    if (!settings || typeof settings.get !== 'function' || typeof settings.mutate !== 'function') return
+    const root = settings.get(DOCK_NS)
+    const features = root && typeof root === 'object' && root.features && typeof root.features === 'object' ? root.features : null
+    if (!features || typeof features.models !== 'boolean' || typeof features.modelconfig === 'boolean') return
+    const next = Object.assign({}, features, { modelconfig: features.models })
+    delete next.models
+    await settings.mutate(DOCK_NS, [{ op: 'set', path: ['features'], value: next }])
+    console.log('[dsh-dock] feature id migrated: features.models -> features.modelconfig =', features.models)
+  } catch (e) {
+    console.warn('[dsh-dock] models feature id migration skipped:', (e && e.message) || String(e))
+  }
+}
+
 /** 任务动画 effectMode 合法值（客户端动画模式）。 */
 export const ANIMATION_MODES = [
   'flow', 'breathe', 'ring', 'orbit', 'robot', 'matrix', 'stars', 'aurora', 'space',
