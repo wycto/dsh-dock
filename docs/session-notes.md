@@ -673,3 +673,21 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 
 **教训**：「目录名 = 视图 id = 宿主 id」的功能模块三方一致是开关同步的隐形契约。v0.9.7 的补推修复修的是**时机**（宿主旧进程时 POST 404），没查**id 本身对不对得上**——补推把错误 id 原样再推一遍，照样 404。跨半部契约必须用测试锁死，不能靠约定自觉。
 
+## 2026-09-09（续5）· 发版 v0.10.0；github 发版库改为「每次发版一条提交」
+
+**发版**：v0.10.0 已发布（两处版本号 → CHANGELOG 改名 → 重建产物 → 全量测试 → 发版提交 2560206 → tag v0.10.0 推两个远端 → npm 上线，registry latest 已返回 0.10.0）。
+
+**用户指正**：发版同步 github 时不要把开发提交分批推上去——把代码同步成**一条**提交：主标题写「发版」，body 汇总开发库提交内容（相当于把开发库提交记录总结一次提交）。
+
+**改法**：
+1. 新增 `scripts/push-github-release.sh`：发版时用 `git commit-tree` 把 main **整棵树**压成一条「发版 vX.Y.Z」提交（父提交 = 上一次发版提交，message 文件复用发版提交那份），快进推到 `github/main`；本地 `release` 分支跟踪 `github/main`（**勿推 origin**）。
+2. `docs/workflow.md`：§1 远端表补「github main 只有发版提交 / release 分支不推 origin / 两库树同史不同」；§3 第 7-10 步改为 提交+推 origin → 脚本一条同步 github → tag（指向开发库发版提交）→ npm（Git Bash 路径）；§5 补「本机 `bash` 解析到 WSL，跑 `scripts/*.sh` 用 `"D:\Program Files\Git\bin\bash.exe"`」。
+3. 预设 `dsh-dock 插件开发` 三处同步：persona 铁律（github 一条发版提交同步）、`skills/dsh-dock-release/SKILL.md`（铁律 3 + 发版步骤 7-9 + 环境坑 Git Bash）、`preset.yml` 描述。
+
+**github 历史重写**（用户拍板「重写为纯发版历史」）：`git commit-tree 'main^{tree}'`（无 `-p`）造 v0.10.0 根提交 `0bc4547`（message 汇总本版内容），`git push github +refs/heads/release:main --force-with-lease=refs/heads/main:2560206`。github main 从此只有发版提交；旧开发提交不再出现在 main 线上（历史版本 tag 仍指向原提交，可访问）；根提交树与 origin/main 完全一致（`82bc8337`）。origin 未动，完整开发史保留。
+
+**验证**：`git fetch github main` 后 `git log` 仅 1 条且树 = main 树；本地 release = github/main；origin/main 仍在 2560206；预设 `preset.yml` 直解、`agent.cordis.yml` 把 DSH 专有 `!!js` 标签替换成普通标量后结构解析通过（plain js-yaml 不认 `!!js` 属预期）；`bash -n` 语法检查通过。
+
+**教训**：tag 指向开发库的发版提交，在 github 上它不在 main 线上但树一致——这是约定不是事故：发版库看发版日志，开发库看开发史，npm 主页展示的是发版库。
+
+
