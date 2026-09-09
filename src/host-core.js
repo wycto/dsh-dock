@@ -5,7 +5,8 @@ import z from '@deepseek-ai/schemastery'
 /** dsh-dock 自有 settings 命名空间（插件级配置，如图片理解代理）。 */
 export const DOCK_NS = 'dsh-dock'
 
-/** 自有命名空间的 schema（功能开关 + 图片理解代理 + 任务动画/任务通知配置 + 远程访问账号）。 */
+/** 自有命名空间的 schema（功能开关 + 图片理解代理 + 任务动画/任务通知配置 + 远程访问账号）。
+ *  运行状态模块只读共享追踪、不写配置，因此没有自己的段。 */
 export const DockConfig = z.object({
   // 宿主侧功能开关（id -> boolean）：客户端面板 toggle 即时同步过来，
   // 重启 dsh 后按此表决定宿主半部 setup 哪些功能（路由注册、事件订阅等）。

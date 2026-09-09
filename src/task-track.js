@@ -1,9 +1,9 @@
-// dsh-dock · 宿主共享内核：会话级任务追踪（【任务动画】与【任务通知】共用一份数据）
+// dsh-dock · 宿主共享内核：会话级任务追踪（【任务动画】【任务通知】【运行状态】共用一份数据）
 //
-// 为什么单独成模块：动画与通知都需要「任务什么时候开始/结束、现在在干什么」，
-// 但两者是各自独立开关的功能模块（可只开其一，也可各自提取成独立包发布）。
-// 追踪逻辑放这里、用引用计数共享一份实例：两个功能都开也只有一份追踪（会话事件只订阅一次），
-// 两个都关则立刻退订，不留下常驻开销。
+// 为什么单独成模块：动画、通知与运行状态都需要「任务什么时候开始/结束、现在在干什么」，
+// 但三者是各自独立开关的功能模块（可只开其一，也可各自提取成独立包发布）。
+// 追踪逻辑放这里、用引用计数共享一份实例：三个功能都开也只有一份追踪（会话事件只订阅一次），
+// 全都关则立刻退订，不留下常驻开销。
 //
 // 用法（features/<id>/host.js）：
 //   const lease = acquireTaskTracker(ctx)
@@ -11,8 +11,8 @@
 //   lease.tracker.snapshot(Date.now())          // → { now, active: [...], recent: [...] }
 //   const off = lease.tracker.onFinish((rec) => { ... })  // 任务结束回调（群机器人推送用）
 //
-// 数据形状（active/recent）由客户端两个模块共同消费，字段改动要同时看：
-//   features/animation/view.jsx、features/notify/view.jsx
+// 数据形状（active/recent）由客户端各模块消费，字段改动要同时看：
+//   features/runstate/view.jsx、features/animation/view.jsx、features/notify/view.jsx
 
 /** 最近完成记录保留条数（新→旧）。 */
 const MAX_COMPLETED = 30

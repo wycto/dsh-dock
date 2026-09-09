@@ -1,8 +1,8 @@
 // dsh-dock · 功能模块【任务动画】· 宿主半部
 //
 // 职责：动画配置持久化（动效开关 / 模式 / 桌面伙伴大小）+ 状态路由。
-// 会话级任务追踪在 src/task-track.js（与【任务通知】共用一份数据）；
-// 通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书推送）在 features/notify/，两个功能各自独立启停。
+// 会话级任务追踪在 src/task-track.js（与【任务通知】【运行状态】共用一份数据）；
+// 通知在 features/notify/、运行状态在 features/runstate/，三个功能各自独立启停。
 //
 // RPC（webServer HTTP 路由，前缀 /dsh-dock/animation/）：
 //   POST /status —— 活跃任务 + 最近完成 + 动画配置（客户端据此渲染动效）
@@ -42,7 +42,7 @@ function readConfig(ctx) {
 export const feature = {
   id: 'animation',
   name: '任务动画',
-  description: '19 种任务运行动画（速度随任务活动联动，配置持久化；通知见「任务通知」）',
+  description: '19 种任务运行动画（速度随任务活动联动，配置持久化；通知见「任务通知」，任务状态见「运行状态」）',
   defaultEnabled: false,
   setup(ctx) {
     const disposers = []

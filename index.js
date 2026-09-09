@@ -14,6 +14,7 @@
 //   - tokenlog    用量记录（v0.4.0）：LLM 调用记账与统计（移植自 @wycto/dsh-token-usage）
 //   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效配置持久化（参照 @wycto/dsh-task-pulse）
 //   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
+//   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
 //   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
 import { DOCK_NS, DockConfig, sendJson, readBody, migrateNotifyConfig } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
@@ -22,6 +23,7 @@ import { feature as fBalance } from './features/balance/host.js'
 import { feature as fTokenlog } from './features/tokenlog/host.js'
 import { feature as fAnimation } from './features/animation/host.js'
 import { feature as fNotify } from './features/notify/host.js'
+import { feature as fRunState } from './features/runstate/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 
 export const name = 'dsh-dock'
@@ -59,6 +61,7 @@ export function apply(ctx) {
     fTokenlog,
     fAnimation,
     fNotify,
+    fRunState,
     fMobileRelay,
   ]
 

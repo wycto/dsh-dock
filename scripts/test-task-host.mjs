@@ -1,15 +1,17 @@
 /**
- * dsh-dock — 【任务动画】/【任务通知】宿主半部回归测试（无外部依赖：node scripts/test-task-notify-host.mjs）
+ * dsh-dock — 【任务动画】/【任务通知】/【运行状态】宿主半部回归测试（无外部依赖：node scripts/test-task-host.mjs）
  *
- * 覆盖把通知从任务动画拆出时的四个关键契约：
- *   1) 共享任务追踪（src/task-track.js）：两个功能都开只有一份会话事件订阅，逐个停用后正确退订；
- *   2) 两条路由各管自己的配置段：/dsh-dock/animation 只写 animation，/dsh-dock/notify 只写 notify；
+ * 覆盖从任务动画里拆出功能模块时的关键契约：
+ *   1) 共享任务追踪（src/task-track.js）：三个功能都开只有一份会话事件订阅，逐个停用后正确退订；
+ *   2) 配置路由各管自己的段：/dsh-dock/animation 只写 animation，/dsh-dock/notify 只写 notify；
+ *      /dsh-dock/runstate 只读（没有任何配置方法，也不写 settings）；
  *   3) 任务结束时通知模块拿到完成记录并推送群机器人（钉钉/飞书事件筛选跟随 notifyOnComplete/notifyOnError）；
  *   4) 一次性迁移 migrateNotifyConfig：把老 animation 段里的通知配置搬进 notify 段，且只搬一次。
  */
 import assert from 'node:assert/strict'
 import { feature as animationFeature } from '../features/animation/host.js'
 import { feature as notifyFeature } from '../features/notify/host.js'
+import { feature as runStateFeature } from '../features/runstate/host.js'
 import { migrateNotifyConfig, DOCK_NS } from '../src/host-core.js'
 
 // ---------- 宿主桩：settings（内存）+ webServer（路由槽）+ sessionQuery（事件总线） ----------
@@ -111,14 +113,17 @@ function makeHost() {
   }
 }
 
-// ---------- 用例 1：共享追踪 + 两条路由各自的配置段 ----------
+// ---------- 用例 1：共享追踪 + 各路由自己的配置段 ----------
 const host = makeHost()
 const disposeAnimation = animationFeature.setup(host.ctx)
 assert.equal(host.listenerCount('session/event'), 1, '动画模块必须订阅会话事件')
 const disposeNotify = notifyFeature.setup(host.ctx)
 assert.equal(host.listenerCount('session/event'), 1, '两个模块共用一份追踪：会话事件只能订阅一次')
+const disposeRunState = runStateFeature.setup(host.ctx)
+assert.equal(host.listenerCount('session/event'), 1, '三个模块共用一份追踪：会话事件仍只能订阅一次')
 assert.ok(host.routes.has('/dsh-dock/animation'), '/dsh-dock/animation 路由应注册')
 assert.ok(host.routes.has('/dsh-dock/notify'), '/dsh-dock/notify 路由应注册')
+assert.ok(host.routes.has('/dsh-dock/runstate'), '/dsh-dock/runstate 路由应注册')
 
 // 会话开始：agent/status running + 一条 tool/call
 host.emit('agent/status', { agent: { id: 'sess-1', options: { model: 'deepseek-chat', provider: 'deepseek' } }, status: 'running' })
@@ -126,14 +131,19 @@ host.emit('session/event', { id: 'sess-1' }, { type: 'tool/call', time: Date.now
 
 const animStatus = (await host.call('/dsh-dock/animation', 'status')).body.data
 const notifyStatus = (await host.call('/dsh-dock/notify', 'status')).body.data
+const runStateStatus = (await host.call('/dsh-dock/runstate', 'status')).body.data
 assert.equal(animStatus.active.length, 1)
 assert.equal(notifyStatus.active.length, 1)
+assert.equal(runStateStatus.active.length, 1, '运行状态模块应拿到同一份活跃任务')
 assert.equal(animStatus.active[0].sessionId, 'sess-1')
+assert.equal(runStateStatus.active[0].sessionId, 'sess-1')
 assert.equal(animStatus.active[0].toolCalls, 1, '共享追踪应累计工具调用')
 assert.equal(notifyStatus.active[0].phase, 'code', '工具阶段应共享到通知模块')
+assert.equal(runStateStatus.active[0].phase, 'code', '工具阶段应共享到运行状态模块')
 assert.equal(animStatus.config.effectMode, 'flow', '动画配置默认值')
 assert.equal(notifyStatus.config.notifyStayMs, 8000, '通知配置默认值')
 assert.equal(animStatus.config.dingtalkEnabled, undefined, '动画配置段不得混入通知字段')
+assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置段（只读快照）')
 
 // 配置写入：各自只认自己的字段
 {
@@ -158,7 +168,7 @@ assert.equal(animStatus.config.dingtalkEnabled, undefined, '动画配置段不�
   assert.equal(raw.animation.effectMode, 'stars', '通知保存不得覆盖动画段')
 }
 {
-  // 下面两条是「预期失败」的请求：宿主会照常 console.error，这里临时静音保持输出干净
+  // 下面三条是「预期失败」的请求：宿主会照常 console.error，这里临时静音保持输出干净
   const realError = console.error
   console.error = () => {}
   try {
@@ -170,6 +180,11 @@ assert.equal(animStatus.config.dingtalkEnabled, undefined, '动画配置段不�
     const test = await host.call('/dsh-dock/notify', 'test', { target: 'feishu' })
     assert.equal(test.status, 400)
     assert.match(test.body.error.message, /请先填写并保存飞书 Webhook/)
+    // 运行状态模块只读：没有任何配置方法（连 config 都 404），也不可能写 settings
+    const before = host.mutateCount()
+    const noCfg = await host.call('/dsh-dock/runstate', 'config', { anything: true })
+    assert.equal(noCfg.status, 404, '运行状态模块不应有 config 方法')
+    assert.equal(host.mutateCount(), before, '运行状态模块不得写 settings')
   } finally {
     console.error = realError
   }
@@ -187,9 +202,11 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 20)) // 推送是异步的
   const afterAnim = (await host.call('/dsh-dock/animation', 'status')).body.data
   const afterNotify = (await host.call('/dsh-dock/notify', 'status')).body.data
+  const afterRunState = (await host.call('/dsh-dock/runstate', 'status')).body.data
   assert.equal(afterAnim.active.length, 0, '任务结束后活跃列表应清空')
   assert.equal(afterAnim.recent.length, 1, '完成记录应进入最近完成')
   assert.equal(afterNotify.recent[0].sessionId, 'sess-1', '两个模块共享同一份完成记录')
+  assert.equal(afterRunState.recent[0].sessionId, 'sess-1', '运行状态模块共享同一份完成记录')
   assert.equal(pushed.length, 1, '钉钉推送应发出一次')
   assert.match(pushed[0].url, /oapi\.dingtalk\.com/)
   assert.match(pushed[0].body.markdown.text, /sess|任务完成|任务结束/, '推送正文应含任务信息')
@@ -209,14 +226,18 @@ try {
 
 // ---------- 用例 3：引用计数——逐个停用后追踪才退订 ----------
 disposeAnimation()
-assert.equal(host.listenerCount('session/event'), 1, '动画停用后通知仍需要追踪')
+assert.equal(host.listenerCount('session/event'), 1, '动画停用后通知/运行状态仍需要追踪')
 assert.equal(host.routes.has('/dsh-dock/animation'), false, '动画停用后其路由应注销')
 assert.ok(host.routes.has('/dsh-dock/notify'), '通知路由不受动画停用影响')
 host.emit('agent/status', { agent: { id: 'sess-3' }, status: 'running' })
 assert.equal((await host.call('/dsh-dock/notify', 'status')).body.data.active.length, 1, '通知模块单独运行时仍能追踪任务')
 disposeNotify()
-assert.equal(host.listenerCount('session/event'), 0, '两个模块都停用后必须退订会话事件')
+assert.equal(host.listenerCount('session/event'), 1, '通知停用后运行状态仍需要追踪')
 assert.equal(host.routes.has('/dsh-dock/notify'), false, '通知停用后其路由应注销')
+assert.equal((await host.call('/dsh-dock/runstate', 'status')).body.data.active.length, 1, '运行状态模块单独运行时仍能追踪任务')
+disposeRunState()
+assert.equal(host.listenerCount('session/event'), 0, '三个模块都停用后必须退订会话事件')
+assert.equal(host.routes.has('/dsh-dock/runstate'), false, '运行状态停用后其路由应注销')
 
 // ---------- 用例 4：一次性迁移（老 animation 段的通知配置搬进 notify 段） ----------
 {
@@ -263,4 +284,4 @@ assert.equal(host.routes.has('/dsh-dock/notify'), false, '通知停用后其路�
   assert.equal(fresh.settings.get(DOCK_NS), undefined, '不应凭空创建 notify 段')
 }
 
-console.log('task/notify host: ok (共享追踪 1 份订阅 + 双路由配置隔离 + 群机器人推送 + 一次性迁移)')
+console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移)')
