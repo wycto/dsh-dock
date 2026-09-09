@@ -46,7 +46,12 @@ const dockPkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
 mkdirSync(outDir, { recursive: true });
 cpSync(join(root, "src", "host-core.js"), join(outDir, "src", "host-core.js"));
+// 共享宿主内核：会话级任务追踪（动画/通知/运行状态三个模块共用；其他模块不用也一并带上，体积可忽略）
+cpSync(join(root, "src", "task-track.js"), join(outDir, "src", "task-track.js"));
 cpSync(featDir, join(outDir, "features", featureId), { recursive: true });
+
+// 视图文件扩展名：模块可能用 view.js 或 view.jsx（生成的客户端入口要按实际文件名 import）
+const viewFile = existsSync(join(featDir, "view.jsx")) ? "view.jsx" : "view.js";
 
 // ---------- 宿主入口 ----------
 writeFileSync(join(outDir, "index.js"), `// ${pkgName} · 宿主入口（由 dsh-dock scripts/extract-feature.mjs 生成的独立包）
@@ -67,7 +72,7 @@ writeFileSync(join(outDir, "src", "client-entry.js"), `// ${pkgName} · 独立�
 // 双形态：装了 dsh-dock → 经 dockBridge 注册进功能坞菜单（不占独立入口）；
 //         没装 dsh-dock → 自己的侧栏入口 + 全屏面板。
 import react from "react";
-import { feature } from "../features/${featureId}/view.js";
+import { feature } from "../features/${featureId}/${viewFile}";
 
 const name = "${pkgName}";
 const inject = ["slots", "modules"];
@@ -151,6 +156,9 @@ export const dockFeature = feature;
 `);
 
 // ---------- 构建脚本（按本包改名） ----------
+// scripts/ 目录需要显式创建：此前只有 src/ 与 features/ 由 cpSync 带出，
+// 直接写 outDir/scripts/build-client.mjs 会 ENOENT，整个提取流程半途而废。
+mkdirSync(join(outDir, "scripts"), { recursive: true });
 const dockBuild = readFileSync(join(root, "scripts", "build-client.mjs"), "utf8");
 writeFileSync(
 	join(outDir, "scripts", "build-client.mjs"),
@@ -166,7 +174,7 @@ writeFileSync(join(outDir, "cordis.patch.yml"), `- insert:\n  - id: ${pkgName}\n
 writeFileSync(join(outDir, "package.json"), JSON.stringify({
 	name: pkgName,
 	version: "0.1.0",
-	description: `dsh-dock 功能坞「${feature.name || featureId}」模块的独立发布包（双形态：独立面板 / 回装功能坞）`,
+	description: `dsh-dock 功能坞「${featureId}」模块的独立发布包（双形态：独立面板 / 回装功能坞）`,
 	type: "module",
 	main: "index.js",
 	files: ["index.js", "client.js", "src/", "features/", "cordis.patch.yml"],
