@@ -2126,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react20 = __toESM(require("react"), 1);
+var import_react21 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -2194,15 +2194,19 @@ function syncFeatureStateFromHost(defs) {
     if (!persisted || typeof persisted !== "object") return;
     let changed = false;
     for (const f of defs) {
-      if (featurePersist.map[f.id] !== void 0) continue;
-      const v = persisted[f.id];
-      if (typeof v === "boolean") {
-        const st = stateOf(f.id);
-        if (st.enabled !== v) {
-          st.enabled = v;
-          changed = true;
+      const local = featurePersist.map[f.id];
+      const host = persisted[f.id];
+      if (local === void 0) {
+        if (typeof host === "boolean") {
+          const st = stateOf(f.id);
+          if (st.enabled !== host) {
+            st.enabled = host;
+            changed = true;
+          }
         }
+        continue;
       }
+      if (typeof host !== "boolean") pushFeatureEnabledToHost(f.id, local);
     }
     if (changed) notifyState();
   }).catch(() => {
@@ -3880,7 +3884,7 @@ function rpcCall2(method, args) {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data && data.ok === true) return data.data;
     if (res.status === 405 || res.status === 404) {
-      throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u662F\u65E7\u7248\u672C\uFF08\u6CA1\u6709\u4EFB\u52A1\u52A8\u753B\u8DEF\u7531\uFF09\uFF0C\u91CD\u542F dsh web \u540E\u91CD\u8BD5");
+      throw new Error("\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u300C\u4EFB\u52A1\u52A8\u753B\u300D\u63A5\u53E3\uFF1A\u5BBF\u4E3B\u8FDB\u7A0B\u53EF\u80FD\u662F\u65E7\u7248\u672C\uFF0C\u6216\u8BE5\u529F\u80FD\u5728\u5BBF\u4E3B\u4FA7\u672A\u542F\u7528\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u529F\u80FD\u575E\u91CC\u7684\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09");
     }
     if (data && data.ok === false) throw new Error(data.error && data.error.message || "HTTP " + res.status);
     throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
@@ -3916,13 +3920,6 @@ var PHASE_COLORS = { think: "#2f6fed", write: "#0d9488", code: "#b45309", search
 function phaseColor(p) {
   return PHASE_COLORS[p] || "#2f6fed";
 }
-function toolLabel(name) {
-  const n = String(name || "").toLowerCase();
-  if (/bash|shell|terminal|cmd|pwsh|powershell|exec/.test(n)) return "\u6267\u884C\u547D\u4EE4";
-  if (/write|edit|patch|apply|create|mkdir|remove|delete/.test(n)) return "\u4FEE\u6539\u6587\u4EF6";
-  if (/web|fetch|browser|navigate|search/.test(n)) return "\u8BBF\u95EE\u7F51\u9875";
-  return "";
-}
 var END_LABELS = {
   completed: { label: "\u5B8C\u6210", cls: "ok" },
   error: { label: "\u51FA\u9519", cls: "err" },
@@ -3936,9 +3933,6 @@ function endInfo(reason) {
 }
 function isSuccessReason(reason) {
   return !reason || reason === "completed";
-}
-function fmtNum2(n) {
-  return (Number(n) || 0).toLocaleString("en-US");
 }
 function fmtCompact2(n) {
   n = Number(n) || 0;
@@ -4153,83 +4147,6 @@ function RobotScene(props) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {})
     ] })
-  ] });
-}
-var SOUND_LIBRARY = {
-  chime: { name: "\u6E05\u8106\u53CC\u97F3", notes: { done: [[659.25, 0, 0.14], [880, 0.13, 0.24]], err: [[220, 0, 0.16], [164.81, 0.15, 0.3]], ask: [[587.33, 0, 0.16], [880, 0.19, 0.34]] } },
-  ding: { name: "\u53EE", notes: { done: [[987.77, 0, 0.35]], err: [[246.94, 0, 0.4]], ask: [[783.99, 0, 0.18], [1174.66, 0.2, 0.42]] } },
-  coin: { name: "\u91D1\u5E01", notes: { done: [[988, 0, 0.08], [1319, 0.08, 0.35], [988, 0, 0.08, "square"], [1319, 0.08, 0.3, "square"]], err: [[196, 0, 0.12], [147, 0.11, 0.35]], ask: [[880, 0, 0.09], [1108.73, 0.1, 0.12], [1318.51, 0.22, 0.3]] } },
-  bell: { name: "\u949F\u58F0", notes: { done: [[523.25, 0, 0.5], [659.25, 0.02, 0.45], [783.99, 0.04, 0.4]], err: [[174.61, 0, 0.5], [130.81, 0.05, 0.5]], ask: [[659.25, 0, 0.4], [523.25, 0.05, 0.55]] } },
-  pulse: { name: "\u8109\u51B2", notes: { done: [[440, 0, 0.09], [440, 0.14, 0.09], [440, 0.28, 0.16]], err: [[174.61, 0, 0.1], [174.61, 0.14, 0.1], [174.61, 0.28, 0.18]], ask: [[523.25, 0, 0.09], [523.25, 0.15, 0.09], [659.25, 0.3, 0.22]] } },
-  arp: { name: "\u7436\u97F3", notes: { done: [[523.25, 0, 0.12], [659.25, 0.09, 0.12], [783.99, 0.18, 0.12], [1046.5, 0.27, 0.3]], err: [[392, 0, 0.12], [329.63, 0.1, 0.12], [261.63, 0.2, 0.12], [196, 0.3, 0.32]], ask: [[440, 0, 0.11], [554.37, 0.12, 0.11], [659.25, 0.24, 0.11], [880, 0.36, 0.34]] } }
-};
-var soundCtx = null;
-function playTone(seq) {
-  try {
-    if (typeof window === "undefined" || !window.AudioContext && !window.webkitAudioContext) return;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!soundCtx) soundCtx = new AC();
-    if (soundCtx.state === "suspended") {
-      soundCtx.resume().catch(() => {
-      });
-    }
-    const t0 = soundCtx.currentTime;
-    for (const [f, at, dur, wave] of seq) {
-      const osc = soundCtx.createOscillator();
-      const gain = soundCtx.createGain();
-      osc.type = wave || "sine";
-      osc.frequency.value = f;
-      gain.gain.setValueAtTime(0, t0 + at);
-      gain.gain.linearRampToValueAtTime(0.18, t0 + at + 0.015);
-      gain.gain.exponentialRampToValueAtTime(1e-4, t0 + at + dur);
-      osc.connect(gain).connect(soundCtx.destination);
-      osc.start(t0 + at);
-      osc.stop(t0 + at + dur + 0.05);
-    }
-  } catch {
-  }
-}
-function playDoneSound(success, effect) {
-  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
-  playTone(success ? lib.notes.done : lib.notes.err);
-}
-function playAskSound(effect) {
-  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
-  playTone(lib.notes.ask || lib.notes.done);
-}
-function previewSound(effect) {
-  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
-  playTone(lib.notes.done);
-  const delayed = lib.notes.err.map(([f, at, dur, wave]) => [f, at + 0.55, dur, wave]);
-  playTone(delayed);
-}
-function Toast(props) {
-  const t = props.t;
-  const [closing, setClosing] = (0, import_react8.useState)(false);
-  const close = (0, import_react8.useCallback)(() => {
-    if (!closing) setClosing(true);
-  }, [closing]);
-  (0, import_react8.useEffect)(() => {
-    if (!t.stayMs) return;
-    const timer = setTimeout(close, t.stayMs);
-    return () => clearTimeout(timer);
-  }, []);
-  (0, import_react8.useEffect)(() => {
-    if (!closing) return;
-    const timer = setTimeout(() => props.onClose(t.id), 240);
-    return () => clearTimeout(timer);
-  }, [closing]);
-  const markColor = t.kind === "success" ? "var(--dk-ok)" : t.kind === "error" ? "var(--dk-err)" : t.kind === "confirm" ? "var(--dk-warn)" : "var(--dk-warn)";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-toast" + (t.kind === "confirm" ? " dkan-toast-confirm" : "") + (closing ? " out" : ""), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-toast-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-toast-mark", style: { background: markColor } }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-toast-title", title: t.title, children: [
-        t.kind === "confirm" ? "\u270B " : "",
-        t.title
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
-    ] }),
-    t.body ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toast-body", children: t.body }) : null
   ] });
 }
 function makeBits(n, fn) {
@@ -4701,7 +4618,6 @@ function ProgrammingStuck(props) {
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation();
-  const [toasts, setToasts] = (0, import_react8.useState)([]);
   const [flourish, setFlourish] = (0, import_react8.useState)(null);
   const [bursts, setBursts] = (0, import_react8.useState)([]);
   const [deliveries, setDeliveries] = (0, import_react8.useState)([]);
@@ -4816,118 +4732,30 @@ function AnimationOverlay(props) {
     }
     prevActiveRef.current = st2.active.slice();
   }, [snap.status]);
-  const remindedApprovalsRef = (0, import_react8.useRef)(/* @__PURE__ */ new Map());
-  (0, import_react8.useEffect)(() => {
-    const st2 = snap.status;
-    if (!st2 || !st2.active) return;
-    const cfg2 = st2.config || {};
-    const activeIds = new Set(st2.active.map((x) => x.sessionId));
-    for (const [sid, seen] of remindedApprovalsRef.current) {
-      if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
-    }
-    for (const task of st2.active) {
-      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
-      if (approvals.length === 0) continue;
-      let seen = remindedApprovalsRef.current.get(task.sessionId);
-      if (!seen) {
-        seen = /* @__PURE__ */ new Set();
-        remindedApprovalsRef.current.set(task.sessionId, seen);
-      }
-      const fresh = approvals.filter((a) => a && !seen.has(a.id));
-      if (fresh.length === 0) continue;
-      for (const a of fresh) seen.add(a.id);
-      if (!cfg2.notifyEnabled || cfg2.notifyOnConfirm === false) continue;
-      const toolName = fresh[0].toolName || "";
-      const scene = toolLabel(toolName);
-      const lines = [
-        "\u4EFB\u52A1\uFF1A" + (task.title || "(\u65E0\u6807\u9898)"),
-        "\u5DE5\u5177\uFF1A" + (toolName || "\u672A\u77E5") + (scene ? "\uFF08" + scene + "\uFF09" : "")
-      ];
-      if (fresh[0].reason) lines.push("\u8BF4\u660E\uFF1A" + truncate(fresh[0].reason, 140));
-      lines.push(fresh.length > 1 ? "\u5171 " + fresh.length + " \u9879\u7B49\u5F85\u4F60\u7684\u786E\u8BA4" : "\u8BF7\u5728\u4F1A\u8BDD\u91CC\u786E\u8BA4\u540E\u7EE7\u7EED");
-      const toast = {
-        id: Date.now() + Math.random(),
-        kind: "confirm",
-        title: "\u4EFB\u52A1\u9700\u8981\u786E\u8BA4",
-        body: lines.join("\n"),
-        // 需确认常驻到用户处理（notifyStayMs=0 同款语义），关掉开关的间隙也不会自动消失
-        stayMs: 0
-      };
-      setToasts((prev) => prev.concat([toast]).slice(-4));
-      if (cfg2.soundNotify !== false) playAskSound(cfg2.soundEffect);
-      if (cfg2.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
-        try {
-          new Notification("dsh \u4EFB\u52A1\u9700\u8981\u786E\u8BA4", {
-            body: (task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + (toolName || "\u5DE5\u5177") + " \u7B49\u5F85\u786E\u8BA4",
-            tag: "dsh-dock-approval-" + task.sessionId
-          });
-        } catch {
-        }
-      }
-    }
-  }, [snap.status]);
   const handleTaskEnd = (task, record, cfg2) => {
-    const reason = record && record.endReason || "";
-    const success = isSuccessReason(reason);
-    const info = endInfo(reason);
-    if (cfg2.animationEnabled) {
-      setFlourish({ key: Date.now(), err: !success });
-      if (cfg2.effectMode === "space") {
-        const cargo = outputCargo(record && record.outputTokens || task.outputTokens);
-        const id = ++deliveryIdRef.current;
-        const taskSpeed = Math.max(0.9, Number(speed) || 1);
-        const duration = Math.round(Math.max(8e3, Math.min(9400, 1e4 / Math.sqrt(taskSpeed))));
-        const galaxies = spaceGalaxyLayout();
-        const returnGalaxy = galaxies[["alpha", "beta", "gamma"][Math.floor(Math.random() * 3)]];
-        const from = freighterAnchorAt({ x: returnGalaxy.cx, y: returnGalaxy.cy });
-        const to = composerDockPoint("left");
-        const delivery = Object.assign({ id, from, to, duration }, cargo);
-        setDeliveries([delivery]);
-      }
-      if (success) {
-        pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
-          l: 4 + i / 18 * 92 + Math.random() * 3,
-          dx: (Math.random() - 0.5) * 60,
-          r: Math.random() * 720 - 360,
-          d: Math.random() * 0.35,
-          c: ["#2563eb", "#0d9488", "#b45309", "#be185d", "#7c3aed"][i % 5]
-        })));
-      }
+    if (!cfg2.animationEnabled) return;
+    const success = isSuccessReason(record && record.endReason || "");
+    setFlourish({ key: Date.now(), err: !success });
+    if (cfg2.effectMode === "space") {
+      const cargo = outputCargo(record && record.outputTokens || task.outputTokens);
+      const id = ++deliveryIdRef.current;
+      const taskSpeed = Math.max(0.9, Number(speed) || 1);
+      const duration = Math.round(Math.max(8e3, Math.min(9400, 1e4 / Math.sqrt(taskSpeed))));
+      const galaxies = spaceGalaxyLayout();
+      const returnGalaxy = galaxies[["alpha", "beta", "gamma"][Math.floor(Math.random() * 3)]];
+      const from = freighterAnchorAt({ x: returnGalaxy.cx, y: returnGalaxy.cy });
+      const to = composerDockPoint("left");
+      const delivery = Object.assign({ id, from, to, duration }, cargo);
+      setDeliveries([delivery]);
     }
-    if (!cfg2.notifyEnabled) return;
-    const wanted = success ? cfg2.notifyOnComplete : cfg2.notifyOnError;
-    if (!wanted) return;
-    const models = record && record.models && record.models.length ? record.models.join(", ") : task.models && task.models.length ? task.models.join(", ") : "\u672A\u77E5\u6A21\u578B";
-    const provider = record && record.provider || task.provider || "";
-    const startTs = record && record.startTime || task.startTime;
-    const endTs = record && record.endTime || Date.now();
-    const lines = [
-      "\u4EFB\u52A1\uFF1A" + (record && record.title || task.title || "(\u65E0\u6807\u9898)"),
-      "\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""),
-      "\u8017\u65F6\uFF1A" + fmtDur(record && record.duration || endTs - startTs) + "\uFF08" + fmtTime2(startTs) + " \u2192 " + fmtTime2(endTs) + "\uFF09",
-      "\u56DE\u5408 " + (record && record.turns || task.turns || 0) + " \xB7 \u6B65\u9AA4 " + (record && record.steps || task.steps || 0) + (record && record.toolCalls || task.toolCalls ? " \xB7 \u5DE5\u5177 " + (record && record.toolCalls || task.toolCalls) + " \u6B21" : ""),
-      "Token\uFF1A\u8F93\u5165 " + fmtNum2(record && record.inputTokens || task.inputTokens) + " / \u8F93\u51FA " + fmtNum2(record && record.outputTokens || task.outputTokens)
-    ];
-    if (record && record.lastText) lines.push("\u6458\u8981\uFF1A" + truncate(record.lastText, 140));
-    if (!success && record && record.errorMessage) lines.push("\u9519\u8BEF\uFF1A" + truncate(record.errorMessage, 120));
-    const title = success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1" + info.label;
-    const toast = {
-      id: Date.now() + Math.random(),
-      kind: success ? "success" : info.cls === "err" ? "error" : "warn",
-      title,
-      body: lines.join("\n"),
-      stayMs: typeof cfg2.notifyStayMs === "number" ? cfg2.notifyStayMs : 8e3
-    };
-    setToasts((prev) => prev.concat([toast]).slice(-4));
-    if (cfg2.soundNotify !== false) playDoneSound(success, cfg2.soundEffect);
-    if (cfg2.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
-      try {
-        new Notification("dsh " + title, {
-          body: (record && record.title || task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + fmtDur(record && record.duration || endTs - startTs),
-          tag: "dsh-dock-animation-" + task.sessionId
-        });
-      } catch {
-      }
+    if (success) {
+      pushBurst("confetti", 0, 0, makeBits(18, (i) => ({
+        l: 4 + i / 18 * 92 + Math.random() * 3,
+        dx: (Math.random() - 0.5) * 60,
+        r: Math.random() * 720 - 360,
+        d: Math.random() * 0.35,
+        c: ["#2563eb", "#0d9488", "#b45309", "#be185d", "#7c3aed"][i % 5]
+      })));
     }
   };
   const st = snap.status;
@@ -5185,8 +5013,7 @@ function AnimationOverlay(props) {
       },
       flourish.key
     ) : null,
-    !panelOpen ? deliveries.map((delivery) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DeliveryFreighter, { delivery }, delivery.id)) : null,
-    toasts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-toasts", children: toasts.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Toast, { t, onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id)) }, t.id)) }) : null
+    !panelOpen ? deliveries.map((delivery) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DeliveryFreighter, { delivery }, delivery.id)) : null
   ] });
 }
 function ModePreview({ id }) {
@@ -5268,18 +5095,12 @@ function AnimationView(props) {
   const snap = useAnimation(ctx);
   const [cfg, setCfg] = (0, import_react8.useState)(null);
   const [saveErr, setSaveErr] = (0, import_react8.useState)("");
-  const [testing, setTesting] = (0, import_react8.useState)(false);
-  const [testState, setTestState] = (0, import_react8.useState)(null);
-  const [feishuTestState, setFeishuTestState] = (0, import_react8.useState)(null);
-  const [feishuTesting, setFeishuTesting] = (0, import_react8.useState)(false);
   const cfgRef = (0, import_react8.useRef)(null);
   const pendingSavesRef = (0, import_react8.useRef)(0);
-  const editingWebhookRef = (0, import_react8.useRef)(false);
-  const editingFeishuRef = (0, import_react8.useRef)(false);
   (0, import_react8.useEffect)(() => {
     const c = snap.status && snap.status.config;
     if (!c) return;
-    if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
+    if (pendingSavesRef.current > 0) return;
     if (c !== cfgRef.current) {
       cfgRef.current = c;
       setCfg(Object.assign({}, c));
@@ -5300,90 +5121,10 @@ function AnimationView(props) {
       setSaveErr("\u4FDD\u5B58\u5931\u8D25\uFF1A" + (e && e.message || String(e)));
     });
   };
-  const saveWebhook = async () => {
-    if (!editingWebhookRef.current) return;
-    const hook = String(cfg.dingtalkWebhook || "").trim();
-    await patch({ dingtalkWebhook: hook });
-    editingWebhookRef.current = false;
-    const c = animationStore.snap.status && animationStore.snap.status.config;
-    if (c && c !== cfgRef.current) {
-      cfgRef.current = c;
-      setCfg(Object.assign({}, c));
-    }
-  };
-  const saveFeishuWebhook = async () => {
-    if (!editingFeishuRef.current) return;
-    const hook = String(cfg.feishuWebhook || "").trim();
-    await patch({ feishuWebhook: hook });
-    editingFeishuRef.current = false;
-    const c = animationStore.snap.status && animationStore.snap.status.config;
-    if (c && c !== cfgRef.current) {
-      cfgRef.current = c;
-      setCfg(Object.assign({}, c));
-    }
-  };
-  const runDingtalkTest = async () => {
-    setTesting(true);
-    setTestState(null);
-    try {
-      if (editingWebhookRef.current) {
-        const hook = String(cfg.dingtalkWebhook || "").trim();
-        if (!hook) throw new Error("\u8BF7\u5148\u586B\u5199 Webhook \u5730\u5740");
-        const d = await rpcCall2("config", { dingtalkWebhook: hook });
-        animationStore.applyConfig(d && d.config);
-        editingWebhookRef.current = false;
-        cfgRef.current = d && d.config || cfgRef.current;
-        setCfg(Object.assign({}, cfg, { dingtalkWebhook: hook }));
-      }
-      const r = await rpcCall2("test");
-      setTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
-    } catch (e) {
-      setTestState({ ok: false, msg: e && e.message || String(e) });
-    } finally {
-      setTesting(false);
-    }
-  };
-  const runFeishuTest = async () => {
-    setFeishuTesting(true);
-    setFeishuTestState(null);
-    try {
-      if (editingFeishuRef.current) {
-        const hook = String(cfg.feishuWebhook || "").trim();
-        if (!hook) throw new Error("\u8BF7\u5148\u586B\u5199 Webhook \u5730\u5740");
-        const d = await rpcCall2("config", { feishuWebhook: hook });
-        animationStore.applyConfig(d && d.config);
-        editingFeishuRef.current = false;
-        cfgRef.current = d && d.config || cfgRef.current;
-        setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
-      }
-      const r = await rpcCall2("test", { target: "feishu" });
-      setFeishuTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
-    } catch (e) {
-      setFeishuTestState({ ok: false, msg: e && e.message || String(e) });
-    } finally {
-      setFeishuTesting(false);
-    }
-  };
-  const enableSystemNotify = async (next) => {
-    if (next && typeof Notification !== "undefined" && Notification.permission !== "granted") {
-      try {
-        const perm = await Notification.requestPermission();
-        if (perm !== "granted") {
-          setSaveErr("\u6D4F\u89C8\u5668\u672A\u6388\u6743\u7CFB\u7EDF\u901A\u77E5\uFF08\u53EF\u5728\u5730\u5740\u680F\u6743\u9650\u8BBE\u7F6E\u91CC\u91CD\u65B0\u5141\u8BB8\uFF09");
-          return;
-        }
-      } catch {
-        setSaveErr("\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u7CFB\u7EDF\u901A\u77E5");
-        return;
-      }
-    }
-    patch({ systemNotify: next });
-  };
   const st = snap.status;
   const active = st && st.active ? st.active : [];
   const recent = st && st.recent ? st.recent.slice(0, 6) : [];
   const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
-  const permNote = typeof Notification === "undefined" ? "\u5F53\u524D\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u7CFB\u7EDF\u901A\u77E5" : Notification.permission === "granted" ? "\u5DF2\u6388\u6743 \xB7 \u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001" : Notification.permission === "denied" ? "\u5DF2\u88AB\u6D4F\u89C8\u5668\u62D2\u7EDD\uFF08\u9700\u5728\u6D4F\u89C8\u5668\u6743\u9650\u8BBE\u7F6E\u91CC\u91CD\u65B0\u5141\u8BB8\uFF09" : "\u672A\u6388\u6743 \xB7 \u5F00\u542F\u65F6\u4F1A\u8BF7\u6C42\u6388\u6743\uFF0C\u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001";
   const rows = [];
   if (!cfg) {
     rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: snap.error ? "\u72B6\u6001\u4E0D\u53EF\u7528\uFF1A" + snap.error : snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" : "\u7B49\u5F85\u4EFB\u52A1\u72B6\u6001" }, "load"));
@@ -5458,268 +5199,8 @@ function AnimationView(props) {
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u6D6E\u5C42\u53F3\u4E0B\u89D2\u4E5F\u53EF\u76F4\u63A5\u62D6\u52A8\u7F29\u653E\uFF0C\u5927\u5C0F\u4F1A\u81EA\u52A8\u4FDD\u5B58\u3002" })
             ] })
           ] }) : null
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u52A8\u753B\u5DF2\u5173\u95ED\u2014\u2014\u53EA\u4FDD\u7559\u901A\u77E5\uFF08\u6216\u5168\u90E8\u5173\u95ED\uFF09\u65F6\uFF0C\u9875\u9762\u4E0D\u4F1A\u6709\u4EFB\u4F55\u52A8\u6548\u3002" })
-      ] }, "anim"),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u5B8C\u6210\u901A\u77E5" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4E0E\u52A8\u753B\u4E92\u4E0D\u4F9D\u8D56\uFF0C\u53EF\u5355\u72EC\u5F00\u542F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.notifyEnabled ? " on" : ""), children: cfg.notifyEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dock-sw" + (cfg.notifyEnabled ? " on" : ""),
-                role: "switch",
-                "aria-checked": cfg.notifyEnabled,
-                "aria-label": "\u5F00\u5173\u5B8C\u6210\u901A\u77E5",
-                title: cfg.notifyEnabled ? "\u5173\u95ED\u5B8C\u6210\u901A\u77E5" : "\u5F00\u542F\u5B8C\u6210\u901A\u77E5",
-                onClick: () => patch({ notifyEnabled: !cfg.notifyEnabled })
-              }
-            )
-          ] })
-        ] }),
-        cfg.notifyEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u5B8C\u6210\u901A\u77E5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dkm-miniswitch" + (cfg.notifyOnComplete ? " on" : ""),
-                onClick: () => patch({ notifyOnComplete: !cfg.notifyOnComplete }),
-                children: cfg.notifyOnComplete ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u6B63\u5E38\u5B8C\u6210\u65F6\u901A\u77E5" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u5F02\u5E38\u901A\u77E5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dkm-miniswitch" + (cfg.notifyOnError ? " on" : ""),
-                onClick: () => patch({ notifyOnError: !cfg.notifyOnError }),
-                children: cfg.notifyOnError ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u51FA\u9519 / \u4E2D\u6B62 / \u8FBE\u8F93\u51FA\u4E0A\u9650\u65F6\u901A\u77E5" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u9700\u786E\u8BA4\u63D0\u9192" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dkm-miniswitch" + (cfg.notifyOnConfirm !== false ? " on" : ""),
-                onClick: () => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false }),
-                children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF08\u5E38\u9A7B\u4E0D\u81EA\u52A8\u6D88\u5931\uFF09" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u505C\u7559\u65F6\u957F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-              "select",
-              {
-                className: "dkan-select",
-                value: String(cfg.notifyStayMs),
-                onChange: (e) => patch({ notifyStayMs: Number(e.target.value) }),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "4000", children: "4 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "8000", children: "8 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "15000", children: "15 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "30000", children: "30 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "0", children: "\u5E38\u9A7B\uFF08\u624B\u52A8\u5173\u95ED\uFF09" })
-                ]
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dkm-miniswitch" + (cfg.systemNotify ? " on" : ""),
-                onClick: () => enableSystemNotify(!cfg.systemNotify),
-                children: cfg.systemNotify ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: permNote })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u63D0\u793A\u97F3" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dkm-miniswitch" + (cfg.soundNotify !== false ? " on" : ""),
-                onClick: () => patch({ soundNotify: cfg.soundNotify === false }),
-                children: cfg.soundNotify !== false ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F/\u9700\u786E\u8BA4\u65F6\u64AD\u653E\uFF08\u8BD5\u542C\u4E3A\u5148\u64AD\u5B8C\u6210\u97F3\u3001\u540E\u64AD\u5F02\u5E38\u97F3\uFF09" })
-          ] }),
-          cfg.soundNotify !== false ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-sounds", children: Object.keys(SOUND_LIBRARY).map((key) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-            "button",
-            {
-              type: "button",
-              className: "dkan-sound" + (cfg.soundEffect === key ? " on" : ""),
-              onClick: () => patch({ soundEffect: key }),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sound-name", children: [
-                  SOUND_LIBRARY[key].name,
-                  cfg.soundEffect === key ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sound-cur", children: "\u2713" }) : null
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-                  "span",
-                  {
-                    className: "dkan-sound-play",
-                    role: "button",
-                    tabIndex: 0,
-                    title: "\u8BD5\u542C " + SOUND_LIBRARY[key].name,
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      previewSound(key);
-                    },
-                    onKeyDown: (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        previewSound(key);
-                      }
-                    },
-                    children: "\u25B6"
-                  }
-                )
-              ]
-            },
-            key
-          )) }) : null
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u901A\u77E5\u5DF2\u5173\u95ED\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u65F6\u65E2\u4E0D\u5F39\u5361\u7247\u4E5F\u4E0D\u63A8\u7CFB\u7EDF\u901A\u77E5\u3002" })
-      ] }, "notify"),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u9489\u9489\u63A8\u9001" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u9489\u9489\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.dingtalkEnabled ? " on" : ""), children: cfg.dingtalkEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dock-sw" + (cfg.dingtalkEnabled ? " on" : ""),
-                role: "switch",
-                "aria-checked": cfg.dingtalkEnabled,
-                "aria-label": "\u5F00\u5173\u9489\u9489\u63A8\u9001",
-                title: cfg.dingtalkEnabled ? "\u5173\u95ED\u9489\u9489\u63A8\u9001" : "\u5F00\u542F\u9489\u9489\u63A8\u9001",
-                onClick: () => patch({ dingtalkEnabled: !cfg.dingtalkEnabled })
-              }
-            )
-          ] })
-        ] }),
-        cfg.dingtalkEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row dkan-row-webhook", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "Webhook" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "input",
-              {
-                type: "text",
-                className: "dkan-input",
-                spellCheck: false,
-                value: cfg.dingtalkWebhook || "",
-                placeholder: "https://oapi.dingtalk.com/robot/send?access_token=\u2026",
-                onChange: (e) => {
-                  editingWebhookRef.current = true;
-                  setCfg(Object.assign({}, cfg, { dingtalkWebhook: e.target.value }));
-                }
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dkan-btn",
-                disabled: !editingWebhookRef.current,
-                onClick: saveWebhook,
-                children: editingWebhookRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-btn", disabled: testing, onClick: runDingtalkTest, children: testing ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
-            testState ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-row-sub" + (testState.ok ? " dkan-ok" : " dkan-err"), children: [
-              testState.ok ? "\u2713 " : "\u2717 ",
-              testState.msg
-            ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u9489\u9489\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u667A\u80FD\u7FA4\u52A9\u624B \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\uFF08Webhook\uFF09\uFF0C \u5B89\u5168\u8BBE\u7F6E\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u9489\u9489\u3002" })
-      ] }, "dingtalk"),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-title", children: "\u98DE\u4E66\u63A8\u9001" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-sec-sw", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-sec-swlabel" + (cfg.feishuEnabled ? " on" : ""), children: cfg.feishuEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dock-sw" + (cfg.feishuEnabled ? " on" : ""),
-                role: "switch",
-                "aria-checked": cfg.feishuEnabled,
-                "aria-label": "\u5F00\u5173\u98DE\u4E66\u63A8\u9001",
-                title: cfg.feishuEnabled ? "\u5173\u95ED\u98DE\u4E66\u63A8\u9001" : "\u5F00\u542F\u98DE\u4E66\u63A8\u9001",
-                onClick: () => patch({ feishuEnabled: !cfg.feishuEnabled })
-              }
-            )
-          ] })
-        ] }),
-        cfg.feishuEnabled ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row dkan-row-webhook", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "Webhook" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "input",
-              {
-                type: "text",
-                className: "dkan-input",
-                spellCheck: false,
-                value: cfg.feishuWebhook || "",
-                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/\u2026",
-                onChange: (e) => {
-                  editingFeishuRef.current = true;
-                  setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
-                }
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dkan-btn",
-                disabled: !editingFeishuRef.current,
-                onClick: saveFeishuWebhook,
-                children: editingFeishuRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-btn", disabled: feishuTesting, onClick: runFeishuTest, children: feishuTesting ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
-            feishuTestState ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-row-sub" + (feishuTestState.ok ? " dkan-ok" : " dkan-err"), children: [
-              feishuTestState.ok ? "\u2713 " : "\u2717 ",
-              feishuTestState.msg
-            ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u98DE\u4E66\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u7FA4\u673A\u5668\u4EBA \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\u673A\u5668\u4EBA\uFF08\u83B7\u53D6 Webhook \u5730\u5740\uFF09\uFF1B \u5B89\u5168\u8BBE\u7F6E\u5982\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u98DE\u4E66\u3002" })
-      ] }, "feishu")
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u52A8\u753B\u5DF2\u5173\u95ED\u2014\u2014\u4EFB\u52A1\u8FDB\u884C\u4E2D\u4E0D\u4F1A\u6709\u4EFB\u4F55\u52A8\u6548\uFF08\u901A\u77E5\u8BBE\u7F6E\u89C1\u5DE6\u4FA7\u300C\u4EFB\u52A1\u901A\u77E5\u300D\uFF09\u3002" })
+      ] }, "anim")
     );
   }
   if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note dkan-err", children: saveErr }, "err"));
@@ -5731,7 +5212,7 @@ function AnimationView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "dkan-refresh", onClick: () => animationStore.refresh(), children: snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u5237\u65B0" })
       ] }),
       active.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-tasks", children: active.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TaskRow, { t }, t.sessionId)) }) : null,
-      active.length === 0 && recent.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u53D1\u8D77\u65B0\u4F1A\u8BDD\u4EFB\u52A1\u540E\uFF0C\u8FD9\u91CC\u4F1A\u663E\u793A\u8FDB\u884C\u4E2D\u4E0E\u6700\u8FD1\u5B8C\u6210\u7684\u4EFB\u52A1\uFF1B\u52A8\u753B\u4E0E\u901A\u77E5\u540C\u65F6\u5728\u9875\u9762\u751F\u6548\u3002" }) : null,
+      active.length === 0 && recent.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u53D1\u8D77\u65B0\u4F1A\u8BDD\u4EFB\u52A1\u540E\uFF0C\u8FD9\u91CC\u4F1A\u663E\u793A\u8FDB\u884C\u4E2D\u4E0E\u6700\u8FD1\u5B8C\u6210\u7684\u4EFB\u52A1\uFF1B\u52A8\u6548\u5728\u9875\u9762\u751F\u6548\uFF08\u901A\u77E5\u89C1\u5DE6\u4FA7\u300C\u4EFB\u52A1\u901A\u77E5\u300D\uFF09\u3002" }) : null,
       recent.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-tasks dkan-tasks-done", children: recent.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TaskRow, { t, done: true }, t.sessionId + ":" + t.endTime)) }) : null
     ] }, "state")
   );
@@ -5878,21 +5359,6 @@ var css2 = [
   "@keyframes dkan-badge-breathe{0%,100%{box-shadow:0 0 6px color-mix(in srgb,var(--dkan-phase,#4d9fff) 22%,transparent),0 6px 24px rgb(0 0 0 / .16)}50%{box-shadow:0 0 18px color-mix(in srgb,var(--dkan-phase,#4d9fff) 55%,transparent),0 6px 24px rgb(0 0 0 / .16)}}",
   ".dkan-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 68%,var(--dk-accent) 92%,#fff);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));animation:dkan-spin calc(2.2s / var(--dkan-speed,1)) linear infinite;opacity:.9;}",
   "@keyframes dkan-spin{to{transform:rotate(360deg)}}",
-  // 通知卡片栈（右上角）
-  ".dkan-toasts{position:fixed;top:16px;right:16px;z-index:9995;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));}",
-  ".dkan-toast{border-radius:12px;padding:12px 14px;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 10px 36px rgb(0 0 0 / .22);animation:dkan-toast-in .32s var(--ds-ease-in-out);}",
-  ".dkan-toast.out{animation:dkan-toast-out .24s var(--ds-ease-in-out) forwards;}",
-  "@keyframes dkan-toast-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}",
-  "@keyframes dkan-toast-out{to{opacity:0;transform:translateX(10px)}}",
-  ".dkan-toast-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}",
-  ".dkan-toast-mark{width:8px;height:8px;border-radius:50%;flex:none;}",
-  ".dkan-toast-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-  ".dkan-toast-close{cursor:pointer;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:6px;width:22px;height:22px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;}",
-  ".dkan-toast-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
-  ".dkan-toast-body{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.7;white-space:pre-line;word-break:break-word;}",
-  // 需确认卡片：琥珀描边 + 缓慢呼吸光晕，常驻提醒直到用户处理
-  ".dkan-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dkan-toast-in .32s var(--ds-ease-in-out),dkan-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
-  "@keyframes dkan-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
   // 面板页布局
   ".dkan-root{display:flex;flex-direction:column;gap:10px;}",
   ".dkan-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
@@ -6128,31 +5594,6 @@ var css2 = [
   "@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
   // 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
   "@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
-  // 通知子选项行
-  ".dkan-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
-  ".dkan-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
-  ".dkan-row-label{flex:none;min-width:60px;color:var(--dsw-alias-label-primary);}",
-  ".dkan-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
-  ".dkm-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
-  ".dkm-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-  ".dkan-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
-  // 音效选择卡（名称 + 播放键；选中态描边）
-  ".dkan-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
-  ".dkan-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
-  ".dkan-sound:hover{border-color:var(--dk-accent);}",
-  ".dkan-sound.on{border-color:var(--dk-accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--dk-accent) 40%,transparent);}",
-  ".dkan-sound-name{font-size:12px;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:5px;}",
-  ".dkan-sound-cur{color:var(--dk-accent);font-size:11px;}",
-  ".dkan-sound-play{flex:none;cursor:pointer;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:1;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l2);}",
-  ".dkan-sound-play:hover{color:var(--dsw-alias-label-primary);border-color:currentColor;}",
-  ".dkan-input{flex:1;min-width:220px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;}",
-  ".dkan-input:focus{outline:none;border-color:var(--dk-accent);}",
-  ".dkan-row-webhook{flex-wrap:nowrap;}",
-  ".dkan-row-webhook .dkan-input{min-width:0;}",
-  ".dkan-btn{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 12px;font-family:inherit;font-size:12px;}",
-  ".dkan-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-  ".dkan-btn[disabled]{opacity:.5;cursor:default;}",
-  ".dkan-ok{color:var(--dsw-alias-state-success-primary);}",
   // 任务列表
   ".dkan-tasks{display:flex;flex-direction:column;gap:6px;}",
   ".dkan-tasks-done{border-top:1px dashed var(--dsw-alias-border-l2);padding-top:6px;}",
@@ -6172,18 +5613,842 @@ var feature6 = {
   name: "\u4EFB\u52A1\u52A8\u753B",
   order: 130,
   accent: "#f472b6",
-  description: "19 \u79CD\u4EFB\u52A1\u8FD0\u884C\u52A8\u753B\u4E0E\u5B8C\u6210\u901A\u77E5\uFF1A\u901F\u5EA6\u968F\u4EFB\u52A1\u6D3B\u52A8\u8054\u52A8\uFF0C\u4E24\u7EC4\u5F00\u5173\u72EC\u7ACB\u3001\u914D\u7F6E\u6301\u4E45\u5316",
+  description: "19 \u79CD\u4EFB\u52A1\u8FD0\u884C\u52A8\u753B\uFF1A\u901F\u5EA6\u968F\u4EFB\u52A1\u6D3B\u52A8\u8054\u52A8\uFF0C\u914D\u7F6E\u6301\u4E45\u5316\uFF08\u901A\u77E5\u89C1\u300C\u4EFB\u52A1\u901A\u77E5\u300D\uFF09",
   css: css2,
   View: AnimationView,
   HomeStat: AnimationStat,
   Overlay: AnimationOverlay
 };
 
+// features/notify/view.jsx
+var import_react9 = require("react");
+var import_jsx_runtime3 = require("react/jsx-runtime");
+function rpcCall3(method, args) {
+  return fetch("/dsh-dock/notify/" + method, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(args === void 0 ? {} : args)
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data && data.ok === true) return data.data;
+    if (res.status === 405 || res.status === 404) {
+      throw new Error("\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u300C\u4EFB\u52A1\u901A\u77E5\u300D\u63A5\u53E3\uFF1A\u5BBF\u4E3B\u8FDB\u7A0B\u53EF\u80FD\u662F\u65E7\u7248\u672C\uFF0C\u6216\u8BE5\u529F\u80FD\u5728\u5BBF\u4E3B\u4FA7\u672A\u542F\u7528\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u529F\u80FD\u575E\u91CC\u7684\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09");
+    }
+    if (data && data.ok === false) throw new Error(data.error && data.error.message || "HTTP " + res.status);
+    throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
+  });
+}
+var END_LABELS2 = {
+  completed: { label: "\u5B8C\u6210", cls: "ok" },
+  error: { label: "\u51FA\u9519", cls: "err" },
+  aborted: { label: "\u5DF2\u4E2D\u6B62", cls: "warn" },
+  blocked: { label: "\u53D7\u963B", cls: "warn" },
+  "max-tokens": { label: "\u8FBE\u8F93\u51FA\u4E0A\u9650", cls: "warn" },
+  interrupted: { label: "\u4E2D\u65AD", cls: "warn" }
+};
+function endInfo2(reason) {
+  return END_LABELS2[reason] || END_LABELS2.completed;
+}
+function isSuccessReason2(reason) {
+  return !reason || reason === "completed";
+}
+var PHASE_LABELS2 = { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" };
+function phaseLabel2(p) {
+  return PHASE_LABELS2[p] || "\u5DE5\u4F5C\u4E2D";
+}
+function toolLabel(name) {
+  const n = String(name || "").toLowerCase();
+  if (/bash|shell|terminal|cmd|pwsh|powershell|exec/.test(n)) return "\u6267\u884C\u547D\u4EE4";
+  if (/write|edit|patch|apply|create|mkdir|remove|delete/.test(n)) return "\u4FEE\u6539\u6587\u4EF6";
+  if (/web|fetch|browser|navigate|search/.test(n)) return "\u8BBF\u95EE\u7F51\u9875";
+  return "";
+}
+function fmtNum2(n) {
+  return (Number(n) || 0).toLocaleString("en-US");
+}
+function fmtDur2(ms) {
+  const s = Math.max(0, Math.round((ms || 0) / 1e3));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  if (h > 0) return h + "\u5C0F\u65F6" + m + "\u5206" + sec + "\u79D2";
+  if (m > 0) return m + "\u5206" + sec + "\u79D2";
+  return sec + "\u79D2";
+}
+function fmtTime3(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const p = (x) => String(x).padStart(2, "0");
+  return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+function truncate2(str, max) {
+  if (!str) return "";
+  return String(str).length > max ? String(str).slice(0, max) + "\u2026" : str;
+}
+var SOUND_LIBRARY = {
+  chime: { name: "\u6E05\u8106\u53CC\u97F3", notes: { done: [[659.25, 0, 0.14], [880, 0.13, 0.24]], err: [[220, 0, 0.16], [164.81, 0.15, 0.3]], ask: [[587.33, 0, 0.16], [880, 0.19, 0.34]] } },
+  ding: { name: "\u53EE", notes: { done: [[987.77, 0, 0.35]], err: [[246.94, 0, 0.4]], ask: [[783.99, 0, 0.18], [1174.66, 0.2, 0.42]] } },
+  coin: { name: "\u91D1\u5E01", notes: { done: [[988, 0, 0.08], [1319, 0.08, 0.35], [988, 0, 0.08, "square"], [1319, 0.08, 0.3, "square"]], err: [[196, 0, 0.12], [147, 0.11, 0.35]], ask: [[880, 0, 0.09], [1108.73, 0.1, 0.12], [1318.51, 0.22, 0.3]] } },
+  bell: { name: "\u949F\u58F0", notes: { done: [[523.25, 0, 0.5], [659.25, 0.02, 0.45], [783.99, 0.04, 0.4]], err: [[174.61, 0, 0.5], [130.81, 0.05, 0.5]], ask: [[659.25, 0, 0.4], [523.25, 0.05, 0.55]] } },
+  pulse: { name: "\u8109\u51B2", notes: { done: [[440, 0, 0.09], [440, 0.14, 0.09], [440, 0.28, 0.16]], err: [[174.61, 0, 0.1], [174.61, 0.14, 0.1], [174.61, 0.28, 0.18]], ask: [[523.25, 0, 0.09], [523.25, 0.15, 0.09], [659.25, 0.3, 0.22]] } },
+  arp: { name: "\u7436\u97F3", notes: { done: [[523.25, 0, 0.12], [659.25, 0.09, 0.12], [783.99, 0.18, 0.12], [1046.5, 0.27, 0.3]], err: [[392, 0, 0.12], [329.63, 0.1, 0.12], [261.63, 0.2, 0.12], [196, 0.3, 0.32]], ask: [[440, 0, 0.11], [554.37, 0.12, 0.11], [659.25, 0.24, 0.11], [880, 0.36, 0.34]] } }
+};
+var soundCtx = null;
+function playTone(seq) {
+  try {
+    if (typeof window === "undefined" || !window.AudioContext && !window.webkitAudioContext) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!soundCtx) soundCtx = new AC();
+    if (soundCtx.state === "suspended") {
+      soundCtx.resume().catch(() => {
+      });
+    }
+    const t0 = soundCtx.currentTime;
+    for (const [f, at, dur, wave] of seq) {
+      const osc = soundCtx.createOscillator();
+      const gain = soundCtx.createGain();
+      osc.type = wave || "sine";
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0, t0 + at);
+      gain.gain.linearRampToValueAtTime(0.18, t0 + at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(1e-4, t0 + at + dur);
+      osc.connect(gain).connect(soundCtx.destination);
+      osc.start(t0 + at);
+      osc.stop(t0 + at + dur + 0.05);
+    }
+  } catch {
+  }
+}
+function playDoneSound(success, effect) {
+  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+  playTone(success ? lib.notes.done : lib.notes.err);
+}
+function playAskSound(effect) {
+  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+  playTone(lib.notes.ask || lib.notes.done);
+}
+function previewSound(effect) {
+  const lib = SOUND_LIBRARY[effect] || SOUND_LIBRARY.chime;
+  playTone(lib.notes.done);
+  const delayed = lib.notes.err.map(([f, at, dur, wave]) => [f, at + 0.55, dur, wave]);
+  playTone(delayed);
+}
+var notifyStore = {
+  snap: { status: null, loading: false, error: null },
+  listeners: /* @__PURE__ */ new Set(),
+  subscribe(fn) {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  },
+  emit() {
+    for (const fn of this.listeners) fn();
+  },
+  applyConfig(cfg) {
+    if (this.snap.status) {
+      this.snap = Object.assign({}, this.snap, { status: Object.assign({}, this.snap.status, { config: cfg }) });
+      this.emit();
+    }
+  },
+  refresh() {
+    if (this.snap.loading) return Promise.resolve();
+    this.snap = Object.assign({}, this.snap, { loading: true });
+    this.emit();
+    return rpcCall3("status").then((data) => {
+      this.snap = { status: data, loading: false, error: null };
+      this.emit();
+    }).catch((e) => {
+      this.snap = Object.assign({}, this.snap, { loading: false, error: e && e.message || String(e) });
+      this.emit();
+    });
+  }
+};
+function useNotify() {
+  const [snap, setSnap] = (0, import_react9.useState)(notifyStore.snap);
+  (0, import_react9.useEffect)(() => notifyStore.subscribe(() => setSnap(notifyStore.snap)), []);
+  return snap;
+}
+function Toast(props) {
+  const t = props.t;
+  const [closing, setClosing] = (0, import_react9.useState)(false);
+  const close = (0, import_react9.useCallback)(() => {
+    if (!closing) setClosing(true);
+  }, [closing]);
+  (0, import_react9.useEffect)(() => {
+    if (!t.stayMs) return;
+    const timer = setTimeout(close, t.stayMs);
+    return () => clearTimeout(timer);
+  }, []);
+  (0, import_react9.useEffect)(() => {
+    if (!closing) return;
+    const timer = setTimeout(() => props.onClose(t.id), 240);
+    return () => clearTimeout(timer);
+  }, [closing]);
+  const markColor = t.kind === "success" ? "var(--dk-ok)" : t.kind === "error" ? "var(--dk-err)" : "var(--dk-warn)";
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.title, children: [
+        t.kind === "confirm" ? "\u270B " : "",
+        t.title
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
+    ] }),
+    t.body ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toast-body", children: t.body }) : null
+  ] });
+}
+function NotifyOverlay(props) {
+  const snap = useNotify();
+  const [toasts, setToasts] = (0, import_react9.useState)([]);
+  const prevActiveRef = (0, import_react9.useRef)(null);
+  const remindedApprovalsRef = (0, import_react9.useRef)(/* @__PURE__ */ new Map());
+  const toastSeqRef = (0, import_react9.useRef)(0);
+  const pushToast = (0, import_react9.useCallback)((toast) => {
+    setToasts((prev) => prev.concat([toast]).slice(-4));
+  }, []);
+  (0, import_react9.useEffect)(() => {
+    let stopped = false;
+    let timer = null;
+    const loop = async () => {
+      await notifyStore.refresh();
+      if (stopped) return;
+      const s = notifyStore.snap;
+      timer = setTimeout(loop, s.error ? 15e3 : s.status && s.status.active && s.status.active.length > 0 ? 850 : 6e3);
+    };
+    loop();
+    const onVisible = () => {
+      if (!stopped && typeof document !== "undefined" && document.visibilityState === "visible") notifyStore.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+  (0, import_react9.useEffect)(() => {
+    const st = snap.status;
+    if (!st || !st.active) return;
+    const prev = prevActiveRef.current;
+    if (prev) {
+      const currIds = new Set(st.active.map((x) => x.sessionId));
+      for (const task of prev) {
+        if (currIds.has(task.sessionId)) continue;
+        const record = (st.recent || []).find((r) => r.sessionId === task.sessionId) || null;
+        handleTaskEnd(task, record, st.config || {});
+      }
+    }
+    prevActiveRef.current = st.active.slice();
+  }, [snap.status]);
+  (0, import_react9.useEffect)(() => {
+    const st = snap.status;
+    if (!st || !st.active) return;
+    const cfg = st.config || {};
+    const activeIds = new Set(st.active.map((x) => x.sessionId));
+    for (const [sid, seen] of remindedApprovalsRef.current) {
+      if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
+    }
+    for (const task of st.active) {
+      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+      if (approvals.length === 0) continue;
+      let seen = remindedApprovalsRef.current.get(task.sessionId);
+      if (!seen) {
+        seen = /* @__PURE__ */ new Set();
+        remindedApprovalsRef.current.set(task.sessionId, seen);
+      }
+      const fresh = approvals.filter((a) => a && !seen.has(a.id));
+      if (fresh.length === 0) continue;
+      for (const a of fresh) seen.add(a.id);
+      if (cfg.notifyOnConfirm === false) continue;
+      const toolName = fresh[0].toolName || "";
+      const scene = toolLabel(toolName);
+      const lines = [
+        "\u4EFB\u52A1\uFF1A" + (task.title || "(\u65E0\u6807\u9898)"),
+        "\u5DE5\u5177\uFF1A" + (toolName || "\u672A\u77E5") + (scene ? "\uFF08" + scene + "\uFF09" : "")
+      ];
+      if (fresh[0].reason) lines.push("\u8BF4\u660E\uFF1A" + truncate2(fresh[0].reason, 140));
+      lines.push(fresh.length > 1 ? "\u5171 " + fresh.length + " \u9879\u7B49\u5F85\u4F60\u7684\u786E\u8BA4" : "\u8BF7\u5728\u4F1A\u8BDD\u91CC\u786E\u8BA4\u540E\u7EE7\u7EED");
+      pushToast({
+        id: ++toastSeqRef.current,
+        kind: "confirm",
+        title: "\u4EFB\u52A1\u9700\u8981\u786E\u8BA4",
+        body: lines.join("\n"),
+        // 需确认常驻到用户处理（notifyStayMs=0 同款语义），不会自动消失
+        stayMs: 0
+      });
+      if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
+      if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("dsh \u4EFB\u52A1\u9700\u8981\u786E\u8BA4", {
+            body: (task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + (toolName || "\u5DE5\u5177") + " \u7B49\u5F85\u786E\u8BA4",
+            tag: "dsh-dock-approval-" + task.sessionId
+          });
+        } catch {
+        }
+      }
+    }
+  }, [snap.status]);
+  const handleTaskEnd = (task, record, cfg) => {
+    const reason = record && record.endReason || "";
+    const success = isSuccessReason2(reason);
+    const info = endInfo2(reason);
+    const wanted = success ? cfg.notifyOnComplete : cfg.notifyOnError;
+    if (wanted === false) return;
+    const models = record && record.models && record.models.length ? record.models.join(", ") : task.models && task.models.length ? task.models.join(", ") : "\u672A\u77E5\u6A21\u578B";
+    const provider = record && record.provider || task.provider || "";
+    const startTs = record && record.startTime || task.startTime;
+    const endTs = record && record.endTime || Date.now();
+    const lines = [
+      "\u4EFB\u52A1\uFF1A" + (record && record.title || task.title || "(\u65E0\u6807\u9898)"),
+      "\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""),
+      "\u8017\u65F6\uFF1A" + fmtDur2(record && record.duration || endTs - startTs) + "\uFF08" + fmtTime3(startTs) + " \u2192 " + fmtTime3(endTs) + "\uFF09",
+      "\u56DE\u5408 " + (record && record.turns || task.turns || 0) + " \xB7 \u6B65\u9AA4 " + (record && record.steps || task.steps || 0) + (record && record.toolCalls || task.toolCalls ? " \xB7 \u5DE5\u5177 " + (record && record.toolCalls || task.toolCalls) + " \u6B21" : ""),
+      "Token\uFF1A\u8F93\u5165 " + fmtNum2(record && record.inputTokens || task.inputTokens) + " / \u8F93\u51FA " + fmtNum2(record && record.outputTokens || task.outputTokens)
+    ];
+    if (record && record.lastText) lines.push("\u6458\u8981\uFF1A" + truncate2(record.lastText, 140));
+    if (!success && record && record.errorMessage) lines.push("\u9519\u8BEF\uFF1A" + truncate2(record.errorMessage, 120));
+    const title = success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1" + info.label;
+    pushToast({
+      id: ++toastSeqRef.current,
+      kind: success ? "success" : info.cls === "err" ? "error" : "warn",
+      title,
+      body: lines.join("\n"),
+      stayMs: typeof cfg.notifyStayMs === "number" ? cfg.notifyStayMs : 8e3
+    });
+    if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
+    if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        new Notification("dsh " + title, {
+          body: (record && record.title || task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + fmtDur2(record && record.duration || endTs - startTs),
+          tag: "dsh-dock-notify-" + task.sessionId
+        });
+      } catch {
+      }
+    }
+  };
+  if (!snap.status) return null;
+  if (toasts.length === 0) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toasts", children: toasts.map((t) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Toast, { t, onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id)) }, t.id)) });
+}
+function NotifyView(props) {
+  const snap = useNotify();
+  const [cfg, setCfg] = (0, import_react9.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react9.useState)("");
+  const [testing, setTesting] = (0, import_react9.useState)(false);
+  const [testState, setTestState] = (0, import_react9.useState)(null);
+  const [feishuTesting, setFeishuTesting] = (0, import_react9.useState)(false);
+  const [feishuTestState, setFeishuTestState] = (0, import_react9.useState)(null);
+  const cfgRef = (0, import_react9.useRef)(null);
+  const pendingSavesRef = (0, import_react9.useRef)(0);
+  const editingWebhookRef = (0, import_react9.useRef)(false);
+  const editingFeishuRef = (0, import_react9.useRef)(false);
+  (0, import_react9.useEffect)(() => {
+    const c = snap.status && snap.status.config;
+    if (!c) return;
+    if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
+    if (c !== cfgRef.current) {
+      cfgRef.current = c;
+      setCfg(Object.assign({}, c));
+    }
+  }, [snap.status]);
+  (0, import_react9.useEffect)(() => {
+    if (!notifyStore.snap.status) notifyStore.refresh();
+  }, []);
+  const patch = (p) => {
+    setSaveErr("");
+    setCfg(Object.assign({}, cfg, p));
+    pendingSavesRef.current++;
+    return rpcCall3("config", p).then((d) => {
+      pendingSavesRef.current--;
+      notifyStore.applyConfig(d && d.config);
+    }).catch((e) => {
+      pendingSavesRef.current--;
+      setSaveErr("\u4FDD\u5B58\u5931\u8D25\uFF1A" + (e && e.message || String(e)));
+    });
+  };
+  const saveWebhook = async () => {
+    if (!editingWebhookRef.current) return;
+    const hook = String(cfg.dingtalkWebhook || "").trim();
+    await patch({ dingtalkWebhook: hook });
+    editingWebhookRef.current = false;
+    const c = notifyStore.snap.status && notifyStore.snap.status.config;
+    if (c && c !== cfgRef.current) {
+      cfgRef.current = c;
+      setCfg(Object.assign({}, c));
+    }
+  };
+  const saveFeishuWebhook = async () => {
+    if (!editingFeishuRef.current) return;
+    const hook = String(cfg.feishuWebhook || "").trim();
+    await patch({ feishuWebhook: hook });
+    editingFeishuRef.current = false;
+    const c = notifyStore.snap.status && notifyStore.snap.status.config;
+    if (c && c !== cfgRef.current) {
+      cfgRef.current = c;
+      setCfg(Object.assign({}, c));
+    }
+  };
+  const runDingtalkTest = async () => {
+    setTesting(true);
+    setTestState(null);
+    try {
+      if (editingWebhookRef.current) {
+        const hook = String(cfg.dingtalkWebhook || "").trim();
+        if (!hook) throw new Error("\u8BF7\u5148\u586B\u5199 Webhook \u5730\u5740");
+        const d = await rpcCall3("config", { dingtalkWebhook: hook });
+        notifyStore.applyConfig(d && d.config);
+        editingWebhookRef.current = false;
+        cfgRef.current = d && d.config || cfgRef.current;
+        setCfg(Object.assign({}, cfg, { dingtalkWebhook: hook }));
+      }
+      const r = await rpcCall3("test");
+      setTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
+    } catch (e) {
+      setTestState({ ok: false, msg: e && e.message || String(e) });
+    } finally {
+      setTesting(false);
+    }
+  };
+  const runFeishuTest = async () => {
+    setFeishuTesting(true);
+    setFeishuTestState(null);
+    try {
+      if (editingFeishuRef.current) {
+        const hook = String(cfg.feishuWebhook || "").trim();
+        if (!hook) throw new Error("\u8BF7\u5148\u586B\u5199 Webhook \u5730\u5740");
+        const d = await rpcCall3("config", { feishuWebhook: hook });
+        notifyStore.applyConfig(d && d.config);
+        editingFeishuRef.current = false;
+        cfgRef.current = d && d.config || cfgRef.current;
+        setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
+      }
+      const r = await rpcCall3("test", { target: "feishu" });
+      setFeishuTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
+    } catch (e) {
+      setFeishuTestState({ ok: false, msg: e && e.message || String(e) });
+    } finally {
+      setFeishuTesting(false);
+    }
+  };
+  const enableSystemNotify = async (next) => {
+    if (next && typeof Notification !== "undefined" && Notification.permission !== "granted") {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") {
+          setSaveErr("\u6D4F\u89C8\u5668\u672A\u6388\u6743\u7CFB\u7EDF\u901A\u77E5\uFF08\u53EF\u5728\u5730\u5740\u680F\u6743\u9650\u8BBE\u7F6E\u91CC\u91CD\u65B0\u5141\u8BB8\uFF09");
+          return;
+        }
+      } catch {
+        setSaveErr("\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u7CFB\u7EDF\u901A\u77E5");
+        return;
+      }
+    }
+    patch({ systemNotify: next });
+  };
+  const st = snap.status;
+  const active = st && st.active ? st.active : [];
+  const recent = st && st.recent ? st.recent.slice(0, 6) : [];
+  const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
+  const permNote = typeof Notification === "undefined" ? "\u5F53\u524D\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u7CFB\u7EDF\u901A\u77E5" : Notification.permission === "granted" ? "\u5DF2\u6388\u6743 \xB7 \u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001" : Notification.permission === "denied" ? "\u5DF2\u88AB\u6D4F\u89C8\u5668\u62D2\u7EDD\uFF08\u9700\u5728\u6D4F\u89C8\u5668\u6743\u9650\u8BBE\u7F6E\u91CC\u91CD\u65B0\u5141\u8BB8\uFF09" : "\u672A\u6388\u6743 \xB7 \u5F00\u542F\u65F6\u4F1A\u8BF7\u6C42\u6388\u6743\uFF0C\u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001";
+  const rows = [];
+  if (!cfg) {
+    rows.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: snap.error ? "\u72B6\u6001\u4E0D\u53EF\u7528\uFF1A" + snap.error : snap.loading ? "\u6B63\u5728\u62C9\u53D6\u901A\u77E5\u72B6\u6001\u2026" : "\u7B49\u5F85\u901A\u77E5\u72B6\u6001" }, "load"));
+  } else {
+    rows.push(
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u901A\u77E5\u4E8B\u4EF6" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u54EA\u4E9B\u65F6\u523B\u63D0\u9192\u4F60\uFF1B\u4E0E\u3010\u4EFB\u52A1\u52A8\u753B\u3011\u7684\u52A8\u6548\u4E92\u4E0D\u4F9D\u8D56" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5B8C\u6210\u901A\u77E5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.notifyOnComplete ? " on" : ""),
+                onClick: () => patch({ notifyOnComplete: !cfg.notifyOnComplete }),
+                children: cfg.notifyOnComplete ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u4EFB\u52A1\u6B63\u5E38\u5B8C\u6210\u65F6\u901A\u77E5" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5F02\u5E38\u901A\u77E5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.notifyOnError ? " on" : ""),
+                onClick: () => patch({ notifyOnError: !cfg.notifyOnError }),
+                children: cfg.notifyOnError ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u51FA\u9519 / \u4E2D\u6B62 / \u8FBE\u8F93\u51FA\u4E0A\u9650\u65F6\u901A\u77E5" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u9700\u786E\u8BA4\u63D0\u9192" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.notifyOnConfirm !== false ? " on" : ""),
+                onClick: () => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false }),
+                children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF08\u5E38\u9A7B\u4E0D\u81EA\u52A8\u6D88\u5931\uFF09" })
+          ] })
+        ] })
+      ] }, "events"),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u63D0\u9192\u65B9\u5F0F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u9875\u5185\u5361\u7247\u3001\u63D0\u793A\u97F3\u3001\u6D4F\u89C8\u5668\u7CFB\u7EDF\u901A\u77E5\u53EF\u81EA\u7531\u7EC4\u5408" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u505C\u7559\u65F6\u957F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+              "select",
+              {
+                className: "dknt-select",
+                value: String(cfg.notifyStayMs),
+                onChange: (e) => patch({ notifyStayMs: Number(e.target.value) }),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "4000", children: "4 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "8000", children: "8 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "15000", children: "15 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "30000", children: "30 \u79D2" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "0", children: "\u5E38\u9A7B\uFF08\u624B\u52A8\u5173\u95ED\uFF09" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5361\u7247\u81EA\u52A8\u6D88\u5931\u7684\u65F6\u95F4\uFF08\u9700\u786E\u8BA4\u63D0\u9192\u6052\u4E3A\u5E38\u9A7B\uFF09" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.systemNotify ? " on" : ""),
+                onClick: () => enableSystemNotify(!cfg.systemNotify),
+                children: cfg.systemNotify ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: permNote })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u63D0\u793A\u97F3" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.soundNotify !== false ? " on" : ""),
+                onClick: () => patch({ soundNotify: cfg.soundNotify === false }),
+                children: cfg.soundNotify !== false ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F/\u9700\u786E\u8BA4\u65F6\u64AD\u653E\uFF08\u8BD5\u542C\u4E3A\u5148\u64AD\u5B8C\u6210\u97F3\u3001\u540E\u64AD\u5F02\u5E38\u97F3\uFF09" })
+          ] }),
+          cfg.soundNotify !== false ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-sounds", children: Object.keys(SOUND_LIBRARY).map((key) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+            "button",
+            {
+              type: "button",
+              className: "dknt-sound" + (cfg.soundEffect === key ? " on" : ""),
+              onClick: () => patch({ soundEffect: key }),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sound-name", children: [
+                  SOUND_LIBRARY[key].name,
+                  cfg.soundEffect === key ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sound-cur", children: "\u2713" }) : null
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "span",
+                  {
+                    className: "dknt-sound-play",
+                    role: "button",
+                    tabIndex: 0,
+                    title: "\u8BD5\u542C " + SOUND_LIBRARY[key].name,
+                    onClick: (e) => {
+                      e.stopPropagation();
+                      previewSound(key);
+                    },
+                    onKeyDown: (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        previewSound(key);
+                      }
+                    },
+                    children: "\u25B6"
+                  }
+                )
+              ]
+            },
+            key
+          )) }) : null
+        ] })
+      ] }, "style"),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u9489\u9489\u63A8\u9001" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u9489\u9489\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.dingtalkEnabled ? " on" : ""), children: cfg.dingtalkEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.dingtalkEnabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.dingtalkEnabled,
+                "aria-label": "\u5F00\u5173\u9489\u9489\u63A8\u9001",
+                title: cfg.dingtalkEnabled ? "\u5173\u95ED\u9489\u9489\u63A8\u9001" : "\u5F00\u542F\u9489\u9489\u63A8\u9001",
+                onClick: () => patch({ dingtalkEnabled: !cfg.dingtalkEnabled })
+              }
+            )
+          ] })
+        ] }),
+        cfg.dingtalkEnabled ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "input",
+              {
+                type: "text",
+                className: "dknt-input",
+                spellCheck: false,
+                value: cfg.dingtalkWebhook || "",
+                placeholder: "https://oapi.dingtalk.com/robot/send?access_token=\u2026",
+                onChange: (e) => {
+                  editingWebhookRef.current = true;
+                  setCfg(Object.assign({}, cfg, { dingtalkWebhook: e.target.value }));
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-btn",
+                disabled: !editingWebhookRef.current,
+                onClick: saveWebhook,
+                children: editingWebhookRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-btn", disabled: testing, onClick: runDingtalkTest, children: testing ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
+            testState ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub" + (testState.ok ? " dknt-ok" : " dknt-err"), children: [
+              testState.ok ? "\u2713 " : "\u2717 ",
+              testState.msg
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u9489\u9489\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u667A\u80FD\u7FA4\u52A9\u624B \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\uFF08Webhook\uFF09\uFF0C \u5B89\u5168\u8BBE\u7F6E\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u9489\u9489\u3002" })
+      ] }, "dingtalk"),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u98DE\u4E66\u63A8\u9001" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.feishuEnabled ? " on" : ""), children: cfg.feishuEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.feishuEnabled ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.feishuEnabled,
+                "aria-label": "\u5F00\u5173\u98DE\u4E66\u63A8\u9001",
+                title: cfg.feishuEnabled ? "\u5173\u95ED\u98DE\u4E66\u63A8\u9001" : "\u5F00\u542F\u98DE\u4E66\u63A8\u9001",
+                onClick: () => patch({ feishuEnabled: !cfg.feishuEnabled })
+              }
+            )
+          ] })
+        ] }),
+        cfg.feishuEnabled ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "input",
+              {
+                type: "text",
+                className: "dknt-input",
+                spellCheck: false,
+                value: cfg.feishuWebhook || "",
+                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/\u2026",
+                onChange: (e) => {
+                  editingFeishuRef.current = true;
+                  setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-btn",
+                disabled: !editingFeishuRef.current,
+                onClick: saveFeishuWebhook,
+                children: editingFeishuRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-btn", disabled: feishuTesting, onClick: runFeishuTest, children: feishuTesting ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
+            feishuTestState ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub" + (feishuTestState.ok ? " dknt-ok" : " dknt-err"), children: [
+              feishuTestState.ok ? "\u2713 " : "\u2717 ",
+              feishuTestState.msg
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u98DE\u4E66\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u7FA4\u673A\u5668\u4EBA \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\u673A\u5668\u4EBA\uFF08\u83B7\u53D6 Webhook \u5730\u5740\uFF09\uFF1B \u5B89\u5168\u8BBE\u7F6E\u5982\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u98DE\u4E66\u3002" })
+      ] }, "feishu")
+    );
+  }
+  if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note dknt-err", children: saveErr }, "err"));
+  rows.push(
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u8FD0\u884C\u72B6\u6001" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: snap.error ? "\u72B6\u6001\u62C9\u53D6\u5931\u8D25\uFF1A" + snap.error : waitingCount > 0 ? waitingCount + " \u9879\u7B49\u5F85\u786E\u8BA4 \xB7 " + active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : active.length > 0 ? active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D\uFF0C\u7ED3\u675F\u540E\u6309\u4E0A\u65B9\u5F00\u5173\u901A\u77E5" : recent.length > 0 ? "\u7A7A\u95F2 \xB7 \u663E\u793A\u6700\u8FD1\u5B8C\u6210" : "\u7A7A\u95F2 \xB7 \u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-refresh", onClick: () => notifyStore.refresh(), children: snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u5237\u65B0" })
+      ] }),
+      active.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-tasks", children: active.map((t) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotifyTaskRow, { t }, t.sessionId)) }) : null,
+      active.length === 0 && recent.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u53D1\u8D77\u65B0\u4F1A\u8BDD\u4EFB\u52A1\u540E\uFF0C\u8FD9\u91CC\u4F1A\u663E\u793A\u8FDB\u884C\u4E2D\u4E0E\u6700\u8FD1\u5B8C\u6210\u7684\u4EFB\u52A1\uFF1B\u7ED3\u675F\u65F6\u6309\u4E0A\u65B9\u5F00\u5173\u5F39\u5361\u7247/\u54CD\u94C3/\u63A8\u9001\u3002" }) : null,
+      recent.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-tasks dknt-tasks-done", children: recent.map((t) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotifyTaskRow, { t, done: true }, t.sessionId + ":" + t.endTime)) }) : null
+    ] }, "state")
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-root", children: rows });
+}
+function NotifyTaskRow(props) {
+  const t = props.t;
+  const info = endInfo2(t.endReason);
+  const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-task", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-task-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-task-title", title: t.title, children: t.title || "(\u65E0\u6807\u9898)" }),
+      props.done ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-tag " + info.cls, children: info.label }) : waiting ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-tag warn", children: "\u7B49\u5F85\u786E\u8BA4" }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-tag on", children: phaseLabel2(t.phase) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-task-meta", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: (t.models && t.models.length ? t.models.join(", ") : "\u672A\u77E5") + (t.provider ? "\uFF08" + t.provider + "\uFF09" : "") }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: props.done ? fmtDur2(t.duration) : fmtDur2(t.elapsed) }),
+      t.totalTokens ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u21A7" + fmtNum2(t.inputTokens) + " \u21A5" + fmtNum2(t.outputTokens) }) : null,
+      props.done && t.endTime ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: fmtTime3(t.endTime) }) : null
+    ] }),
+    waiting ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-task-err", children: t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "\u672A\u77E5\u5DE5\u5177") + (a && a.reason ? "\uFF1A" + truncate2(a.reason, 80) : "")).join("\uFF1B") }) : null,
+    props.done && t.errorMessage ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-task-err", children: truncate2(t.errorMessage, 120) }) : null
+  ] });
+}
+function NotifyStat(props) {
+  const snap = useNotify(props && props.ctx);
+  const st = snap.status;
+  if (snap.error) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-err", children: "\u901A\u77E5\u72B6\u6001\u4E0D\u53EF\u7528\uFF08\u5BBF\u4E3B\u9700\u91CD\u542F\u52A0\u8F7D\u901A\u77E5\u8DEF\u7531\uFF09" });
+  if (!st) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u7B49\u5F85\u901A\u77E5\u72B6\u6001\u2026" });
+  const active = st.active || [];
+  const waiting = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
+  if (waiting > 0) return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-warn", children: [
+    "\u270B ",
+    waiting,
+    " \u9879\u7B49\u5F85\u786E\u8BA4"
+  ] });
+  if (active.length > 0) return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+    active.length,
+    " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 \u7ED3\u675F\u5373\u901A\u77E5"
+  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u76D1\u542C\u4E2D \xB7 \u5B8C\u6210/\u5F02\u5E38/\u9700\u786E\u8BA4\u901A\u77E5" });
+}
+var css3 = [
+  // 通知卡片栈（右上角，不遮 dsh 自身 UI）
+  ".dknt-toasts{position:fixed;top:16px;right:16px;z-index:9995;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));}",
+  ".dknt-toast{border-radius:12px;padding:12px 14px;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 10px 36px rgb(0 0 0 / .22);animation:dknt-toast-in .32s var(--ds-ease-in-out);}",
+  ".dknt-toast.out{animation:dknt-toast-out .24s var(--ds-ease-in-out) forwards;}",
+  "@keyframes dknt-toast-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}",
+  "@keyframes dknt-toast-out{to{opacity:0;transform:translateX(10px)}}",
+  ".dknt-toast-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}",
+  ".dknt-toast-mark{width:8px;height:8px;border-radius:50%;flex:none;}",
+  ".dknt-toast-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+  ".dknt-toast-close{cursor:pointer;flex:none;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:6px;width:22px;height:22px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;}",
+  ".dknt-toast-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  ".dknt-toast-body{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.7;white-space:pre-line;word-break:break-word;}",
+  // 需确认卡片：琥珀描边 + 缓慢呼吸光晕，常驻提醒直到用户处理
+  ".dknt-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dknt-toast-in .32s var(--ds-ease-in-out),dknt-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
+  "@keyframes dknt-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
+  "@media (prefers-reduced-motion:reduce){.dknt-toast,.dknt-toast-confirm{animation:none}}",
+  // 面板页布局
+  ".dknt-root{display:flex;flex-direction:column;gap:10px;}",
+  ".dknt-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
+  ".dknt-err{color:var(--dsw-alias-state-error-primary);}",
+  ".dknt-ok{color:var(--dsw-alias-state-success-primary);}",
+  ".dknt-warn{color:var(--dk-warn);}",
+  ".dknt-sec{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}",
+  ".dknt-sec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+  ".dknt-sec-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:none;}",
+  ".dknt-sec-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:1;min-width:120px;}",
+  ".dknt-sec-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
+  ".dknt-sec-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
+  ".dknt-sec-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
+  ".dknt-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
+  ".dknt-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+  // 子选项行
+  ".dknt-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
+  ".dknt-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
+  ".dknt-row-label{flex:none;min-width:60px;color:var(--dsw-alias-label-primary);}",
+  ".dknt-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
+  ".dknt-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+  ".dknt-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
+  // 音效选择卡（名称 + 播放键；选中态描边）
+  ".dknt-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
+  ".dknt-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
+  ".dknt-sound:hover{border-color:var(--dk-accent);}",
+  ".dknt-sound.on{border-color:var(--dk-accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--dk-accent) 40%,transparent);}",
+  ".dknt-sound-name{font-size:12px;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:5px;}",
+  ".dknt-sound-cur{color:var(--dk-accent);font-size:11px;}",
+  ".dknt-sound-play{flex:none;cursor:pointer;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:1;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l2);}",
+  ".dknt-sound-play:hover{color:var(--dsw-alias-label-primary);border-color:currentColor;}",
+  ".dknt-input{flex:1;min-width:220px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;}",
+  ".dknt-input:focus{outline:none;border-color:var(--dk-accent);}",
+  ".dknt-row-webhook{flex-wrap:nowrap;}",
+  ".dknt-row-webhook .dknt-input{min-width:0;}",
+  ".dknt-btn{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 12px;font-family:inherit;font-size:12px;}",
+  ".dknt-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+  ".dknt-btn[disabled]{opacity:.5;cursor:default;}",
+  // 任务列表
+  ".dknt-tasks{display:flex;flex-direction:column;gap:6px;}",
+  ".dknt-tasks-done{border-top:1px dashed var(--dsw-alias-border-l2);padding-top:6px;}",
+  ".dknt-task{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px;}",
+  ".dknt-task-head{display:flex;align-items:center;gap:8px;min-width:0;}",
+  ".dknt-task-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+  ".dknt-task-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-task-err{font-size:11px;color:var(--dsw-alias-state-error-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+  ".dknt-tag{flex:none;font-size:10px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
+  ".dknt-tag.on{color:var(--dk-accent);border-color:currentColor;}",
+  ".dknt-tag.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+  ".dknt-tag.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
+  ".dknt-tag.warn{color:var(--dk-warn);border-color:currentColor;}"
+].join("\n");
+var feature7 = {
+  id: "notify",
+  name: "\u4EFB\u52A1\u901A\u77E5",
+  order: 140,
+  accent: "#f59e0b",
+  description: "\u4EFB\u52A1\u5B8C\u6210/\u5F02\u5E38/\u9700\u786E\u8BA4\u901A\u77E5\uFF1A\u9875\u5185\u5361\u7247\u3001\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u3001\u9489\u9489/\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\u63A8\u9001\uFF08\u72EC\u7ACB\u5F00\u5173\uFF09",
+  css: css3,
+  View: NotifyView,
+  HomeStat: NotifyStat,
+  Overlay: NotifyOverlay
+};
+
 // features/games/view.jsx
-var import_react18 = require("react");
+var import_react19 = require("react");
 
 // features/games/games/shared.jsx
-var import_react9 = require("react");
+var import_react10 = require("react");
 function isTypingTarget(event) {
   const tag = event.target && event.target.tagName || "";
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
@@ -6191,9 +6456,9 @@ function isTypingTarget(event) {
   return false;
 }
 function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
-  const pausedRef = (0, import_react9.useRef)(!!paused);
+  const pausedRef = (0, import_react10.useRef)(!!paused);
   pausedRef.current = !!paused;
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     if (pausedRef.current) return;
     const el = stageRef && stageRef.current;
     if (!el) return;
@@ -6205,7 +6470,7 @@ function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
     }, 60);
     return () => clearTimeout(t);
   }, [paused]);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     const inStage = (event) => {
       const el = stageRef && stageRef.current;
       return !!el && (el === event.target || el.contains(event.target));
@@ -6298,8 +6563,8 @@ function playSfx(name) {
 }
 
 // features/games/games/tetris.jsx
-var import_react10 = require("react");
-var import_jsx_runtime3 = require("react/jsx-runtime");
+var import_react11 = require("react");
+var import_jsx_runtime4 = require("react/jsx-runtime");
 var COLS = 10;
 var ROWS = 20;
 var SHAPES = [
@@ -6329,11 +6594,11 @@ var TETRIS_GRID = (() => {
   let k = 0;
   for (let j = 0; j < 20; j += 1) {
     for (let i = 0; i < 10; i += 1) {
-      parts.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { className: "dgame-tetris-pit", x: i * 100 + 7, y: j * 100 + 7, width: 86, height: 86, rx: 10 }, k++));
+      parts.push(/* @__PURE__ */ (0, import_jsx_runtime4.jsx)("rect", { className: "dgame-tetris-pit", x: i * 100 + 7, y: j * 100 + 7, width: 86, height: 86, rx: 10 }, k++));
     }
   }
-  for (let i = 1; i < 10; i += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: i * 100, y1: 0, x2: i * 100, y2: 2e3 }, k++));
-  for (let j = 1; j < 20; j += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: 0, y1: j * 100, x2: 1e3, y2: j * 100 }, k++));
+  for (let i = 1; i < 10; i += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: i * 100, y1: 0, x2: i * 100, y2: 2e3 }, k++));
+  for (let j = 1; j < 20; j += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: 0, y1: j * 100, x2: 1e3, y2: j * 100 }, k++));
   return parts;
 })();
 function emptyBoard() {
@@ -6459,12 +6724,12 @@ var KEY_ACTIONS = {
   "Enter": "drop"
 };
 function TetrisGame(props) {
-  const [state, setState] = (0, import_react10.useState)(initial);
-  const [manualPause, setManualPause] = (0, import_react10.useState)(false);
-  const pausedRef = (0, import_react10.useRef)(!!(props && props.paused));
+  const [state, setState] = (0, import_react11.useState)(initial);
+  const [manualPause, setManualPause] = (0, import_react11.useState)(false);
+  const pausedRef = (0, import_react11.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused) || manualPause;
-  const stageRef = (0, import_react10.useRef)(null);
-  const act = (0, import_react10.useCallback)((action) => setState((s) => {
+  const stageRef = (0, import_react11.useRef)(null);
+  const act = (0, import_react11.useCallback)((action) => setState((s) => {
     if (pausedRef.current) return s;
     if (action === "left") {
       playSfx("move");
@@ -6486,21 +6751,21 @@ function TetrisGame(props) {
     }
     return s;
   }), []);
-  const softRef = (0, import_react10.useRef)(null);
-  const stateRef = (0, import_react10.useRef)(state);
+  const softRef = (0, import_react11.useRef)(null);
+  const stateRef = (0, import_react11.useRef)(state);
   stateRef.current = state;
-  const holdIdRef = (0, import_react10.useRef)(null);
-  const stopSoft = (0, import_react10.useCallback)(() => {
+  const holdIdRef = (0, import_react11.useRef)(null);
+  const stopSoft = (0, import_react11.useCallback)(() => {
     if (softRef.current) {
       clearInterval(softRef.current);
       softRef.current = null;
     }
   }, []);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (state.over || manualPause || props.paused) stopSoft();
     return stopSoft;
   }, [state.over, manualPause, props.paused, stopSoft]);
-  const onKeyDown = (0, import_react10.useCallback)((event) => {
+  const onKeyDown = (0, import_react11.useCallback)((event) => {
     const action = KEY_ACTIONS[event.key];
     if (action) {
       event.preventDefault();
@@ -6532,13 +6797,13 @@ function TetrisGame(props) {
       setManualPause(false);
     }
   }, [act, stopSoft]);
-  const onKeyUp = (0, import_react10.useCallback)((event) => {
+  const onKeyUp = (0, import_react11.useCallback)((event) => {
     if (KEY_ACTIONS[event.key] === "down") stopSoft();
   }, [stopSoft]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (pausedRef.current || state.over) return;
     const speed = Math.max(80, 720 - (state.level - 1) * 70);
     const timer = setInterval(() => act("down"), speed);
@@ -6559,18 +6824,18 @@ function TetrisGame(props) {
   }
   const nextType = state.next != null ? state.next : 0;
   const nextMat = PIECES[nextType].rots[0];
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("section", { className: "dgame-game", "aria-label": "\u4FC4\u7F57\u65AF\u65B9\u5757", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: "\u4FC4\u7F57\u65AF\u65B9\u5757" }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: "\u62FC\u6EE1\u4E00\u884C\u5373\u6D88\u9664\uFF0C\u901F\u5EA6\u968F\u7B49\u7EA7\u52A0\u5FEB\uFF1B\u65B9\u5757\u5806\u5230\u9876\u7AEF\u5C31\u7ED3\u675F\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "dgame-game", "aria-label": "\u4FC4\u7F57\u65AF\u65B9\u5757", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: "\u4FC4\u7F57\u65AF\u65B9\u5757" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: "\u62FC\u6EE1\u4E00\u884C\u5373\u6D88\u9664\uFF0C\u901F\u5EA6\u968F\u7B49\u7EA7\u52A0\u5FEB\uFF1B\u65B9\u5757\u5806\u5230\u9876\u7AEF\u5C31\u7ED3\u675F\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
           "\u5F97\u5206 ",
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: state.score })
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: state.score })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
           "\u7B49\u7EA7 ",
           state.level,
           " \xB7 \u6D88\u884C ",
@@ -6578,33 +6843,33 @@ function TetrisGame(props) {
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-board", ref: stageRef, tabIndex: 0, onKeyDown, onKeyUp, onBlur: stopSoft, onClick: () => focusStage(stageRef), "aria-label": "\u4FC4\u7F57\u65AF\u65B9\u5757\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u4E0E\u7A7A\u683C\u63A7\u5236", children: [
-        display.map((row, rr) => row.map((cell, cc) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: "dgame-tetris-cell", style: cell ? { background: cell, boxShadow: "0 0 8px " + cell + "aa, inset 0 0 4px rgba(255,255,255,.5)" } : void 0 }, rr + "-" + cc))),
-        state.over ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-over", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u65B9\u5757\u5806\u5230\u9876\u4E86" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", onClick: () => setState(initial()), children: "\u518D\u6765\u4E00\u5C40" })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { className: "dgame-tetris-lines", viewBox: "0 0 1000 2000", preserveAspectRatio: "none", "aria-hidden": "true", children: TETRIS_GRID }),
-        !state.over && (props.paused || manualPause) ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-over", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: "\u5DF2\u6682\u505C" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", onClick: () => setManualPause(false), children: "\u7EE7\u7EED\uFF08P\uFF09" })
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-tetris", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-tetris-board", ref: stageRef, tabIndex: 0, onKeyDown, onKeyUp, onBlur: stopSoft, onClick: () => focusStage(stageRef), "aria-label": "\u4FC4\u7F57\u65AF\u65B9\u5757\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u4E0E\u7A7A\u683C\u63A7\u5236", children: [
+        display.map((row, rr) => row.map((cell, cc) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("i", { className: "dgame-tetris-cell", style: cell ? { background: cell, boxShadow: "0 0 8px " + cell + "aa, inset 0 0 4px rgba(255,255,255,.5)" } : void 0 }, rr + "-" + cc))),
+        state.over ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-over", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "\u65B9\u5757\u5806\u5230\u9876\u4E86" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => setState(initial()), children: "\u518D\u6765\u4E00\u5C40" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("svg", { className: "dgame-tetris-lines", viewBox: "0 0 1000 2000", preserveAspectRatio: "none", "aria-hidden": "true", children: TETRIS_GRID }),
+        !state.over && (props.paused || manualPause) ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-over", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: "\u5DF2\u6682\u505C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => setManualPause(false), children: "\u7EE7\u7EED\uFF08P\uFF09" })
         ] }) : null
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-side", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-next", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u4E0B\u4E00\u4E2A" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dgame-tetris-nextbox", children: nextMat.map((row, r) => row.map((cell, c) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: "dgame-tetris-cell", style: cell ? { background: PIECES[nextType].color } : void 0 }, r + "-" + c))) })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-tetris-side", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-tetris-next", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "\u4E0B\u4E00\u4E2A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dgame-tetris-nextbox", children: nextMat.map((row, r) => row.map((cell, c) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("i", { className: "dgame-tetris-cell", style: cell ? { background: PIECES[nextType].color } : void 0 }, r + "-" + c))) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-tetris-keys", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("b", { children: "\u64CD\u4F5C" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u2190/\u2192 \u79FB\u52A8 \xB7 \u2193 \u5FEB\u901F\u4E0B\u6ED1 \xB7 \u2191/X \u65CB\u8F6C \xB7 Z \u53CD\u5411 \xB7 \u7A7A\u683C \u76F4\u843D \xB7 P \u6682\u505C \xB7 R \u91CD\u5F00" })
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-tetris-keys", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: "\u64CD\u4F5C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "\u2190/\u2192 \u79FB\u52A8 \xB7 \u2193 \u5FEB\u901F\u4E0B\u6ED1 \xB7 \u2191/X \u65CB\u8F6C \xB7 Z \u53CD\u5411 \xB7 \u7A7A\u683C \u76F4\u843D \xB7 P \u6682\u505C \xB7 R \u91CD\u5F00" })
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", "aria-label": "\u5DE6\u79FB", onClick: () => act("left"), children: "\u2190 \u5DE6\u79FB" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u65B9\u5411\u952E / X\u3001Z\u3001\u7A7A\u683C\u3001P" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("button", { type: "button", "aria-label": "\u53F3\u79FB", onClick: () => act("right"), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", "aria-label": "\u5DE6\u79FB", onClick: () => act("left"), children: "\u2190 \u5DE6\u79FB" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "\u65B9\u5411\u952E / X\u3001Z\u3001\u7A7A\u683C\u3001P" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { type: "button", "aria-label": "\u53F3\u79FB", onClick: () => act("right"), children: [
         "\u53F3\u79FB ",
         "->"
       ] })
@@ -6637,15 +6902,15 @@ function TetrisPreview() {
     "JJSLLOSOII"
   ];
   const isFall = (r) => r === 1;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dgcov-prev dgcov-prev-tetris", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dgp-tet-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: COLORS2[ch] ? "c" + COLORS2[ch] + (isFall(r) ? " fall" : "") : "" }, r + "-" + c))) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dgcov-prev dgcov-prev-tetris", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dgp-tet-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("i", { className: COLORS2[ch] ? "c" + COLORS2[ch] + (isFall(r) ? " fall" : "") : "" }, r + "-" + c))) }) });
 }
 var tetrisGame = { Game: TetrisGame, Preview: TetrisPreview, css: `
 .dgame-tetris{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;align-self:center;width:fit-content;max-width:100%;margin-inline:auto;justify-content:center}.dgame-tetris-board{position:relative;flex:none;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(20,1fr);width:min(100%,188px);aspect-ratio:10/20;border:1px solid color-mix(in srgb,rgb(34 211 238) 35%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#0c1024,#131a3d);padding:0;box-shadow:inset 0 0 30px rgb(0 0 0/.45)}.dgame-tetris-board:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(34 211 238) 40%,transparent)}.dgame-tetris-cell{position:relative;z-index:1;display:block;background:transparent;border-radius:2px;margin:1px}.dgame-tetris-nextbox{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);width:60px;height:32px}.dgame-tetris-side{flex:1 1 96px;display:flex;flex-direction:column;gap:9px;min-width:0;max-width:220px;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-tetris-side b{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-tetris-side span{font-size:11px}.dgame-tetris-nextbox .dgame-tetris-cell{margin:1px}.dgame-tetris-keys span{display:block;line-height:1.6;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}.dgame-tetris-next{display:flex;flex-direction:column;gap:5px;align-items:center}.dgame-tetris-next span{color:var(--dsw-alias-label-secondary)}.dgame-tetris-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.dgame-tetris-lines line{stroke:rgb(96 165 250/.28);stroke-width:3}.dgame-tetris-lines .dgame-tetris-pit{fill:rgb(0 0 0/.42);stroke:rgb(255 255 255/.07);stroke-width:2}@media (max-width:680px){.dgame-tetris{width:100%;gap:8px}.dgame-tetris-board{width:min(100%,170px)}}
 ` };
 
 // features/games/games/sokoban.jsx
-var import_react11 = require("react");
-var import_jsx_runtime4 = require("react/jsx-runtime");
+var import_react12 = require("react");
+var import_jsx_runtime5 = require("react/jsx-runtime");
 var LEVELS = [
   ["######", "#    #", "#@$ .#", "#    #", "######"],
   ["######", "# @  #", "# $  #", "# .  #", "######"],
@@ -6739,28 +7004,28 @@ function undo(state) {
 }
 var DIRS = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
 function SokobanGame(props) {
-  const [level, setLevel] = (0, import_react11.useState)(0);
-  const [state, setState] = (0, import_react11.useState)(() => makeInitial(0));
-  const stageRef = (0, import_react11.useRef)(null);
-  const levelRef = (0, import_react11.useRef)(level);
+  const [level, setLevel] = (0, import_react12.useState)(0);
+  const [state, setState] = (0, import_react12.useState)(() => makeInitial(0));
+  const stageRef = (0, import_react12.useRef)(null);
+  const levelRef = (0, import_react12.useRef)(level);
   levelRef.current = level;
-  const move = (0, import_react11.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
-  const prevWon = (0, import_react11.useRef)(false);
-  (0, import_react11.useEffect)(() => {
+  const move = (0, import_react12.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
+  const prevWon = (0, import_react12.useRef)(false);
+  (0, import_react12.useEffect)(() => {
     if (state.wonNew && !prevWon.current) playSfx("win");
     prevWon.current = state.wonNew;
   }, [state.wonNew]);
-  const nextLevel = (0, import_react11.useCallback)(() => {
+  const nextLevel = (0, import_react12.useCallback)(() => {
     const n = (levelRef.current + 1) % LEVELS.length;
     setLevel(n);
     setState(makeInitial(n));
   }, []);
-  const pickLevel = (0, import_react11.useCallback)((i) => {
+  const pickLevel = (0, import_react12.useCallback)((i) => {
     setLevel(i);
     setState(makeInitial(i));
   }, []);
-  const reset = (0, import_react11.useCallback)(() => setState(makeInitial(levelRef.current)), []);
-  const onKeyDown = (0, import_react11.useCallback)((event) => {
+  const reset = (0, import_react12.useCallback)(() => setState(makeInitial(levelRef.current)), []);
+  const onKeyDown = (0, import_react12.useCallback)((event) => {
     const d = DIRS[event.key];
     if (d) {
       event.preventDefault();
@@ -6782,50 +7047,50 @@ function SokobanGame(props) {
   const grid = state.grid;
   const rows = grid.length, cols = grid[0].length;
   const width = "min(" + cols * 26 + "px, 100%, calc((100vh - 250px) * " + cols + " / " + rows + "))";
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "dgame-game", "aria-label": "\u63A8\u7BB1\u5B50", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: "\u63A8\u7BB1\u5B50" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: "\u7528\u65B9\u5411\u952E\u628A\u7BB1\u5B50\u63A8\u5230\u76EE\u6807\u683C\u5B50\u4E0A\uFF1B\u5168\u90E8\u5230\u4F4D\u5373\u8FC7\u5173\uFF08U \u64A4\u9500\u3001R \u91CD\u7F6E\uFF09\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "dgame-game", "aria-label": "\u63A8\u7BB1\u5B50", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { children: "\u63A8\u7BB1\u5B50" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: "\u7528\u65B9\u5411\u952E\u628A\u7BB1\u5B50\u63A8\u5230\u76EE\u6807\u683C\u5B50\u4E0A\uFF1B\u5168\u90E8\u5230\u4F4D\u5373\u8FC7\u5173\uFF08U \u64A4\u9500\u3001R \u91CD\u7F6E\uFF09\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
           "\u6B65\u6570 ",
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: state.moves })
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: state.moves })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
           "\u63A8\u7BB1 ",
           state.pushes
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-sokoban-levels", role: "tablist", "aria-label": "\u9009\u62E9\u5173\u5361", children: [
-      LEVELS.map((_, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", role: "tab", "aria-selected": i === level, className: i === level ? "on" : "", onClick: () => pickLevel(i), children: i + 1 }) }, i)),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => setState((s) => undo(s)), children: "\u64A4\u9500" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u7F6E" })
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-sokoban-levels", role: "tablist", "aria-label": "\u9009\u62E9\u5173\u5361", children: [
+      LEVELS.map((_, i) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", role: "tab", "aria-selected": i === level, className: i === level ? "on" : "", onClick: () => pickLevel(i), children: i + 1 }) }, i)),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: () => setState((s) => undo(s)), children: "\u64A4\u9500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u7F6E" })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-sokoban-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), style: { width, gridTemplateColumns: "repeat(" + cols + ",1fr)", gridTemplateRows: "repeat(" + rows + ",1fr)", aspectRatio: cols + " / " + rows }, "aria-label": "\u63A8\u7BB1\u5B50\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u79FB\u52A8\uFF0CU \u64A4\u9500\uFF0CR \u91CD\u7F6E", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-sokoban-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), style: { width, gridTemplateColumns: "repeat(" + cols + ",1fr)", gridTemplateRows: "repeat(" + rows + ",1fr)", aspectRatio: cols + " / " + rows }, "aria-label": "\u63A8\u7BB1\u5B50\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u79FB\u52A8\uFF0CU \u64A4\u9500\uFF0CR \u91CD\u7F6E", children: [
       grid.map((row, r) => row.map((ch, c) => {
         let cls = "dgame-soko-cell";
         if (ch === "#") cls += " wall";
         else if (ch === "." || ch === "*" || ch === "+") cls += " target";
         if (ch === "$" || ch === "*") cls += " box";
         if (ch === "@" || ch === "+") cls += " player";
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("i", { className: cls, "aria-hidden": "true" }, r + "-" + c);
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("i", { className: cls, "aria-hidden": "true" }, r + "-" + c);
       })),
-      state.wonNew ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("strong", { children: [
+      state.wonNew ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("strong", { children: [
           "\u5168\u641E\u5B9A\uFF01\u7B2C ",
           level + 1,
           " \u5173\u901A\u8FC7"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: nextLevel, children: level + 1 < LEVELS.length ? "\u4E0B\u4E00\u5173" : "\u91CD\u65B0\u5F00\u59CB" })
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: nextLevel, children: level + 1 < LEVELS.length ? "\u4E0B\u4E00\u5173" : "\u91CD\u65B0\u5F00\u59CB" })
       ] }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => move(-1, 0), children: "\u2191" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 U \u64A4\u9500 \xB7 R \u91CD\u7F6E" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0B", onClick: () => move(1, 0), children: "\u2193" })
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => move(-1, 0), children: "\u2191" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 U \u64A4\u9500 \xB7 R \u91CD\u7F6E" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0B", onClick: () => move(1, 0), children: "\u2193" })
     ] })
   ] });
 }
@@ -6838,25 +7103,25 @@ function SokobanPreview() {
     "#######"
   ];
   const cls = { "#": "wall", " ": "floor", ".": "target", "$": "box", "*": "boxT", "@": "player", "+": "player" };
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dgcov-prev dgcov-prev-soko", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dgp-soko-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("i", { className: "dgp-soko-" + cls[ch] }, r + "-" + c))) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "dgcov-prev dgcov-prev-soko", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "dgp-soko-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("i", { className: "dgp-soko-" + cls[ch] }, r + "-" + c))) }) });
 }
 var sokobanGame = { Game: SokobanGame, Preview: SokobanPreview, css: `
 .dgame-sokoban-stage{position:relative;display:grid;align-self:center;gap:0;padding:6px;border:1px solid color-mix(in srgb,rgb(250 204 21) 32%,var(--dsw-alias-border-l1));border-radius:8px;background:linear-gradient(180deg,#181420,#14101f);outline:none;box-shadow:inset 0 0 26px rgb(0 0 0/.4)}.dgame-sokoban-stage:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(250 204 21) 30%,transparent)}.dgame-soko-cell{position:relative;display:block;min-width:0;min-height:0}.dgame-soko-cell.wall{background:linear-gradient(180deg,#3a3350,#241f3a);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.4)}.dgame-soko-cell.target::before{content:'';position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fde68a,#f59e0b 70%);box-shadow:0 0 8px color-mix(in srgb,#f59e0b 55%,transparent);opacity:.9}.dgame-soko-cell.box::after{content:'';position:absolute;inset:12%;border-radius:5px;background:linear-gradient(135deg,#d4a24a,#8a5a1c);box-shadow:0 2px 5px rgb(0 0 0/.45),inset 0 1px 0 rgba(255,255,255,.4);border:1px solid color-mix(in srgb,#fde68a 45%,transparent)}.dgame-soko-cell.box.target::after{background:linear-gradient(135deg,#34d399,#0f766e);border-color:#a7f3d0}.dgame-soko-cell.player::before{content:'';position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e0f2fe,#38bdf8 70%);box-shadow:0 0 9px color-mix(in srgb,#38bdf8 70%,transparent)}.dgame-sokoban-levels{display:flex;gap:6px;align-items:center;align-self:center;flex-wrap:wrap;width:min(100%,340px);justify-content:center}.dgame-sokoban-levels button{min-width:30px;height:28px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;cursor:pointer;transition:all .15s ease}.dgame-sokoban-levels button.on{color:#fde68a;border-color:color-mix(in srgb,#f59e0b 60%,transparent);background:color-mix(in srgb,#f59e0b 18%,transparent)}.dgame-sokoban-levels button:hover{border-color:var(--dgame-accent);color:var(--dsw-alias-label-primary)}
 ` };
 
 // features/games/games/gomoku.jsx
-var import_react12 = require("react");
-var import_jsx_runtime5 = require("react/jsx-runtime");
+var import_react13 = require("react");
+var import_jsx_runtime6 = require("react/jsx-runtime");
 var GOMOKU_LINES = (() => {
   const P = (n) => n * 100 + 50;
-  const parts = [/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("rect", { x: P(0), y: P(0), width: 1400, height: 1400, strokeWidth: 6.5, fill: "none" }, "frame")];
+  const parts = [/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("rect", { x: P(0), y: P(0), width: 1400, height: 1400, strokeWidth: 6.5, fill: "none" }, "frame")];
   let k = 0;
   for (let i = 1; i <= 13; i += 1) {
-    parts.push(/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(i), y1: P(0), x2: P(i), y2: P(14) }, k++));
-    parts.push(/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(0), y1: P(i), x2: P(14), y2: P(i) }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(i), y1: P(0), x2: P(i), y2: P(14) }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(i), x2: P(14), y2: P(i) }, k++));
   }
   for (const [r, c] of [[3, 3], [3, 11], [7, 7], [11, 3], [11, 11]]) {
-    parts.push(/* @__PURE__ */ (0, import_jsx_runtime5.jsx)("circle", { className: "dgame-gomoku-star", cx: P(c), cy: P(r), r: 15 }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("circle", { className: "dgame-gomoku-star", cx: P(c), cy: P(r), r: 15 }, k++));
   }
   return parts;
 })();
@@ -6962,22 +7227,22 @@ function aiMove(board) {
   return best || [7, 7];
 }
 function GomokuGame(props) {
-  const [board, setBoard] = (0, import_react12.useState)(emptyBoard2);
-  const [turn, setTurn] = (0, import_react12.useState)("b");
-  const [winner, setWinner] = (0, import_react12.useState)(null);
-  const [winCells, setWinCells] = (0, import_react12.useState)(null);
-  const [showResult, setShowResult] = (0, import_react12.useState)(false);
-  const [last, setLast] = (0, import_react12.useState)(null);
-  const [history, setHistory] = (0, import_react12.useState)([]);
-  const [thinking, setThinking] = (0, import_react12.useState)(false);
-  const boardRef = (0, import_react12.useRef)(board);
-  const stageRef = (0, import_react12.useRef)(null);
+  const [board, setBoard] = (0, import_react13.useState)(emptyBoard2);
+  const [turn, setTurn] = (0, import_react13.useState)("b");
+  const [winner, setWinner] = (0, import_react13.useState)(null);
+  const [winCells, setWinCells] = (0, import_react13.useState)(null);
+  const [showResult, setShowResult] = (0, import_react13.useState)(false);
+  const [last, setLast] = (0, import_react13.useState)(null);
+  const [history, setHistory] = (0, import_react13.useState)([]);
+  const [thinking, setThinking] = (0, import_react13.useState)(false);
+  const boardRef = (0, import_react13.useRef)(board);
+  const stageRef = (0, import_react13.useRef)(null);
   boardRef.current = board;
-  const turnRef = (0, import_react12.useRef)(turn);
+  const turnRef = (0, import_react13.useRef)(turn);
   turnRef.current = turn;
-  const winRef = (0, import_react12.useRef)(winner);
+  const winRef = (0, import_react13.useRef)(winner);
   winRef.current = winner;
-  const finish = (0, import_react12.useCallback)((b, r, c, color) => {
+  const finish = (0, import_react13.useCallback)((b, r, c, color) => {
     const line = winLine(b, r, c, color);
     if (line) {
       setWinner(color);
@@ -6991,7 +7256,7 @@ function GomokuGame(props) {
       playSfx("clear");
     } else playSfx("stone");
   }, []);
-  const place = (0, import_react12.useCallback)((r, c, color) => {
+  const place = (0, import_react13.useCallback)((r, c, color) => {
     if (boardRef.current[r][c]) return false;
     const next = boardRef.current.map((row) => row.slice());
     next[r][c] = color;
@@ -7002,7 +7267,7 @@ function GomokuGame(props) {
     finish(next, r, c, color);
     return true;
   }, [finish]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     if (turn !== "w" || winner || props.paused) return;
     setThinking(true);
     const t = setTimeout(() => {
@@ -7013,12 +7278,12 @@ function GomokuGame(props) {
     }, 260);
     return () => clearTimeout(t);
   }, [turn, winner, props.paused, place]);
-  const onCell = (0, import_react12.useCallback)((r, c) => {
+  const onCell = (0, import_react13.useCallback)((r, c) => {
     if (winRef.current || turnRef.current !== "b" || thinking || boardRef.current[r][c]) return;
     place(r, c, "b");
     setTurn("w");
   }, [thinking, place]);
-  const reset = (0, import_react12.useCallback)(() => {
+  const reset = (0, import_react13.useCallback)(() => {
     setBoard(emptyBoard2());
     setTurn("b");
     setWinner(null);
@@ -7028,7 +7293,7 @@ function GomokuGame(props) {
     setHistory([]);
     setThinking(false);
   }, []);
-  const undo2 = (0, import_react12.useCallback)(() => {
+  const undo2 = (0, import_react13.useCallback)(() => {
     if (thinking || history.length < 2) return;
     const h = history.slice(0, -2);
     const next = emptyBoard2();
@@ -7042,7 +7307,7 @@ function GomokuGame(props) {
     setShowResult(false);
     setLast(h.length ? h[h.length - 1] : null);
   }, [history, thinking]);
-  const onKeyDown = (0, import_react12.useCallback)((event) => {
+  const onKeyDown = (0, import_react13.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       reset();
@@ -7053,24 +7318,24 @@ function GomokuGame(props) {
   }, [reset, undo2]);
   useGameControls(stageRef, props.paused, onKeyDown);
   const statusText = winner === "b" ? "\u4F60\u8D62\u4E86 \xB7 \u4E94\u5B50\u8FDE\u73E0" : winner === "w" ? "AI \u8D62\u4E86 \xB7 \u518D\u8BD5\u4E00\u6B21" : winner === "draw" ? "\u548C\u68CB \xB7 \u68CB\u76D8\u5DF2\u6EE1" : turn === "b" ? "\u8F6E\u5230\u4F60\u843D\u5B50\uFF08\u9ED1\uFF09" : "AI \u601D\u8003\u4E2D\u2026\uFF08\u767D\uFF09";
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "dgame-game", "aria-label": "\u4E94\u5B50\u68CB", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { children: "\u4E94\u5B50\u68CB" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: "\u4F60\u6267\u9ED1\u5148\u624B\uFF0CAI \u6267\u767D\uFF1B\u5148\u5728\u6A2A\u7AD6\u659C\u4EFB\u4E00\u7EBF\u8FDE\u6210\u4E94\u5B50\u8005\u80DC\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "dgame-game", "aria-label": "\u4E94\u5B50\u68CB", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h3", { children: "\u4E94\u5B50\u68CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { children: "\u4F60\u6267\u9ED1\u5148\u624B\uFF0CAI \u6267\u767D\uFF1B\u5148\u5728\u6A2A\u7AD6\u659C\u4EFB\u4E00\u7EBF\u8FDE\u6210\u4E94\u5B50\u8005\u80DC\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "\u56DE\u5408" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { className: "dg-gomoku-status", children: statusText }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u5F00" })
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "\u56DE\u5408" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { className: "dg-gomoku-status", children: statusText }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u5F00" })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-gomoku-board", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), role: "grid", "aria-label": "\u5341\u4E94\u8DEF\u4E94\u5B50\u68CB\u68CB\u76D8", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("svg", { className: "dgame-gomoku-lines", viewBox: "0 0 1500 1500", preserveAspectRatio: "none", "aria-hidden": "true", children: GOMOKU_LINES }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-gomoku-board", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), role: "grid", "aria-label": "\u5341\u4E94\u8DEF\u4E94\u5B50\u68CB\u68CB\u76D8", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("svg", { className: "dgame-gomoku-lines", viewBox: "0 0 1500 1500", preserveAspectRatio: "none", "aria-hidden": "true", children: GOMOKU_LINES }),
       board.map((row, r) => row.map((cell, c) => {
         const isWin = winCells && winCells.some(([wr, wc]) => wr === r && wc === c);
-        return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
           "button",
           {
             type: "button",
@@ -7081,45 +7346,45 @@ function GomokuGame(props) {
               focusStage(stageRef);
               onCell(r, c);
             },
-            children: cell ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("i", { className: "dgame-gomoku-stone " + (cell === "b" ? "black" : "white") }) : null
+            children: cell ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("i", { className: "dgame-gomoku-stone " + (cell === "b" ? "black" : "white") }) : null
           },
           r + "-" + c
         );
       })),
-      winner && showResult ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "dgame-gomoku-result", role: "status", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-gomoku-result-card " + winner, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "dgame-gomoku-result-icon", "aria-hidden": "true", children: winner === "b" ? "\u{1F389}" : winner === "w" ? "\u{1F916}" : "\u{1F91D}" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("strong", { children: winner === "b" ? "\u4F60\u8D62\u4E86\uFF01" : winner === "w" ? "AI \u8D62\u4E86" : "\u548C\u68CB" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: winner === "b" ? "\u4E94\u5B50\u8FDE\u73E0\uFF0C\u6F02\u4EAE\uFF01" : winner === "w" ? "\u518D\u63A5\u518D\u5389\uFF0C\u5377\u571F\u91CD\u6765\u3002" : "\u68CB\u76D8\u5DF2\u6EE1\uFF0C\u5E73\u5206\u79CB\u8272\u3002" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-gomoku-result-actions", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: (e) => {
+      winner && showResult ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "dgame-gomoku-result", role: "status", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-gomoku-result-card " + winner, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-gomoku-result-icon", "aria-hidden": "true", children: winner === "b" ? "\u{1F389}" : winner === "w" ? "\u{1F916}" : "\u{1F91D}" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: winner === "b" ? "\u4F60\u8D62\u4E86\uFF01" : winner === "w" ? "AI \u8D62\u4E86" : "\u548C\u68CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { children: winner === "b" ? "\u4E94\u5B50\u8FDE\u73E0\uFF0C\u6F02\u4EAE\uFF01" : winner === "w" ? "\u518D\u63A5\u518D\u5389\uFF0C\u5377\u571F\u91CD\u6765\u3002" : "\u68CB\u76D8\u5DF2\u6EE1\uFF0C\u5E73\u5206\u79CB\u8272\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-gomoku-result-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: (e) => {
             e.stopPropagation();
             setShowResult(false);
           }, children: "\u67E5\u770B\u68CB\u76D8" }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: (e) => {
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: (e) => {
             e.stopPropagation();
             reset();
           }, children: "\u518D\u6765\u4E00\u5C40" })
         ] })
       ] }) }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: statusText }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u5F00" })
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: statusText }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u5F00" })
     ] })
   ] });
 }
 function GomokuPreview() {
   const P = (n) => n * 100 + 50;
   const stones = [[3, 3, "b"], [6, 3, "w"], [4, 4, "w"], [5, 5, "b"], [2, 6, "w"], [6, 6, "b"]];
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "dgcov-prev dgcov-prev-gomoku", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("svg", { viewBox: "0 0 900 900", preserveAspectRatio: "xMidYMid slice", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 800, fill: "none", strokeWidth: 11 }),
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgcov-prev dgcov-prev-gomoku", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("svg", { viewBox: "0 0 900 900", preserveAspectRatio: "xMidYMid slice", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 800, fill: "none", strokeWidth: 11 }),
     [1, 2, 3, 4, 5, 6, 7].map((i) => [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(i), y1: P(0), x2: P(i), y2: P(8) }, "v" + i),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: P(0), y1: P(i), x2: P(8), y2: P(i) }, "h" + i)
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(i), y1: P(0), x2: P(i), y2: P(8) }, "v" + i),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(i), x2: P(8), y2: P(i) }, "h" + i)
     ]),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("circle", { className: "dgp-star", cx: P(4), cy: P(4), r: 16 }),
-    stones.map(([r, c, col], i) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("circle", { className: "dgp-stone-" + col, cx: P(c), cy: P(r), r: 40 }, i))
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("circle", { className: "dgp-star", cx: P(4), cy: P(4), r: 16 }),
+    stones.map(([r, c, col], i) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("circle", { className: "dgp-stone-" + col, cx: P(c), cy: P(r), r: 40 }, i))
   ] }) });
 }
 var gomokuGame = { Game: GomokuGame, Preview: GomokuPreview, css: `
@@ -7141,7 +7406,7 @@ var gomokuGame = { Game: GomokuGame, Preview: GomokuPreview, css: `
 ` };
 
 // features/games/games/xiangqi.jsx
-var import_react13 = require("react");
+var import_react14 = require("react");
 
 // features/games/xiangqi-core.js
 var ROWS2 = 10;
@@ -7465,18 +7730,18 @@ function pickAmongBest(scored) {
 }
 
 // features/games/games/xiangqi.jsx
-var import_jsx_runtime6 = require("react/jsx-runtime");
+var import_jsx_runtime7 = require("react/jsx-runtime");
 var XIANGQI_LINES = (() => {
   const P = (n) => n * 100 + 50;
   const parts = [];
   let k = 0;
-  parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 900, strokeWidth: 7, fill: "none" }, "frame"));
-  for (let r = 1; r <= 8; r += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(r), x2: P(8), y2: P(r) }, k++));
+  parts.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 900, strokeWidth: 7, fill: "none" }, "frame"));
+  for (let r = 1; r <= 8; r += 1) parts.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(0), y1: P(r), x2: P(8), y2: P(r) }, k++));
   for (let c = 1; c <= 7; c += 1) {
-    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(0), x2: P(c), y2: P(4) }, k++));
-    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(5), x2: P(c), y2: P(9) }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(c), y1: P(0), x2: P(c), y2: P(4) }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(c), y1: P(5), x2: P(c), y2: P(9) }, k++));
   }
-  parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: `M${P(3)} ${P(0)}L${P(5)} ${P(2)}M${P(5)} ${P(0)}L${P(3)} ${P(2)}M${P(3)} ${P(7)}L${P(5)} ${P(9)}M${P(5)} ${P(7)}L${P(3)} ${P(9)}` }, k++));
+  parts.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("path", { d: `M${P(3)} ${P(0)}L${P(5)} ${P(2)}M${P(5)} ${P(0)}L${P(3)} ${P(2)}M${P(3)} ${P(7)}L${P(5)} ${P(9)}M${P(5)} ${P(7)}L${P(3)} ${P(9)}` }, k++));
   const t = 14, o = 16;
   const marks = [[1, 2], [7, 2], [1, 7], [7, 7], [0, 3], [2, 3], [4, 3], [6, 3], [8, 3], [0, 6], [2, 6], [4, 6], [6, 6], [8, 6]];
   for (const [c, r] of marks) {
@@ -7489,7 +7754,7 @@ var XIANGQI_LINES = (() => {
       `M${P(c) + o} ${P(r) - o}H${P(c) + o + t}V${P(r) - o - t}`,
       `M${P(c) + o} ${P(r) + o}H${P(c) + o + t}V${P(r) + o + t}`
     );
-    parts.push(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { className: "dgame-xiangqi-mark", strokeWidth: 2.6, d: seg.join("") }, k++));
+    parts.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("path", { className: "dgame-xiangqi-mark", strokeWidth: 2.6, d: seg.join("") }, k++));
   }
   return parts;
 })();
@@ -7506,35 +7771,35 @@ function moveNotation(board, fr, fc, tr, tc) {
   return pieceChar(p) + num(file(fc)) + verb + num(to);
 }
 function XiangqiGame(props) {
-  const [board, setBoard] = (0, import_react13.useState)(initialBoard);
-  const [turn, setTurn] = (0, import_react13.useState)("r");
-  const [sel, setSel] = (0, import_react13.useState)(null);
-  const [targets, setTargets] = (0, import_react13.useState)([]);
-  const [over, setOver] = (0, import_react13.useState)(null);
-  const [check, setCheck] = (0, import_react13.useState)(false);
-  const [last, setLast] = (0, import_react13.useState)(null);
-  const [lastMove, setLastMove] = (0, import_react13.useState)(null);
-  const [moveLog, setMoveLog] = (0, import_react13.useState)([]);
-  const [moving, setMoving] = (0, import_react13.useState)(null);
-  const [thinking, setThinking] = (0, import_react13.useState)(false);
-  const [history, setHistory] = (0, import_react13.useState)([]);
-  const [repKeys, setRepKeys] = (0, import_react13.useState)(() => [posKey(initialBoard())]);
-  const pushKey = (0, import_react13.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
-  const stageRef = (0, import_react13.useRef)(null);
-  const boardRef = (0, import_react13.useRef)(board);
+  const [board, setBoard] = (0, import_react14.useState)(initialBoard);
+  const [turn, setTurn] = (0, import_react14.useState)("r");
+  const [sel, setSel] = (0, import_react14.useState)(null);
+  const [targets, setTargets] = (0, import_react14.useState)([]);
+  const [over, setOver] = (0, import_react14.useState)(null);
+  const [check, setCheck] = (0, import_react14.useState)(false);
+  const [last, setLast] = (0, import_react14.useState)(null);
+  const [lastMove, setLastMove] = (0, import_react14.useState)(null);
+  const [moveLog, setMoveLog] = (0, import_react14.useState)([]);
+  const [moving, setMoving] = (0, import_react14.useState)(null);
+  const [thinking, setThinking] = (0, import_react14.useState)(false);
+  const [history, setHistory] = (0, import_react14.useState)([]);
+  const [repKeys, setRepKeys] = (0, import_react14.useState)(() => [posKey(initialBoard())]);
+  const pushKey = (0, import_react14.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
+  const stageRef = (0, import_react14.useRef)(null);
+  const boardRef = (0, import_react14.useRef)(board);
   boardRef.current = board;
-  const turnRef = (0, import_react13.useRef)(turn);
+  const turnRef = (0, import_react14.useRef)(turn);
   turnRef.current = turn;
-  const overRef = (0, import_react13.useRef)(over);
+  const overRef = (0, import_react14.useRef)(over);
   overRef.current = over;
-  const thinkingRef = (0, import_react13.useRef)(thinking);
+  const thinkingRef = (0, import_react14.useRef)(thinking);
   thinkingRef.current = thinking;
-  const historyRef = (0, import_react13.useRef)(history);
+  const historyRef = (0, import_react14.useRef)(history);
   historyRef.current = history;
-  const movingRef = (0, import_react13.useRef)(false);
-  const pendingRef = (0, import_react13.useRef)(null);
-  const animTimerRef = (0, import_react13.useRef)(null);
-  const animateMove = (0, import_react13.useCallback)((b, fr, fc, tr, tc, after) => {
+  const movingRef = (0, import_react14.useRef)(false);
+  const pendingRef = (0, import_react14.useRef)(null);
+  const animTimerRef = (0, import_react14.useRef)(null);
+  const animateMove = (0, import_react14.useCallback)((b, fr, fc, tr, tc, after) => {
     const piece = boardRef.current[fr][fc];
     const capture = !!boardRef.current[tr][tc];
     pendingRef.current = { board: b, after };
@@ -7561,7 +7826,7 @@ function XiangqiGame(props) {
       }
     }, 260);
   }, []);
-  const restart = (0, import_react13.useCallback)(() => {
+  const restart = (0, import_react14.useCallback)(() => {
     if (animTimerRef.current) {
       clearTimeout(animTimerRef.current);
       animTimerRef.current = null;
@@ -7584,7 +7849,7 @@ function XiangqiGame(props) {
     setMoving(null);
     setRepKeys([posKey(b)]);
   }, []);
-  const undo2 = (0, import_react13.useCallback)(() => {
+  const undo2 = (0, import_react14.useCallback)(() => {
     if (thinkingRef.current || overRef.current || turnRef.current !== "r" || movingRef.current) return;
     const h = historyRef.current;
     if (h.length < 2) return;
@@ -7602,7 +7867,7 @@ function XiangqiGame(props) {
     setCheck(inCheck(b, "r"));
     setRepKeys(hist.map(posKey).concat(posKey(b)));
   }, []);
-  const moveRed = (0, import_react13.useCallback)((tr, tc) => {
+  const moveRed = (0, import_react14.useCallback)((tr, tc) => {
     if (turnRef.current !== "r" || overRef.current || !sel || movingRef.current) return;
     const fr = sel[0], fc = sel[1];
     const nb = applyMove(boardRef.current, fr, fc, tr, tc);
@@ -7616,7 +7881,7 @@ function XiangqiGame(props) {
       } else setCheck(inCheck(nb, "b"));
     });
   }, [sel, pushKey, animateMove]);
-  const select = (0, import_react13.useCallback)((r, c) => {
+  const select = (0, import_react14.useCallback)((r, c) => {
     if (overRef.current || turnRef.current !== "r" || thinkingRef.current || movingRef.current) return;
     const p = boardRef.current[r][c];
     if (p && p.c === "r") {
@@ -7632,7 +7897,7 @@ function XiangqiGame(props) {
     setSel(null);
     setTargets([]);
   }, [sel, targets, moveRed]);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (turn !== "b" || over || props.paused || movingRef.current) return;
     const t = setTimeout(() => {
       const seenCounts = /* @__PURE__ */ new Map();
@@ -7656,7 +7921,7 @@ function XiangqiGame(props) {
     setThinking(true);
     return () => clearTimeout(t);
   }, [turn, over, props.paused, repKeys, pushKey, animateMove]);
-  const onKeyDown = (0, import_react13.useCallback)((event) => {
+  const onKeyDown = (0, import_react14.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       restart();
@@ -7667,34 +7932,34 @@ function XiangqiGame(props) {
   }, [restart, undo2]);
   useGameControls(stageRef, props.paused, onKeyDown);
   const status = over === "r" ? "\u7EA2\u65B9\u80DC \xB7 \u606D\u559C" : over === "b" ? "\u9ED1\u65B9\u80DC \xB7 AI \u8D62" : moving ? moving.piece.c === "r" ? "\u7EA2\u65B9\u8D70\u5B50\u2026" : "AI \u8D70\u5B50\u2026" : thinking ? "AI \u601D\u8003\u4E2D\u2026" : check ? "\u5C06\u519B\uFF01" : turn === "r" ? "\u8F6E\u5230\u4F60\uFF08\u7EA2\u65B9\uFF09" : "\u8F6E\u5230 AI\uFF08\u9ED1\u65B9\uFF09";
-  const prevCheck = (0, import_react13.useRef)(false);
-  (0, import_react13.useEffect)(() => {
+  const prevCheck = (0, import_react14.useRef)(false);
+  (0, import_react14.useEffect)(() => {
     if (over === "r") playSfx("win");
     else if (over === "b") playSfx("over");
     else if (!thinking && check && !prevCheck.current) playSfx("check");
     prevCheck.current = !thinking && check;
   }, [check, thinking, over]);
-  (0, import_react13.useEffect)(() => () => {
+  (0, import_react14.useEffect)(() => () => {
     if (animTimerRef.current) clearTimeout(animTimerRef.current);
   }, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "dgame-game", "aria-label": "\u8C61\u68CB", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h3", { children: "\u4E2D\u56FD\u8C61\u68CB" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { children: "\u4F60\u6267\u7EA2\u5148\u884C\uFF0CAI \u6267\u9ED1\uFF1B\u5403\u6389\u5BF9\u65B9\u5C06/\u5E05\u5373\u80DC\u3002\u70B9\u51FB\u9009\u4E2D\u7EA2\u5B50\uFF0C\u518D\u70B9\u9AD8\u4EAE\u843D\u70B9\u8D70\u68CB\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "dgame-game", "aria-label": "\u8C61\u68CB", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h3", { children: "\u4E2D\u56FD\u8C61\u68CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("p", { children: "\u4F60\u6267\u7EA2\u5148\u884C\uFF0CAI \u6267\u9ED1\uFF1B\u5403\u6389\u5BF9\u65B9\u5C06/\u5E05\u5373\u80DC\u3002\u70B9\u51FB\u9009\u4E2D\u7EA2\u5B50\uFF0C\u518D\u70B9\u9AD8\u4EAE\u843D\u70B9\u8D70\u68CB\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "\u5F53\u524D" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { className: "dg-gomoku-status", children: status }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: restart, children: "\u91CD\u5F00" })
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u5F53\u524D" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { className: "dg-gomoku-status", children: status }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: restart, children: "\u91CD\u5F00" })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-xiangqi-board", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), role: "grid", "aria-label": "\u4E2D\u56FD\u8C61\u68CB\u68CB\u76D8", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("svg", { className: "dgame-xiangqi-lines", viewBox: "0 0 900 1000", preserveAspectRatio: "none", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-xiangqi-board", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), role: "grid", "aria-label": "\u4E2D\u56FD\u8C61\u68CB\u68CB\u76D8", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("svg", { className: "dgame-xiangqi-lines", viewBox: "0 0 900 1000", preserveAspectRatio: "none", "aria-hidden": "true", children: [
         XIANGQI_LINES,
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgame-xiangqi-rivertext", x: 230, y: 505, children: "\u695A \u6CB3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgame-xiangqi-rivertext", x: 670, y: 505, children: "\u6F22 \u754C" })
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("text", { className: "dgame-xiangqi-rivertext", x: 230, y: 505, children: "\u695A \u6CB3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("text", { className: "dgame-xiangqi-rivertext", x: 670, y: 505, children: "\u6F22 \u754C" })
       ] }),
       board.map((row, r) => row.map((p, c) => {
         const mv = moving;
@@ -7705,7 +7970,7 @@ function XiangqiGame(props) {
         const isLastMoveFrom = lastMove && lastMove.fr === r && lastMove.fc === c;
         const isLand = !mv && lastMove && lastMove.tr === r && lastMove.tc === c;
         const isLast = last && last[0] === r && last[1] === c;
-        return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           "button",
           {
             type: "button",
@@ -7716,12 +7981,12 @@ function XiangqiGame(props) {
               focusStage(stageRef);
               select(r, c);
             },
-            children: p && !isFlyFrom ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-pc " + p.c + (isDying ? " dying" : ""), children: pieceChar(p) }) : !p && isTargetMark ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgame-xiangqi-dot", "aria-hidden": "true" }) : null
+            children: p && !isFlyFrom ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "dgame-xiangqi-pc " + p.c + (isDying ? " dying" : ""), children: pieceChar(p) }) : !p && isTargetMark ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "dgame-xiangqi-dot", "aria-hidden": "true" }) : null
           },
           r + "-" + c
         );
       })),
-      moving ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      moving ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
         "span",
         {
           className: "dgame-xiangqi-pc dgame-xiangqi-fly " + moving.piece.c,
@@ -7737,35 +8002,35 @@ function XiangqiGame(props) {
         moving.fr + "-" + moving.fc + "-" + moving.tr + "-" + moving.tc + "-" + moving.piece.c
       ) : null
     ] }),
-    moveLog.length ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "dgame-xiangqi-log", role: "status", "aria-live": "polite", children: moveLog.slice(-4).map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: m.side, children: m.text }, moveLog.length - 4 + i)) }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
+    moveLog.length ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "dgame-xiangqi-log", role: "status", "aria-live": "polite", children: moveLog.slice(-4).map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: m.side, children: m.text }, moveLog.length - 4 + i)) }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: undo2, children: "\u64A4\u9500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
         status,
         " \xB7 R \u91CD\u5F00 \xB7 U \u64A4\u9500"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", onClick: restart, children: "\u91CD\u5F00" })
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: restart, children: "\u91CD\u5F00" })
     ] })
   ] });
 }
 function XiangqiPreview() {
   const P = (n) => n * 100 + 50;
   const pc = (c, r, ch, col) => [
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("circle", { cx: P(c), cy: P(r), r: 44, className: "dgp-xq-pc-" + col }, "pc" + c + r),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { x: P(c), y: P(r) + 2, className: "dgp-xq-tx-" + col, children: ch }, "tx" + c + r)
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("circle", { cx: P(c), cy: P(r), r: 44, className: "dgp-xq-pc-" + col }, "pc" + c + r),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("text", { x: P(c), y: P(r) + 2, className: "dgp-xq-tx-" + col, children: ch }, "tx" + c + r)
   ];
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "dgcov-prev dgcov-prev-xiangqi", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("svg", { viewBox: "0 0 900 1000", preserveAspectRatio: "xMidYMid slice", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 900, fill: "none", strokeWidth: 11 }),
-    [1, 2, 3, 4, 5, 6, 7, 8].map((r) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(r), x2: P(8), y2: P(r) }, "h" + r)),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(0), y1: P(0), x2: P(0), y2: P(9) }),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(8), y1: P(0), x2: P(8), y2: P(9) }),
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "dgcov-prev dgcov-prev-xiangqi", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("svg", { viewBox: "0 0 900 1000", preserveAspectRatio: "xMidYMid slice", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("rect", { x: P(0), y: P(0), width: 800, height: 900, fill: "none", strokeWidth: 11 }),
+    [1, 2, 3, 4, 5, 6, 7, 8].map((r) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(0), y1: P(r), x2: P(8), y2: P(r) }, "h" + r)),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(0), y1: P(0), x2: P(0), y2: P(9) }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(8), y1: P(0), x2: P(8), y2: P(9) }),
     [1, 2, 3, 4, 5, 6, 7].map((c) => [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(0), x2: P(c), y2: P(4) }, "vt" + c),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("line", { x1: P(c), y1: P(5), x2: P(c), y2: P(9) }, "vb" + c)
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(c), y1: P(0), x2: P(c), y2: P(4) }, "vt" + c),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("line", { x1: P(c), y1: P(5), x2: P(c), y2: P(9) }, "vb" + c)
     ]),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: `M${P(3)} ${P(0)}L${P(5)} ${P(2)}M${P(5)} ${P(0)}L${P(3)} ${P(2)}M${P(3)} ${P(7)}L${P(5)} ${P(9)}M${P(5)} ${P(7)}L${P(3)} ${P(9)}` }),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgp-xq-river", x: 235, y: 500, children: "\u695A\u6CB3" }),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("text", { className: "dgp-xq-river", x: 665, y: 500, children: "\u6F22\u754C" }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("path", { d: `M${P(3)} ${P(0)}L${P(5)} ${P(2)}M${P(5)} ${P(0)}L${P(3)} ${P(2)}M${P(3)} ${P(7)}L${P(5)} ${P(9)}M${P(5)} ${P(7)}L${P(3)} ${P(9)}` }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("text", { className: "dgp-xq-river", x: 235, y: 500, children: "\u695A\u6CB3" }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("text", { className: "dgp-xq-river", x: 665, y: 500, children: "\u6F22\u754C" }),
     pc(4, 0, "\u5C07", "b"),
     pc(1, 2, "\u70AE", "b"),
     pc(5, 3, "\u5352", "b"),
@@ -7779,8 +8044,8 @@ var xiangqiGame = { Game: XiangqiGame, Preview: XiangqiPreview, css: `
 ` };
 
 // features/games/games/snake.jsx
-var import_react14 = require("react");
-var import_jsx_runtime7 = require("react/jsx-runtime");
+var import_react15 = require("react");
+var import_jsx_runtime8 = require("react/jsx-runtime");
 var SIZE2 = 16;
 var DIRS3 = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
 var OPPOSITE = { "-1,0": [1, 0], "1,0": [-1, 0], "0,1": [0, -1], "0,-1": [0, 1] };
@@ -7824,26 +8089,26 @@ function step2(state, dir) {
   return Object.assign({}, state, { snake });
 }
 function SnakeGame(props) {
-  const [state, setState] = (0, import_react14.useState)(initial2);
-  const [paused, setPaused] = (0, import_react14.useState)(false);
-  const [speedMode, setSpeedMode] = (0, import_react14.useState)(loadSpeedMode);
-  const stageRef = (0, import_react14.useRef)(null);
-  const dirRef = (0, import_react14.useRef)(state.dir);
-  const overRef = (0, import_react14.useRef)(state.over);
+  const [state, setState] = (0, import_react15.useState)(initial2);
+  const [paused, setPaused] = (0, import_react15.useState)(false);
+  const [speedMode, setSpeedMode] = (0, import_react15.useState)(loadSpeedMode);
+  const stageRef = (0, import_react15.useRef)(null);
+  const dirRef = (0, import_react15.useRef)(state.dir);
+  const overRef = (0, import_react15.useRef)(state.over);
   overRef.current = state.over;
-  const pausedRef = (0, import_react14.useRef)(!!(props && props.paused) || paused);
+  const pausedRef = (0, import_react15.useRef)(!!(props && props.paused) || paused);
   pausedRef.current = !!(props && props.paused) || paused;
-  const start = (0, import_react14.useCallback)(() => {
+  const start = (0, import_react15.useCallback)(() => {
     const init = initial2();
     init.started = true;
     dirRef.current = init.dir;
     setState(init);
     setPaused(false);
   }, []);
-  const begin = (0, import_react14.useCallback)(() => {
+  const begin = (0, import_react15.useCallback)(() => {
     setState((s) => s.started || s.over ? s : Object.assign({}, s, { started: true }));
   }, []);
-  const changeDir = (0, import_react14.useCallback)((nv) => {
+  const changeDir = (0, import_react15.useCallback)((nv) => {
     if (overRef.current || pausedRef.current) return;
     const cur = dirRef.current;
     const opp = OPPOSITE[cur[0] + "," + cur[1]];
@@ -7851,24 +8116,24 @@ function SnakeGame(props) {
     dirRef.current = nv;
     begin();
   }, [begin]);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     if (!state.started || state.over || pausedRef.current) return;
     const mode = SPEED_MODES[speedMode] || SPEED_MODES.slow;
     const speed = Math.max(mode.min, mode.base - state.score * mode.stepMs);
     const timer = setInterval(() => setState((s) => s.over || !s.started || pausedRef.current ? s : step2(s, dirRef.current)), speed);
     return () => clearInterval(timer);
   }, [state.started, state.over, state.score, props.paused, paused, speedMode]);
-  const pickSpeed = (0, import_react14.useCallback)((m) => {
+  const pickSpeed = (0, import_react15.useCallback)((m) => {
     setSpeedMode(m);
     try {
       localStorage.setItem("dsh-dock.snake.speed", m);
     } catch {
     }
   }, []);
-  const onKeyDown = (0, import_react14.useCallback)((event) => {
+  const onKeyDown = (0, import_react15.useCallback)((event) => {
     const d = DIRS3[event.key];
     if (d) {
       event.preventDefault();
@@ -7898,64 +8163,64 @@ function SnakeGame(props) {
       let cls = "dgame-snake-cell";
       if (idx >= 0) cls += " bob" + (idx === 0 ? " head" : idx < 4 ? " body2" : "");
       if (isFood) cls += " food";
-      cells.push(/* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { className: cls, "aria-hidden": "true" }, r + "-" + c));
+      cells.push(/* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { className: cls, "aria-hidden": "true" }, r + "-" + c));
     }
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "dgame-game", "aria-label": "\u8D2A\u5403\u86C7", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h3", { children: "\u8D2A\u5403\u86C7" }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("p", { children: "\u56DE\u8F66\u5F00\u59CB/\u6682\u505C\uFF0C\u65B9\u5411\u952E\u63A7\u5236\u79FB\u52A8\uFF1B\u5403\u5230\u98DF\u7269\u53D8\u957F\u5E76\u7F13\u6162\u63D0\u901F\uFF0C\u649E\u5899\u6216\u54AC\u5230\u81EA\u5DF1\u5C31\u7ED3\u675F\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "dgame-game", "aria-label": "\u8D2A\u5403\u86C7", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h3", { children: "\u8D2A\u5403\u86C7" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { children: "\u56DE\u8F66\u5F00\u59CB/\u6682\u505C\uFF0C\u65B9\u5411\u952E\u63A7\u5236\u79FB\u52A8\uFF1B\u5403\u5230\u98DF\u7269\u53D8\u957F\u5E76\u7F13\u6162\u63D0\u901F\uFF0C\u649E\u5899\u6216\u54AC\u5230\u81EA\u5DF1\u5C31\u7ED3\u675F\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
           "\u957F\u5EA6 ",
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: state.score + 3 })
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("strong", { children: state.score + 3 })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
           "\u5F97\u5206 ",
           state.score
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-snake-speeds", role: "radiogroup", "aria-label": "\u6E38\u620F\u901F\u5EA6", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u901F\u5EA6" }),
-      Object.entries(SPEED_MODES).map(([m, cfg]) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", role: "radio", "aria-checked": speedMode === m, className: speedMode === m ? "on" : "", onClick: () => pickSpeed(m), children: cfg.label }, m))
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-snake-speeds", role: "radiogroup", "aria-label": "\u6E38\u620F\u901F\u5EA6", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "\u901F\u5EA6" }),
+      Object.entries(SPEED_MODES).map(([m, cfg]) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", role: "radio", "aria-checked": speedMode === m, className: speedMode === m ? "on" : "", onClick: () => pickSpeed(m), children: cfg.label }, m))
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-snake-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), "aria-label": "\u8D2A\u5403\u86C7\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u63A7\u5236\u79FB\u52A8\uFF0C\u56DE\u8F66\u5F00\u59CB", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "dgame-snake-grid", children: cells }),
-      state.over ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("strong", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-snake-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), "aria-label": "\u8D2A\u5403\u86C7\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u65B9\u5411\u952E\u63A7\u5236\u79FB\u52A8\uFF0C\u56DE\u8F66\u5F00\u59CB", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "dgame-snake-grid", children: cells }),
+      state.over ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("strong", { children: [
           "\u649E\u4E0A\u4E86 \xB7 \u5F97 ",
           state.score,
           " \u5206"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: start, children: "\u91CD\u65B0\u5F00\u59CB" })
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: start, children: "\u91CD\u65B0\u5F00\u59CB" })
       ] }) : null,
-      !state.started && !state.over ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: "\u6309 Enter \u6216\u65B9\u5411\u952E\u5F00\u59CB" }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: start, children: "\u5F00\u59CB\u6E38\u620F" })
+      !state.started && !state.over ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("strong", { children: "\u6309 Enter \u6216\u65B9\u5411\u952E\u5F00\u59CB" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: start, children: "\u5F00\u59CB\u6E38\u620F" })
       ] }) : null,
-      state.started && !state.over && pausedRef.current ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: "\u5DF2\u6682\u505C" }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", onClick: () => setPaused(false), children: "\u7EE7\u7EED\uFF08P\uFF09" })
+      state.started && !state.over && pausedRef.current ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("strong", { children: "\u5DF2\u6682\u505C" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: () => setPaused(false), children: "\u7EE7\u7EED\uFF08P\uFF09" })
       ] }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => changeDir([-1, 0]), children: "\u2191" }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 \u56DE\u8F66 \u5F00\u59CB/\u6682\u505C \xB7 R \u91CD\u5F00" }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0B", onClick: () => changeDir([1, 0]), children: "\u2193" })
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => changeDir([-1, 0]), children: "\u2191" }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 \u56DE\u8F66 \u5F00\u59CB/\u6682\u505C \xB7 R \u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0B", onClick: () => changeDir([1, 0]), children: "\u2193" })
     ] })
   ] });
 }
 function SnakePreview() {
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "dgcov-prev dgcov-prev-snake", "aria-hidden": "true", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "12%", top: "62%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "24%", top: "62%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "36%", top: "62%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "48%", top: "62%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("i", { style: { left: "60%", top: "62%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("b", {})
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "dgcov-prev dgcov-prev-snake", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { style: { left: "12%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { style: { left: "24%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { style: { left: "36%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { style: { left: "48%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { style: { left: "60%", top: "62%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("b", {})
   ] });
 }
 var snakeGame = { Game: SnakeGame, Preview: SnakePreview, css: `
@@ -7968,8 +8233,8 @@ var snakeGame = { Game: SnakeGame, Preview: SnakePreview, css: `
 ` };
 
 // features/games/games/breakout.jsx
-var import_react15 = require("react");
-var import_jsx_runtime8 = require("react/jsx-runtime");
+var import_react16 = require("react");
+var import_jsx_runtime9 = require("react/jsx-runtime");
 var W = 320;
 var H = 360;
 var BRICK_COLS = 8;
@@ -8048,22 +8313,22 @@ function collideRect(x, y, r, bx, by, bw, bh) {
   return dx * dx + dy * dy < r * r;
 }
 function BreakoutGame(props) {
-  const canvasRef = (0, import_react15.useRef)(null);
-  const [score, setScore] = (0, import_react15.useState)(0);
-  const [lives, setLives] = (0, import_react15.useState)(3);
-  const [level, setLevel] = (0, import_react15.useState)(1);
-  const [status, setStatus] = (0, import_react15.useState)("play");
-  const keys = (0, import_react15.useRef)({});
-  const pausedRef = (0, import_react15.useRef)(!!(props && props.paused));
+  const canvasRef = (0, import_react16.useRef)(null);
+  const [score, setScore] = (0, import_react16.useState)(0);
+  const [lives, setLives] = (0, import_react16.useState)(3);
+  const [level, setLevel] = (0, import_react16.useState)(1);
+  const [status, setStatus] = (0, import_react16.useState)("play");
+  const keys = (0, import_react16.useRef)({});
+  const pausedRef = (0, import_react16.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const game = (0, import_react15.useRef)(null);
-  const scoreRef = (0, import_react15.useRef)(0);
+  const game = (0, import_react16.useRef)(null);
+  const scoreRef = (0, import_react16.useRef)(0);
   scoreRef.current = score;
-  const statusRef = (0, import_react15.useRef)("play");
+  const statusRef = (0, import_react16.useRef)("play");
   statusRef.current = status;
-  const livesRef = (0, import_react15.useRef)(3);
+  const livesRef = (0, import_react16.useRef)(3);
   livesRef.current = lives;
-  const start = (0, import_react15.useCallback)((lvl) => {
+  const start = (0, import_react16.useCallback)((lvl) => {
     const bricks = makeBricks(lvl);
     game.current = {
       stars: Array.from({ length: 46 }, () => ({ x: Math.random() * W, y: Math.random() * H, a: 0.25 + Math.random() * 0.5 })),
@@ -8073,20 +8338,20 @@ function BreakoutGame(props) {
       speed: SPEED * (1 + (lvl - 1) * 0.09)
     };
   }, []);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     start(1);
     setScore(0);
     setLives(3);
     setStatus("play");
   }, [start]);
-  const launchBall = (0, import_react15.useCallback)(() => {
+  const launchBall = (0, import_react16.useCallback)(() => {
     const g = game.current;
     if (!g) return;
     g.ball.vx = (Math.random() > 0.5 ? 1 : -1) * SPEED;
     g.ball.vy = -SPEED;
     g.launched = true;
   }, []);
-  const resetBall = (0, import_react15.useCallback)(() => {
+  const resetBall = (0, import_react16.useCallback)(() => {
     const g = game.current;
     if (g) {
       g.ball.x = W / 2;
@@ -8096,7 +8361,7 @@ function BreakoutGame(props) {
       g.launched = false;
     }
   }, []);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     const frame = () => {
       const g = game.current;
       const ctx = canvasRef.current && canvasRef.current.getContext("2d");
@@ -8182,7 +8447,7 @@ function BreakoutGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, [resetBall]);
-  const onKeyDown = (0, import_react15.useCallback)((event) => {
+  const onKeyDown = (0, import_react16.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -8203,11 +8468,11 @@ function BreakoutGame(props) {
       livesRef.current = 3;
     }
   }, [launchBall, start]);
-  const onKeyUp = (0, import_react15.useCallback)((event) => {
+  const onKeyUp = (0, import_react16.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react15.useCallback)((e) => {
+  const onPointerMove = (0, import_react16.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect2 = cv.getBoundingClientRect();
@@ -8215,18 +8480,18 @@ function BreakoutGame(props) {
     g.paddle.x = Math.max(0, Math.min(W - PADDLE_W, (e.clientX - rect2.left) / scale - PADDLE_W / 2));
   }, []);
   useGameControls(canvasRef, pausedRef.current, onKeyDown, onKeyUp);
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "dgame-game", "aria-label": "\u6253\u7816\u5757", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h3", { children: "\u6253\u7816\u5757" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { children: "\u79FB\u52A8\u6321\u677F\u53CD\u5F39\u5C0F\u7403\uFF0C\u51FB\u788E\u6240\u6709\u7816\u5757\uFF1B\u7403\u843D\u5230\u5E95\u90E8\u6263\u4E00\u6761\u547D\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("section", { className: "dgame-game", "aria-label": "\u6253\u7816\u5757", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h3", { children: "\u6253\u7816\u5757" }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { children: "\u79FB\u52A8\u6321\u677F\u53CD\u5F39\u5C0F\u7403\uFF0C\u51FB\u788E\u6240\u6709\u7816\u5757\uFF1B\u7403\u843D\u5230\u5E95\u90E8\u6263\u4E00\u6761\u547D\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { children: [
           "\u5F97\u5206 ",
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("strong", { children: score })
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("strong", { children: score })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { children: [
           "\u547D ",
           lives,
           " \xB7 \u7B2C ",
@@ -8235,30 +8500,30 @@ function BreakoutGame(props) {
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-breakout", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("canvas", { ref: canvasRef, width: W, height: H, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: (e) => {
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-breakout", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("canvas", { ref: canvasRef, width: W, height: H, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: (e) => {
         focusStage(canvasRef);
         launchBall();
       }, className: "dgame-breakout-canvas", "aria-label": "\u6253\u7816\u5757\u6E38\u620F\u533A\u57DF\uFF0C\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u9F20\u6807\u79FB\u52A8\u6321\u677F\uFF0C\u7A7A\u683C\u6216\u70B9\u51FB\u53D1\u7403" }),
-      status === "win" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("strong", { children: [
+      status === "win" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("strong", { children: [
           "\u5168\u6D88\uFF01\u8FDB\u5165\u7B2C ",
           level,
           " \u5173"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: () => {
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", onClick: () => {
           start(level);
           setStatus("play");
           statusRef.current = "play";
         }, children: "\u4E0B\u4E00\u5173" })
       ] }) : null,
-      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("strong", { children: [
+      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("strong", { children: [
           "\u7403\u6389\u5149\u4E86 \xB7 \u5F97 ",
           score,
           " \u5206"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", onClick: () => {
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", onClick: () => {
           start(1);
           setScore(0);
           setLives(3);
@@ -8268,13 +8533,13 @@ function BreakoutGame(props) {
         }, children: "\u91CD\u65B0\u5F00\u59CB" })
       ] }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6\u79FB\u52A8", onClick: () => {
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6\u79FB\u52A8", onClick: () => {
         keys.current.left = false;
         game.current && (game.current.paddle.x = Math.max(0, game.current.paddle.x - 12));
       }, children: "\u2190 \u5DE6\u79FB" }),
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C/\u70B9\u51FB\u53D1\u7403" }),
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3\u79FB\u52A8", onClick: () => {
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 \u7A7A\u683C/\u70B9\u51FB\u53D1\u7403" }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3\u79FB\u52A8", onClick: () => {
         keys.current.right = false;
         game.current && (game.current.paddle.x = Math.min(W - PADDLE_W, game.current.paddle.x + 12));
       }, children: [
@@ -8286,12 +8551,12 @@ function BreakoutGame(props) {
 }
 function BreakoutPreview() {
   const cols = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#c084fc"];
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { className: "dgcov-prev dgcov-prev-breakout", "aria-hidden": "true", children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { className: "dgcov-prev dgcov-prev-breakout", "aria-hidden": "true", children: [
     Array.from({ length: 12 }, (_, i) => {
       const row = Math.floor(i / 6), c = i % 6;
-      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("i", { style: { left: 5 + c * 15 + "%", top: 10 + row * 12 + "%", background: cols[i % cols.length] } }, i);
+      return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: 5 + c * 15 + "%", top: 10 + row * 12 + "%", background: cols[i % cols.length] } }, i);
     }),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("b", {})
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("b", {})
   ] });
 }
 var breakoutGame = { Game: BreakoutGame, Preview: BreakoutPreview, css: `
@@ -8299,8 +8564,8 @@ var breakoutGame = { Game: BreakoutGame, Preview: BreakoutPreview, css: `
 ` };
 
 // features/games/games/racer.jsx
-var import_react16 = require("react");
-var import_jsx_runtime9 = require("react/jsx-runtime");
+var import_react17 = require("react");
+var import_jsx_runtime10 = require("react/jsx-runtime");
 var W2 = 300;
 var H2 = 420;
 var ROAD_W = 232;
@@ -8326,15 +8591,15 @@ function rect(ctx, x, y, w, h, r, fill) {
   ctx.fill();
 }
 function RacerGame(props) {
-  const canvasRef = (0, import_react16.useRef)(null);
-  const [status, setStatus] = (0, import_react16.useState)("play");
-  const game = (0, import_react16.useRef)(null);
-  const keys = (0, import_react16.useRef)({});
-  const statusRef = (0, import_react16.useRef)("play");
+  const canvasRef = (0, import_react17.useRef)(null);
+  const [status, setStatus] = (0, import_react17.useState)("play");
+  const game = (0, import_react17.useRef)(null);
+  const keys = (0, import_react17.useRef)({});
+  const statusRef = (0, import_react17.useRef)("play");
   statusRef.current = status;
-  const pausedRef = (0, import_react16.useRef)(!!(props && props.paused));
+  const pausedRef = (0, import_react17.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const reset = (0, import_react16.useCallback)(() => {
+  const reset = (0, import_react17.useCallback)(() => {
     game.current = {
       stars: Array.from({ length: 50 }, () => ({ x: Math.random() * W2, y: Math.random() * H2, a: 0.2 + Math.random() * 0.5 })),
       player: { x: laneX(1), y: H2 - CAR_H - 16, w: CAR_W, h: CAR_H },
@@ -8348,15 +8613,15 @@ function RacerGame(props) {
       over: false
     };
   }, []);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  const launch = (0, import_react16.useCallback)(() => {
+  const launch = (0, import_react17.useCallback)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     const draw2 = () => {
       const g = game.current, ctx = canvasRef.current && canvasRef.current.getContext("2d");
       if (!g || !ctx) return;
@@ -8458,7 +8723,7 @@ function RacerGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, []);
-  const onKeyDown = (0, import_react16.useCallback)((event) => {
+  const onKeyDown = (0, import_react17.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -8471,11 +8736,11 @@ function RacerGame(props) {
       launch();
     }
   }, [launch]);
-  const onKeyUp = (0, import_react16.useCallback)((event) => {
+  const onKeyUp = (0, import_react17.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react16.useCallback)((e) => {
+  const onPointerMove = (0, import_react17.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect0 = cv.getBoundingClientRect();
@@ -8483,35 +8748,35 @@ function RacerGame(props) {
     g.player.x = Math.max(ROAD_X + 2, Math.min(ROAD_X + ROAD_W - CAR_W - 2, (e.clientX - rect0.left) / scale - CAR_W / 2));
   }, []);
   useGameControls(canvasRef, pausedRef.current, onKeyDown, onKeyUp);
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("section", { className: "dgame-game", "aria-label": "\u6781\u901F\u8D5B\u8F66", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h3", { children: "\u6781\u901F\u8D5B\u8F66" }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { children: "\u5DE6\u53F3\u79FB\u52A8\u907F\u5F00\u8FCE\u9762\u6765\u8F66\u3001\u6536\u96C6\u91D1\u5E01\uFF0C\u8D8A\u5F00\u8D8A\u5FEB\uFF1B\u649E\u8F66\u5373\u7ED3\u675F\u3002\u8DDD\u79BB\u4E0E\u91D1\u5E01\u5B9E\u65F6\u663E\u793A\u5728\u6E38\u620F\u753B\u9762\u5DE6\u4E0A/\u53F3\u4E0A\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: "dgame-game", "aria-label": "\u6781\u901F\u8D5B\u8F66", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("h3", { children: "\u6781\u901F\u8D5B\u8F66" }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("p", { children: "\u5DE6\u53F3\u79FB\u52A8\u907F\u5F00\u8FCE\u9762\u6765\u8F66\u3001\u6536\u96C6\u91D1\u5E01\uFF0C\u8D8A\u5F00\u8D8A\u5FEB\uFF1B\u649E\u8F66\u5373\u7ED3\u675F\u3002\u8DDD\u79BB\u4E0E\u91D1\u5E01\u5B9E\u65F6\u663E\u793A\u5728\u6E38\u620F\u753B\u9762\u5DE6\u4E0A/\u53F3\u4E0A\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: "\u64CD\u4F5C" }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807" })
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: "\u64CD\u4F5C" }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807" })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-racer", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("canvas", { ref: canvasRef, width: W2, height: H2, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: () => focusStage(canvasRef), className: "dgame-racer-canvas", "aria-label": "\u6781\u901F\u8D5B\u8F66\u6E38\u620F\u533A\u57DF\uFF0C\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u9F20\u6807\u63A7\u5236\u65B9\u5411" }),
-      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("strong", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-racer", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("canvas", { ref: canvasRef, width: W2, height: H2, tabIndex: 0, onKeyDown, onKeyUp, onPointerMove, onClick: () => focusStage(canvasRef), className: "dgame-racer-canvas", "aria-label": "\u6781\u901F\u8D5B\u8F66\u6E38\u620F\u533A\u57DF\uFF0C\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u9F20\u6807\u63A7\u5236\u65B9\u5411" }),
+      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("strong", { children: [
           "\u649E\u8F66\u4E86 \xB7 \u884C\u9A76 ",
           game.current && Math.floor(game.current.dist / 60) || 0,
           " \u7C73"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", onClick: launch, children: "\u91CD\u65B0\u51FA\u53D1" })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", onClick: launch, children: "\u91CD\u65B0\u51FA\u53D1" })
       ] }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6", onClick: () => {
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6", onClick: () => {
         keys.current.left = false;
         if (game.current) game.current.player.x = Math.max(ROAD_X + 2, game.current.player.x - 14);
       }, children: "\u2190 \u5DE6\u79FB" }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 R \u91CD\u5F00" }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3", onClick: () => {
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: "\u2190/\u2192 \u6216\u9F20\u6807\u79FB\u52A8 \xB7 R \u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3", onClick: () => {
         keys.current.right = false;
         if (game.current) game.current.player.x = Math.min(ROAD_X + ROAD_W - CAR_W - 2, game.current.player.x + 14);
       }, children: [
@@ -8522,13 +8787,13 @@ function RacerGame(props) {
   ] });
 }
 function RacerPreview() {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { className: "dgcov-prev dgcov-prev-racer", "aria-hidden": "true", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "20%", top: "8%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "55%", top: "22%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "20%", top: "42%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "64%", top: "58%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("i", { style: { left: "38%", top: "74%" } }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("b", {})
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { className: "dgcov-prev dgcov-prev-racer", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { style: { left: "20%", top: "8%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { style: { left: "55%", top: "22%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { style: { left: "20%", top: "42%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { style: { left: "64%", top: "58%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { style: { left: "38%", top: "74%" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("b", {})
   ] });
 }
 var racerGame = { Game: RacerGame, Preview: RacerPreview, css: `
@@ -8536,7 +8801,7 @@ var racerGame = { Game: RacerGame, Preview: RacerPreview, css: `
 ` };
 
 // features/games/games/tank.jsx
-var import_react17 = require("react");
+var import_react18 = require("react");
 
 // features/games/tank-core.js
 var GRID = 15;
@@ -8740,31 +9005,31 @@ function nextWave(state) {
 }
 
 // features/games/games/tank.jsx
-var import_jsx_runtime10 = require("react/jsx-runtime");
+var import_jsx_runtime11 = require("react/jsx-runtime");
 var DIR_ANGLE = { up: 0, right: 90, down: 180, left: 270 };
 var ENEMY_COLORS = ["#f87171", "#fb923c", "#c084fc", "#4ade80", "#38bdf8"];
 function TankGame(props) {
-  const [snap, setSnap] = (0, import_react17.useState)(initialState);
-  const [status, setStatus] = (0, import_react17.useState)("play");
-  const snapRef = (0, import_react17.useRef)(snap);
+  const [snap, setSnap] = (0, import_react18.useState)(initialState);
+  const [status, setStatus] = (0, import_react18.useState)("play");
+  const snapRef = (0, import_react18.useRef)(snap);
   snapRef.current = snap;
-  const keys = (0, import_react17.useRef)({ dir: null, shoot: false });
-  const pausedRef = (0, import_react17.useRef)(!!(props && props.paused));
+  const keys = (0, import_react18.useRef)({ dir: null, shoot: false });
+  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const statusRef = (0, import_react17.useRef)("play");
+  const statusRef = (0, import_react18.useRef)("play");
   statusRef.current = status;
-  const boardRef = (0, import_react17.useRef)(null);
-  const start = (0, import_react17.useCallback)(() => {
+  const boardRef = (0, import_react18.useRef)(null);
+  const start = (0, import_react18.useCallback)(() => {
     setSnap(initialState());
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  const nextLvl = (0, import_react17.useCallback)(() => {
+  const nextLvl = (0, import_react18.useCallback)(() => {
     setSnap((s) => nextWave(s));
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current) return;
       setSnap((s) => {
@@ -8783,8 +9048,8 @@ function TankGame(props) {
     }, 120);
     return () => clearInterval(timer);
   }, []);
-  const stageRef = (0, import_react17.useRef)(null);
-  const onKeyDown = (0, import_react17.useCallback)((event) => {
+  const stageRef = (0, import_react18.useRef)(null);
+  const onKeyDown = (0, import_react18.useCallback)((event) => {
     if (pausedRef.current) return;
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
@@ -8801,7 +9066,7 @@ function TankGame(props) {
       start();
     }
   }, [start]);
-  const onKeyUp = (0, import_react17.useCallback)((event) => {
+  const onKeyUp = (0, import_react18.useCallback)((event) => {
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
     if (dir && keys.current.dir === dir) keys.current.dir = null;
@@ -8830,66 +9095,66 @@ function TankGame(props) {
       else if (grid[r][c] === BASE) cls += " base";
       if (playerPos && playerPos.r === r && playerPos.c === c) {
         cls += " pw";
-        inner = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgame-tank-body pw", style: { transform: "rotate(" + DIR_ANGLE[player.dir] + "deg)" } });
+        inner = /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { className: "dgame-tank-body pw", style: { transform: "rotate(" + DIR_ANGLE[player.dir] + "deg)" } });
       } else if (enemyMap[key]) {
         const e = enemyMap[key];
         cls += " en";
-        inner = /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgame-tank-body en", style: { background: ENEMY_COLORS[(e.r + e.c) % ENEMY_COLORS.length], transform: "rotate(" + DIR_ANGLE[e.dir] + "deg)" } });
+        inner = /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { className: "dgame-tank-body en", style: { background: ENEMY_COLORS[(e.r + e.c) % ENEMY_COLORS.length], transform: "rotate(" + DIR_ANGLE[e.dir] + "deg)" } });
       }
       if (bullets && bulletMap[key]) cls += " bullet";
-      cells.push(/* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { className: cls, children: [
+      cells.push(/* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: cls, children: [
         inner,
-        bulletMap[key] ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgame-tank-bullet", "aria-hidden": "true" }) : null,
-        grid[r][c] === BASE ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("b", { className: "dgame-tank-flag", "aria-hidden": "true", children: "\u2691" }) : null
+        bulletMap[key] ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { className: "dgame-tank-bullet", "aria-hidden": "true" }) : null,
+        grid[r][c] === BASE ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { className: "dgame-tank-flag", "aria-hidden": "true", children: "\u2691" }) : null
       ] }, key));
     }
   }
   const statusText = status === "over" ? "\u57FA\u5730\u5931\u5B88 \xB7 \u6E38\u620F\u7ED3\u675F" : status === "wave" ? "\u7B2C " + snap.wave + " \u6CE2\u6E05\u7A7A\uFF01\u8FDB\u5165\u4E0B\u4E00\u6CE2" : "\u7B2C " + snap.wave + " \u6CE2 \xB7 \u5F85\u6B7C\u706D " + (snap.remaining + snap.enemies.length) + " \u8F86 \xB7 \u751F\u547D \xD7 " + (player && player.lives);
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("section", { className: "dgame-game", "aria-label": "\u5766\u514B\u5927\u6218", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("h3", { children: "\u5766\u514B\u5927\u6218" }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("p", { children: "\u65B9\u5411\u952E\u79FB\u52A8\uFF0C\u7A7A\u683C\u5F00\u70AE\uFF1B\u51FB\u6BC1\u654C\u65B9\u5766\u514B\uFF0C\u522B\u8BA9\u654C\u519B\u6467\u6BC1\u4E2D\u592E\u57FA\u5730\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "dgame-game", "aria-label": "\u5766\u514B\u5927\u6218", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u5766\u514B\u5927\u6218" }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "\u65B9\u5411\u952E\u79FB\u52A8\uFF0C\u7A7A\u683C\u5F00\u70AE\uFF1B\u51FB\u6BC1\u654C\u65B9\u5766\u514B\uFF0C\u522B\u8BA9\u654C\u519B\u6467\u6BC1\u4E2D\u592E\u57FA\u5730\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { children: [
           "\u5F97\u5206 ",
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("strong", { children: snap.score })
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: snap.score })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { children: [
           "\u751F\u547D \xD7 ",
           player && player.lives
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-tank-stage", ref: stageRef, tabIndex: 0, role: "grid", onKeyDown, onKeyUp, onClick: () => focusStage(stageRef), "aria-label": "\u5766\u514B\u5927\u6218\u6E38\u620F\u533A\u57DF\uFF0C\u65B9\u5411\u952E\u79FB\u52A8\uFF0C\u7A7A\u683C\u5F00\u70AE", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "dgame-tank-grid", children: cells }),
-      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("strong", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-tank-stage", ref: stageRef, tabIndex: 0, role: "grid", onKeyDown, onKeyUp, onClick: () => focusStage(stageRef), "aria-label": "\u5766\u514B\u5927\u6218\u6E38\u620F\u533A\u57DF\uFF0C\u65B9\u5411\u952E\u79FB\u52A8\uFF0C\u7A7A\u683C\u5F00\u70AE", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-tank-grid", children: cells }),
+      status === "over" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
           "\u80DC\u8D25\u5DF2\u5206 \xB7 \u5F97 ",
           snap.score,
           " \u5206"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", onClick: start, children: "\u91CD\u65B0\u5F00\u59CB" })
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", onClick: start, children: "\u91CD\u65B0\u5F00\u59CB" })
       ] }) : null,
-      status === "wave" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("strong", { children: [
+      status === "wave" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
           "\u7B2C ",
           snap.wave,
           " \u6CE2\u6E05\u7A7A\uFF01"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", onClick: nextLvl, children: "\u4E0B\u4E00\u6CE2" })
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", onClick: nextLvl, children: "\u4E0B\u4E00\u6CE2" })
       ] }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dgame-controls dgame-tank-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => {
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-controls dgame-tank-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", "aria-label": "\u5411\u4E0A", onClick: () => {
         keys.current.dir = "up";
         setTimeout(() => {
           if (keys.current.dir === "up") keys.current.dir = null;
         }, 90);
       }, children: "\u2191" }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 \u7A7A\u683C\u5F00\u70AE \xB7 R \u91CD\u5F00" }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", className: "dgame-tank-fire", "aria-label": "\u5F00\u70AE", onClick: () => {
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u65B9\u5411\u952E / WASD \xB7 \u7A7A\u683C\u5F00\u70AE \xB7 R \u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgame-tank-fire", "aria-label": "\u5F00\u70AE", onClick: () => {
         keys.current.shoot = true;
         setTimeout(() => {
           keys.current.shoot = false;
@@ -8907,14 +9172,14 @@ function TankPreview() {
     "...P..F."
   ];
   const cls = { ".": "void", B: "brick", S: "steel", P: "pw", E: "en", F: "base" };
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "dgcov-prev dgcov-prev-tank", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "dgp-tank-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("i", { className: "dgp-tank-" + cls[ch] }, r + "-" + c))) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgcov-prev dgcov-prev-tank", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgp-tank-grid", children: ROWS3.flatMap((row, r) => row.split("").map((ch, c) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { className: "dgp-tank-" + cls[ch] }, r + "-" + c))) }) });
 }
 var tankGame = { Game: TankGame, Preview: TankPreview, css: `
 .dgame-tank-stage{position:relative;align-self:center;width:min(100%,320px);aspect-ratio:1/1;border:1px solid color-mix(in srgb,rgb(250 204 21) 32%,var(--dsw-alias-border-l1));border-radius:8px;overflow:hidden;outline:none;background:linear-gradient(180deg,#1a1425,#100d1c);box-shadow:inset 0 0 26px rgb(0 0 0/.5)}.dgame-tank-stage:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,rgb(250 204 21) 30%,transparent)}.dgame-tank-grid{display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);width:100%;height:100%;gap:0}.dgame-tank-cell{position:relative;background:rgba(255,255,255,.03);min-width:0;min-height:0}.dgame-tank-cell.steel{background:linear-gradient(180deg,#94a3b8,#64748b)}.dgame-tank-cell.brick{background:repeating-linear-gradient(45deg,#a3672a 0 55%,#8a5a1c 55% 100%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}.dgame-tank-cell.base{background:#fbbf24}.dgame-tank-cell.bullet::before{content:'';position:absolute;inset:38%;background:#fef3c7;box-shadow:0 0 5px #fef3c7;z-index:4}.dgame-tank-flag{position:absolute;inset:0;display:grid;place-items:center;color:#7c2d12;font-size:18px;z-index:2}.dgame-tank-body{position:absolute;inset:16%;display:block;border-radius:16%;z-index:3;transition:transform .1s ease}.dgame-tank-body.pw{background:linear-gradient(135deg,#fde047,#eab308);box-shadow:0 0 7px color-mix(in srgb,#eab308 55%,transparent)}.dgame-tank-body.en{background:#f87171;box-shadow:0 0 5px color-mix(in srgb,#f87171 40%,transparent)}.dgame-tank-body::before{content:'';position:absolute;left:38%;top:-30%;width:24%;height:64%;background:rgba(255,255,255,.5);border-radius:3px}.dgame-tank-controls{grid-template-columns:1fr auto 1fr}
 ` };
 
 // features/games/view.jsx
-var import_jsx_runtime11 = require("react/jsx-runtime");
+var import_jsx_runtime12 = require("react/jsx-runtime");
 var LANES = 3;
 var REACTOR_NEIGHBORS = [[0, 1, 3], [1, 0, 2, 4], [2, 1, 5], [3, 0, 4, 6], [4, 1, 3, 5, 7], [5, 2, 4, 8], [6, 3, 7], [7, 4, 6, 8], [8, 5, 7]];
 var FAB_POS_KEY = "dsh-dock/games/fab/v1";
@@ -8923,7 +9188,7 @@ var FAB_W = 36;
 var FAB_H = 120;
 var WIN_MIN_W = 360;
 var WIN_MIN_H = 340;
-function phaseLabel2(phase) {
+function phaseLabel3(phase) {
   return { think: "\u601D\u8003\u4E2D", write: "\u8F93\u51FA\u4E2D", code: "\u7F16\u5199\u4EE3\u7801", search: "\u67E5\u8D44\u6599" }[phase] || "\u5904\u7406\u4E2D";
 }
 function elapsedText(ms) {
@@ -8943,8 +9208,8 @@ function initialDash() {
   return { lane: 1, rocks: [], score: 0, shield: 3, running: true, nextId: 1 };
 }
 function useTaskPulse() {
-  const [status, setStatus] = (0, import_react18.useState)({ loading: true, active: [], error: false });
-  const refresh = (0, import_react18.useCallback)(() => fetch("/dsh-dock/animation/status", {
+  const [status, setStatus] = (0, import_react19.useState)({ loading: true, active: [], error: false });
+  const refresh = (0, import_react19.useCallback)(() => fetch("/dsh-dock/animation/status", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}"
@@ -8952,7 +9217,7 @@ function useTaskPulse() {
     if (!payload || !payload.ok) throw new Error("status unavailable");
     setStatus({ loading: false, active: Array.isArray(payload.data && payload.data.active) ? payload.data.active : [], error: false });
   }).catch(() => setStatus((current) => ({ loading: false, active: current.active || [], error: true }))), []);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 2600);
     return () => clearInterval(timer);
@@ -8960,14 +9225,14 @@ function useTaskPulse() {
   return status;
 }
 function DashGame(props) {
-  const [dash, setDash] = (0, import_react18.useState)(initialDash);
-  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused));
+  const [dash, setDash] = (0, import_react19.useState)(initialDash);
+  const pausedRef = (0, import_react19.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const move = (0, import_react18.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
+  const move = (0, import_react19.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
     lane: Math.max(0, Math.min(LANES - 1, current.lane + delta))
   })), []);
-  const stageRef = (0, import_react18.useRef)(null);
-  const onKeyDown = (0, import_react18.useCallback)((event) => {
+  const stageRef = (0, import_react19.useRef)(null);
+  const onKeyDown = (0, import_react19.useCallback)((event) => {
     if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
       event.preventDefault();
       move(-1);
@@ -8980,7 +9245,7 @@ function DashGame(props) {
     }
   }, [move, dash.running]);
   useGameControls(stageRef, props.paused, onKeyDown);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current || typeof document !== "undefined" && document.hidden) return;
       setDash((current) => {
@@ -9014,41 +9279,41 @@ function DashGame(props) {
     for (let lane = 0; lane < LANES; lane += 1) {
       const rock = dash.rocks.find((item) => item.row === row && item.lane === lane);
       const pilot = row === 4 && lane === dash.lane;
-      cells.push(/* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgame-dash-cell", children: [
-        rock ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { className: "dgame-rock", children: "\u25C6" }) : null,
-        pilot ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { className: "dgame-pilot", children: "\u25B2" }) : null
+      cells.push(/* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dgame-dash-cell", children: [
+        rock ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", { className: "dgame-rock", children: "\u25C6" }) : null,
+        pilot ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { className: "dgame-pilot", children: "\u25B2" }) : null
       ] }, row + "-" + lane));
     }
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "dgame-game", "aria-label": "\u661F\u9645\u8EB2\u907F\u5C0F\u6E38\u620F", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u661F\u9645\u8EB2\u907F" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "\u5DE6\u53F3\u79FB\u52A8\u8865\u7ED9\u8247\uFF0C\u907F\u5F00\u6B63\u5728\u5760\u843D\u7684\u9668\u77F3\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dgame-game", "aria-label": "\u661F\u9645\u8EB2\u907F\u5C0F\u6E38\u620F", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "\u661F\u9645\u8EB2\u907F" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u5DE6\u53F3\u79FB\u52A8\u8865\u7ED9\u8247\uFF0C\u907F\u5F00\u6B63\u5728\u5760\u843D\u7684\u9668\u77F3\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { children: [
           "\u5F97\u5206 ",
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: dash.score })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: dash.score })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { "aria-label": "\u62A4\u76FE " + dash.shield + " \u683C", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { "aria-label": "\u62A4\u76FE " + dash.shield + " \u683C", children: [
           "\u62A4\u76FE ",
           "\u2726".repeat(Math.max(0, dash.shield)),
           "\xB7".repeat(Math.max(0, 3 - dash.shield))
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-dash-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), "aria-label": "\u661F\u9645\u8EB2\u907F\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u4E0B\u65B9\u6309\u94AE\u79FB\u52A8", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-dash-grid", children: cells }),
-      !dash.running ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-over", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: "\u62A4\u76FE\u8017\u5C3D" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", onClick: () => setDash(initialDash()), children: "\u91CD\u65B0\u51FA\u53D1" })
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-dash-stage", ref: stageRef, tabIndex: 0, onKeyDown, onClick: () => focusStage(stageRef), "aria-label": "\u661F\u9645\u8EB2\u907F\u6E38\u620F\u533A\u57DF\uFF0C\u4F7F\u7528\u5DE6\u53F3\u65B9\u5411\u952E\u6216\u4E0B\u65B9\u6309\u94AE\u79FB\u52A8", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgame-dash-grid", children: cells }),
+      !dash.running ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-over", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u62A4\u76FE\u8017\u5C3D" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", onClick: () => setDash(initialDash()), children: "\u91CD\u65B0\u51FA\u53D1" })
       ] }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-controls", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6\u79FB\u52A8", onClick: () => move(-1), children: "\u2190 \u5DE6\u79FB" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u65B9\u5411\u952E / A\u3001D \xB7 \u7A7A\u683C\u91CD\u5F00" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3\u79FB\u52A8", onClick: () => move(1), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-controls", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", "aria-label": "\u5411\u5DE6\u79FB\u52A8", onClick: () => move(-1), children: "\u2190 \u5DE6\u79FB" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u65B9\u5411\u952E / A\u3001D \xB7 \u7A7A\u683C\u91CD\u5F00" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", "aria-label": "\u5411\u53F3\u79FB\u52A8", onClick: () => move(1), children: [
         "\u53F3\u79FB ",
         "->"
       ] })
@@ -9057,10 +9322,10 @@ function DashGame(props) {
   ] });
 }
 function ReactorGame(props) {
-  const [cells, setCells] = (0, import_react18.useState)(makeReactor);
-  const [moves, setMoves] = (0, import_react18.useState)(0);
-  const [cursor, setCursor] = (0, import_react18.useState)(4);
-  const gridRef = (0, import_react18.useRef)(null);
+  const [cells, setCells] = (0, import_react19.useState)(makeReactor);
+  const [moves, setMoves] = (0, import_react19.useState)(0);
+  const [cursor, setCursor] = (0, import_react19.useState)(4);
+  const gridRef = (0, import_react19.useRef)(null);
   const solved = cells.every(Boolean);
   const toggle = (index) => {
     if (solved) return;
@@ -9099,38 +9364,38 @@ function ReactorGame(props) {
     }
   };
   useGameControls(gridRef, props.paused, onKeyDown);
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "dgame-game", "aria-label": "\u53CD\u5E94\u5806\u70B9\u4EAE\u5C0F\u6E38\u620F", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-game-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u53CD\u5E94\u5806\u70B9\u4EAE" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "\u70B9\u4E00\u4E0B\u4F1A\u5207\u6362\u76F8\u90BB\u6A21\u5757\uFF0C\u628A\u4E5D\u4E2A\u6A21\u5757\u5168\u90E8\u70B9\u4EAE\uFF1B\u952E\u76D8\uFF1A\u65B9\u5411\u952E\u9009\u683C\u3001Enter/\u7A7A\u683C \u70B9\u4EAE\u3001R \u91CD\u7F6E\u3002" })
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dgame-game", "aria-label": "\u53CD\u5E94\u5806\u70B9\u4EAE\u5C0F\u6E38\u620F", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-game-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: "\u53CD\u5E94\u5806\u70B9\u4EAE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u70B9\u4E00\u4E0B\u4F1A\u5207\u6362\u76F8\u90BB\u6A21\u5757\uFF0C\u628A\u4E5D\u4E2A\u6A21\u5757\u5168\u90E8\u70B9\u4EAE\uFF1B\u952E\u76D8\uFF1A\u65B9\u5411\u952E\u9009\u683C\u3001Enter/\u7A7A\u683C \u70B9\u4EAE\u3001R \u91CD\u7F6E\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-score", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-score", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { children: [
           "\u64CD\u4F5C ",
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: moves })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: moves })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u7F6E" })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", onClick: reset, children: "\u91CD\u7F6E" })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-reactor", ref: gridRef, tabIndex: 0, role: "group", "aria-label": "\u4E5D\u5BAB\u683C\u53CD\u5E94\u5806", onKeyDown, onClick: () => focusStage(gridRef), children: cells.map((on, index) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", tabIndex: -1, className: "dgame-reactor-cell" + (on ? " on" : "") + (cursor === index ? " focus" : ""), "aria-current": cursor === index ? "true" : void 0, "aria-label": (on ? "\u5DF2\u70B9\u4EAE" : "\u672A\u70B9\u4EAE") + "\u6A21\u5757 " + (index + 1), onClick: () => {
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgame-reactor", ref: gridRef, tabIndex: 0, role: "group", "aria-label": "\u4E5D\u5BAB\u683C\u53CD\u5E94\u5806", onKeyDown, onClick: () => focusStage(gridRef), children: cells.map((on, index) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", tabIndex: -1, className: "dgame-reactor-cell" + (on ? " on" : "") + (cursor === index ? " focus" : ""), "aria-current": cursor === index ? "true" : void 0, "aria-label": (on ? "\u5DF2\u70B9\u4EAE" : "\u672A\u70B9\u4EAE") + "\u6A21\u5757 " + (index + 1), onClick: () => {
       toggle(index);
       setCursor(index);
       focusStage(gridRef);
-    }, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}) }, index)) }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-reactor-status" + (solved ? " solved" : ""), children: solved ? "\u53CD\u5E94\u5806\u7A33\u5B9A\u8FD0\u884C \xB7 \u505A\u5F97\u6F02\u4EAE\uFF08R \u91CD\u65B0\u5F00\u59CB\uFF09" : "\u8BA9\u6240\u6709\u6A21\u5757\u53D1\u5149\uFF0C\u7ED9\u4EFB\u52A1\u4E00\u70B9\u80FD\u91CF" })
+    }, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}) }, index)) }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgame-reactor-status" + (solved ? " solved" : ""), children: solved ? "\u53CD\u5E94\u5806\u7A33\u5B9A\u8FD0\u884C \xB7 \u505A\u5F97\u6F02\u4EAE\uFF08R \u91CD\u65B0\u5F00\u59CB\uFF09" : "\u8BA9\u6240\u6709\u6A21\u5757\u53D1\u5149\uFF0C\u7ED9\u4EFB\u52A1\u4E00\u70B9\u80FD\u91CF" })
   ] });
 }
 function DashCover() {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgcov-prev dgcov-prev-dash", "aria-hidden": "true", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", {})
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dgcov-prev dgcov-prev-dash", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", {})
   ] });
 }
 function ReactorCover() {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgcov-prev dgcov-prev-reactor", "aria-hidden": "true", children: Array.from({ length: 9 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}, i)) });
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dgcov-prev dgcov-prev-reactor", "aria-hidden": "true", children: Array.from({ length: 9 }, (_, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}, i)) });
 }
 var GAMES = [
   {
@@ -9270,8 +9535,8 @@ var gamesBus = {
   }
 };
 function useGameWin() {
-  const [state, setState] = (0, import_react18.useState)(gamesBus.state);
-  (0, import_react18.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
+  const [state, setState] = (0, import_react19.useState)(gamesBus.state);
+  (0, import_react19.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
   return state;
 }
 var CATS = [
@@ -9281,19 +9546,19 @@ var CATS = [
 ];
 function GameCoverGrid(props) {
   const currentId = props && props.currentId;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgcov-groups", children: CATS.map((cat) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgcov-groups", children: CATS.map((cat) => {
     const list = GAMES.filter((g) => (g.cat || "casual") === cat.id);
     if (!list.length) return null;
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgcov-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgcov-sechead", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: cat.label }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: cat.desc }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("em", { children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgcov-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgcov-sechead", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: cat.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: cat.desc }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("em", { children: [
           list.length,
           " \u6B3E"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgcov-grid", role: "list", children: list.map((g) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgcov-grid", role: "list", children: list.map((g) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
         "button",
         {
           type: "button",
@@ -9301,13 +9566,13 @@ function GameCoverGrid(props) {
           className: "dgcov" + (currentId === g.id ? " on" : ""),
           onClick: () => props.onLaunch(g.id),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(g.Preview, {}),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgcov-name", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", { style: { background: g.accent } }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(g.Preview, {}),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dgcov-name", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", { style: { background: g.accent } }),
               g.name,
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("em", { children: currentId === g.id ? "\u6B63\u5728\u73A9" : "\u5F00\u73A9" })
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("em", { children: currentId === g.id ? "\u6B63\u5728\u73A9" : "\u5F00\u73A9" })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgcov-desc", children: g.desc })
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dgcov-desc", children: g.desc })
           ]
         },
         g.id
@@ -9316,19 +9581,19 @@ function GameCoverGrid(props) {
   }) });
 }
 function TaskPill({ status }) {
-  if (status.loading) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgwin-task", children: "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" });
+  if (status.loading) return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dgwin-task", children: "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" });
   const task = status.active[0];
-  if (!task) return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgwin-task idle", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+  if (!task) return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dgwin-task idle", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
     "\u4EFB\u52A1\u7A7A\u95F2 \xB7 \u6162\u6162\u73A9"
   ] });
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgwin-task live", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("b", { children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dgwin-task live", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("b", { children: [
       status.active.length,
       " \u4E2A\u4EFB\u52A1"
     ] }),
-    phaseLabel2(task.phase),
+    phaseLabel3(task.phase),
     " \xB7 ",
     elapsedText(task.elapsed)
   ] });
@@ -9387,12 +9652,12 @@ function snapFabX(side) {
 function GameWindow(props) {
   const game = props.game;
   const status = useTaskPulse();
-  const [win, setWin] = (0, import_react18.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
-  const winRef = (0, import_react18.useRef)(win);
+  const [win, setWin] = (0, import_react19.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
+  const winRef = (0, import_react19.useRef)(win);
   winRef.current = win;
-  const pickerRef = (0, import_react18.useRef)(props.picker);
+  const pickerRef = (0, import_react19.useRef)(props.picker);
   pickerRef.current = props.picker;
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (pickerRef.current) gamesBus.closePicker();
@@ -9436,56 +9701,56 @@ function GameWindow(props) {
   }
   const Game = game && game.Game;
   const style = win.mode === "max" ? { left: 10, top: 10, right: 10, bottom: 10, width: "auto", height: "auto" } : { left: win.x, top: win.y, width: win.w, height: props.picker ? "min(76vh, 640px)" : "auto" };
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin dgwin-" + win.mode, role: "dialog", "aria-label": "\u6E38\u620F\u7A97\u53E3\uFF1A" + (game ? game.name : "\u8DA3\u5473\u6E38\u620F"), style, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgwin dgwin-" + win.mode, role: "dialog", "aria-label": "\u6E38\u620F\u7A97\u53E3\uFF1A" + (game ? game.name : "\u8DA3\u5473\u6E38\u620F"), style, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
       "header",
       {
         className: "dgwin-bar",
         onPointerDown: (e) => beginDrag(e, "move"),
         onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" })),
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgwin-ico", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GamepadIcon, { size: 15 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-title", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: game ? game.name : "\u8DA3\u5473\u6E38\u620F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: game ? game.desc : "\u9009\u4E00\u6B3E\u5C0F\u6E38\u620F\uFF0C\u8FB9\u7B49\u8FB9\u73A9" })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dgwin-ico", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GamepadIcon, { size: 15 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgwin-title", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: game ? game.name : "\u8DA3\u5473\u6E38\u620F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: game ? game.desc : "\u9009\u4E00\u6B3E\u5C0F\u6E38\u620F\uFF0C\u8FB9\u7B49\u8FB9\u73A9" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(TaskPill, { status }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-ctrls", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-btn", title: props.picker ? "\u6536\u8D77\u9009\u62E9\u5C42\uFF0C\u56DE\u5230\u6E38\u620F" : "\u5C55\u5F00\u9009\u62E9\u5C42\uFF0C\u6362\u4E00\u6B3E\u6E38\u620F", onClick: () => gamesBus.togglePicker(), children: props.picker ? "\u8FD4\u56DE" : "\u6362\u6E38\u620F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-sq", title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316", "aria-label": win.mode === "min" ? "\u8FD8\u539F\u7A97\u53E3" : "\u6700\u5C0F\u5316\u7A97\u53E3", onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" })), children: "\u2581" }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-sq", title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316", "aria-label": win.mode === "max" ? "\u8FD8\u539F\u7A97\u53E3" : "\u6700\u5927\u5316\u7A97\u53E3", onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" })), children: win.mode === "max" ? "\u2750" : "\u25A2" }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-sq", title: "\u5173\u95ED\uFF08Esc\uFF09", "aria-label": "\u5173\u95ED\u6E38\u620F\u7A97\u53E3", onClick: () => gamesBus.close(), children: "\u2715" })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(TaskPill, { status }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgwin-ctrls", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dgwin-btn", title: props.picker ? "\u6536\u8D77\u9009\u62E9\u5C42\uFF0C\u56DE\u5230\u6E38\u620F" : "\u5C55\u5F00\u9009\u62E9\u5C42\uFF0C\u6362\u4E00\u6B3E\u6E38\u620F", onClick: () => gamesBus.togglePicker(), children: props.picker ? "\u8FD4\u56DE" : "\u6362\u6E38\u620F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dgwin-sq", title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316", "aria-label": win.mode === "min" ? "\u8FD8\u539F\u7A97\u53E3" : "\u6700\u5C0F\u5316\u7A97\u53E3", onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" })), children: "\u2581" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dgwin-sq", title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316", "aria-label": win.mode === "max" ? "\u8FD8\u539F\u7A97\u53E3" : "\u6700\u5927\u5316\u7A97\u53E3", onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" })), children: win.mode === "max" ? "\u2750" : "\u25A2" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dgwin-sq", title: "\u5173\u95ED\uFF08Esc\uFF09", "aria-label": "\u5173\u95ED\u6E38\u620F\u7A97\u53E3", onClick: () => gamesBus.close(), children: "\u2715" })
           ] })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-body", children: [
-      Game ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Game, { paused: props.picker || win.mode === "min" }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgwin-empty", children: "\u4ECE\u300C\u6362\u6E38\u620F\u300D\u91CC\u6311\u4E00\u6B3E\u5F00\u59CB\u73A9\u3002" }),
-      game ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("footer", { className: "dgwin-tip", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgwin-body", children: [
+      Game ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Game, { paused: props.picker || win.mode === "min" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgwin-empty", children: "\u4ECE\u300C\u6362\u6E38\u620F\u300D\u91CC\u6311\u4E00\u6B3E\u5F00\u59CB\u73A9\u3002" }),
+      game ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("footer", { className: "dgwin-tip", children: [
         game.tip,
         " \xB7 Esc \u5173\u95ED\u7A97\u53E3"
       ] }) : null,
-      props.picker ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-picker", role: "dialog", "aria-label": "\u9009\u62E9\u5C0F\u6E38\u620F", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgwin-picker-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: "\u9009\u62E9\u5C0F\u6E38\u620F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u70B9\u51FB\u5C01\u9762\u5F00\u73A9\uFF1B\u7A97\u53E3\u4F4D\u7F6E\u548C\u5927\u5C0F\u968F\u4F60\u8C03" })
+      props.picker ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgwin-picker", role: "dialog", "aria-label": "\u9009\u62E9\u5C0F\u6E38\u620F", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgwin-picker-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: "\u9009\u62E9\u5C0F\u6E38\u620F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u70B9\u51FB\u5C01\u9762\u5F00\u73A9\uFF1B\u7A97\u53E3\u4F4D\u7F6E\u548C\u5927\u5C0F\u968F\u4F60\u8C03" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", className: "dgwin-picker-close", "aria-label": "\u5173\u95ED\u9009\u62E9\u5C42", title: "\u5173\u95ED", onClick: () => gamesBus.closePicker(), children: "\u2715" })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dgwin-picker-close", "aria-label": "\u5173\u95ED\u9009\u62E9\u5C42", title: "\u5173\u95ED", onClick: () => gamesBus.closePicker(), children: "\u2715" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameCoverGrid, { currentId: game && game.id, onLaunch: (id) => gamesBus.launch(id) })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GameCoverGrid, { currentId: game && game.id, onLaunch: (id) => gamesBus.launch(id) })
       ] }) : null
     ] }),
-    win.mode === "normal" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgwin-resize", title: "\u62D6\u52A8\u8C03\u6574\u7A97\u53E3\u5927\u5C0F", "aria-hidden": "true", onPointerDown: (e) => beginDrag(e, "size") }) : null
+    win.mode === "normal" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgwin-resize", title: "\u62D6\u52A8\u8C03\u6574\u7A97\u53E3\u5927\u5C0F", "aria-hidden": "true", onPointerDown: (e) => beginDrag(e, "size") }) : null
   ] });
 }
 function GameFab(props) {
-  const [pos, setPos] = (0, import_react18.useState)(null);
-  const [dragging, setDragging] = (0, import_react18.useState)(false);
-  const dragRef = (0, import_react18.useRef)(null);
-  const clickBlockRef = (0, import_react18.useRef)(false);
-  const sideRef = (0, import_react18.useRef)("left");
-  (0, import_react18.useEffect)(() => {
+  const [pos, setPos] = (0, import_react19.useState)(null);
+  const [dragging, setDragging] = (0, import_react19.useState)(false);
+  const dragRef = (0, import_react19.useRef)(null);
+  const clickBlockRef = (0, import_react19.useRef)(false);
+  const sideRef = (0, import_react19.useRef)("left");
+  (0, import_react19.useEffect)(() => {
     if (typeof window === "undefined") return;
     let next = { side: "left", y: Math.round(window.innerHeight * 0.34) };
     try {
@@ -9500,7 +9765,7 @@ function GameFab(props) {
       y: Math.min(Math.max(8, next.y), Math.max(8, window.innerHeight - FAB_H - 8))
     });
   }, []);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     if (typeof window === "undefined") return;
     const update = () => {
       if (dragRef.current) return;
@@ -9563,7 +9828,7 @@ function GameFab(props) {
     }
   };
   if (!pos) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
     "button",
     {
       type: "button",
@@ -9578,50 +9843,50 @@ function GameFab(props) {
         if (!clickBlockRef.current) gamesBus.entry();
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgfab-ico", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GamepadIcon, { size: 16 }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dgfab-label", children: "\u8DA3\u5473\u6E38\u620F" })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dgfab-ico", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GamepadIcon, { size: 16 }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dgfab-label", children: "\u8DA3\u5473\u6E38\u620F" })
       ]
     }
   );
 }
 function GamepadIcon(props) {
   const size = props && props.size || 16;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("svg", { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: "1.3", "aria-hidden": "true", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("rect", { x: "1.6", y: "4.6", width: "12.8", height: "6.8", rx: "3.2" }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("path", { d: "M4.7 6.8v2.6M3.4 8.1h2.6" }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("circle", { cx: "10.4", cy: "6.9", r: ".95", fill: "currentColor", stroke: "none" }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("circle", { cx: "12.2", cy: "8.7", r: ".95", fill: "currentColor", stroke: "none" })
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: "1.3", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("rect", { x: "1.6", y: "4.6", width: "12.8", height: "6.8", rx: "3.2" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M4.7 6.8v2.6M3.4 8.1h2.6" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("circle", { cx: "10.4", cy: "6.9", r: ".95", fill: "currentColor", stroke: "none" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("circle", { cx: "12.2", cy: "8.7", r: ".95", fill: "currentColor", stroke: "none" })
   ] });
 }
 function GamesOverlay() {
   const winState = useGameWin();
-  const [panelOpen, setPanelOpen2] = (0, import_react18.useState)(panelNav.open);
-  (0, import_react18.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react19.useState)(panelNav.open);
+  (0, import_react19.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
   const game = winState.game ? GAMES.find((g) => g.id === winState.game) : null;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameFab, { hidden: winState.open || panelOpen }),
-    winState.open ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameWindow, { game, picker: winState.picker }) : null
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GameFab, { hidden: winState.open || panelOpen }),
+    winState.open ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GameWindow, { game, picker: winState.picker }) : null
   ] });
 }
 function TaskStatus({ status }) {
   const task = status.active[0];
-  if (status.loading) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-task-status loading", children: "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" });
-  if (!task) return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-task-status", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+  if (status.loading) return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgame-task-status loading", children: "\u6B63\u5728\u8BFB\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" });
+  if (!task) return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-task-status", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
     " \u4EFB\u52A1\u6682\u65F6\u7A7A\u95F2 \xB7 \u6E38\u620F\u968F\u65F6\u53EF\u73A9"
   ] });
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dgame-task-status live", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("strong", { children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dgame-task-status live", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("strong", { children: [
         status.active.length,
         " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 ",
-        phaseLabel2(task.phase)
+        phaseLabel3(task.phase)
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { title: task.title, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { title: task.title, children: [
         task.title || "\u5F53\u524D\u4EFB\u52A1",
         " \xB7 \u5DF2\u8FD0\u884C ",
         elapsedText(task.elapsed)
@@ -9632,32 +9897,32 @@ function TaskStatus({ status }) {
 function GamesView() {
   const status = useTaskPulse();
   const winState = useGameWin();
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "dgame", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("header", { className: "dgame-hero", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgame-eyebrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dgame", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("header", { className: "dgame-hero", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dgame-eyebrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
           " \u7B49\u5F85\u4E5F\u53EF\u4EE5\u5F88\u597D\u73A9"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h2", { children: "\u8DA3\u5473\u6E38\u620F" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { children: "\u4EFB\u52A1\u5728\u540E\u53F0\u7EE7\u7EED\u6267\u884C\uFF1B\u6E38\u620F\u5728\u5C40\u90E8\u6D6E\u52A8\u7A97\u53E3\u91CC\u8FD0\u884C\uFF0C\u4E0D\u94FA\u6EE1\u5168\u5C4F\u3001\u4E0D\u906E\u6321\u4F1A\u8BDD\u5185\u5BB9\uFF0C\u4E5F\u4E0D\u5F71\u54CD\u6587\u4EF6\u6216\u6B63\u5728\u8FD0\u884C\u7684\u667A\u80FD\u4F53\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h2", { children: "\u8DA3\u5473\u6E38\u620F" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u4EFB\u52A1\u5728\u540E\u53F0\u7EE7\u7EED\u6267\u884C\uFF1B\u6E38\u620F\u5728\u5C40\u90E8\u6D6E\u52A8\u7A97\u53E3\u91CC\u8FD0\u884C\uFF0C\u4E0D\u94FA\u6EE1\u5168\u5C4F\u3001\u4E0D\u906E\u6321\u4F1A\u8BDD\u5185\u5BB9\uFF0C\u4E5F\u4E0D\u5F71\u54CD\u6587\u4EF6\u6216\u6B63\u5728\u8FD0\u884C\u7684\u667A\u80FD\u4F53\u3002" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "dgame-planet", "aria-hidden": "true", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("i", {}),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", {})
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dgame-planet", "aria-hidden": "true", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", {})
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(TaskStatus, { status }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "dgame-launch-note", children: "\u70B9\u51FB\u5C01\u9762\u5728\u6D6E\u52A8\u7A97\u53E3\u5F00\u73A9\uFF1A\u7A97\u53E3\u53EF\u62D6\u52A8\u3001\u53EF\u8C03\u5927\u5C0F\u3001\u53EF\u6700\u5927\u5316\u6700\u5C0F\u5316\uFF1B\u5C4F\u5E55\u4FA7\u8FB9\u7684\u300C\u8DA3\u5473\u6E38\u620F\u300D\u78C1\u5438\u5165\u53E3\u8D34\u5728\u5DE6\u4FA7\u8FB9\u680F\u53F3\u7F18\uFF08\u4E0D\u6321\u5DE5\u4F5C\u533A\u76EE\u5F55\uFF09\uFF0C\u53EF\u4E0A\u4E0B\u632A\u4F4D\u3001\u5DE6\u53F3\u6362\u8FB9\uFF0C\u4F4D\u7F6E\u90FD\u4F1A\u8BB0\u4F4F\uFF1B\u5341\u6B3E\u5C0F\u6E38\u620F\u90FD\u652F\u6301\u952E\u76D8\uFF08\u80FD\u914D\u6309\u94AE\u7684\u4E5F\u914D\u4E86\u6309\u94AE\uFF09\u64CD\u4F5C\u3002" }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(GameCoverGrid, { currentId: winState.open ? winState.game : null, onLaunch: (id) => {
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(TaskStatus, { status }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dgame-launch-note", children: "\u70B9\u51FB\u5C01\u9762\u5728\u6D6E\u52A8\u7A97\u53E3\u5F00\u73A9\uFF1A\u7A97\u53E3\u53EF\u62D6\u52A8\u3001\u53EF\u8C03\u5927\u5C0F\u3001\u53EF\u6700\u5927\u5316\u6700\u5C0F\u5316\uFF1B\u5C4F\u5E55\u4FA7\u8FB9\u7684\u300C\u8DA3\u5473\u6E38\u620F\u300D\u78C1\u5438\u5165\u53E3\u8D34\u5728\u5DE6\u4FA7\u8FB9\u680F\u53F3\u7F18\uFF08\u4E0D\u6321\u5DE5\u4F5C\u533A\u76EE\u5F55\uFF09\uFF0C\u53EF\u4E0A\u4E0B\u632A\u4F4D\u3001\u5DE6\u53F3\u6362\u8FB9\uFF0C\u4F4D\u7F6E\u90FD\u4F1A\u8BB0\u4F4F\uFF1B\u5341\u6B3E\u5C0F\u6E38\u620F\u90FD\u652F\u6301\u952E\u76D8\uFF08\u80FD\u914D\u6309\u94AE\u7684\u4E5F\u914D\u4E86\u6309\u94AE\uFF09\u64CD\u4F5C\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GameCoverGrid, { currentId: winState.open ? winState.game : null, onLaunch: (id) => {
       gamesBus.launch(id);
       setPanelOpen(false);
     } }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("footer", { className: "dgame-foot", children: "\u6E38\u620F\u4E2D\u6309 Esc \u5173\u95ED\u7A97\u53E3\uFF1B\u6E38\u620F\u4E0D\u53D1\u9001\u4EFB\u4F55\u6D88\u606F\uFF0C\u4E5F\u4E0D\u6539\u52A8\u5DE5\u4F5C\u533A\u3002\u65B9\u5411\u952E / WASD\u3001Enter\u3001\u7A7A\u683C\u3001R\u3001U\u3001P \u7B49\u952E\u968F\u6E38\u620F\u53EF\u7528\uFF1B\u4E94\u5B50\u68CB\u3001\u8C61\u68CB\u652F\u6301\u64A4\u9500/\u91CD\u5F00\u3002" })
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("footer", { className: "dgame-foot", children: "\u6E38\u620F\u4E2D\u6309 Esc \u5173\u95ED\u7A97\u53E3\uFF1B\u6E38\u620F\u4E0D\u53D1\u9001\u4EFB\u4F55\u6D88\u606F\uFF0C\u4E5F\u4E0D\u6539\u52A8\u5DE5\u4F5C\u533A\u3002\u65B9\u5411\u952E / WASD\u3001Enter\u3001\u7A7A\u683C\u3001R\u3001U\u3001P \u7B49\u952E\u968F\u6E38\u620F\u53EF\u7528\uFF1B\u4E94\u5B50\u68CB\u3001\u8C61\u68CB\u652F\u6301\u64A4\u9500/\u91CD\u5F00\u3002" })
   ] });
 }
 function GamesHomeStat() {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u5341\u6B3E\u6D6E\u52A8\u7A97\u53E3\u5C0F\u6E38\u620F \xB7 \u4E94\u5B50\u68CB/\u8C61\u68CB/\u4FC4\u7F57\u65AF\u65B9\u5757/\u63A8\u7BB1\u5B50\u2026\u4EFB\u52A1\u7B49\u5F85\u4E0D\u65E0\u804A" });
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5341\u6B3E\u6D6E\u52A8\u7A97\u53E3\u5C0F\u6E38\u620F \xB7 \u4E94\u5B50\u68CB/\u8C61\u68CB/\u4FC4\u7F57\u65AF\u65B9\u5757/\u63A8\u7BB1\u5B50\u2026\u4EFB\u52A1\u7B49\u5F85\u4E0D\u65E0\u804A" });
 }
 var baseCss = `
 .dgame{--dgame-accent:var(--dk-games-accent,#7c3aed);--dgame-accent-soft:color-mix(in srgb,var(--dgame-accent) 16%,transparent);display:flex;flex-direction:column;gap:14px;max-width:760px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dgame h2,.dgame h3,.dgame p{margin:0}.dgame-hero{position:relative;display:flex;justify-content:space-between;gap:18px;overflow:hidden;padding:17px 18px;border:1px solid color-mix(in srgb,var(--dgame-accent) 35%,var(--dsw-alias-border-l1));border-radius:16px;background:radial-gradient(circle at 88% 30%,color-mix(in srgb,#38bdf8 25%,transparent),transparent 28%),radial-gradient(circle at 8% 100%,color-mix(in srgb,#a855f7 24%,transparent),transparent 34%),var(--dsw-alias-bg-layer-1)}.dgame-hero>div{position:relative;z-index:1;display:flex;flex-direction:column;gap:5px;max-width:540px}.dgame-hero h2{font-size:21px;letter-spacing:-.02em}.dgame-hero p,.dgame-foot{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-eyebrow{display:inline-flex;align-items:center;gap:7px;color:var(--dgame-accent);font-size:11px;font-weight:700}.dgame-eyebrow i,.dgame-task-status>i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px currentColor;opacity:.9}.dgame-planet{position:relative;z-index:1;align-self:center;display:block;width:76px;height:76px;flex:none;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e0f2fe 0 4%,#60a5fa 18%,#3730a3 59%,#1e1b4b);box-shadow:0 0 30px color-mix(in srgb,#818cf8 45%,transparent)}.dgame-planet::after{content:'';position:absolute;left:-16px;top:33px;width:106px;height:27px;border:3px solid color-mix(in srgb,#c4b5fd 72%,transparent);border-radius:50%;transform:rotate(-17deg)}.dgame-planet i{position:absolute;right:15px;top:14px;width:9px;height:9px;border-radius:50%;background:#818cf8;box-shadow:-23px 24px 0 5px color-mix(in srgb,#312e81 52%,transparent)}.dgame-planet b{position:absolute;left:-9px;top:9px;width:5px;height:5px;border-radius:50%;background:#fef3c7;box-shadow:58px -20px 0 #fef3c7,76px 43px 0 #bae6fd}.dgame-task-status{display:flex;align-items:center;gap:9px;min-height:40px;padding:9px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:11px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary)}.dgame-task-status>i{color:var(--dsw-alias-label-tertiary);box-shadow:0 0 0 4px color-mix(in srgb,var(--dsw-alias-label-tertiary) 13%,transparent)}.dgame-task-status.live{color:var(--dgame-accent);border-color:color-mix(in srgb,var(--dgame-accent) 36%,var(--dsw-alias-border-l1));background:var(--dgame-accent-soft)}.dgame-task-status.live>i{box-shadow:0 0 0 4px color-mix(in srgb,var(--dgame-accent) 17%,transparent);animation:dgame-pulse 1.8s ease-in-out infinite}.dgame-task-status div{display:flex;flex:1;min-width:0;flex-direction:column}.dgame-task-status strong{font-size:12px}.dgame-task-status span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--dsw-alias-label-secondary)}.dgame-task-status.loading{color:var(--dsw-alias-label-tertiary)}@keyframes dgame-pulse{50%{transform:scale(.72);opacity:.5}}.dgame-launch-note{color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-game{display:flex;flex-direction:column;gap:11px;padding:15px;border:1px solid var(--dsw-alias-border-l1);border-radius:14px;background:var(--dsw-alias-bg-layer-1)}.dgame-game-head{display:flex;justify-content:space-between;gap:12px}.dgame-game-head>div:first-child{display:flex;flex-direction:column;gap:3px}.dgame-game h3{font-size:16px}.dgame-game p{font-size:12px;color:var(--dsw-alias-label-secondary)}.dgame-score{display:flex;align-items:flex-end;gap:9px;flex-direction:column;color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}.dgame-score strong{color:var(--dgame-accent);font-size:17px;line-height:1}.dgame-score button{min-height:28px;padding:3px 8px;font-size:11px}.dgame-dash-stage{position:relative;align-self:center;width:min(100%,360px);border:1px solid color-mix(in srgb,var(--dgame-accent) 30%,var(--dsw-alias-border-l1));border-radius:13px;overflow:hidden;outline:none;background:radial-gradient(circle at 50% -16%,color-mix(in srgb,#38bdf8 25%,transparent),transparent 42%),linear-gradient(180deg,#10162d,#17142d)}.dgame-dash-stage:focus-visible{box-shadow:0 0 0 3px var(--dgame-accent-soft)}.dgame-dash-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,52px);padding:7px;background:repeating-linear-gradient(90deg,transparent 0 calc(33.333% - 1px),color-mix(in srgb,#c4b5fd 15%,transparent) calc(33.333% - 1px) 33.333%)}.dgame-dash-cell{position:relative;display:grid;place-items:center;border-bottom:1px dashed color-mix(in srgb,#c4b5fd 13%,transparent)}.dgame-rock{font-style:normal;color:#fb7185;text-shadow:0 0 12px #f43f5e;font-size:22px;animation:dgame-rock .55s cubic-bezier(.2,.8,.25,1)}.dgame-pilot{position:relative;color:#a5f3fc;font-size:25px;text-shadow:0 0 14px #38bdf8;animation:dgame-pilot .9s ease-in-out infinite alternate}.dgame-pilot::after{content:'';position:absolute;left:46%;top:19px;width:4px;height:18px;background:linear-gradient(#fef3c7,transparent);transform:translateX(-50%)}@keyframes dgame-rock{from{opacity:0;transform:translateY(-13px) scale(.65)}to{opacity:1;transform:none}}@keyframes dgame-pilot{to{transform:translateY(-2px)}}.dgame-over{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:color-mix(in srgb,#111827 74%,transparent);backdrop-filter:blur(2px);color:#fef3c7}.dgame-over strong{font-size:17px}.dgame-over button{padding:7px 12px;color:#fef3c7;background:color-mix(in srgb,#f59e0b 25%,transparent);border-color:#f59e0b}.dgame-controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;align-self:center;width:min(100%,360px)}.dgame-controls button{min-height:42px;padding:8px 10px;font-weight:600}.dgame-controls span{text-align:center;color:var(--dsw-alias-label-tertiary);font-size:11px}.dgame-reactor{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;align-self:center;width:min(100%,360px);padding:10px;border-radius:13px;background:linear-gradient(135deg,color-mix(in srgb,#312e81 34%,transparent),color-mix(in srgb,#0f172a 45%,transparent));border:1px solid color-mix(in srgb,var(--dgame-accent) 22%,var(--dsw-alias-border-l1))}.dgame-reactor-cell{position:relative;aspect-ratio:1;border:1px solid color-mix(in srgb,#94a3b8 30%,transparent);border-radius:12px;background:#171a33;cursor:pointer;transition:transform .16s ease,background .22s ease,border-color .22s ease,box-shadow .22s ease}.dgame-reactor-cell:hover{transform:translateY(-2px);border-color:var(--dgame-accent)}.dgame-reactor-cell:focus-visible{outline:2px solid var(--dgame-accent);outline-offset:2px}.dgame-reactor-cell i{position:absolute;inset:23%;border-radius:9px;background:#303252;transition:inherit}.dgame-reactor-cell.on{border-color:#67e8f9;background:color-mix(in srgb,#164e63 70%,#0f172a)}.dgame-reactor-cell.on i{background:radial-gradient(circle at 35% 30%,#ecfeff,#67e8f9 36%,#2563eb 78%);box-shadow:0 0 15px color-mix(in srgb,#22d3ee 65%,transparent)}.dgame-reactor-cell.focus{border-color:#a5f3fc;box-shadow:0 0 0 2px var(--dgame-accent) inset,0 0 14px color-mix(in srgb,#22d3ee 48%,transparent)}.dgame-reactor-cell.focus i{box-shadow:0 0 0 2px color-mix(in srgb,#ecfeff 55%,transparent) inset}.dgame-reactor:focus-visible{outline:2px solid var(--dgame-accent);outline-offset:3px}.dgame-reactor-status{align-self:center;min-height:36px;padding:8px 12px;border-radius:9px;color:var(--dsw-alias-label-secondary);font-size:12px}.dgame-reactor-status.solved{color:var(--dk-ok);background:color-mix(in srgb,var(--dsw-alias-state-success-primary,#0d9488) 13%,transparent)}.dgame-foot{padding:0 2px}.dgame-foot::before{content:'\u2726';margin-right:6px;color:var(--dgame-accent)}
@@ -9698,24 +9963,24 @@ var dgcovGroupCss = `
 .dgcov-prev-tank{display:grid;place-items:center;background:linear-gradient(180deg,#1a1425,#100d1c)}.dgp-tank-grid{display:grid;grid-template-columns:repeat(8,18px);grid-auto-rows:18px;gap:2px}.dgp-tank-grid i{display:block;border-radius:3px}.dgp-tank-void{background:rgba(255,255,255,.035)}.dgp-tank-brick{background:repeating-linear-gradient(45deg,#a3672a 0 55%,#8a5a1c 55% 100%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}.dgp-tank-steel{background:linear-gradient(180deg,#94a3b8,#64748b)}.dgp-tank-pw{background:linear-gradient(135deg,#fde047,#eab308);box-shadow:0 0 7px rgba(234,179,8,.55);border-radius:5px}.dgp-tank-en{background:#f87171;box-shadow:0 0 5px rgba(248,113,113,.4);border-radius:5px}.dgp-tank-base{background:#fbbf24;border-radius:50%}
 
 `;
-var css3 = [baseCss, tetrisGame.css, sokobanGame.css, gomokuGame.css, xiangqiGame.css, snakeGame.css, breakoutGame.css, racerGame.css, tankGame.css, dgcovGroupCss].filter(Boolean).join("\n");
-var feature7 = {
+var css4 = [baseCss, tetrisGame.css, sokobanGame.css, gomokuGame.css, xiangqiGame.css, snakeGame.css, breakoutGame.css, racerGame.css, tankGame.css, dgcovGroupCss].filter(Boolean).join("\n");
+var feature8 = {
   id: "games",
   name: "\u8DA3\u5473\u6E38\u620F",
   order: 135,
   accent: "#a78bfa",
   description: "\u4EFB\u52A1\u7B49\u5F85\u65F6\u53EF\u73A9\u7684\u5341\u6B3E\u5C0F\u6E38\u620F\uFF1A\u4E94\u5B50\u68CB\u3001\u4E2D\u56FD\u8C61\u68CB\uFF08\u4F60 vs AI\uFF09\u3001\u4FC4\u7F57\u65AF\u65B9\u5757\u3001\u63A8\u7BB1\u5B50\u3001\u8D2A\u5403\u86C7\u3001\u6253\u7816\u5757\u3001\u6781\u901F\u8D5B\u8F66\u3001\u5766\u514B\u5927\u6218\u3001\u661F\u9645\u8EB2\u907F\u3001\u53CD\u5E94\u5806\u70B9\u4EAE\u3002\u6D6E\u52A8\u7A97\u53E3\u8FD0\u884C\uFF08\u53EF\u62D6\u52A8\u3001\u53EF\u8C03\u5927\u5C0F\u3001\u53EF\u6700\u5927\u5316\u6700\u5C0F\u5316\uFF0C\u4E0D\u906E\u6321\u4F1A\u8BDD\uFF09\uFF0C\u5C4F\u5E55\u4FA7\u8FB9\u78C1\u5438\u5FEB\u6377\u5165\u53E3\u8D34\u5728\u5DE6\u4FA7\u8FB9\u680F\u53F3\u7F18\uFF08\u4E0D\u6321\u5DE5\u4F5C\u533A\u76EE\u5F55\uFF09\uFF0C\u53EF\u4E0A\u4E0B\u632A\u4F4D\u3001\u5DE6\u53F3\u6362\u8FB9\uFF1B\u5747\u652F\u6301\u952E\u76D8",
   defaultEnabled: false,
-  css: css3,
+  css: css4,
   View: GamesView,
   HomeStat: GamesHomeStat,
   Overlay: GamesOverlay
 };
 
 // features/mobile-relay/view.jsx
-var import_react19 = require("react");
+var import_react20 = require("react");
 var import_qrcode = __toESM(require_browser(), 1);
-var import_jsx_runtime12 = require("react/jsx-runtime");
+var import_jsx_runtime13 = require("react/jsx-runtime");
 function rpc(method, payload) {
   return fetch("/dsh-dock/mobile-relay/" + method, {
     method: "POST",
@@ -9734,24 +9999,24 @@ function copy(value) {
 }
 function RelayIcon({ name, size = 18 }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true };
-  if (name === "link") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M10.5 13.5a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1.15 1.14" }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M13.5 10.5a4 4 0 0 0-5.66-.01l-2 2a4 4 0 0 0 5.66 5.66l1.15-1.14" })
+  if (name === "link") return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("path", { d: "M10.5 13.5a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1.15 1.14" }),
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("path", { d: "M13.5 10.5a4 4 0 0 0-5.66-.01l-2 2a4 4 0 0 0 5.66 5.66l1.15-1.14" })
   ] });
-  if (name === "copy") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("rect", { x: "8", y: "8", width: "11", height: "12", rx: "1.5" }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" })
+  if (name === "copy") return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("rect", { x: "8", y: "8", width: "11", height: "12", rx: "1.5" }),
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("path", { d: "M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" })
   ] });
-  if (name === "close") return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m6 6 12 12M18 6 6 18" }) });
-  if (name === "check") return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "m5 12 4.2 4.2L19 6.5" }) });
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("svg", { ...common, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("circle", { cx: "12", cy: "12", r: "8" }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M12 8v4l2.5 2" })
+  if (name === "close") return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("path", { d: "m6 6 12 12M18 6 6 18" }) });
+  if (name === "check") return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("svg", { ...common, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("path", { d: "m5 12 4.2 4.2L19 6.5" }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("svg", { ...common, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("circle", { cx: "12", cy: "12", r: "8" }),
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("path", { d: "M12 8v4l2.5 2" })
   ] });
 }
 function useCompact() {
-  const [compact, setCompact] = (0, import_react19.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
-  (0, import_react19.useEffect)(() => {
+  const [compact, setCompact] = (0, import_react20.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
+  (0, import_react20.useEffect)(() => {
     const media = window.matchMedia("(max-width: 680px)");
     const update = () => setCompact(media.matches);
     update();
@@ -9762,23 +10027,23 @@ function useCompact() {
 }
 function RemoteCard() {
   const compact = useCompact();
-  const [lan, setLan] = (0, import_react19.useState)(null);
-  const [username, setUsername] = (0, import_react19.useState)("");
-  const [password, setPassword] = (0, import_react19.useState)("");
-  const [newPassword, setNewPassword] = (0, import_react19.useState)("");
-  const [port, setPort] = (0, import_react19.useState)("");
-  const [address, setAddress] = (0, import_react19.useState)("");
-  const [qr, setQr] = (0, import_react19.useState)("");
-  const [busy, setBusy] = (0, import_react19.useState)("");
-  const [message, setMessage] = (0, import_react19.useState)("");
-  const [messageKind, setMessageKind] = (0, import_react19.useState)("error");
-  const [changing, setChanging] = (0, import_react19.useState)(false);
-  const [remote, setRemote] = (0, import_react19.useState)(false);
-  const notify = (0, import_react19.useCallback)((text, kind) => {
+  const [lan, setLan] = (0, import_react20.useState)(null);
+  const [username, setUsername] = (0, import_react20.useState)("");
+  const [password, setPassword] = (0, import_react20.useState)("");
+  const [newPassword, setNewPassword] = (0, import_react20.useState)("");
+  const [port, setPort] = (0, import_react20.useState)("");
+  const [address, setAddress] = (0, import_react20.useState)("");
+  const [qr, setQr] = (0, import_react20.useState)("");
+  const [busy, setBusy] = (0, import_react20.useState)("");
+  const [message, setMessage] = (0, import_react20.useState)("");
+  const [messageKind, setMessageKind] = (0, import_react20.useState)("error");
+  const [changing, setChanging] = (0, import_react20.useState)(false);
+  const [remote, setRemote] = (0, import_react20.useState)(false);
+  const notify = (0, import_react20.useCallback)((text, kind) => {
     setMessage(text);
     setMessageKind(kind || "error");
   }, []);
-  const refresh = (0, import_react19.useCallback)(async () => {
+  const refresh = (0, import_react20.useCallback)(async () => {
     try {
       const data = await rpc("lan");
       setLan(data);
@@ -9788,19 +10053,19 @@ function RemoteCard() {
       notify(e && e.message ? e.message : String(e));
     }
   }, [notify]);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 3e3);
     return () => clearInterval(timer);
   }, [refresh]);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     fetch("/__dsh_auth/health", { method: "POST" }).then((r) => setRemote(Boolean(r.ok))).catch(() => setRemote(false));
   }, []);
   const active = Boolean(lan && lan.gatewayActive);
   const gatewayPort = lan && lan.gatewayPort ? lan.gatewayPort : 3081;
   const suggestedPort = lan && lan.mainPort ? lan.mainPort + 1 : gatewayPort;
-  const lanLink = (0, import_react19.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
-  (0, import_react19.useEffect)(() => {
+  const lanLink = (0, import_react20.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
+  (0, import_react20.useEffect)(() => {
     let live = true;
     if (!lanLink) {
       setQr("");
@@ -9886,59 +10151,59 @@ function RemoteCard() {
     const info = typeof window !== "undefined" ? window.__DSH_REMOTE__ : null;
     if (info && info.logout) window.location.href = info.logout;
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-status-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "dmr " + (compact ? "dmr-compact" : ""), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-status-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "dmr-eyebrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("i", {}),
           " \u8FDC\u7A0B\u8BBF\u95EE"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: active ? "\u5165\u53E3\u5DF2\u5F00\u542F" : "\u4ECE\u4EFB\u4F55\u8BBE\u5907\u8BBF\u95EE\u8FD9\u4E2A DSH" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: active ? "\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\uFF0C\u7528\u8D26\u53F7\u5BC6\u7801\u767B\u5F55\u5373\u53EF\u4F7F\u7528\u5B8C\u6574 DSH\uFF08\u4E0E\u672C\u673A\u540C\u4E00\u5B9E\u4F8B\uFF0C\u4EFB\u52A1\u8FDB\u5EA6\u5B9E\u65F6\u4E00\u81F4\uFF09\u3002" : "\u5F00\u542F\u540E\uFF0C\u5C40\u57DF\u7F51/\u865A\u62DF\u7F51\u8BBE\u5907\u8BBF\u95EE\u7F51\u5173\u5730\u5740\u5E76\u767B\u5F55\uFF0C\u5373\u53EF\u4F7F\u7528\u4E0E\u672C\u673A\u5B8C\u5168\u4E00\u81F4\u7684 DSH\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: active ? "\u5165\u53E3\u5DF2\u5F00\u542F" : "\u4ECE\u4EFB\u4F55\u8BBE\u5907\u8BBF\u95EE\u8FD9\u4E2A DSH" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { children: active ? "\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\uFF0C\u7528\u8D26\u53F7\u5BC6\u7801\u767B\u5F55\u5373\u53EF\u4F7F\u7528\u5B8C\u6574 DSH\uFF08\u4E0E\u672C\u673A\u540C\u4E00\u5B9E\u4F8B\uFF0C\u4EFB\u52A1\u8FDB\u5EA6\u5B9E\u65F6\u4E00\u81F4\uFF09\u3002" : "\u5F00\u542F\u540E\uFF0C\u5C40\u57DF\u7F51/\u865A\u62DF\u7F51\u8BBE\u5907\u8BBF\u95EE\u7F51\u5173\u5730\u5740\u5E76\u767B\u5F55\uFF0C\u5373\u53EF\u4F7F\u7528\u4E0E\u672C\u673A\u5B8C\u5168\u4E00\u81F4\u7684 DSH\u3002" })
       ] }),
-      remote && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-secondary", onClick: logout, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }),
+      remote && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { type: "button", className: "dmr-secondary", onClick: logout, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RelayIcon, { name: "close" }),
         "\u9000\u51FA\u767B\u5F55"
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("ol", { className: "dmr-steps", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "1" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u8BBE\u7F6E\u8D26\u53F7\u5BC6\u7801" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u8FDC\u7A0B\u767B\u5F55\u7684\u552F\u4E00\u51ED\u636E\uFF0C\u6539\u5BC6\u540E\u6240\u6709\u8BBE\u5907\u91CD\u65B0\u767B\u5F55\u3002" })
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("ol", { className: "dmr-steps", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "1" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "\u8BBE\u7F6E\u8D26\u53F7\u5BC6\u7801" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "\u8FDC\u7A0B\u767B\u5F55\u7684\u552F\u4E00\u51ED\u636E\uFF0C\u6539\u5BC6\u540E\u6240\u6709\u8BBE\u5907\u91CD\u65B0\u767B\u5F55\u3002" })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "2" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5F00\u542F\u5165\u53E3" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u7F51\u5173\u76D1\u542C 0.0.0.0\uFF08\u9ED8\u8BA4\u4E3B\u7AEF\u53E3+1\uFF0C\u53EF\u6539\uFF09\uFF0C\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\u3002" })
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "\u5F00\u542F\u5165\u53E3" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "\u7F51\u5173\u76D1\u542C 0.0.0.0\uFF08\u9ED8\u8BA4\u4E3B\u7AEF\u53E3+1\uFF0C\u53EF\u6539\uFF09\uFF0C\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\u3002" })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("li", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u8BBE\u5907\u8BBF\u95EE" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740\u767B\u5F55\uFF1B\u5F02\u5730\u7EC4\u7F51\uFF08Tailscale \u7B49\uFF09\u7528\u7EC4\u7F51 IP \u76F4\u8FDE\u3002" })
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("li", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "\u8BBE\u5907\u8BBF\u95EE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740\u767B\u5F55\uFF1B\u5F02\u5730\u7EC4\u7F51\uFF08Tailscale \u7B49\uFF09\u7528\u7EC4\u7F51 IP \u76F4\u8FDE\u3002" })
         ] })
       ] })
     ] }),
-    !active ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8D26\u53F7" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: username, onChange: (e) => setUsername(e.target.value), autoComplete: "username", placeholder: "\u767B\u5F55\u8D26\u53F7" })
+    !active ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-network-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "\u8D26\u53F7" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { value: username, onChange: (e) => setUsername(e.target.value), autoComplete: "username", placeholder: "\u767B\u5F55\u8D26\u53F7" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u5BC6\u7801" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { type: "password", value: password, onChange: (e) => setPassword(e.target.value), autoComplete: "new-password", placeholder: lan && lan.accountSet ? "\u5DF2\u8BBE\u7F6E\uFF0C\u7559\u7A7A\u6CBF\u7528" : "\u81F3\u5C11 6 \u4F4D" })
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "\u5BC6\u7801" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { type: "password", value: password, onChange: (e) => setPassword(e.target.value), autoComplete: "new-password", placeholder: lan && lan.accountSet ? "\u5DF2\u8BBE\u7F6E\uFF0C\u7559\u7A7A\u6CBF\u7528" : "\u81F3\u5C11 6 \u4F4D" })
       ] })
     ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u76D1\u542C\u7AEF\u53E3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", placeholder: "\u9ED8\u8BA4 " + suggestedPort, "aria-describedby": "dmr-lan-port-help" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("small", { id: "dmr-lan-port-help", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-network-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "dmr-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "\u76D1\u542C\u7AEF\u53E3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { value: port, onChange: (e) => setPort(e.target.value), inputMode: "numeric", type: "number", min: "1024", max: "65535", placeholder: "\u9ED8\u8BA4 " + suggestedPort, "aria-describedby": "dmr-lan-port-help" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("small", { id: "dmr-lan-port-help", children: [
           "\u7F51\u5173\u548C\u4E3B\u670D\u52A1\u662F\u540C\u4E00\u53F0\u673A\u5668\u4E0A\u7684\u4E24\u4E2A\u7AEF\u53E3\uFF0C\u4E0D\u80FD\u76F8\u540C\uFF1A\u4E3B\u5B9E\u4F8B ",
           lan && lan.mainPort ? lan.mainPort : "\u2026",
           " \u53EA\u7559\u7ED9\u672C\u673A\uFF0C\u5176\u4ED6\u8BBE\u5907\u8D70\u7F51\u5173\u7AEF\u53E3\u767B\u5F55\u3002\u7559\u7A7A\u5373\u7528 ",
@@ -9946,73 +10211,73 @@ function RemoteCard() {
           "\uFF08\u4E3B\u7AEF\u53E3+1\uFF09\u3002"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-security", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u5B89\u5168\u8BF4\u660E" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u76D1\u542C 127.0.0.1\uFF1A\u8FDC\u7A0B\u8BBE\u5907\u53EA\u80FD\u7ECF\u8FD9\u4E2A\u767B\u5F55\u7F51\u5173\u8FDB\u5165\uFF0C\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u7684\u76F4\u8FDE\u8DEF\u5F84\u3002\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\uFF1B\u6539\u5BC6\u540E\u6240\u6709\u8BBE\u5907\u9700\u91CD\u65B0\u767B\u5F55\u3002" })
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-security", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "\u5B89\u5168\u8BF4\u660E" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u76D1\u542C 127.0.0.1\uFF1A\u8FDC\u7A0B\u8BBE\u5907\u53EA\u80FD\u7ECF\u8FD9\u4E2A\u767B\u5F55\u7F51\u5173\u8FDB\u5165\uFF0C\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u7684\u76F4\u8FDE\u8DEF\u5F84\u3002\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\uFF1B\u6539\u5BC6\u540E\u6240\u6709\u8BBE\u5907\u9700\u91CD\u65B0\u767B\u5F55\u3002" })
       ] })
     ] }),
-    active ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-layout", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-qr-card", children: [
-        qr ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("img", { src: qr, alt: "\u8FDC\u7A0B\u8BBF\u95EE\u5730\u5740\u4E8C\u7EF4\u7801", width: "220", height: "220" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-qr-loading", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u6253\u5F00\u540E\u8F93\u5165\u8D26\u53F7\u5BC6\u7801\u767B\u5F55" })
+    active ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "dmr-share", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-share-layout", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-qr-card", children: [
+        qr ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("img", { src: qr, alt: "\u8FDC\u7A0B\u8BBF\u95EE\u5730\u5740\u4E8C\u7EF4\u7801", width: "220", height: "220" }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "dmr-qr-loading", children: "\u6B63\u5728\u751F\u6210\u4E8C\u7EF4\u7801\u2026" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("strong", { children: "\u626B\u7801\u6216\u8F93\u5165\u5730\u5740" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "\u6253\u5F00\u540E\u8F93\u5165\u8D26\u53F7\u5BC6\u7801\u767B\u5F55" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-detail", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "dmr-eyebrow", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("i", {}),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-share-detail", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { className: "dmr-eyebrow", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("i", {}),
             " \u767B\u5F55\u7F51\u5173\u5DF2\u8FD0\u884C"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: lanLink })
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h4", { children: lanLink })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-link", title: lanLink, children: lanLink }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-share-actions", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLink, disabled: !lanLink, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "copy" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "dmr-link", title: lanLink, children: lanLink }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-share-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { type: "button", className: "dmr-primary", onClick: copyLink, disabled: !lanLink, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RelayIcon, { name: "copy" }),
             "\u590D\u5236\u5730\u5740"
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", className: "dmr-secondary dmr-danger", onClick: disable, disabled: busy === "stop", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "close" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { type: "button", className: "dmr-secondary dmr-danger", onClick: disable, disabled: busy === "stop", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RelayIcon, { name: "close" }),
             busy === "stop" ? "\u6B63\u5728\u5173\u95ED\u2026" : "\u5173\u95ED\u8FDC\u7A0B\u8BBF\u95EE"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("small", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\uFF08\u7ED3\u6784\u4E0A\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u76F4\u8FDE\uFF09\uFF1B\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\u3002\u82E5\u5F00\u542F\u524D\u5DF2\u6709\u65E7\u670D\u52A1\u5668\u6A21\u5F0F\uFF080.0.0.0\uFF09\u914D\u7F6E\uFF0C\u4F1A\u4E00\u5E76\u79FB\u9664\u5E76\u63D0\u793A\u91CD\u542F\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("small", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\uFF08\u7ED3\u6784\u4E0A\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u76F4\u8FDE\uFF09\uFF1B\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\u3002\u82E5\u5F00\u542F\u524D\u5DF2\u6709\u65E7\u670D\u52A1\u5668\u6A21\u5F0F\uFF080.0.0.0\uFF09\u914D\u7F6E\uFF0C\u4F1A\u4E00\u5E76\u79FB\u9664\u5E76\u63D0\u793A\u91CD\u542F\u3002" })
       ] })
-    ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-primary", onClick: enable, disabled: busy === "start", children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u2026" : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RelayIcon, { name: "link" }),
+    ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { type: "button", className: "dmr-primary", onClick: enable, disabled: busy === "start", children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u2026" : /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RelayIcon, { name: "link" }),
       "\u5F00\u542F\u8FDC\u7A0B\u8BBF\u95EE"
     ] }) }),
-    active ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-section-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h4", { children: "\u4FEE\u6539\u8D26\u53F7\u5BC6\u7801" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-text-button", onClick: () => setChanging((v) => !v), children: changing ? "\u6536\u8D77" : "\u4FEE\u6539" })
+    active ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-section-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h4", { children: "\u4FEE\u6539\u8D26\u53F7\u5BC6\u7801" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { type: "button", className: "dmr-text-button", onClick: () => setChanging((v) => !v), children: changing ? "\u6536\u8D77" : "\u4FEE\u6539" })
       ] }),
-      changing ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-note", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dmr-network-grid", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u8D26\u53F7" }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { value: username, onChange: (e) => setUsername(e.target.value), autoComplete: "username" })
+      changing ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-note", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "dmr-network-grid", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "dmr-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "\u8D26\u53F7" }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { value: username, onChange: (e) => setUsername(e.target.value), autoComplete: "username" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("label", { className: "dmr-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: "\u65B0\u5BC6\u7801" }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("input", { type: "password", value: newPassword, onChange: (e) => setNewPassword(e.target.value), autoComplete: "new-password", placeholder: "\u81F3\u5C11 6 \u4F4D" })
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("label", { className: "dmr-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: "\u65B0\u5BC6\u7801" }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("input", { type: "password", value: newPassword, onChange: (e) => setNewPassword(e.target.value), autoComplete: "new-password", placeholder: "\u81F3\u5C11 6 \u4F4D" })
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dmr-secondary", onClick: saveAuth, disabled: busy === "auth" || !username.trim() || newPassword.length < 6, children: busy === "auth" ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\uFF08\u6240\u6709\u8BBE\u5907\u91CD\u65B0\u767B\u5F55\uFF09" })
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("p", { className: "dmr-note", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { type: "button", className: "dmr-secondary", onClick: saveAuth, disabled: busy === "auth" || !username.trim() || newPassword.length < 6, children: busy === "auth" ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\uFF08\u6240\u6709\u8BBE\u5907\u91CD\u65B0\u767B\u5F55\uFF09" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("p", { className: "dmr-note", children: [
         "\u5F53\u524D\u8D26\u53F7\uFF1A",
         lan.username || "\u2014",
         "\u3002\u4FEE\u6539\u540E\u6240\u6709\u5DF2\u767B\u5F55\u8BBE\u5907\u5C06\u88AB\u5F3A\u5236\u9000\u51FA\u3002"
       ] })
     ] }) : null,
-    message ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dmr-message " + (messageKind === "success" ? "success" : "error"), role: "alert", children: message }) : null
+    message ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "dmr-message " + (messageKind === "success" ? "success" : "error"), role: "alert", children: message }) : null
   ] });
 }
 function MobileRelayView() {
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(RemoteCard, {});
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RemoteCard, {});
 }
 function MobileRelayOverlay() {
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return void 0;
     if (window.__dshDockMobileDrawer) return void 0;
     const mq = window.matchMedia ? window.matchMedia("(max-width:700px)") : null;
@@ -10118,16 +10383,16 @@ function MobileRelayOverlay() {
   return null;
 }
 function MobileRelayHomeStat() {
-  const [summary, setSummary] = (0, import_react19.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
-  (0, import_react19.useEffect)(() => {
+  const [summary, setSummary] = (0, import_react20.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
+  (0, import_react20.useEffect)(() => {
     rpc("lan").then((data) => {
       setSummary(data.gatewayActive ? "\u5165\u53E3\u8FD0\u884C\u4E2D \xB7 \u7AEF\u53E3 " + data.gatewayPort : data.accountSet ? "\u8D26\u53F7\u5DF2\u8BBE\u7F6E\uFF0C\u5165\u53E3\u672A\u5F00\u542F" : "\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
     }).catch(() => {
     });
   }, []);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { children: summary });
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { children: summary });
 }
-var feature8 = {
+var feature9 = {
   id: "mobile-relay",
   name: "\u8FDC\u7A0B\u8BBF\u95EE",
   order: 80,
@@ -10146,7 +10411,7 @@ var feature8 = {
 
 // src/client.jsx
 var DOCK_VERSION = "0.9.9";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8];
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -10361,8 +10626,8 @@ function scheduleInitialCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react20.default.useReducer((n) => n + 1, 0);
-  import_react20.default.useEffect(() => {
+  const [, bump] = import_react21.default.useReducer((n) => n + 1, 0);
+  import_react21.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -10372,44 +10637,44 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react20.default.createElement(
+  return import_react21.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react20.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react20.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react20.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react20.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react21.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react21.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react21.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react21.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react20.default.useState(panelNav.open);
-  import_react20.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react20.default.createElement("button", {
+  const [open, setOpen] = import_react21.default.useState(panelNav.open);
+  import_react21.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react21.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
     title: "\u529F\u80FD\u575E",
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react20.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react20.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react21.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react21.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react20.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react20.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react21.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react21.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react21.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react20.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react20.default.useRef(null);
-  const contentRef = import_react20.default.useRef(null);
-  import_react20.default.useEffect(() => {
+  const [win, setWin] = import_react21.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react21.default.useRef(null);
+  const contentRef = import_react21.default.useRef(null);
+  import_react21.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react20.default.useEffect(() => {
+  import_react21.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -10447,13 +10712,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react20.default.createElement(
+  const viewNode = mod && View ? import_react21.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react20.default.createElement(
+    import_react21.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react20.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react21.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -10467,10 +10732,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react20.default.createElement(
+  return import_react21.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react20.default.createElement(
+    import_react21.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -10478,41 +10743,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react20.default.createElement(
+      import_react21.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react20.default.createElement(DockIcon, null),
-        import_react20.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react20.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react20.default.createElement(
+        import_react21.default.createElement(DockIcon, null),
+        import_react21.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react21.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react21.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react20.default.createElement("button", {
+          import_react21.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react20.default.createElement("button", {
+          import_react21.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react20.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react21.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react20.default.createElement(
+      import_react21.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react20.default.createElement(
+        import_react21.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react20.default.createElement(
+          import_react21.default.createElement(
             "button",
             {
               type: "button",
@@ -10520,10 +10785,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react20.default.createElement("span", { className: "dockm-navhome" }, import_react20.default.createElement(DockIcon, null)),
-            import_react20.default.createElement("span", null, "\u9996\u9875")
+            import_react21.default.createElement("span", { className: "dockm-navhome" }, import_react21.default.createElement(DockIcon, null)),
+            import_react21.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react20.default.createElement(
+          MODULES.map((m) => import_react21.default.createElement(
             "button",
             {
               type: "button",
@@ -10531,42 +10796,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react20.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react20.default.createElement("span", null, m.name),
-            m.planned ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react21.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react21.default.createElement("span", null, m.name),
+            m.planned ? import_react21.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react21.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react20.default.createElement(
+        import_react21.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react20.default.createElement(
+          import_react21.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react20.default.createElement(
+            import_react21.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react20.default.createElement("span", { className: "dockm-navhome" }, import_react20.default.createElement(DockIcon, null)) : import_react20.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react21.default.createElement("span", { className: "dockm-navhome" }, import_react21.default.createElement(DockIcon, null)) : import_react21.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react20.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react21.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react21.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react20.default.createElement(
+            import_react21.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react20.default.createElement("div", { className: "dockm-view" }, import_react20.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react20.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react20.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react20.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react20.default.createElement(
+          isHome ? import_react21.default.createElement("div", { className: "dockm-view" }, import_react21.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react21.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react21.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react21.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react21.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react20.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react20.default.createElement(
+            import_react21.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react21.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react20.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react20.default.createElement("button", {
+              import_react21.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react21.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -10579,11 +10844,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react20.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react21.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react20.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react20.default.createElement("button", {
+              import_react21.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react21.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -10599,30 +10864,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react20.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react21.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react21.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react20.default.createElement(
+  return import_react21.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react20.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react20.default.createElement(
+      const statNode = m.planned ? import_react21.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react21.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react20.default.createElement(Stat, { ctx })
-      ) : import_react20.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react20.default.createElement(
+        import_react21.default.createElement(Stat, { ctx })
+      ) : import_react21.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react21.default.createElement(
         "div",
         {
           key: m.id,
@@ -10637,21 +10902,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react20.default.createElement(
+        import_react21.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react20.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react20.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react20.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react21.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react21.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react21.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react20.default.createElement(
+          import_react21.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react20.default.createElement("span", { className: "dockh-sdot" }),
-            import_react20.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react21.default.createElement("span", { className: "dockh-sdot" }),
+            import_react21.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react20.default.createElement("button", {
+          m.planned ? null : import_react21.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -10666,12 +10931,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react20.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react20.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react20.default.createElement(
+        import_react21.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react21.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react21.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react20.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react21.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -10679,16 +10944,16 @@ function HomeView(props) {
 }
 function DockPanel() {
   const ctx = ctxRef.current;
-  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react21.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react20.default.createElement(
+  return import_react21.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react20.default.createElement(
+    import_react21.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -10697,25 +10962,25 @@ function DockPanel() {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react20.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react21.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react20.default.createElement(
+        import_react21.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react20.default.createElement(View, { ctx, feature: f })
+          import_react21.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
-      return import_react20.default.createElement(
+      return import_react21.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react20.default.createElement(
+        import_react21.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react20.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react20.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react20.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react20.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react20.default.createElement("button", {
+          import_react21.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react21.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react21.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react21.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react21.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -10724,11 +10989,11 @@ function DockPanel() {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react20.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react21.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react20.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react20.default.createElement("button", {
+            import_react21.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react21.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -10742,22 +11007,22 @@ function DockPanel() {
             })
           ) : null
         ),
-        f.planned ? import_react20.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react20.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react21.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react21.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
-  import_react20.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react21.default.useReducer((n) => n + 1, 0);
+  import_react21.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react20.default.createElement(
+    items.push(import_react21.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react20.default.createElement(f.Chip, {
+      import_react21.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -10767,23 +11032,23 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react20.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react21.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react20.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react21.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react20.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react21.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react20.default.createElement(
+    items.push(import_react21.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react20.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react21.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react20.default.createElement(import_react20.default.Fragment, null, items);
+  return import_react21.default.createElement(import_react21.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -10794,23 +11059,23 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react20.default.createElement(DockEntry, props)
+    (props) => import_react21.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react20.default.createElement(DockModal, null)
+    () => import_react21.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react20.default.createElement(FeatureOverlays, null)
+    () => import_react21.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react20.default.createElement(DockPanel, null)
+    () => import_react21.default.createElement(DockPanel, null)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react20.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react21.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];

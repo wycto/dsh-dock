@@ -2,6 +2,26 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## 未发布（下一版）— 开发中
+
+### 新增
+
+- **【任务通知】独立成功能模块**（`features/notify/`，宿主 + 客户端两半，功能坞左侧菜单独立项）：原「任务动画」页里的通知部分整体拆出——通知事件（完成 / 异常 / 需确认）、提醒方式（卡片停留时长 / 浏览器系统通知 / 6 种提示音试听）、钉钉推送、飞书推送，外加「运行状态」（等待确认项 + 最近完成）。与「任务动画」**互相独立、各自启停**：关掉动画只留通知、或只留动画都能正常工作。配置存在 settings 的 `notify` 段，升级时自动从旧的 `animation` 段迁移（含 Webhook，迁移一次后置标记不再写盘）。
+- **宿主侧任务追踪抽成共享模块** `src/task-track.js`：会话级追踪（开始 / 结束 / 回合 / 步骤 / 工具 / Token / 阶段 / 待确认项）用引用计数共享一份实例——两个功能都开也只订阅一次会话事件，两个都关立刻退订；新增 `onFinish` 订阅供通知模块做群机器人推送。
+- **宿主半部回归测试** `scripts/test-task-notify-host.mjs`（`npm run test:host`，无外部依赖）：断言共享追踪只有一份订阅且停用后正确退订、`/dsh-dock/animation` 与 `/dsh-dock/notify` 各写自己的配置段互不污染、Webhook 校验与测试消息的 400 提示、任务结束时钉钉推送按 `notifyOnComplete/notifyOnError` 筛选、以及一次性迁移的字段与幂等性。
+
+### 变更
+
+- **任务动画页只剩动画**：运行动画开关 + 19 种模式 + 桌面伙伴大小 + 运行状态；提示音 / 通知卡片 / 系统通知 / 钉钉飞书相关代码与样式全部移入 `features/notify/`（`dkan-toast*`、`dkan-sound*`、`dkan-row*` 等类名随模块改为 `dknt-` 前缀，各模块样式自洽、可单独提取发布）。
+- `src/host-core.js` 的 `DockConfig.animation` 只保留动画字段，新增 `notify` 段（含 `migratedFromAnimation` 标记）与 `NOTIFY_FIELDS` / `migrateNotifyConfig()`。
+- `scripts/extract-feature.mjs` 一并复制 `src/task-track.js`，并修掉三处会让「提取独立包」中途失败的老问题：生成的客户端入口硬编码 `view.js`（.jsx 模块直接失效）、`scripts/` 目录没创建就写构建脚本（ENOENT）、生成 package.json 时引用了脚本里并不存在的 `feature` 变量（ReferenceError）。现已实测 `notify`（.jsx）与 `balance`（.js）两个模块都能完整提取。
+- 功能开关沿用 v0.9.5 的「默认关闭、按需开启」：新菜单项「任务通知」默认停用，需在功能坞里打开。
+
+### 修复
+
+- **新功能「面板显示已启用、宿主却从未 setup」→ 路由整片 404**（升级后第一次开【任务通知】必踩）：点开关时宿主进程还是旧版本，POST `/dsh-dock/features` 打了 404，开关只落在浏览器本地；宿主重启后其持久化表里没有 `notify`，宿主便从不 setup 该功能，`/dsh-dock/notify/*` 全 404，而面板把 404 一律说成「宿主进程是旧版本」，看着像没重启。现在 `initFeatureState` 拉宿主开关表时，若某功能**宿主从未记录过**（`persisted` 里没有它），就补推一次本浏览器的选择；宿主已显式记过 `false` 的不覆盖（多设备场景不能拿旧值去顶）。
+- **404/405 提示不再误报**：点明两种可能（宿主进程为旧版本 / 该功能在宿主侧未启用）并给出可操作办法（重启 `dsh web`，或把功能坞里的开关关掉再打开）；任务动画页与任务通知页同步改。
+
 ## v0.9.9 — 2026-09-09
 
 ### 修复

@@ -63,7 +63,8 @@ export function initFeatureState(defs) {
 		featureState.set(f.id, { enabled, error: null });
 	}
 	// 宿主侧持久化开关（settings，跨浏览器/重启）优先：拉过来覆盖本地默认值。
-	// localStorage 里已有记录的 id 视为用户在这台浏览器已表态，保持本地值。
+	// localStorage 里已有记录的 id 视为用户在这台浏览器已表态，保持本地值；
+	// 若宿主从未收到过该功能的开关，则把本浏览器的选择补推一次（见 syncFeatureStateFromHost）。
 	syncFeatureStateFromHost(defs);
 }
 
@@ -78,12 +79,24 @@ function syncFeatureStateFromHost(defs) {
 		if (!persisted || typeof persisted !== "object") return;
 		let changed = false;
 		for (const f of defs) {
-			if (featurePersist.map[f.id] !== undefined) continue;
-			const v = persisted[f.id];
-			if (typeof v === "boolean") {
-				const st = stateOf(f.id);
-				if (st.enabled !== v) { st.enabled = v; changed = true; }
+			const local = featurePersist.map[f.id];
+			const host = persisted[f.id];
+			if (local === undefined) {
+				// 本浏览器没表态：跟随宿主持久化值
+				if (typeof host === "boolean") {
+					const st = stateOf(f.id);
+					if (st.enabled !== host) { st.enabled = host; changed = true; }
+				}
+				continue;
 			}
+			// 本浏览器已表态，但宿主从未收到过这个功能的开关（persisted 里根本没有它）：
+			// 补推一次本浏览器的选择。否则会出现「面板显示已启用、宿主侧却从未 setup」——
+			// 该功能的路由整片 404，面板还会误报「宿主进程是旧版本」。宿主刚升级、
+			// 或新功能刚拆出来时最容易踩（「任务通知」拆分时就是这样：点开关时宿主
+			// 还是旧进程 → POST 404 → 开关只留在浏览器本地，重启后宿主永远不知道）。
+			// 注意只在「宿主没有记录」时补推：宿主已显式记过 false 说明是别处关掉的，
+			// 不能拿本浏览器的旧值去覆盖（多设备场景）。
+			if (typeof host !== "boolean") pushFeatureEnabledToHost(f.id, local);
 		}
 		if (changed) notifyState();
 	}).catch(() => { /* 宿主不可达时用本地默认 */ });
