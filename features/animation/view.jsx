@@ -1553,6 +1553,10 @@ function AnimationView(props) {
 	const st = snap.status;
 	const active = st && st.active ? st.active : [];
 	const recent = st && st.recent ? st.recent.slice(0, 6) : [];
+	// 等待确认的审批项总数：运行状态标题与页脚都用，必须在 if/else 之外声明。
+	// ⚠️ 曾误写在 if(!cfg) 的 else 块内、却在块外引用 → ReferenceError: waitingCount is not defined，
+	// 整个视图渲染抛错、宿主把面板插槽换成空 div（点「任务动画」界面直接消失）。
+	const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
 	const permNote = typeof Notification === "undefined"
 		? "当前浏览器不支持系统通知"
 		: Notification.permission === "granted" ? "已授权 · 仅页面后台时推送"
@@ -1562,7 +1566,6 @@ function AnimationView(props) {
 	if (!cfg) {
 		rows.push(<div key="load" className="dkan-note">{snap.error ? "状态不可用：" + snap.error : (snap.loading ? "正在拉取任务状态…" : "等待任务状态")}</div>);
 	} else {
-		const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
 		rows.push(
 			<div key="anim" className="dkan-sec">
 				<div className="dkan-sec-head">
