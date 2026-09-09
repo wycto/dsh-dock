@@ -2138,13 +2138,17 @@ var FeatureBoundary = class extends import_react.default.Component {
   static getDerivedStateFromError(error) {
     return { error };
   }
+  componentDidCatch(error) {
+    console.error("[dsh-dock] \u529F\u80FD\u89C6\u56FE\u6E32\u67D3\u51FA\u9519\uFF1A", error);
+  }
   render() {
     if (this.state.error) {
       const msg = this.state.error && this.state.error.message ? this.state.error.message : String(this.state.error);
+      const who = this.props && this.props.label ? "\u300C" + this.props.label + "\u300D" : "\u529F\u80FD\u89C6\u56FE";
       return import_react.default.createElement(
         "div",
         { className: "dockm-note dockm-err" },
-        "\u529F\u80FD\u89C6\u56FE\u6E32\u67D3\u51FA\u9519\uFF1A" + msg + "\uFF08\u8BE5\u529F\u80FD\u6765\u81EA\u5916\u90E8\u5305\uFF0C\u4E0D\u5F71\u54CD\u9762\u677F\u5176\u4ED6\u529F\u80FD\uFF09"
+        who + "\u6E32\u67D3\u51FA\u9519\uFF1A" + msg + "\uFF08\u5DF2\u9694\u79BB\uFF0C\u4E0D\u5F71\u54CD\u9762\u677F\u5176\u4ED6\u529F\u80FD\uFF1B\u8BE6\u60C5\u89C1\u6D4F\u89C8\u5668\u63A7\u5236\u53F0\uFF09"
       );
     }
     return this.props.children;
@@ -5378,12 +5382,12 @@ function AnimationView(props) {
   const st = snap.status;
   const active = st && st.active ? st.active : [];
   const recent = st && st.recent ? st.recent.slice(0, 6) : [];
+  const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
   const permNote = typeof Notification === "undefined" ? "\u5F53\u524D\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u7CFB\u7EDF\u901A\u77E5" : Notification.permission === "granted" ? "\u5DF2\u6388\u6743 \xB7 \u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001" : Notification.permission === "denied" ? "\u5DF2\u88AB\u6D4F\u89C8\u5668\u62D2\u7EDD\uFF08\u9700\u5728\u6D4F\u89C8\u5668\u6743\u9650\u8BBE\u7F6E\u91CC\u91CD\u65B0\u5141\u8BB8\uFF09" : "\u672A\u6388\u6743 \xB7 \u5F00\u542F\u65F6\u4F1A\u8BF7\u6C42\u6388\u6743\uFF0C\u4EC5\u9875\u9762\u540E\u53F0\u65F6\u63A8\u9001";
   const rows = [];
   if (!cfg) {
     rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: snap.error ? "\u72B6\u6001\u4E0D\u53EF\u7528\uFF1A" + snap.error : snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" : "\u7B49\u5F85\u4EFB\u52A1\u72B6\u6001" }, "load"));
   } else {
-    const waitingCount2 = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
     rows.push(
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-sec-head", children: [
@@ -10141,7 +10145,7 @@ var feature8 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.9.7";
+var DOCK_VERSION = "0.9.9";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
@@ -10447,8 +10451,8 @@ function DockModal() {
     "div",
     { className: "dockm-view" },
     import_react20.default.createElement(
-      mod.external ? FeatureBoundary : import_react20.default.Fragment,
-      null,
+      FeatureBoundary,
+      { key: mod.id, label: mod.name },
       import_react20.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
@@ -10614,8 +10618,8 @@ function HomeView(props) {
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
       const statNode = m.planned ? import_react20.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react20.default.createElement(
-        m.external ? FeatureBoundary : import_react20.default.Fragment,
-        null,
+        FeatureBoundary,
+        { key: m.id, label: m.name },
         import_react20.default.createElement(Stat, { ctx })
       ) : import_react20.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
       return import_react20.default.createElement(
@@ -10697,8 +10701,8 @@ function DockPanel() {
         "div",
         { className: "dock-body" },
         import_react20.default.createElement(
-          f.external ? FeatureBoundary : import_react20.default.Fragment,
-          null,
+          FeatureBoundary,
+          { key: f.id, label: f.name },
           import_react20.default.createElement(View, { ctx, feature: f })
         )
       ) : null;
@@ -10750,14 +10754,17 @@ function DockChips(props) {
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react20.default.createElement(f.Chip, {
-      key: f.id,
-      ctx: props.ctx,
-      feature: f,
-      session: props.session,
-      sessionId: props.sessionId,
-      input: props.input
-    }));
+    items.push(import_react20.default.createElement(
+      FeatureBoundary,
+      { key: f.id, label: f.name },
+      import_react20.default.createElement(f.Chip, {
+        ctx: props.ctx,
+        feature: f,
+        session: props.session,
+        sessionId: props.sessionId,
+        input: props.input
+      })
+    ));
   }
   if (items.length === 0) return null;
   return import_react20.default.createElement("div", { className: "dockchip-row" }, items);
@@ -10771,7 +10778,7 @@ function FeatureOverlays() {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
     items.push(import_react20.default.createElement(
       FeatureBoundary,
-      { key: f.id },
+      { key: f.id, label: f.name },
       import_react20.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }

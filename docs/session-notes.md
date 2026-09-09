@@ -567,3 +567,21 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 - 顶部左侧方案否决理由：手机端顶栏左上是会话标题，按钮必遮挡。
 
 **验证**：注入 JS node --check、DOM 仿真全交互绿（仿真器 window 桩补 addEventListener/innerHeight）、host/网关单测绿、线上 3080 bundle（rev 54a2fc8ddd1e）与仓库一致。刷新即生效。
+
+## 2026-09-09 · v0.9.9 点「任务动画」整个面板界面消失（waitingCount 跨块引用）
+
+**用户反馈**：点击【任务动画】界面就没有了，而侧栏【功能坞】仍是选中态。
+
+**现象 → 机制**（实证自 `@deepseek-ai/dsh-client-ui-renderer` 的 `SlotErrorBoundary`）：宿主把**每个插槽条目**包在错误边界里，条目内任何渲染抛错都被换成 `<div data-slot-error="…">` 空节点（"one registrant crashing must not take down siblings"）。所以「弹层整块消失 + 侧栏入口仍高亮」= 插槽内组件渲染抛错，而不是面板自己关闭。
+
+**根因**：`features/animation/view.jsx` 的 `const waitingCount = active.reduce(…)` 写在 `if (!cfg) {…} else {…}` 的 **else 块内**，但「运行状态」区块的 `rows.push(…)` 在 **块外**（`if (saveErr)` 之后）引用它 → `ReferenceError: waitingCount is not defined`。该行 v0.9.3（需确认提醒）引入，之后任务动画页一打开就崩（首帧即走那条 push，与 cfg 是否加载无关）。esbuild 的产物线索：声明被重命名为 `waitingCount2`、引用仍叫 `waitingCount`——**同一绑定必然同步改名，名字不一致就说明源码里它们不是同一个变量**。
+
+**修复**：
+- 计数提到函数体作用域（`active`/`recent` 旁边），两条渲染路径共用；注释写明踩坑经过。
+- **内置视图也包 `FeatureBoundary`**（此前只有外部包视图包）：视图 / HomeStat / Chip / Overlay 全覆盖，带 `key`（切功能时重建边界，否则上一个功能的错误态会串到新页面）与 `label`；边界补 `componentDidCatch` 把错误 `console.error` 出来（原来只吞不报）。
+
+**反馈回路**（本次的关键）：新增 `scripts/test-client-views.mjs`（`npm run test:client`，无外部依赖，~130ms）。做法是在 vm 沙箱里加载**构建产物 client.js**（与浏览器同一份代码），用极简 React 替身（含 hook 按渲染路径缓存、多趟渲染、错误边界语义）逐个启用 8 个内置功能渲染设置页面板。它先以 `waitingCount is not defined` 变红 → 修复后全绿；另含两条隔离断言（外部视图崩溃、内置视图崩溃都只降级为一行提示）。**新功能视图接入后请跑一次**。
+
+**验证**：`npm run test:client` 全绿（8 视图 + 2 隔离）；`client.js` 重建后 `waitingCount` 声明与引用同为函数体作用域；无 `[DEBUG-]` 残留。
+**部署**：纯客户端改动——浏览器刷新即生效（boot entries 的 rev 按 client.js 内容实时计算），无需重启 `dsh web`。
+**环境备忘**：本机 `npx esbuild` 找不到包（`/tmp/npm-cache` 在 Windows 下无效）；可用 `C:\Users\wzy60\AppData\Local\npm-cache\_npx\beb367dfa21eb3f5\node_modules\.bin` 前置到 PATH 后再跑 `node scripts/build-client.mjs`。
