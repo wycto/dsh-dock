@@ -46,7 +46,7 @@ const dockPkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
 mkdirSync(outDir, { recursive: true });
 cpSync(join(root, "src", "host-core.js"), join(outDir, "src", "host-core.js"));
-// 共享宿主内核：会话级任务追踪（动画/通知两个模块共用；其他模块不用也一并带上，体积可忽略）
+// 共享宿主内核：会话级任务追踪（动画/通知/运行状态三个模块共用；其他模块不用也一并带上，体积可忽略）
 cpSync(join(root, "src", "task-track.js"), join(outDir, "src", "task-track.js"));
 cpSync(featDir, join(outDir, "features", featureId), { recursive: true });
 

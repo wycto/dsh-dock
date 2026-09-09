@@ -1,13 +1,13 @@
 // dsh-dock · 功能模块【任务通知】· 客户端视图
 //
 // 三部分：
-//  1. View      —— 功能坞面板页：通知事件 / 呈现方式 / 钉钉推送 / 飞书推送 四组设置 + 运行状态；
-//  2. HomeStat  —— 首页总揽概要（等待确认项 / 监听中）；
+//  1. View      —— 功能坞面板页：通知事件 / 呈现方式 / 钉钉推送 / 飞书推送 四组设置；
+//  2. HomeStat  —— 首页总揽概要（当前通知事件与推送通道）；
 //  3. Overlay   —— 全局浮层（shell.overlay 常驻，功能启用即挂载）：轮询 Host 状态，
 //                  任务结束弹通知卡片（可选提示音与浏览器系统通知），工具等待确认时弹常驻提醒卡。
 //
-// 与【任务动画】完全独立：动效在 features/animation/，本模块只管通知
-// （页内卡片 / 提示音 / 系统通知 / 钉钉飞书群机器人推送）。
+// 与【任务动画】【运行状态】完全独立：动效在 features/animation/、任务状态一览在
+// features/runstate/，本模块只管通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书群机器人推送）。
 // 模块启停 = 功能坞里的开关（独立菜单项），本页不再有第二个总开关。
 //
 // Host 通信：fetch('/dsh-dock/notify/<method>')（见 features/notify/host.js）。
@@ -48,8 +48,6 @@ function endInfo(reason) {
 function isSuccessReason(reason) {
 	return !reason || reason === "completed";
 }
-const PHASE_LABELS = { think: "思考中", write: "输出中", code: "编写代码", search: "查资料" };
-function phaseLabel(p) { return PHASE_LABELS[p] || "工作中"; }
 
 // 工具名 → 中文场景（"需确认"通知里说清楚是什么在等确认）
 function toolLabel(name) {
@@ -480,12 +478,6 @@ function NotifyView(props) {
 		patch({ systemNotify: next });
 	};
 
-	const st = snap.status;
-	const active = st && st.active ? st.active : [];
-	const recent = st && st.recent ? st.recent.slice(0, 6) : [];
-	// 等待确认的审批项总数：运行状态标题与页脚都用，必须在 if/else 之外声明。
-	// ⚠️ 曾误写在 if(!cfg) 的 else 块内、却在块外引用 → ReferenceError，整页渲染崩掉。
-	const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
 	const permNote = typeof Notification === "undefined"
 		? "当前浏览器不支持系统通知"
 		: Notification.permission === "granted" ? "已授权 · 仅页面后台时推送"
@@ -665,76 +657,29 @@ function NotifyView(props) {
 		);
 	}
 	if (saveErr) rows.push(<div key="err" className="dknt-note dknt-err">{saveErr}</div>);
+	// 任务运行状态（进行中 / 最近完成 / 等待确认）已独立成左侧「运行状态」菜单项，这里只留一句指路
 	rows.push(
-		<div key="state" className="dknt-sec">
-			<div className="dknt-sec-head">
-				<span className="dknt-sec-title">运行状态</span>
-				<span className="dknt-sec-sub">
-					{snap.error ? "状态拉取失败：" + snap.error
-						: waitingCount > 0 ? waitingCount + " 项等待确认 · " + active.length + " 个任务进行中"
-							: active.length > 0 ? active.length + " 个任务进行中，结束后按上方开关通知"
-								: recent.length > 0 ? "空闲 · 显示最近完成" : "空闲 · 暂无任务记录"}
-				</span>
-				<button type="button" className="dknt-refresh" onClick={() => notifyStore.refresh()}>
-					{snap.loading ? "刷新中…" : "刷新"}
-				</button>
-			</div>
-			{active.length > 0 ? (
-				<div className="dknt-tasks">
-					{active.map((t) => <NotifyTaskRow key={t.sessionId} t={t} />)}
-				</div>
-			) : null}
-			{active.length === 0 && recent.length === 0
-				? <div className="dknt-note">发起新会话任务后，这里会显示进行中与最近完成的任务；结束时按上方开关弹卡片/响铃/推送。</div> : null}
-			{recent.length > 0 ? (
-				<div className="dknt-tasks dknt-tasks-done">
-					{recent.map((t) => <NotifyTaskRow key={t.sessionId + ":" + t.endTime} t={t} done />)}
-				</div>
-			) : null}
+		<div key="hint" className="dknt-note">
+			任务运行状态（进行中任务、等待确认与最近完成）已独立成左侧「运行状态」菜单；本页只负责结束与需确认时的提醒。
 		</div>
 	);
 	return <div className="dknt-root">{rows}</div>;
 }
 
-function NotifyTaskRow(props) {
-	const t = props.t;
-	const info = endInfo(t.endReason);
-	const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
-	return (
-		<div className="dknt-task">
-			<div className="dknt-task-head">
-				<span className="dknt-task-title" title={t.title}>{t.title || "(无标题)"}</span>
-				{props.done ? <span className={"dknt-tag " + info.cls}>{info.label}</span>
-					: waiting ? <span className="dknt-tag warn">等待确认</span>
-						: <span className="dknt-tag on">{phaseLabel(t.phase)}</span>}
-			</div>
-			<div className="dknt-task-meta">
-				<span>{(t.models && t.models.length ? t.models.join(", ") : "未知") + (t.provider ? "（" + t.provider + "）" : "")}</span>
-				<span>{props.done ? fmtDur(t.duration) : fmtDur(t.elapsed)}</span>
-				{t.totalTokens ? <span>{"↧" + fmtNum(t.inputTokens) + " ↥" + fmtNum(t.outputTokens)}</span> : null}
-				{props.done && t.endTime ? <span>{fmtTime(t.endTime)}</span> : null}
-			</div>
-			{waiting ? (
-				<div className="dknt-task-err">
-					{t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "未知工具") + (a && a.reason ? "：" + truncate(a.reason, 80) : "")).join("；")}
-				</div>
-			) : null}
-			{props.done && t.errorMessage ? <div className="dknt-task-err">{truncate(t.errorMessage, 120)}</div> : null}
-		</div>
-	);
-}
-
 // ---------- 首页总揽概要 ----------
+// 任务进行中 / 空闲这类任务信息归【运行状态】模块，这里只报通知自身的状态：
+// 通知事件 + 提醒方式 + 已开启的推送通道，与面板页开关一一对应。
 function NotifyStat(props) {
 	const snap = useNotify(props && props.ctx);
-	const st = snap.status;
+	const cfg = snap.status && snap.status.config;
 	if (snap.error) return <span className="dknt-err">通知状态不可用（宿主需重启加载通知路由）</span>;
-	if (!st) return <span>等待通知状态…</span>;
-	const active = st.active || [];
-	const waiting = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
-	if (waiting > 0) return <span className="dknt-warn">✋ {waiting} 项等待确认</span>;
-	if (active.length > 0) return <span>{active.length} 个任务进行中 · 结束即通知</span>;
-	return <span>监听中 · 完成/异常/需确认通知</span>;
+	if (!cfg) return <span>等待通知配置…</span>;
+	const events = [cfg.notifyOnComplete ? "完成" : "", cfg.notifyOnError ? "异常" : "", cfg.notifyOnConfirm !== false ? "需确认" : ""].filter(Boolean);
+	const extras = [cfg.soundNotify !== false ? "提示音" : "", cfg.systemNotify ? "系统通知" : ""].filter(Boolean);
+	const push = [cfg.dingtalkEnabled ? "钉钉" : "", cfg.feishuEnabled ? "飞书" : ""].filter(Boolean);
+	return <span>{(events.length ? "通知：" + events.join("/") : "通知事件全关")
+		+ (extras.length ? " · " + extras.join("/") : "")
+		+ (push.length ? " · 推送：" + push.join("/") : "")}</span>;
 }
 
 // ---------- 样式（dknt- 前缀；全部走主题变量，暗/亮色自适应） ----------
@@ -760,7 +705,6 @@ const css = [
 	".dknt-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
 	".dknt-err{color:var(--dsw-alias-state-error-primary);}",
 	".dknt-ok{color:var(--dsw-alias-state-success-primary);}",
-	".dknt-warn{color:var(--dk-warn);}",
 	".dknt-sec{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}",
 	".dknt-sec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
 	".dknt-sec-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);flex:none;}",
@@ -768,8 +712,6 @@ const css = [
 	".dknt-sec-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
 	".dknt-sec-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
 	".dknt-sec-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
-	".dknt-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
-	".dknt-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
 	// 子选项行
 	".dknt-rows-narrow{display:flex;flex-direction:column;gap:6px;}",
 	".dknt-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap;}",
@@ -794,19 +736,6 @@ const css = [
 	".dknt-btn{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 12px;font-family:inherit;font-size:12px;}",
 	".dknt-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
 	".dknt-btn[disabled]{opacity:.5;cursor:default;}",
-	// 任务列表
-	".dknt-tasks{display:flex;flex-direction:column;gap:6px;}",
-	".dknt-tasks-done{border-top:1px dashed var(--dsw-alias-border-l2);padding-top:6px;}",
-	".dknt-task{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px;}",
-	".dknt-task-head{display:flex;align-items:center;gap:8px;min-width:0;}",
-	".dknt-task-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-	".dknt-task-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-tertiary);}",
-	".dknt-task-err{font-size:11px;color:var(--dsw-alias-state-error-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-	".dknt-tag{flex:none;font-size:10px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
-	".dknt-tag.on{color:var(--dk-accent);border-color:currentColor;}",
-	".dknt-tag.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-	".dknt-tag.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
-	".dknt-tag.warn{color:var(--dk-warn);border-color:currentColor;}",
 ].join("\n");
 
 export const feature = {
