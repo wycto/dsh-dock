@@ -169,7 +169,7 @@ function createRuntime() {
 // 覆盖「轮询到新快照 → 触发任务结束检测」这类按引用变化才生效的分支）。
 // posts 记录所有 POST /dsh-dock/features（开关同步断言用）。
 function resolveStatus(s) { return typeof s === "function" ? s() : s; }
-function makeFetch(animationStatus, notifyStatus, posts, persisted) {
+function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus) {
 	return (url, init) => {
 		// 只拦截功能开关的同步 POST；功能自己的 RPC 也是 POST，不能一起吃掉
 		if (init && init.method === "POST" && String(url).includes("/dsh-dock/features")) {
@@ -179,6 +179,7 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted) {
 		let data = {};
 		if (url.includes("/dsh-dock/animation/status")) data = resolveStatus(animationStatus);
 		else if (url.includes("/dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
+		else if (url.includes("/dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
 		else if (url.includes("/dsh-dock/features")) data = { persisted: persisted || {} };
 		return Promise.resolve({
 			ok: true,
@@ -201,7 +202,7 @@ function makeWindow() {
 }
 let loaded = null;
 
-function loadDock(enabled, animationStatus, notifyStatus, persisted) {
+function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus) {
 	const runtime = createRuntime();
 	const posts = [];
 	const store = { "dsh-dock/features/v1": JSON.stringify(enabled) };
@@ -209,7 +210,7 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted) {
 	const sandbox = {
 		console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
-		fetch: makeFetch(animationStatus, notifyStatus, posts, persisted),
+		fetch: makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
 		localStorage: {
 			getItem: (k) => (k in store ? store[k] : null),
 			setItem: (k, v) => { store[k] = String(v); },
@@ -281,10 +282,17 @@ const NOTIFY_STATUS = {
 	},
 };
 
+// 运行状态模块的 /status 没有 config 段（只读共享追踪快照）
+const RUNSTATE_STATUS = {
+	active: ANIMATION_STATUS.active,
+	recent: ANIMATION_STATUS.recent,
+};
+
 // ---------- 用例：每个内置功能单独启用后，设置页面板必须渲染出内容且不抛错 ----------
 const FEATURES = [
 	{ id: "animation", name: "任务动画", marker: "运行动画", deep: true },
 	{ id: "notify", name: "任务通知", marker: "通知事件", deep: true },
+	{ id: "runstate", name: "运行状态", marker: "运行状态", deep: true },
 	{ id: "tokenlog", name: "用量记录", marker: "用量", deep: true },
 	{ id: "balance", name: "模型余额", marker: "余额", deep: true },
 	{ id: "modelconfig", name: "模型设置", marker: "模型", deep: true },
@@ -354,9 +362,10 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 
 // ---------- 用例 3：内置视图抛错同样要被隔离（v0.9.3~0.9.8 正是内置视图抛错打没了面板） ----------
 {
+	// 拿【运行状态】当靶子：它渲染期会 active.reduce 统计等待确认项（与当年 animation 的
+	// waitingCount 同一类写法），给 active 一个 reduce 就抛错的 Proxy 即可稳定复现。
 	const enabled = {};
-	for (const f of FEATURES) enabled[f.id] = f.id === "animation";
-	// 让内置的 animation 视图在渲染期抛错：状态里的 active 是个数组，但取 reduce 时抛错。
+	for (const f of FEATURES) enabled[f.id] = f.id === "runstate";
 	const boomActive = new Proxy([], {
 		get(target, key) {
 			if (key === "reduce") throw new Error("boom-builtin");
@@ -365,7 +374,8 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	});
 	let detail = "";
 	try {
-		const { runtime, regs } = loadDock(enabled, Object.assign({}, ANIMATION_STATUS, { active: boomActive }), NOTIFY_STATUS);
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined,
+			Object.assign({}, RUNSTATE_STATUS, { active: boomActive }));
 		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
 		const html = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
 		if (!html.includes("渲染出错")) detail = "内置视图抛错没有被隔离（页面里没有错误提示）";
@@ -380,8 +390,8 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 内置视图错误隔离：内置视图抛错也只降级为一行提示");
 }
 
-// ---------- 用例 4：功能坞弹层左侧菜单必须列出「任务动画」「任务通知」两个独立菜单项 ----------
-// 把通知从任务动画里拆成独立菜单项，这条断言防的就是「拆完菜单里看不到」。
+// ---------- 用例 4：功能坞弹层左侧菜单必须列出「任务动画」「任务通知」「运行状态」三个独立菜单项 ----------
+// 通知、运行状态先后从任务动画里拆成独立菜单项，这条断言防的就是「拆完菜单里看不到」。
 {
 	const enabled = {};
 	for (const f of FEATURES) enabled[f.id] = true;
@@ -391,7 +401,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		const panel = regs.find((r) => r.def && r.def.name === "shell.overlay" && r.def.id === "dsh-dock-panel");
 		if (!panel) throw new Error("没有注册功能坞弹层（shell.overlay / dsh-dock-panel）");
 		const html = await renderSettled(runtime, runtime.react.createElement(panel.comp, null));
-		for (const name of ["任务动画", "任务通知"]) {
+		for (const name of ["任务动画", "任务通知", "运行状态"]) {
 			if (!html.includes(name)) { detail = "左侧菜单缺少「" + name + "」"; break; }
 		}
 		if (!detail) {
@@ -407,7 +417,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		console.log(`✗ 左侧菜单 / 全局浮层：${detail}`);
 		process.exit(1);
 	}
-	console.log("✓ 左侧菜单：功能坞弹层含「任务动画」「任务通知」两个独立菜单项，全局浮层渲染正常");
+	console.log("✓ 左侧菜单：功能坞弹层含「任务动画」「任务通知」「运行状态」三个独立菜单项，全局浮层渲染正常");
 }
 
 // ---------- 用例 5：任务结束时【任务通知】浮层真的弹出通知卡片 ----------

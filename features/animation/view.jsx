@@ -1,15 +1,16 @@
 // dsh-dock · 功能模块【任务动画】· 客户端视图
 //
 // 三部分：
-//  1. View      —— 功能坞面板页：动画开关 + 19 种模式选择（带缩微预览）+ 运行状态列表；
-//  2. HomeStat  —— 首页总揽概要（N 个任务进行中 / 空闲）；
+//  1. View      —— 功能坞面板页：动画开关 + 19 种模式选择（带缩微预览）；
+//  2. HomeStat  —— 首页总揽概要（当前动效模式 + 开关状态）；
 //  3. Overlay   —— 全局浮层（shell.overlay 常驻，功能启用即挂载）：轮询 Host 状态，
 //                  任务进行中渲染克制的动效（顶部流光细线 / 呼吸光点 / 轨道光环）+ 右下角状态徽标，
 //                  完成瞬间一缕流光掠过（星际远征另有货运舰归航）。
 //
 // 设计取向：不做满屏粒子彩带，动效全部走主题变量（暗/亮色自适应）、低透明度、慢节奏。
-// 通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书推送）现已独立成【任务通知】模块
-// （features/notify/）：两个功能各自启停、互不依赖，会话级任务追踪在宿主侧共用一份。
+// 通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书推送）独立在 features/notify/，
+// 运行状态（进行中任务与最近完成）独立在 features/runstate/：三个功能各自启停、互不依赖，
+// 会话级任务追踪在宿主侧共用一份。
 //
 // Host 通信：fetch('/dsh-dock/animation/<method>')（见 features/animation/host.js）。
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -68,17 +69,7 @@ const PHASE_COLORS = { think: "#2f6fed", write: "#0d9488", code: "#b45309", sear
 function phaseColor(p) { return PHASE_COLORS[p] || "#2f6fed"; }
 
 // ---------- 结束原因 ----------
-const END_LABELS = {
-	completed: { label: "完成", cls: "ok" },
-	error: { label: "出错", cls: "err" },
-	aborted: { label: "已中止", cls: "warn" },
-	blocked: { label: "受阻", cls: "warn" },
-	"max-tokens": { label: "达输出上限", cls: "warn" },
-	interrupted: { label: "中断", cls: "warn" },
-};
-function endInfo(reason) {
-	return END_LABELS[reason] || END_LABELS.completed;
-}
+// （结束原因的展示文案随「运行状态」页一起搬去 features/runstate/，这里只保留动效判断用的成功判定）
 function isSuccessReason(reason) {
 	return !reason || reason === "completed";
 }
@@ -90,26 +81,12 @@ function fmtCompact(n) {
 	if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
 	return String(Math.round(n));
 }
-// 毫秒 → "3分21秒" / "1小时2分"
-function fmtDur(ms) {
-	const s = Math.max(0, Math.round((ms || 0) / 1000));
-	const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-	if (h > 0) return h + "小时" + m + "分" + sec + "秒";
-	if (m > 0) return m + "分" + sec + "秒";
-	return sec + "秒";
-}
 // 毫秒 → "12:34" / "1:02:11"（徽标计时）
 function fmtClock(ms) {
 	const s = Math.max(0, Math.floor((ms || 0) / 1000));
 	const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
 	const p = (x) => String(x).padStart(2, "0");
 	return h > 0 ? h + ":" + p(m) + ":" + p(sec) : p(m) + ":" + p(sec);
-}
-function fmtTime(ts) {
-	if (!ts) return "";
-	const d = new Date(ts);
-	const p = (x) => String(x).padStart(2, "0");
-	return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
 }
 function truncate(str, max) {
 	if (!str) return "";
@@ -1190,35 +1167,6 @@ function ModePreview({ id }) {
 	);
 }
 
-function TaskRow(props) {
-	const t = props.t;
-	const info = endInfo(t.endReason);
-	const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
-	return (
-		<div className="dkan-task">
-		<div className="dkan-task-head">
-			<span className="dkan-task-title" title={t.title}>{t.title || "(无标题)"}</span>
-			{props.done ? <span className={"dkan-tag " + info.cls}>{info.label}</span>
-				: waiting ? <span className="dkan-tag warn">等待确认</span>
-					: <span className="dkan-tag on">{phaseLabel(t.phase)}</span>}
-		</div>
-			<div className="dkan-task-meta">
-				<span>{(t.models && t.models.length ? t.models.join(", ") : "未知") + (t.provider ? "（" + t.provider + "）" : "")}</span>
-				<span>{props.done ? fmtDur(t.duration) : fmtClock(t.elapsed)}</span>
-				{"turns" in t ? <span>{"回合 " + (t.turns || 0) + " · 步骤 " + (t.steps || 0) + (t.toolCalls ? " · 工具 " + t.toolCalls : "")}</span> : null}
-				{t.totalTokens ? <span>{"↧" + fmtCompact(t.inputTokens) + " ↥" + fmtCompact(t.outputTokens)}</span> : null}
-				{props.done && t.endTime ? <span>{fmtTime(t.endTime)}</span> : null}
-			</div>
-			{waiting ? (
-				<div className="dkan-task-err">
-					{t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "未知工具") + (a && a.reason ? "：" + truncate(a.reason, 80) : "")).join("；")}
-				</div>
-			) : null}
-			{props.done && t.errorMessage ? <div className="dkan-task-err">{truncate(t.errorMessage, 120)}</div> : null}
-		</div>
-	);
-}
-
 function AnimationView(props) {
 	const ctx = props && props.ctx;
 	const snap = useAnimation(ctx);
@@ -1255,14 +1203,6 @@ function AnimationView(props) {
 				setSaveErr("保存失败：" + ((e && e.message) || String(e)));
 			});
 	};
-
-	const st = snap.status;
-	const active = st && st.active ? st.active : [];
-	const recent = st && st.recent ? st.recent.slice(0, 6) : [];
-	// 等待确认的审批项总数：运行状态标题与页脚都用，必须在 if/else 之外声明。
-	// ⚠️ 曾误写在 if(!cfg) 的 else 块内、却在块外引用 → ReferenceError: waitingCount is not defined，
-	// 整个视图渲染抛错、宿主把面板插槽换成空 div（点「任务动画」界面直接消失）。
-	const waitingCount = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
 
 	const rows = [];
 	if (!cfg) {
@@ -1318,40 +1258,29 @@ function AnimationView(props) {
 		);
 	}
 	if (saveErr) rows.push(<div key="err" className="dkan-note dkan-err">{saveErr}</div>);
+	// 运行状态（进行中任务 / 最近完成 / 等待确认）已独立成左侧菜单项，这里只留一句指路
 	rows.push(
-		<div key="state" className="dkan-sec">
-			<div className="dkan-sec-head">
-				<span className="dkan-sec-title">运行状态</span>
-				<span className="dkan-sec-sub">
-					{snap.error ? "状态拉取失败：" + snap.error
-						: waitingCount > 0 ? waitingCount + " 项等待确认 · " + active.length + " 个任务进行中"
-							: active.length > 0 ? active.length + " 个任务进行中"
-								: recent.length > 0 ? "空闲 · 显示最近完成" : "空闲 · 暂无任务记录"}
-				</span>
-				<button type="button" className="dkan-refresh" onClick={() => animationStore.refresh()}>
-					{snap.loading ? "刷新中…" : "刷新"}
-				</button>
-			</div>
-			{active.length > 0 ? <div className="dkan-tasks">{active.map((t) => <TaskRow key={t.sessionId} t={t} />)}</div> : null}
-			{active.length === 0 && recent.length === 0
-				? <div className="dkan-note">发起新会话任务后，这里会显示进行中与最近完成的任务；动效在页面生效（通知见左侧「任务通知」）。</div> : null}
-			{recent.length > 0 ? <div className="dkan-tasks dkan-tasks-done">{recent.map((t) => <TaskRow key={t.sessionId + ":" + t.endTime} t={t} done />)}</div> : null}
+		<div key="hint" className="dkan-note">
+			任务运行状态（进行中任务、阶段、Token、等待确认与最近完成）已独立成左侧「运行状态」菜单；本页只负责动效。
 		</div>
 	);
 	return <div className="dkan-root">{rows}</div>;
 }
 
 // ---------- 首页总揽概要 ----------
+// 任务进行中 / 空闲这类任务信息归【运行状态】模块，这里只报动画自身的状态：
+// 动效开关 + 当前模式（桌面伙伴另报大小），与面板页开关一一对应。
 function AnimationStat(props) {
 	const snap = useAnimation(props && props.ctx);
 	const st = snap.status;
-	if (snap.error) return <span className="dkan-err">任务状态不可用（宿主需重启加载动画路由）</span>;
-	if (!st) return <span>等待任务状态…</span>;
-	if (st.active && st.active.length > 0) {
-		return <span>{st.active.length + " 个任务进行中 · " + fmtDur(Math.max(...st.active.map((x) => x.elapsed || 0)))}</span>;
-	}
-	const last = st.recent && st.recent[0];
-	return <span>{last ? "空闲 · 最近完成 " + truncate(last.title, 24) : "空闲 · 暂无任务记录"}</span>;
+	if (snap.error) return <span className="dkan-err">动画状态不可用（宿主需重启加载动画路由）</span>;
+	if (!st) return <span>等待动画配置…</span>;
+	const cfg = st.config;
+	if (!cfg) return <span>等待动画配置…</span>;
+	if (!cfg.animationEnabled) return <span>动效已关闭 · 任务进行中不显示动画</span>;
+	const mode = EFFECT_MODES.find((m) => m.id === cfg.effectMode) || EFFECT_MODES[0];
+	const scale = Math.round((Number(cfg.robotScale) || 1.35) * 100);
+	return <span>{"动效：" + mode.name + (cfg.effectMode === "robot" ? " · 大小 " + scale + "%" : "")}</span>;
 }
 
 // ---------- 样式（dkan- 前缀；全部走主题变量，暗/亮色自适应；动效时长 = 基准 / --dkan-speed） ----------
@@ -1496,8 +1425,6 @@ const css = [
 	".dkan-sec-sw{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;}",
 	".dkan-sec-swlabel{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;}",
 	".dkan-sec-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
-	".dkan-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
-	".dkan-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
 	// 模式选择卡（带缩微预览）
 	".dkan-modes{display:flex;gap:8px;flex-wrap:wrap;}",
 	".dkan-mode{flex:1;min-width:150px;display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;text-align:left;transition:border-color .15s var(--ds-ease-in-out);}",
@@ -1720,19 +1647,6 @@ const css = [
 	"@keyframes dkan-search-wrist{0%,34%{transform:translateX(-1px)}62%,100%{transform:translateX(1.5px)}}",
 	// 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
 	"@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}",
-	// 任务列表
-	".dkan-tasks{display:flex;flex-direction:column;gap:6px;}",
-	".dkan-tasks-done{border-top:1px dashed var(--dsw-alias-border-l2);padding-top:6px;}",
-	".dkan-task{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;gap:3px;}",
-	".dkan-task-head{display:flex;align-items:center;gap:8px;min-width:0;}",
-	".dkan-task-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-	".dkan-task-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-tertiary);}",
-	".dkan-task-err{font-size:11px;color:var(--dsw-alias-state-error-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-	".dkan-tag{flex:none;font-size:10px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
-	".dkan-tag.on{color:var(--dk-accent);border-color:currentColor;}",
-	".dkan-tag.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-	".dkan-tag.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
-	".dkan-tag.warn{color:var(--dk-warn);border-color:currentColor;}",
 ].join("\n");
 
 export const feature = {
@@ -1740,7 +1654,7 @@ export const feature = {
 	name: "任务动画",
 	order: 130,
 	accent: "#f472b6",
-	description: "19 种任务运行动画：速度随任务活动联动，配置持久化（通知见「任务通知」）",
+	description: "19 种任务运行动画：速度随任务活动联动，配置持久化（通知见「任务通知」，任务状态见「运行状态」）",
 	css,
 	View: AnimationView,
 	HomeStat: AnimationStat,
