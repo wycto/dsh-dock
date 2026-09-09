@@ -618,3 +618,16 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 
 **验证**：新增用例「开关补推」（三种组合：宿主无记录→补推 true；宿主记过 false→不推；本地 false 且宿主无记录→补推 false），`npm run test:client` 全绿；线上实测 `GET /dsh-dock/features` 返回 `notify enabled=true`、`POST /dsh-dock/notify/status` 200 且带回迁移后的钉钉 Webhook、`POST /dsh-dock/animation/status` 200。**教训**：功能拆成新菜单项时，宿主侧「开关落地」必须与客户端状态对齐，否则表现为「面板好好的、功能全 404」。
 
+## 2026-09-09（续2）· 开发/发版流程落地：git 修正 + 流程文档 + `dsh-dock` 开发预设
+
+**用户指正**：开发阶段提交备注不要写「发版」；不要同步代码到发版库 github；只有用户明确说「发版」时才改包版本、发 npm、写发版备注、推 github 并打 tag。
+
+**处置**（当轮全部完成）：
+1. **撤销 github**：`git push github +ea08c46:main --force-with-lease=refs/heads/main:df14934` → 发版库回到上一个发版提交（开发提交不再出现在 github）。
+2. **改写本地提交**：`功能：通知从任务动画拆出成【任务通知】独立菜单项（各自启停）+ 开关补推修复`（正文保留需求/根因/改法/验证），并 force-with-lease 同步到 origin。
+3. **回退版本号**：`package.json` 与 `src/client.jsx` 的 `DOCK_VERSION` 都回到 `0.9.9`（重建 `client.js` 后产物里也是 0.9.9）；`CHANGELOG.md` 顶部段改成 `## 未发布（下一版）— 开发中`；清掉代码注释里的 `v0.10.0` 字样（版本号未定，写死会在改号时全变错）。
+4. **新增 `docs/workflow.md`**：开发/发版流程的唯一真源（远端角色、开发阶段 6 条铁律、每次改动必跑的检查、发版 12 步、模块架构约定、环境坑、预设维护）。
+5. **新建用户预设 `dsh-dock 插件开发`**（`~/.dsh/.agent-presets/dsh-dock/`）：`standard` 的副本 + persona 里注入开发/发版铁律 + 预设自带技能 `skills/dsh-dock-release/SKILL.md`；`standingKeyFor('dsh-dock')` 挂载校验通过。
+
+**教训**：跨会话的流程约定必须落到文件里（本文件 + `docs/workflow.md` + 预设 persona），只存在于会话记忆里的约定，下一次会话就会漂回旧习惯。
+
