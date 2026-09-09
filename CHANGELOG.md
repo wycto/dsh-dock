@@ -2,6 +2,17 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.9.9 — 2026-09-09
+
+### 修复
+
+- **点「任务动画」整个面板界面消失**（v0.9.3 起存在）：`features/animation/view.jsx` 的「等待确认」计数 `waitingCount` 误声明在 `if (!cfg) { … } else { … }` 的 else 块内，却在块外的「运行状态」区块引用 → 渲染期抛 `ReferenceError: waitingCount is not defined`。宿主把每个插槽条目包在 SlotErrorBoundary 里，条目渲染抛错即被换成空 div——表现为弹层/设置页「界面整个没了」，而侧栏「功能坞」入口仍是选中态。现把该计数提到函数体作用域（两条渲染路径共用），任务动画页恢复正常。
+- **内置视图也包错误边界**（`src/shared.js` + `src/client.jsx`）：此前只有外部包视图包 `FeatureBoundary`，内置视图裸渲染——任何内置视图渲染抛错都会连带打没整块面板。现在视图、首页概要（HomeStat）、会话区小控件（Chip）、全局浮层（Overlay）全部包边界，并带 `key`（切换功能时重建，避免错误态串页）与 `label`（提示里点明是哪个功能）；错误同时 `console.error` 输出，降级提示为「「功能名」渲染出错：…（已隔离，不影响面板其他功能）」。
+
+### 新增
+
+- **内置视图渲染回归测试** `scripts/test-client-views.mjs`（`npm run test:client`，无外部依赖，~130ms）：在 vm 沙箱里加载构建产物 `client.js`（与浏览器跑的同一份代码），用极简 React 替身逐个启用 8 个内置功能渲染设置页面板，断言「渲染不抛错 + 出现该功能实际内容」（任务动画还跑带状态的多趟渲染，覆盖拉取配置后的分支），并额外断言错误边界隔离行为。该脚本就是本次定位问题的反馈回路——它先以 `waitingCount is not defined` 变红，修复后转绿。
+
 ## v0.9.8 — 2026-09-08
 
 ### 修复

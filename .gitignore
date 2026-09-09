@@ -6,3 +6,4 @@ node_modules/
 client.tmp.cjs
 .zcode/
 .mimosa/
+.npm-cache/

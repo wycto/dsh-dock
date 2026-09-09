@@ -2,8 +2,12 @@
 import react from "react";
 
 /**
- * 功能视图错误边界：外部功能包注册进来的视图渲染抛错时降级为错误提示，
- * 不拖垮整个功能坞面板（内置视图不包——它们与外壳同包发布、同生命周期）。
+ * 功能视图错误边界：视图渲染抛错时降级为一行错误提示，不拖垮整块面板 UI。
+ *
+ * ⚠️ 内置视图也必须包（v0.9.9 起）：宿主把每个插槽条目包在 SlotErrorBoundary 里，
+ * 条目内任何渲染抛错都会被宿主换成空 div——表现为「点开功能坞界面整个没了」而侧栏
+ * 入口按钮仍是选中态。v0.9.3~0.9.8 的 animation 视图就是这样被一个 ReferenceError 打没的。
+ * label 用于提示里点明是哪个功能；调用处应带 key（切换功能时重建，否则错误态会跟着串页）。
  */
 export class FeatureBoundary extends react.Component {
 	constructor(props) {
@@ -13,11 +17,15 @@ export class FeatureBoundary extends react.Component {
 	static getDerivedStateFromError(error) {
 		return { error: error };
 	}
+	componentDidCatch(error) {
+		console.error("[dsh-dock] 功能视图渲染出错：", error);
+	}
 	render() {
 		if (this.state.error) {
 			const msg = this.state.error && this.state.error.message ? this.state.error.message : String(this.state.error);
+			const who = this.props && this.props.label ? "「" + this.props.label + "」" : "功能视图";
 			return react.createElement("div", { className: "dockm-note dockm-err" },
-				"功能视图渲染出错：" + msg + "（该功能来自外部包，不影响面板其他功能）");
+				who + "渲染出错：" + msg + "（已隔离，不影响面板其他功能；详情见浏览器控制台）");
 		}
 		return this.props.children;
 	}

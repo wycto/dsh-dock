@@ -28,7 +28,7 @@ import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.9.7";
+const DOCK_VERSION = "0.9.9";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation, fGames, fMobileRelay];
@@ -357,12 +357,14 @@ function DockModal() {
 	const isHome = active === "home";
 	const mod = isHome ? null : (MODULES.find((m) => m.id === active) || MODULES[0]);
 	const st = mod ? stateOf(mod.id) : null;
-	// 外部包视图包错误边界；视图统一收到 { ctx, feature, params } props
+	// 视图统一收到 { ctx, feature, params } props
 	//（params 来自导航总线：如 { provider } 高亮余额行、{ sessionId } 按会话筛选用量）
 	const View = mod ? mod.View : null;
+	// 所有视图都包错误边界（含内置）：视图抛错只降级为一行提示，不能把整块面板打没。
+	// key 用 mod.id：切换功能时重建边界，避免上一个功能的错误态留在新页面上。
 	const viewNode = mod && View
 		? react.createElement("div", { className: "dockm-view" },
-			react.createElement(mod.external ? FeatureBoundary : react.Fragment, null,
+			react.createElement(FeatureBoundary, { key: mod.id, label: mod.name },
 				react.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })))
 		: null;
 	const enabledCount = MODULES.filter((m) => { const s = stateOf(m.id); return !!(s && s.enabled); }).length;
@@ -500,7 +502,7 @@ function HomeView(props) {
 			const statNode = m.planned
 				? react.createElement("span", null, PLANNED_NOTES[m.id] || "待接入：见 README 路线图")
 				: enabled && Stat
-					? react.createElement(m.external ? FeatureBoundary : react.Fragment, null,
+					? react.createElement(FeatureBoundary, { key: m.id, label: m.name },
 						react.createElement(Stat, { ctx: ctx }))
 					: react.createElement("span", null, "已停用，启用后在此展示运行概要");
 			return react.createElement("div", {
@@ -560,7 +562,7 @@ function DockPanel() {
 			const View = f.View;
 			const viewNode = (!f.planned && st.enabled && View)
 				? react.createElement("div", { className: "dock-body" },
-					react.createElement(f.external ? FeatureBoundary : react.Fragment, null,
+					react.createElement(FeatureBoundary, { key: f.id, label: f.name },
 						react.createElement(View, { ctx: ctx, feature: f })))
 				: null;
 			return react.createElement("div", { className: "dock-card", key: f.id },
@@ -608,10 +610,11 @@ function DockChips(props) {
 	const items = [];
 	for (const f of allModules()) {
 		if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-		items.push(react.createElement(f.Chip, {
-			key: f.id, ctx: props.ctx, feature: f,
-			session: props.session, sessionId: props.sessionId, input: props.input,
-		}));
+		items.push(react.createElement(FeatureBoundary, { key: f.id, label: f.name },
+			react.createElement(f.Chip, {
+				ctx: props.ctx, feature: f,
+				session: props.session, sessionId: props.sessionId, input: props.input,
+			})));
 	}
 	if (items.length === 0) return null;
 	return react.createElement("div", { className: "dockchip-row" }, items);
@@ -627,7 +630,7 @@ function FeatureOverlays() {
 	const items = [];
 	for (const f of allModules()) {
 		if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-		items.push(react.createElement(FeatureBoundary, { key: f.id },
+		items.push(react.createElement(FeatureBoundary, { key: f.id, label: f.name },
 			react.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })));
 	}
 	if (items.length === 0) return null;
