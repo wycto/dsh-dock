@@ -1,0 +1,123 @@
+# dsh-dock 开发与发版流程
+
+本文件是 dsh-dock 插件开发流程与发版流程的唯一真源。人读它，agent 也读它。
+（配套的 agent 预设 `dsh-dock` 只承载硬规则摘要，细节一律以本文件为准。）
+
+## 1. 仓库与远端
+
+| 远端 | 地址 | 用途 |
+|---|---|---|
+| `origin` | `ssh://git@172.18.99.124:9022/wycto/dsh-dock.git`（自建 Gitea） | **开发库**：日常提交只推这里 |
+| `github` | `git@github.com:wycto/dsh-dock.git` | **发版库**：只在发版时同步 + 打 tag，npm 也以它为主页 |
+
+- 开发阶段**绝不推 `github`**；它只反映已发布的版本。
+- 两个远端的 `main` 在发版前应当一致（发版时才把开发提交推上去）。
+
+## 2. 开发阶段（默认状态）
+
+1. **不改 `package.json` 的 `version`**。版本号只在用户明确说「发版」时才动（见第 3 节）。
+   同理不改 `src/client.jsx` 的 `DOCK_VERSION`——两者必须始终一致。
+2. **提交备注不写「发版」**。用类型前缀开头，一行说清做了什么，正文写清需求 / 根因 / 改法 / 验证：
+   - `功能：…`（新功能、新模块）
+   - `修复：…`（缺陷修复）
+   - `文档：…` / `杂项：…`（文档、脚本、仓库杂务）
+   - 反例：`发版 v0.10.0：…`——这是发版提交的写法，开发阶段不要用。
+3. **只推 `origin`**。推之前先跑测试（见下），推完确认 `git status` 干净。
+4. **`CHANGELOG.md` 记在「未发布」段**：开发期的变更写在顶部 `## 未发布（下一版）— 开发中`
+   段落里，发版时整段改名为 `## vX.Y.Z — YYYY-MM-DD`。
+5. **代码注释不写未定版本号**。说「本次拆分」「通知拆分后」这类描述，不要写「v0.10.0 起…」——
+   版本号没定，写死会在发版改号时全变成错的。
+6. **文档同步**（每次改动都要看一遍）：
+   - `README.md`：功能一览表 + 该功能的使用说明（注意该文件里「界面/安装/使用方法」整段存在重复副本，
+     两处都要改）；
+   - `CHANGELOG.md`：未发布段；
+   - `docs/session-notes.md`：追加一节（日期 · 标题 · 现象/根因/改法/验证/部署）。
+
+### 每次改动必须跑的检查
+
+| 改动范围 | 必须做 |
+|---|---|
+| 客户端（`features/*/view.jsx`、`src/client.jsx`、`src/shared.js`） | `npm run build:client` → `npm run test:client` |
+| 宿主（`index.js`、`src/host-core.js`、`src/task-track.js`、`features/*/host.js`） | `npm run test:host` |
+| 两者都改 | 三条都跑 |
+| 新增/改动功能模块 | 上面三条 + 在 `scripts/test-client-views.mjs` 的 `FEATURES` 里补一行断言 |
+
+- `client.js` 是**构建产物**（提交进仓库、随包发布），改完客户端源码必须重建，不要手改产物。
+- 宿主半部的改动要**重启 `dsh web`** 才生效；纯客户端改动刷新页面即可。
+
+### 线上自检（宿主改动后）
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:3080/dsh-dock/features -UseBasicParsing            # 各功能 enabled/error
+Invoke-WebRequest http://127.0.0.1:3080/dsh-dock/<feature>/status -Method POST `
+  -ContentType 'application/json' -Body '{}' -UseBasicParsing                        # 该功能路由是否活着
+```
+
+## 3. 发版流程（仅当用户明确说「发版」）
+
+0. **等用户发话**。没发话就不进入本节任何一步。
+1. **定版本号**：用户指定优先；没指定就按语义化提议一个并等确认。
+2. **改版本号（两处，必须一致）**：`package.json` 的 `version`、`src/client.jsx` 的 `DOCK_VERSION`。
+3. **`CHANGELOG.md`**：把 `## 未发布（下一版）— 开发中` 改成 `## vX.Y.Z — YYYY-MM-DD`。
+4. **重建产物**：`npm run build:client`（版本号会进 `client.js`）。
+5. **全量测试**：`npm run test:client` + `npm run test:host` 全绿，无跳过。
+6. **复查文档**：README 里版本相关描述、`package.json` 的 description、功能一览表。
+7. **提交**：备注写 `发版 vX.Y.Z：<一句话要点>`，正文列本版变更（从 CHANGELOG 未发布段提炼）。
+8. **推两个远端**：`git push origin main` → `git push github main`。
+9. **打 tag 并推送**：
+   ```bash
+   git tag -a vX.Y.Z -m "dsh-dock vX.Y.Z"
+   git push origin vX.Y.Z
+   git push github vX.Y.Z
+   ```
+10. **发布 npm**：`./scripts/publish.sh`（先 `npm pack --dry-run` 预览、检查登录态，再 `npm publish`）。
+    若遇到 npm 缓存目录属主导致的 `EPERM`：`CACHE_DIR=/tmp/dsh-dock-npm-cache ./scripts/publish.sh`。
+11. **确认**：npm 页面版本、GitHub Release（可选）、本地 `git status` 干净。
+12. 发版后**不要**顺手改版本号回开发态——下一次开发提交按第 2 节走，直到下次发版。
+
+## 4. 模块架构约定（改代码前先看）
+
+```
+features/<id>/
+  host.js     宿主半部：RPC 路由（/dsh-dock/<id>/）、settings 读写、事件订阅（纯 ESM，零构建）
+  view.js(x)  客户端视图：描述符 + View/HomeStat/Chip/Overlay（自带 css，类名带模块前缀）
+```
+
+- 功能描述符字段：`id / name / order / accent / description / defaultEnabled / css / View / HomeStat? / Chip? / Overlay?`。
+- **新功能默认 `defaultEnabled: false`**（v0.9.5 起的约定：默认全关、按需开启）。
+- 宿主共享内核：`src/host-core.js`（settings schema、常量、`sendJson`/`readBody`）、`src/task-track.js`
+  （会话级任务追踪，引用计数共享）；客户端共享：`src/shared.js`（功能开关状态、导航总线、错误边界）。
+- 配置统一存在 settings 命名空间 `dsh-dock` 下，**每个功能一个段**；功能启停由
+  `features.<id>` 布尔表控制，客户端开关通过 `POST /dsh-dock/features` 同步到宿主。
+- 宿主路由前缀 `/dsh-dock/<featureId>/<method>`，统一 `{ ok, data }` / `{ ok, error }` 响应体。
+- 独立发布：`node scripts/extract-feature.mjs <featureId>` 生成可单独发布的包骨架（会一并复制
+  `src/host-core.js`、`src/task-track.js`）。
+
+## 5. 环境备忘（本机踩过的坑）
+
+- **esbuild**：`npx esbuild` 在本机找不到包（构建脚本里的 `--cache /tmp/npm-cache` 在 Windows 下无效）。
+  把 `C:\Users\wzy60\AppData\Local\npm-cache\_npx\beb367dfa21eb3f5\node_modules\.bin` 前置到 PATH
+  再跑 `node scripts/build-client.mjs`。
+- **git 推送**：沙箱下 MSYS `ssh.exe` 会因 `CreateFileMapping … Win32 error 5` 起不来，
+  推送需要放宽一次文件沙箱权限。
+- **`dsh web` 重启**：宿主半部改动（新路由、schema、迁移）必须重启才生效；重启后浏览器刷新即可。
+- **外链 watch 进程**：本机可能有外部进程在源文件变更后自动重建 `client.js`；以最新产物为准。
+- **settings 文件**：`C:\Users\wzy60\.dsh\settings.yaml` 的 `dsh-dock:` 段；改坏了可对照
+  `src/host-core.js` 的 `DockConfig` 恢复。
+
+## 6. 配套 agent 预设（`dsh-dock`）
+
+开发本插件时用 agent 预设 **`dsh-dock 插件开发`**（id `dsh-dock`），它把这套流程带进会话：
+
+| 位置 | 内容 |
+|---|---|
+| `C:\Users\wzy60\.dsh\.agent-presets\dsh-dock\agent.cordis.yml` | `standard` 预设的副本；差别只有 persona 里那段 dsh-dock 开发/发版铁律 |
+| `…\dsh-dock\preset.yml` | 显示名与描述 |
+| `…\dsh-dock\skills\dsh-dock-release\SKILL.md` | 发版清单技能（会话内可加载，细节指向本文件） |
+
+维护约定：
+
+- 预设目录在 `DSH_HOME` 下，**不随仓库走**；换机/重装后按上表重建（`agentPresets.copy('standard', 'dsh-dock', 'dsh-dock 插件开发')` 再补 persona 与技能）。
+- **不要改部署自带的预设**（`standard`/`ptc`/`minimal`/`cordis` 所在目录，升级会被覆盖）；
+  要改就复制一份再改。
+- 改了预设后要重新校验能否挂载（`agentPresets.standingKeyFor('dsh-dock')`），再开一个新会话确认工具与提示词。

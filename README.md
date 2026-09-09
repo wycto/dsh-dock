@@ -292,6 +292,9 @@ dsh plugin --profile web remove dsh-dock  # 卸载
 
 ## 开发：新增一个功能模块
 
+> 开发流程、提交/推送约定与发版流程见 [`docs/workflow.md`](docs/workflow.md)（唯一真源）；
+> 配套 agent 预设为 `dsh-dock 插件开发`。改动历史见 [`docs/session-notes.md`](docs/session-notes.md)。
+
 每个功能是一个 `features/<id>/` 目录，由两部分组成：
 
 ```
