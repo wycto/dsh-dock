@@ -2297,7 +2297,7 @@ function subscribePanel(fn) {
 }
 
 // features/tokenlog/view.jsx
-var import_react2 = require("react");
+var import_react2 = __toESM(require("react"), 1);
 var import_jsx_runtime = require("react/jsx-runtime");
 function rpcCall(method, args) {
   return fetch("/dsh-dock/tokenlog/" + method, {
@@ -2425,6 +2425,38 @@ var css = `
 .dtok-pager.top{margin:0;}
 .dtok-pager.bottom{margin:0;}
 .dtok-err{color:var(--dsw-alias-state-error-primary,#ff7a7a);font-size:12px;}
+/* ---- \u5355\u4EF7\u8BBE\u7F6E\uFF08\u5B50\u5F39\u7A97\uFF09 ---- */
+.dtok-pm-backdrop{position:fixed;inset:0;z-index:2100;background:rgba(15,17,21,.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;}
+.dtok-pm{box-sizing:border-box;width:min(980px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2,#1c212b);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .4);overflow:hidden;}
+.dtok-pm.max{border-radius:10px;}
+.dtok-pm-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);cursor:move;user-select:none;flex:none;background:var(--dsw-alias-bg-layer-1);}
+.dtok-pm.max .dtok-pm-head{cursor:default;}
+.dtok-pm-head b{font-size:14px;}
+.dtok-pm-sub{font-size:11px;color:var(--dsw-alias-label-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dtok-pm-ctrls{display:flex;gap:6px;flex:none;}
+.dtok-pm-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px;}
+.dtok-pm-resize{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;touch-action:none;}
+.dtok-pm{position:relative;}
+/* ---- \u5355\u4EF7\u8BBE\u7F6E\uFF08\u8868\u5355\u5185\u5BB9\uFF09 ---- */
+.dtok-price{display:flex;flex-direction:column;gap:12px;}
+.dtok-price-grid{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+.dtok-price-field{display:flex;flex-direction:column;gap:3px;}
+.dtok-price-field label{font-size:11px;color:var(--dsw-alias-label-secondary);}
+.dtok-price-num{width:92px;}
+.dtok-price input[type="text"],.dtok-price-num{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+.dtok-price .dtok-btn.tiny{padding:2px 8px;font-size:11px;}
+.dtok-price-msg{font-size:12px;}
+.dtok-price-msg.ok{color:var(--dsw-alias-state-success-primary,#4ade80);}
+.dtok-price-msg.err{color:var(--dsw-alias-state-error-primary,#ff7a7a);}
+.dtok-price-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.6;}
+.dtok-prow{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:8px 10px;margin-bottom:8px;background:var(--dsw-alias-bg-layer-1);}
+.dtok-prow-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.dtok-pseg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0;}
+.dtok-pseg-name{font-size:11px;color:var(--dsw-alias-label-secondary);min-width:112px;}
+.dtok-pseg-tilde{font-size:11px;color:var(--dsw-alias-label-secondary);}
+.dtok-src{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);}
+.dtok-src.custom{color:var(--dsw-alias-state-success-primary,#4ade80);}
+.dtok-src.fallback{color:var(--dk-warn);}
 `;
 function Detail({ rec, onClose, rate }) {
   const st = statusInfo(rec);
@@ -2447,6 +2479,7 @@ function Detail({ rec, onClose, rate }) {
     ["\u7F13\u5B58\u547D\u4E2D\u7387", rec.cacheHitPercent + "%"],
     ["\u603B Token", fmtNum(rec.totalTokens)],
     ["\u6D88\u8017\u91D1\u989D(\u4F30\u7B97)", fmtCostCny(rec.cost, rateCny)],
+    ["\u8BA1\u4EF7\u6765\u6E90", rec.pricingSource ? { custom: "\u81EA\u5B9A\u4E49\u5355\u4EF7", official: "\u5B98\u7F51\u540C\u6B65\u4EF7", builtin: "\u5185\u7F6E\u9ED8\u8BA4\u4EF7", fallback: "\u515C\u5E95\u5355\u4EF7" }[rec.pricingSource] || rec.pricingSource : "\u2014"],
     ["\u63A8\u7406\u5F3A\u5EA6", rec.effort || "\u2014"],
     ["\u8017\u65F6", fmtDuration(rec.llmMs)],
     ["Turn / Step", rec.turn + " / " + rec.step]
@@ -2459,6 +2492,333 @@ function Detail({ rec, onClose, rate }) {
     ] }, k)),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", style: { marginTop: 12 }, onClick: onClose, children: "\u5173\u95ED" })
   ] }) });
+}
+function numStr(v) {
+  return v === void 0 || v === null ? "" : String(v);
+}
+function segToDraft(s) {
+  return {
+    start: numStr(s && s.start),
+    end: numStr(s && s.end),
+    input: numStr(s && s.input),
+    output: numStr(s && s.output),
+    cacheRead: numStr(s && s.cacheRead),
+    cacheWrite: numStr(s && s.cacheWrite)
+  };
+}
+function rowToDraft(r) {
+  return {
+    match: r.match || "",
+    input: numStr(r.input),
+    output: numStr(r.output),
+    cacheRead: numStr(r.cacheRead),
+    cacheWrite: numStr(r.cacheWrite),
+    // 旧数据可能是单段 peak（宿主已归一为 peaks，这里再兼容一次直连旧宿主的情况）
+    peaks: (Array.isArray(r.peaks) && r.peaks.length ? r.peaks : r.peak && typeof r.peak === "object" ? [r.peak] : []).map(segToDraft)
+  };
+}
+function newSegDraft() {
+  return segToDraft({ start: 9, end: 14, input: "", output: "", cacheRead: "", cacheWrite: "" });
+}
+function PriceModal({ onClose, onSaved }) {
+  const [maxed, setMaxed] = (0, import_react2.useState)(false);
+  const [geom, setGeom] = (0, import_react2.useState)(null);
+  const dlgRef = (0, import_react2.useRef)(null);
+  const dragRef = (0, import_react2.useRef)(null);
+  const startDrag = (0, import_react2.useCallback)((e, kind) => {
+    if (e.button !== void 0 && e.button !== 0) return;
+    if (kind === "move" && e.target && e.target.closest && e.target.closest("button,select,input,label,details,summary")) return;
+    const node = dlgRef.current;
+    if (!node) return;
+    const rect2 = node.getBoundingClientRect();
+    dragRef.current = { kind, startX: e.clientX, startY: e.clientY, left: rect2.left, top: rect2.top, w: rect2.width, h: rect2.height };
+    if (e.preventDefault) e.preventDefault();
+  }, []);
+  (0, import_react2.useEffect)(() => {
+    const onMove = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const dx = ev.clientX - d.startX, dy = ev.clientY - d.startY;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      if (d.kind === "move") {
+        const x = Math.min(Math.max(0, d.left + dx), Math.max(0, vw - 80));
+        const y = Math.min(Math.max(0, d.top + dy), Math.max(0, vh - 40));
+        setGeom({ x, y, w: d.w, h: d.h });
+      } else {
+        const w = Math.max(560, Math.min(d.w + dx, vw - 16));
+        const h = Math.max(360, Math.min(d.h + dy, vh - 16));
+        setGeom({ x: d.left, y: d.top, w, h });
+      }
+    };
+    const onUp = () => {
+      dragRef.current = null;
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, []);
+  (0, import_react2.useEffect)(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const style = maxed ? { position: "fixed", left: 8, top: 8, right: 8, bottom: 8, width: "auto", height: "auto" } : geom ? { position: "fixed", left: geom.x, top: geom.y, width: geom.w, height: geom.h } : null;
+  const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
+  const overlay = /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-pm-backdrop", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { ref: dlgRef, className: "dtok-pm" + (maxed ? " max" : ""), style, onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-pm-head", onPointerDown: (e) => startDrag(e, "move"), onDoubleClick: () => setMaxed((v) => !v), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "\u5355\u4EF7\u8BBE\u7F6E" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pm-sub", children: "\u4EBA\u6C11\u5E01\u5143 / \u767E\u4E07 tokens \xB7 \u81EA\u5B9A\u4E49\u5355\u4EF7\u4F18\u5148\u4E8E\u5B98\u7F51\u4EF7\u4E0E\u5185\u7F6E\u4EF7" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-pm-ctrls", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "dtok-btn tiny", title: maxed ? "\u8FD8\u539F" : "\u6700\u5927\u5316", onClick: () => setMaxed((v) => !v), children: maxed ? "\u2750" : "\u25A2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "dtok-btn tiny", title: "\u5173\u95ED", onClick: onClose, children: "\u2715" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-pm-body", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PricingEditor, { onClose, onSaved, embedded: true }) }),
+    maxed ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-pm-resize", title: "\u62D6\u52A8\u7F29\u653E", onPointerDown: (e) => startDrag(e, "resize") })
+  ] }) });
+  return portalTarget && typeof import_react2.default.createPortal === "function" ? import_react2.default.createPortal(overlay, portalTarget) : overlay;
+}
+function PricingEditor({ onClose, onSaved, embedded }) {
+  const [cfg, setCfg] = (0, import_react2.useState)(null);
+  const [rows, setRows] = (0, import_react2.useState)([]);
+  const [rate, setRate] = (0, import_react2.useState)("7.2");
+  const [fetchOn, setFetchOn] = (0, import_react2.useState)(true);
+  const [fb, setFb] = (0, import_react2.useState)({ input: "", output: "", cacheRead: "", cacheWrite: "" });
+  const [newMatch, setNewMatch] = (0, import_react2.useState)("");
+  const [msg, setMsg] = (0, import_react2.useState)(null);
+  const [saving, setSaving] = (0, import_react2.useState)(false);
+  (0, import_react2.useEffect)(() => {
+    let cancel = false;
+    rpcCall("pricing", {}).then((d) => {
+      if (cancel) return;
+      setCfg(d);
+      setRate(numStr(d.usdCnyRate));
+      setFetchOn(!!d.fetchOfficial);
+      setFb({
+        input: numStr(d.fallback && d.fallback.input),
+        output: numStr(d.fallback && d.fallback.output),
+        cacheRead: numStr(d.fallback && d.fallback.cacheRead),
+        cacheWrite: numStr(d.fallback && d.fallback.cacheWrite)
+      });
+      setRows((d.pricing || []).map(rowToDraft));
+    }).catch((e) => {
+      if (!cancel) setMsg({ ok: false, text: String(e && e.message || e) });
+    });
+    return () => {
+      cancel = true;
+    };
+  }, []);
+  const patchRow = (i, patch) => setRows((rs) => rs.map((r, j) => j === i ? Object.assign({}, r, patch) : r));
+  const delRow = (i) => setRows((rs) => rs.filter((_, j) => j !== i));
+  const addSeg = (i) => setRows((rs) => rs.map((r, j) => j === i ? Object.assign({}, r, { peaks: r.peaks.concat([newSegDraft()]) }) : r));
+  const delSeg = (i, k) => setRows((rs) => rs.map((r, j) => j === i ? Object.assign({}, r, { peaks: r.peaks.filter((_, x) => x !== k) }) : r));
+  const patchSeg = (i, k, patch) => setRows((rs) => rs.map((r, j) => j === i ? Object.assign({}, r, { peaks: r.peaks.map((s, x) => x === k ? Object.assign({}, s, patch) : s) }) : r));
+  const addRow = (m) => {
+    const match = String(m === void 0 ? newMatch : m).trim();
+    if (!match) return;
+    if (rows.some((r) => r.match.toLowerCase() === match.toLowerCase())) {
+      setMsg({ ok: false, text: "\u300C" + match + "\u300D\u5DF2\u5B58\u5728" });
+      return;
+    }
+    setRows((rs) => rs.concat([rowToDraft({ match, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })]));
+    setNewMatch("");
+    setMsg(null);
+  };
+  const save = () => {
+    if (saving) return;
+    const payload = { usdCnyRate: Number(rate), fetchOfficial: fetchOn };
+    payload.pricing = rows.map((r) => {
+      const out = {
+        match: String(r.match || "").trim(),
+        input: Number(r.input || 0),
+        output: Number(r.output || 0),
+        cacheRead: Number(r.cacheRead || 0),
+        cacheWrite: Number(r.cacheWrite || 0)
+      };
+      const peaks = (r.peaks || []).map((s) => ({
+        start: Number(s.start || 0),
+        end: Number(s.end || 0),
+        input: Number(s.input || 0),
+        output: Number(s.output || 0),
+        cacheRead: Number(s.cacheRead || 0),
+        cacheWrite: Number(s.cacheWrite || 0)
+      }));
+      if (peaks.length) out.peaks = peaks;
+      return out;
+    });
+    payload.fallback = {
+      input: Number(fb.input || 0),
+      output: Number(fb.output || 0),
+      cacheRead: Number(fb.cacheRead || 0),
+      cacheWrite: Number(fb.cacheWrite || 0)
+    };
+    setSaving(true);
+    setMsg(null);
+    rpcCall("setpricing", payload).then((d) => {
+      setCfg(d);
+      setRows((d.pricing || []).map(rowToDraft));
+      setMsg({ ok: true, text: "\u5355\u4EF7\u5DF2\u4FDD\u5B58\uFF0C\u8D39\u7528\u5DF2\u6309\u65B0\u4EF7\u5373\u65F6\u91CD\u7B97" });
+      if (onSaved) onSaved();
+    }).catch((e) => setMsg({ ok: false, text: String(e && e.message || e) })).finally(() => setSaving(false));
+  };
+  const configured = rows.map((r) => String(r.match).toLowerCase());
+  const candidates2 = (cfg && cfg.models || []).filter((m) => configured.indexOf(String(m).toLowerCase()) < 0);
+  const srcOf = (m) => cfg && cfg.sourcesByModel && cfg.sourcesByModel[m] || "";
+  const onFallback = (cfg && cfg.models || []).filter((m) => srcOf(m) === "\u515C\u5E95");
+  const num = (value, onChange, extra) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { className: "dtok-price-num", type: "number", min: "0", step: "0.01", value, onChange: (e) => onChange(e.target.value), style: extra });
+  const segNum = (value, onChange, placeholder) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    "input",
+    {
+      className: "dtok-price-num",
+      type: "number",
+      min: "0",
+      step: "0.01",
+      value,
+      placeholder,
+      onChange: (e) => onChange(e.target.value),
+      style: { width: 80 }
+    }
+  );
+  const segLabel = (s) => {
+    const a = numStr(s.start), b = numStr(s.end);
+    if (a === "" || b === "") return "\u65F6\u6BB5";
+    return a + "~" + b + (Number(a) === Number(b) ? "\uFF08\u5168\u5929\uFF09" : Number(a) > Number(b) ? "\uFF08\u8DE8\u96F6\u70B9\uFF09" : "");
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: embedded ? "dtok-price emb" : "dtok-price", onClick: (e) => e.stopPropagation(), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "USD\u2192CNY \u6C47\u7387" }),
+        num(rate, setRate)
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--dsw-alias-label-secondary)" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { type: "checkbox", checked: fetchOn, onChange: (e) => setFetchOn(e.target.checked) }),
+        "\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\uFF08\u5173\u95ED\u540E\u4EC5\u7528\u81EA\u5B9A\u4E49/\u5185\u7F6E\u4EF7\uFF09"
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-section-title", style: { margin: "0 0 4px" }, children: [
+        "\u6309\u6A21\u578B\u914D\u7F6E\u5355\u4EF7\uFF08",
+        rows.length,
+        " \u6761\uFF09"
+      ] }),
+      onFallback.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-hint", children: [
+        "\u4EE5\u4E0B\u7528\u8FC7\u7684\u6A21\u578B\u5F53\u524D\u8D70\u300C\u515C\u5E95\u4EF7\u300D\uFF0C\u5EFA\u8BAE\u4F18\u5148\u8865\u5355\u4EF7\uFF1A",
+        onFallback.join("\u3001")
+      ] }) : null,
+      rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", children: "\u5C1A\u672A\u914D\u7F6E\u81EA\u5B9A\u4E49\u5355\u4EF7\uFF0C\u5F53\u524D\u4F7F\u7528\u5B98\u7F51\u540C\u6B65\u4EF7 / \u5185\u7F6E\u4EF7 / \u515C\u5E95\u4EF7\u3002" }) : rows.map((r, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-prow", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-prow-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { className: "dtok-input", style: { maxWidth: 240 }, type: "text", value: r.match, placeholder: "\u6A21\u578B\u5339\u914D\uFF08\u5B50\u4E32\uFF09", onChange: (e) => patchRow(i, { match: e.target.value }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-src " + (srcOf(r.match) === "\u81EA\u5B9A\u4E49" ? "custom" : srcOf(r.match) === "\u515C\u5E95" ? "fallback" : ""), children: [
+            "\u5F53\u524D\u6765\u6E90\uFF1A",
+            srcOf(r.match) || "\u2014"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny", onClick: () => delRow(i), children: "\u5220\u9664\u6A21\u578B" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u8F93\u5165" }),
+            num(r.input, (v) => patchRow(i, { input: v }))
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u8F93\u51FA" }),
+            num(r.output, (v) => patchRow(i, { output: v }))
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u7F13\u5B58\u547D\u4E2D" }),
+            num(r.cacheRead, (v) => patchRow(i, { cacheRead: v }))
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u7F13\u5B58\u5199\u5165" }),
+            num(r.cacheWrite, (v) => patchRow(i, { cacheWrite: v }))
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { marginTop: 2 }, children: "\u5206\u65F6\u6BB5\u4EF7\uFF08\u53EF\u591A\u6BB5\uFF0C\u547D\u4E2D\u54EA\u6BB5\u7528\u54EA\u6BB5\uFF1B\u65F6\u6BB5\u5916\u56DE\u843D\u5230\u57FA\u51C6\u4EF7\u3002start>end \u8868\u793A\u8DE8\u96F6\u70B9\uFF0C\u5982 23~7\uFF1Bstart=end \u8868\u793A\u5168\u5929\uFF09" }),
+        r.peaks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", children: "\uFF08\u672A\u8BBE\u7F6E\u5206\u65F6\u6BB5\uFF0C\u6309\u57FA\u51C6\u4EF7\u8BA1\u8D39\uFF09" }) : null,
+        r.peaks.map((s, k) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-pseg", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pseg-name", children: segLabel(s) }),
+          num(s.start, (v) => patchSeg(i, k, { start: v }), { width: 56 }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pseg-tilde", children: "~" }),
+          num(s.end, (v) => patchSeg(i, k, { end: v }), { width: 56 }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pseg-tilde", children: "\u65F6" }),
+          segNum(s.input, (v) => patchSeg(i, k, { input: v }), "\u8F93\u5165"),
+          segNum(s.output, (v) => patchSeg(i, k, { output: v }), "\u8F93\u51FA"),
+          segNum(s.cacheRead, (v) => patchSeg(i, k, { cacheRead: v }), "\u7F13\u5B58\u547D\u4E2D"),
+          segNum(s.cacheWrite, (v) => patchSeg(i, k, { cacheWrite: v }), "\u7F13\u5B58\u5199\u5165"),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny", onClick: () => delSeg(i, k), children: "\u5220\u9664\u65F6\u6BB5" })
+        ] }, k)),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { opacity: 0.85 }, children: "\u65F6\u6BB5\u4EF7\u4ECE\u5DE6\u5230\u53F3\uFF1A\u8F93\u5165 / \u8F93\u51FA / \u7F13\u5B58\u547D\u4E2D / \u7F13\u5B58\u5199\u5165" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny", onClick: () => addSeg(i), children: "+ \u6DFB\u52A0\u65F6\u6BB5" })
+      ] }, i)),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", style: { marginTop: 6 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", style: { flex: "0 0 220px" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u65B0\u589E\u6A21\u578B\u5339\u914D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { className: "dtok-input", style: { maxWidth: 220 }, type: "text", list: "dtok-model-candidates", placeholder: "\u5982 deepseek-v4-flash \u6216\u67D0\u4E2D\u8F6C\u6A21\u578B\u540D", value: newMatch, onChange: (e) => setNewMatch(e.target.value) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("datalist", { id: "dtok-model-candidates", children: candidates2.map((m) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: m }, m)) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", onClick: () => addRow(), children: "+ \u6DFB\u52A0" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-hint", children: [
+        "\u63D0\u793A\uFF1A\u5339\u914D\u662F\u300C\u6A21\u578B\u540D\u5305\u542B\u8BE5\u5B50\u4E32\u300D\uFF0C\u53EF\u53EA\u5199\u5173\u952E\u7247\u6BB5\uFF08\u5982 ",
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "v4-flash" }),
+        "\uFF09\uFF1B\u8D8A\u5177\u4F53\u7684\u6761\u76EE\u5EFA\u8BAE\u653E\u8D8A\u524D\uFF08\u5F53\u524D\u6309\u5217\u8868\u987A\u5E8F\u547D\u4E2D\uFF09\u3002"
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-section-title", style: { margin: "0 0 4px" }, children: "\u515C\u5E95\u5355\u4EF7\uFF08\u672A\u5339\u914D\u4EFB\u4F55\u6761\u76EE\u65F6\u4F7F\u7528\uFF09" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u8F93\u5165" }),
+          num(fb.input, (v) => setFb((s) => Object.assign({}, s, { input: v })))
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u8F93\u51FA" }),
+          num(fb.output, (v) => setFb((s) => Object.assign({}, s, { output: v })))
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u7F13\u5B58\u547D\u4E2D" }),
+          num(fb.cacheRead, (v) => setFb((s) => Object.assign({}, s, { cacheRead: v })))
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u7F13\u5B58\u5199\u5165" }),
+          num(fb.cacheWrite, (v) => setFb((s) => Object.assign({}, s, { cacheWrite: v })))
+        ] })
+      ] })
+    ] }),
+    cfg && cfg.builtin && cfg.builtin.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("summary", { className: "dtok-price-hint", style: { cursor: "pointer" }, children: [
+        "\u67E5\u770B\u5185\u7F6E\u9ED8\u8BA4\u5355\u4EF7\uFF08",
+        cfg.builtin.length,
+        " \u6761\uFF0C\u81EA\u5B9A\u4E49\u914D\u7F6E\u672A\u547D\u4E2D\u65F6\u6309\u6B64\u515C\u5E95\uFF09"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-table-wrap", style: { marginTop: 6 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", { className: "dtok-table", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u5339\u914D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u51FA" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7F13\u5B58\u547D\u4E2D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7F13\u5B58\u5199\u5165" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u5206\u65F6\u6BB5" })
+        ] }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: cfg.builtin.map((b) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.match }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.input }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.output }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.cacheRead }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.cacheWrite }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.peaks && b.peaks.length ? b.peaks.map((s) => s.start + "~" + s.end).join("\u3001") + "\u65F6" : "\u2014" })
+        ] }, b.match)) })
+      ] }) })
+    ] }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn primary", disabled: saving, onClick: save, children: saving ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u5355\u4EF7" }),
+      msg ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-price-msg " + (msg.ok ? "ok" : "err"), children: msg.text }) : null
+    ] })
+  ] });
 }
 function TokenLogView(props) {
   const navSession = props && props.params && props.params.sessionId ? props.params.sessionId : null;
@@ -2478,6 +2838,7 @@ function TokenLogView(props) {
   const [err, setErr] = (0, import_react2.useState)("");
   const [page, setPage] = (0, import_react2.useState)(0);
   const [detailRec, setDetailRec] = (0, import_react2.useState)(null);
+  const [showPricing, setShowPricing] = (0, import_react2.useState)(() => !!(props && props.params && props.params.openPricing));
   const pageSize = 100;
   (0, import_react2.useEffect)(() => {
     saveFilters({ fromStr, toStr, provider, model, status, effort, sessionId, dim });
@@ -2648,7 +3009,13 @@ function TokenLogView(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.outputTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.reasoningTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.totalTokens) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCostCny(r.cost, rateCny) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { title: r.pricingSource ? "\u8BA1\u4EF7\u6765\u6E90\uFF1A" + ({ custom: "\u81EA\u5B9A\u4E49\u5355\u4EF7", official: "\u5B98\u7F51\u540C\u6B65\u4EF7", builtin: "\u5185\u7F6E\u9ED8\u8BA4\u4EF7", fallback: "\u515C\u5E95\u5355\u4EF7" }[r.pricingSource] || r.pricingSource) : "", children: [
+        fmtCostCny(r.cost, rateCny),
+        r.pricingSource === "fallback" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-src fallback", children: [
+          " ",
+          "\u515C\u5E95"
+        ] }) : null
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.effort || "\u2014" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-code " + st.cls, children: st.label }) }),
@@ -2779,8 +3146,16 @@ function TokenLogView(props) {
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn primary", onClick: runQuery, children: "\u67E5\u8BE2" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", onClick: resetFilters, children: "\u91CD\u7F6E" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", onClick: exportCsv, children: "\u5BFC\u51FA CSV" })
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", onClick: exportCsv, children: "\u5BFC\u51FA CSV" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn" + (showPricing ? " primary" : ""), onClick: () => setShowPricing(true), title: "\u914D\u7F6E\u5404\u6A21\u578B\u5355\u4EF7\uFF0C\u8D39\u7528\u6309\u81EA\u586B\u5355\u4EF7\u8BA1\u7B97", children: "\u5355\u4EF7\u8BBE\u7F6E" })
     ] }),
+    showPricing ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PriceModal, { onClose: () => setShowPricing(false), onSaved: runQuery }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-status", children: data && data.pricingInfo ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+      "\u8BA1\u4EF7\uFF1A",
+      data.pricingInfo.hasCustom ? "\u81EA\u5B9A\u4E49\u5355\u4EF7 " + data.pricingInfo.customCount + " \u6761" : "\u672A\u914D\u7F6E\u81EA\u5B9A\u4E49\u5355\u4EF7",
+      " \xB7 \u5B98\u7F51\u81EA\u52A8\u540C\u6B65\uFF1A" + (data.pricingInfo.fetchOfficial ? "\u5F00" : "\u5173"),
+      data.pricingInfo.sources && data.pricingInfo.sources.length ? " \xB7 \u672C\u9875\u6D89\u53CA\u6765\u6E90\uFF1A" + data.pricingInfo.sources.join("/") : ""
+    ] }) : null }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-body", children: bodyNodes }),
     detailRec ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Detail, { rec: detailRec, onClose: () => setDetailRec(null), rate: rateCny }) : null
   ] });
@@ -2859,7 +3234,7 @@ var feature = {
   name: "\u7528\u91CF\u8BB0\u5F55",
   order: 110,
   accent: "#fbbf24",
-  description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u65F6\u95F4\u7B5B\u9009\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u5CF0\u8C37\u8BA1\u4EF7+\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
+  description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u65F6\u95F4\u7B5B\u9009\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u53EF\u914D\u7F6E\u5404\u6A21\u578B\u5355\u4EF7\uFF0C\u6301\u4E45\u4FDD\u5B58\u5E76\u6309\u81EA\u586B\u5355\u4EF7\u8BA1\u8D39\uFF1B\u5185\u7F6E\u5CF0\u8C37\u8BA1\u4EF7+\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\u4F5C\u515C\u5E95\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
   css,
   View: TokenLogView,
   HomeStat: TokenLogHomeStat,
@@ -10503,7 +10878,7 @@ var feature10 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.10.3";
+var DOCK_VERSION = "0.11.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
@@ -11035,7 +11410,7 @@ function HomeView(props) {
     })
   );
 }
-function DockPanel() {
+function DockPanel(props) {
   const ctx = ctxRef.current;
   const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
@@ -11061,7 +11436,7 @@ function DockPanel() {
         import_react22.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react22.default.createElement(View, { ctx, feature: f })
+          import_react22.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
       return import_react22.default.createElement(
@@ -11164,7 +11539,7 @@ function apply(ctx) {
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    () => import_react22.default.createElement(DockPanel, null)
+    (props) => import_react22.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },

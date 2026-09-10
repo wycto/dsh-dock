@@ -47,6 +47,10 @@
 | 两者都改 | 三条都跑 |
 | 新增/改动功能模块 | 上面三条 + 在 `scripts/test-client-views.mjs` 的 `FEATURES` 里补一行断言 |
 
+- `npm run test:host` 目前由两个用例文件组成：`scripts/test-task-host.mjs`（动画/通知/运行状态
+  共享追踪与配置隔离）与 `scripts/test-tokenlog-host.mjs`（用量记录单价配置/费用重算/出站校验）；
+  新增宿主功能时按同样方式追加，并在 `package.json` 的 `test:host` 里串上。
+
 - `client.js` 是**构建产物**（提交进仓库、随包发布），改完客户端源码必须重建，不要手改产物。
 - 宿主半部的改动要**重启 `dsh web`** 才生效；纯客户端改动刷新页面即可。
 

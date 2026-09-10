@@ -4,9 +4,10 @@
 //  - 秒级时间范围查询 + 会话ID/提供商/模型(联动)/状态/推理强度 筛选，条件本地暂存
 //  - 9 张 KPI 卡 + 分组统计表 + 明细表（点击表头排序、会话ID点击即筛选、100 行/页上下双分页）
 //  - 状态列显示 HTTP 状态码徽章，行内【查看详情】弹窗展示完整信息；CSV 导出
+//  - 独立的「单价设置」子弹窗：按模型配置单价（支持多段分时价）并持久化，费用按自填单价重算
 //  - 挂载即扫描历史+按暂存条件查询；挂载期间每 5s 静默自动刷新
 // Host 通信：fetch('/dsh-dock/tokenlog/<method>')（见 features/tokenlog/host.js）。
-import { useState, useEffect, useCallback, useMemo } from "react";
+import react, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { openPanel } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
@@ -141,6 +142,38 @@ const css = `
 .dtok-pager.top{margin:0;}
 .dtok-pager.bottom{margin:0;}
 .dtok-err{color:var(--dsw-alias-state-error-primary,#ff7a7a);font-size:12px;}
+/* ---- 单价设置（子弹窗） ---- */
+.dtok-pm-backdrop{position:fixed;inset:0;z-index:2100;background:rgba(15,17,21,.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;}
+.dtok-pm{box-sizing:border-box;width:min(980px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2,#1c212b);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .4);overflow:hidden;}
+.dtok-pm.max{border-radius:10px;}
+.dtok-pm-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);cursor:move;user-select:none;flex:none;background:var(--dsw-alias-bg-layer-1);}
+.dtok-pm.max .dtok-pm-head{cursor:default;}
+.dtok-pm-head b{font-size:14px;}
+.dtok-pm-sub{font-size:11px;color:var(--dsw-alias-label-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dtok-pm-ctrls{display:flex;gap:6px;flex:none;}
+.dtok-pm-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px;}
+.dtok-pm-resize{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;touch-action:none;}
+.dtok-pm{position:relative;}
+/* ---- 单价设置（表单内容） ---- */
+.dtok-price{display:flex;flex-direction:column;gap:12px;}
+.dtok-price-grid{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+.dtok-price-field{display:flex;flex-direction:column;gap:3px;}
+.dtok-price-field label{font-size:11px;color:var(--dsw-alias-label-secondary);}
+.dtok-price-num{width:92px;}
+.dtok-price input[type="text"],.dtok-price-num{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+.dtok-price .dtok-btn.tiny{padding:2px 8px;font-size:11px;}
+.dtok-price-msg{font-size:12px;}
+.dtok-price-msg.ok{color:var(--dsw-alias-state-success-primary,#4ade80);}
+.dtok-price-msg.err{color:var(--dsw-alias-state-error-primary,#ff7a7a);}
+.dtok-price-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.6;}
+.dtok-prow{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:8px 10px;margin-bottom:8px;background:var(--dsw-alias-bg-layer-1);}
+.dtok-prow-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.dtok-pseg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0;}
+.dtok-pseg-name{font-size:11px;color:var(--dsw-alias-label-secondary);min-width:112px;}
+.dtok-pseg-tilde{font-size:11px;color:var(--dsw-alias-label-secondary);}
+.dtok-src{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);}
+.dtok-src.custom{color:var(--dsw-alias-state-success-primary,#4ade80);}
+.dtok-src.fallback{color:var(--dk-warn);}
 `;
 
 // ---------- 详情弹窗 ----------
@@ -165,6 +198,7 @@ function Detail({ rec, onClose, rate }) {
 		["缓存命中率", rec.cacheHitPercent + "%"],
 		["总 Token", fmtNum(rec.totalTokens)],
 		["消耗金额(估算)", fmtCostCny(rec.cost, rateCny)],
+		["计价来源", rec.pricingSource ? ({ custom: "自定义单价", official: "官网同步价", builtin: "内置默认价", fallback: "兜底单价" }[rec.pricingSource] || rec.pricingSource) : "—"],
 		["推理强度", rec.effort || "—"],
 		["耗时", fmtDuration(rec.llmMs)],
 		["Turn / Step", rec.turn + " / " + rec.step],
@@ -180,6 +214,313 @@ function Detail({ rec, onClose, rate }) {
 					</div>
 				))}
 				<button className="dtok-btn" style={{ marginTop: 12 }} onClick={onClose}>关闭</button>
+			</div>
+		</div>
+	);
+}
+
+// ---------- 单价设置 ----------
+// 官网抓取的刊例价常与实际计费不符（第三方中转/折扣/自建端点），这里让用户按模型填写
+// 真实单价并持久化到宿主 settings；保存后费用即时按新价重算（无需重扫历史）。
+// 独立子弹窗（可最大化 / 拖动 / 缩放），与功能坞面板解耦，方便配置较长时段表。
+function numStr(v) { return v === undefined || v === null ? "" : String(v); }
+
+/** 时段草稿：一个 { start,end,input,output,cacheRead,cacheWrite } 的可编辑副本。 */
+function segToDraft(s) {
+	return {
+		start: numStr(s && s.start), end: numStr(s && s.end),
+		input: numStr(s && s.input), output: numStr(s && s.output),
+		cacheRead: numStr(s && s.cacheRead), cacheWrite: numStr(s && s.cacheWrite),
+	};
+}
+function rowToDraft(r) {
+	return {
+		match: r.match || "",
+		input: numStr(r.input), output: numStr(r.output),
+		cacheRead: numStr(r.cacheRead), cacheWrite: numStr(r.cacheWrite),
+		// 旧数据可能是单段 peak（宿主已归一为 peaks，这里再兼容一次直连旧宿主的情况）
+		peaks: (Array.isArray(r.peaks) && r.peaks.length ? r.peaks
+			: (r.peak && typeof r.peak === "object" ? [r.peak] : [])).map(segToDraft),
+	};
+}
+/** 默认新时段草稿：给一组常见值，减少手填。 */
+function newSegDraft() { return segToDraft({ start: 9, end: 14, input: "", output: "", cacheRead: "", cacheWrite: "" }); }
+
+// ---------- 单价设置子弹窗（独立于功能坞弹层的覆盖层，可最大化/拖动/缩放） ----------
+// 挂在 document.body 上：功能坞弹层自身 z-index:200，子弹窗用更高层级；面板滚动不影响定位。
+function PriceModal({ onClose, onSaved }) {
+	const [maxed, setMaxed] = useState(false);
+	const [geom, setGeom] = useState(null); // { x, y, w, h }；null = CSS 默认居中
+	const dlgRef = useRef(null);
+	const dragRef = useRef(null);
+
+	// 拖动（标题栏）/ 缩放（右下角手柄）：用 window 级 pointer 监听，指针移出元素也不丢
+	const startDrag = useCallback((e, kind) => {
+		if (e.button !== undefined && e.button !== 0) return;
+		if (kind === "move" && e.target && e.target.closest && e.target.closest("button,select,input,label,details,summary")) return;
+		const node = dlgRef.current;
+		if (!node) return;
+		const rect = node.getBoundingClientRect();
+		dragRef.current = { kind, startX: e.clientX, startY: e.clientY, left: rect.left, top: rect.top, w: rect.width, h: rect.height };
+		if (e.preventDefault) e.preventDefault();
+	}, []);
+	useEffect(() => {
+		const onMove = (ev) => {
+			const d = dragRef.current;
+			if (!d) return;
+			const dx = ev.clientX - d.startX, dy = ev.clientY - d.startY;
+			const vw = window.innerWidth, vh = window.innerHeight;
+			if (d.kind === "move") {
+				const x = Math.min(Math.max(0, d.left + dx), Math.max(0, vw - 80));
+				const y = Math.min(Math.max(0, d.top + dy), Math.max(0, vh - 40));
+				setGeom({ x: x, y: y, w: d.w, h: d.h });
+			} else {
+				const w = Math.max(560, Math.min(d.w + dx, vw - 16));
+				const h = Math.max(360, Math.min(d.h + dy, vh - 16));
+				setGeom({ x: d.left, y: d.top, w: w, h: h });
+			}
+		};
+		const onUp = () => { dragRef.current = null; };
+		window.addEventListener("pointermove", onMove);
+		window.addEventListener("pointerup", onUp);
+		return () => {
+			window.removeEventListener("pointermove", onMove);
+			window.removeEventListener("pointerup", onUp);
+		};
+	}, []);
+	// Esc 关闭（子弹窗在弹层之上，先关自己）
+	useEffect(() => {
+		const onKey = (e) => { if (e.key === "Escape") onClose(); };
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [onClose]);
+
+	const style = maxed
+		? { position: "fixed", left: 8, top: 8, right: 8, bottom: 8, width: "auto", height: "auto" }
+		: geom
+			? { position: "fixed", left: geom.x, top: geom.y, width: geom.w, height: geom.h }
+			: null;
+	// 挂到 document.body：功能坞弹层祖先带 backdrop-filter（会改变 fixed 定位的包含块），
+	// 设置页祖先也不可控；portal 到 body 才能保证覆盖整屏、不被裁剪。
+	// 无 document（测试沙箱）/无 createPortal 时退回就地渲染，行为不变。
+	const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
+	const overlay = (
+		<div className="dtok-pm-backdrop" onClick={onClose}>
+			<div ref={dlgRef} className={"dtok-pm" + (maxed ? " max" : "")} style={style} onClick={(e) => e.stopPropagation()}>
+				<div className="dtok-pm-head" onPointerDown={(e) => startDrag(e, "move")} onDoubleClick={() => setMaxed((v) => !v)}>
+					<b>单价设置</b>
+					<span className="dtok-pm-sub">人民币元 / 百万 tokens · 自定义单价优先于官网价与内置价</span>
+					<span className="dtok-pm-ctrls">
+						<button type="button" className="dtok-btn tiny" title={maxed ? "还原" : "最大化"} onClick={() => setMaxed((v) => !v)}>{maxed ? "❐" : "▢"}</button>
+						<button type="button" className="dtok-btn tiny" title="关闭" onClick={onClose}>✕</button>
+					</span>
+				</div>
+				<div className="dtok-pm-body">
+					<PricingEditor onClose={onClose} onSaved={onSaved} embedded />
+				</div>
+				{maxed ? null : <div className="dtok-pm-resize" title="拖动缩放" onPointerDown={(e) => startDrag(e, "resize")} />}
+			</div>
+		</div>
+	);
+	return portalTarget && typeof react.createPortal === "function"
+		? react.createPortal(overlay, portalTarget)
+		: overlay;
+}
+
+function PricingEditor({ onClose, onSaved, embedded }) {
+	const [cfg, setCfg] = useState(null);
+	const [rows, setRows] = useState([]);
+	const [rate, setRate] = useState("7.2");
+	const [fetchOn, setFetchOn] = useState(true);
+	const [fb, setFb] = useState({ input: "", output: "", cacheRead: "", cacheWrite: "" });
+	const [newMatch, setNewMatch] = useState("");
+	const [msg, setMsg] = useState(null);
+	const [saving, setSaving] = useState(false);
+
+	useEffect(() => {
+		let cancel = false;
+		rpcCall("pricing", {})
+			.then((d) => {
+				if (cancel) return;
+				setCfg(d);
+				setRate(numStr(d.usdCnyRate));
+				setFetchOn(!!d.fetchOfficial);
+				setFb({
+					input: numStr(d.fallback && d.fallback.input), output: numStr(d.fallback && d.fallback.output),
+					cacheRead: numStr(d.fallback && d.fallback.cacheRead), cacheWrite: numStr(d.fallback && d.fallback.cacheWrite),
+				});
+				setRows((d.pricing || []).map(rowToDraft));
+			})
+			.catch((e) => { if (!cancel) setMsg({ ok: false, text: String((e && e.message) || e) }); });
+		return () => { cancel = true; };
+	}, []);
+
+	const patchRow = (i, patch) => setRows((rs) => rs.map((r, j) => (j === i ? Object.assign({}, r, patch) : r)));
+	const delRow = (i) => setRows((rs) => rs.filter((_, j) => j !== i));
+	// 时段增删改：都作用在 rows[i].peaks 数组上
+	const addSeg = (i) => setRows((rs) => rs.map((r, j) => (j === i ? Object.assign({}, r, { peaks: r.peaks.concat([newSegDraft()]) }) : r)));
+	const delSeg = (i, k) => setRows((rs) => rs.map((r, j) => (j === i ? Object.assign({}, r, { peaks: r.peaks.filter((_, x) => x !== k) }) : r)));
+	const patchSeg = (i, k, patch) => setRows((rs) => rs.map((r, j) => (j === i
+		? Object.assign({}, r, { peaks: r.peaks.map((s, x) => (x === k ? Object.assign({}, s, patch) : s)) }) : r)));
+	const addRow = (m) => {
+		const match = String(m === undefined ? newMatch : m).trim();
+		if (!match) return;
+		if (rows.some((r) => r.match.toLowerCase() === match.toLowerCase())) { setMsg({ ok: false, text: "「" + match + "」已存在" }); return; }
+		setRows((rs) => rs.concat([rowToDraft({ match: match, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })]));
+		setNewMatch("");
+		setMsg(null);
+	};
+
+	const save = () => {
+		if (saving) return;
+		const payload = { usdCnyRate: Number(rate), fetchOfficial: fetchOn };
+		payload.pricing = rows.map((r) => {
+			const out = {
+				match: String(r.match || "").trim(),
+				input: Number(r.input || 0), output: Number(r.output || 0),
+				cacheRead: Number(r.cacheRead || 0), cacheWrite: Number(r.cacheWrite || 0),
+			};
+			const peaks = (r.peaks || []).map((s) => ({
+				start: Number(s.start || 0), end: Number(s.end || 0),
+				input: Number(s.input || 0), output: Number(s.output || 0),
+				cacheRead: Number(s.cacheRead || 0), cacheWrite: Number(s.cacheWrite || 0),
+			}));
+			if (peaks.length) out.peaks = peaks;
+			return out;
+		});
+		payload.fallback = {
+			input: Number(fb.input || 0), output: Number(fb.output || 0),
+			cacheRead: Number(fb.cacheRead || 0), cacheWrite: Number(fb.cacheWrite || 0),
+		};
+		setSaving(true); setMsg(null);
+		rpcCall("setpricing", payload)
+			.then((d) => {
+				setCfg(d);
+				setRows((d.pricing || []).map(rowToDraft));
+				setMsg({ ok: true, text: "单价已保存，费用已按新价即时重算" });
+				if (onSaved) onSaved();
+			})
+			.catch((e) => setMsg({ ok: false, text: String((e && e.message) || e) }))
+			.finally(() => setSaving(false));
+	};
+
+	const configured = rows.map((r) => String(r.match).toLowerCase());
+	const candidates = ((cfg && cfg.models) || []).filter((m) => configured.indexOf(String(m).toLowerCase()) < 0);
+	const srcOf = (m) => (cfg && cfg.sourcesByModel && cfg.sourcesByModel[m]) || "";
+	// 哪些已用模型当前走兜底价——提示用户优先补这些
+	const onFallback = ((cfg && cfg.models) || []).filter((m) => srcOf(m) === "兜底");
+	const num = (value, onChange, extra) => (
+		<input className="dtok-price-num" type="number" min="0" step="0.01" value={value} onChange={(e) => onChange(e.target.value)} style={extra} />
+	);
+	// 时段价输入带占位提示（四个数值框从左到右含义不同，仅靠下方说明易填错）
+	const segNum = (value, onChange, placeholder) => (
+		<input className="dtok-price-num" type="number" min="0" step="0.01" value={value} placeholder={placeholder}
+			onChange={(e) => onChange(e.target.value)} style={{ width: 80 }} />
+	);
+	const segLabel = (s) => {
+		const a = numStr(s.start), b = numStr(s.end);
+		if (a === "" || b === "") return "时段";
+		return a + "~" + b + (Number(a) === Number(b) ? "（全天）" : Number(a) > Number(b) ? "（跨零点）" : "");
+	};
+
+	return (
+		<div className={embedded ? "dtok-price emb" : "dtok-price"} onClick={(e) => e.stopPropagation()}>
+			<div className="dtok-price-grid">
+				<div className="dtok-price-field">
+					<label>USD→CNY 汇率</label>
+					{num(rate, setRate)}
+				</div>
+				<label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--dsw-alias-label-secondary)" }}>
+					<input type="checkbox" checked={fetchOn} onChange={(e) => setFetchOn(e.target.checked)} />
+					官网价目自动同步（关闭后仅用自定义/内置价）
+				</label>
+			</div>
+
+			<div>
+				<div className="dtok-section-title" style={{ margin: "0 0 4px" }}>按模型配置单价（{rows.length} 条）</div>
+				{onFallback.length > 0 ? (
+					<div className="dtok-price-hint">以下用过的模型当前走「兜底价」，建议优先补单价：{onFallback.join("、")}</div>
+				) : null}
+				{rows.length === 0 ? (
+					<div className="dtok-price-hint">尚未配置自定义单价，当前使用官网同步价 / 内置价 / 兜底价。</div>
+				) : rows.map((r, i) => (
+					<div className="dtok-prow" key={i}>
+						<div className="dtok-prow-head">
+							<input className="dtok-input" style={{ maxWidth: 240 }} type="text" value={r.match} placeholder="模型匹配（子串）" onChange={(e) => patchRow(i, { match: e.target.value })} />
+							<span className={"dtok-src " + (srcOf(r.match) === "自定义" ? "custom" : srcOf(r.match) === "兜底" ? "fallback" : "")}>当前来源：{srcOf(r.match) || "—"}</span>
+							<button className="dtok-btn tiny" onClick={() => delRow(i)}>删除模型</button>
+						</div>
+						<div className="dtok-price-grid">
+							<div className="dtok-price-field"><label>基准输入</label>{num(r.input, (v) => patchRow(i, { input: v }))}</div>
+							<div className="dtok-price-field"><label>基准输出</label>{num(r.output, (v) => patchRow(i, { output: v }))}</div>
+							<div className="dtok-price-field"><label>基准缓存命中</label>{num(r.cacheRead, (v) => patchRow(i, { cacheRead: v }))}</div>
+							<div className="dtok-price-field"><label>基准缓存写入</label>{num(r.cacheWrite, (v) => patchRow(i, { cacheWrite: v }))}</div>
+						</div>
+						<div className="dtok-price-hint" style={{ marginTop: 2 }}>
+							分时段价（可多段，命中哪段用哪段；时段外回落到基准价。start&gt;end 表示跨零点，如 23~7；start=end 表示全天）
+						</div>
+						{r.peaks.length === 0 ? <div className="dtok-price-hint">（未设置分时段，按基准价计费）</div> : null}
+						{r.peaks.map((s, k) => (
+							<div className="dtok-pseg" key={k}>
+								<span className="dtok-pseg-name">{segLabel(s)}</span>
+								{num(s.start, (v) => patchSeg(i, k, { start: v }), { width: 56 })}
+								<span className="dtok-pseg-tilde">~</span>
+								{num(s.end, (v) => patchSeg(i, k, { end: v }), { width: 56 })}
+								<span className="dtok-pseg-tilde">时</span>
+								{segNum(s.input, (v) => patchSeg(i, k, { input: v }), "输入")}
+								{segNum(s.output, (v) => patchSeg(i, k, { output: v }), "输出")}
+								{segNum(s.cacheRead, (v) => patchSeg(i, k, { cacheRead: v }), "缓存命中")}
+								{segNum(s.cacheWrite, (v) => patchSeg(i, k, { cacheWrite: v }), "缓存写入")}
+								<button className="dtok-btn tiny" onClick={() => delSeg(i, k)}>删除时段</button>
+							</div>
+						))}
+						<div className="dtok-price-hint" style={{ opacity: .85 }}>时段价从左到右：输入 / 输出 / 缓存命中 / 缓存写入</div>
+						<button className="dtok-btn tiny" onClick={() => addSeg(i)}>+ 添加时段</button>
+					</div>
+				))}
+				<div className="dtok-price-grid" style={{ marginTop: 6 }}>
+					<div className="dtok-price-field" style={{ flex: "0 0 220px" }}>
+						<label>新增模型匹配</label>
+						<input className="dtok-input" style={{ maxWidth: 220 }} type="text" list="dtok-model-candidates" placeholder="如 deepseek-v4-flash 或某中转模型名" value={newMatch} onChange={(e) => setNewMatch(e.target.value)} />
+						<datalist id="dtok-model-candidates">{candidates.map((m) => <option key={m} value={m} />)}</datalist>
+					</div>
+					<button className="dtok-btn" onClick={() => addRow()}>+ 添加</button>
+				</div>
+				<div className="dtok-price-hint">提示：匹配是「模型名包含该子串」，可只写关键片段（如 <code>v4-flash</code>）；越具体的条目建议放越前（当前按列表顺序命中）。</div>
+			</div>
+
+			<div>
+				<div className="dtok-section-title" style={{ margin: "0 0 4px" }}>兜底单价（未匹配任何条目时使用）</div>
+				<div className="dtok-price-grid">
+					<div className="dtok-price-field"><label>输入</label>{num(fb.input, (v) => setFb((s) => Object.assign({}, s, { input: v })))}</div>
+					<div className="dtok-price-field"><label>输出</label>{num(fb.output, (v) => setFb((s) => Object.assign({}, s, { output: v })))}</div>
+					<div className="dtok-price-field"><label>缓存命中</label>{num(fb.cacheRead, (v) => setFb((s) => Object.assign({}, s, { cacheRead: v })))}</div>
+					<div className="dtok-price-field"><label>缓存写入</label>{num(fb.cacheWrite, (v) => setFb((s) => Object.assign({}, s, { cacheWrite: v })))}</div>
+				</div>
+			</div>
+
+			{cfg && cfg.builtin && cfg.builtin.length > 0 ? (
+				<details>
+					<summary className="dtok-price-hint" style={{ cursor: "pointer" }}>查看内置默认单价（{cfg.builtin.length} 条，自定义配置未命中时按此兜底）</summary>
+					<div className="dtok-table-wrap" style={{ marginTop: 6 }}>
+						<table className="dtok-table">
+							<thead><tr><th>匹配</th><th>输入</th><th>输出</th><th>缓存命中</th><th>缓存写入</th><th>分时段</th></tr></thead>
+							<tbody>
+								{cfg.builtin.map((b) => (
+									<tr key={b.match}>
+										<td>{b.match}</td><td>{b.input}</td><td>{b.output}</td><td>{b.cacheRead}</td><td>{b.cacheWrite}</td>
+										<td>{b.peaks && b.peaks.length ? b.peaks.map((s) => s.start + "~" + s.end).join("、") + "时" : "—"}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</details>
+			) : null}
+
+			<div className="dtok-price-grid">
+				<button className="dtok-btn primary" disabled={saving} onClick={save}>{saving ? "保存中…" : "保存单价"}</button>
+				{msg ? <span className={"dtok-price-msg " + (msg.ok ? "ok" : "err")}>{msg.text}</span> : null}
 			</div>
 		</div>
 	);
@@ -206,6 +547,9 @@ export function TokenLogView(props) {
 	const [err, setErr] = useState("");
 	const [page, setPage] = useState(0);
 	const [detailRec, setDetailRec] = useState(null);
+	// 「单价设置」折叠面板：默认收起（费用不准确时才需要展开调整）
+	// 「单价设置」子弹窗：默认收起；支持经 params.openPricing 直接打开（深链/测试用）
+	const [showPricing, setShowPricing] = useState(() => !!(props && props.params && props.params.openPricing));
 	const pageSize = 100;
 
 	// 暂存筛选条件: 任一筛选变化即写入 localStorage, 下次打开恢复同样条件
@@ -333,7 +677,7 @@ export function TokenLogView(props) {
 	const pageSafe = Math.min(page, pageCount - 1);
 	const pageRows = sorted.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize);
 
-	// USD→CNY 汇率: host 返回(默认 7.2, 可被 settings dsh-dock-tokenlog.usdCnyRate 覆盖)。
+	// USD→CNY 汇率: host 返回(默认 7.2, 可被 settings dsh-dock.tokenlog.usdCnyRate 覆盖)。
 	// 注意: 必须在本文件所有引用它的表达式(cards/summaryRows/detailRows/Detail)之前声明。
 	const rateCny = (data && data.rateUsdCny) || 7.2;
 
@@ -386,7 +730,10 @@ export function TokenLogView(props) {
 				<td>{fmtNum(r.outputTokens)}</td>
 				<td>{fmtNum(r.reasoningTokens)}</td>
 				<td>{fmtNum(r.totalTokens)}</td>
-				<td>{fmtCostCny(r.cost, rateCny)}</td>
+				<td title={r.pricingSource ? "计价来源：" + ({ custom: "自定义单价", official: "官网同步价", builtin: "内置默认价", fallback: "兜底单价" }[r.pricingSource] || r.pricingSource) : ""}>
+					{fmtCostCny(r.cost, rateCny)}
+					{r.pricingSource === "fallback" ? <span className="dtok-src fallback">{" "}兜底</span> : null}
+				</td>
 				<td>{r.effort || "—"}</td>
 				<td>
 					<div><span className={"dtok-code " + st.cls}>{st.label}</span></div>
@@ -486,7 +833,18 @@ export function TokenLogView(props) {
 				<button className="dtok-btn primary" onClick={runQuery}>查询</button>
 				<button className="dtok-btn" onClick={resetFilters}>重置</button>
 				<button className="dtok-btn" onClick={exportCsv}>导出 CSV</button>
+				<button className={"dtok-btn" + (showPricing ? " primary" : "")} onClick={() => setShowPricing(true)} title="配置各模型单价，费用按自填单价计算">单价设置</button>
 			</div>
+			{showPricing ? <PriceModal onClose={() => setShowPricing(false)} onSaved={runQuery} /> : null}
+			<div className="dtok-status">
+				{data && data.pricingInfo ? (
+					<span>
+						计价：{data.pricingInfo.hasCustom ? "自定义单价 " + data.pricingInfo.customCount + " 条" : "未配置自定义单价"}
+							{" · 官网自动同步：" + (data.pricingInfo.fetchOfficial ? "开" : "关")}
+							{data.pricingInfo.sources && data.pricingInfo.sources.length ? " · 本页涉及来源：" + data.pricingInfo.sources.join("/") : ""}
+						</span>
+					) : null}
+				</div>
 			<div className="dtok-body">{bodyNodes}</div>
 			{detailRec ? <Detail rec={detailRec} onClose={() => setDetailRec(null)} rate={rateCny} /> : null}
 		</div>
@@ -553,7 +911,7 @@ export const feature = {
 	name: "用量记录",
 	order: 110,
 	accent: "#fbbf24",
-	description: "记录全部 LLM API 调用：秒级时间筛选、Token/费用统计（峰谷计价+官网价目自动同步）、分组汇总、明细检索与 CSV 导出",
+	description: "记录全部 LLM API 调用：秒级时间筛选、Token/费用统计（可配置各模型单价，持久保存并按自填单价计费；内置峰谷计价+官网价目自动同步作兜底）、分组汇总、明细检索与 CSV 导出",
 	css,
 	View: TokenLogView,
 	HomeStat: TokenLogHomeStat,
