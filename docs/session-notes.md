@@ -811,6 +811,117 @@ persona (@deepseek-ai/dsh-persona): invalid config: - $.prefix missing required 
 - 顺带修订发版提交的信息措辞：公开历史里的提交信息**只描述改动内容**，不展开事件经过／排查细节，
   避免在仓库历史中留下不必要的注释；细节留在私有记录里。
 
+## 2026-09-10（续3）· 用量记录支持自定义模型单价（费用按自填单价计费）
+
+### 需求
+
+费用"不准确"——因为单价是抓来的。用户要求：支持配置每个模型的单价、持久保存，并用保存的单价
+算费用；并征询"单价在哪里设置比较好"。
+
+### 根因（两处，改动前先查清）
+
+1. **原有的 settings 覆盖机制从未生效**。`features/tokenlog/host.js` 头部与
+   `loadPricingConfig()` 读的是 `dsh-dock-tokenlog` 命名空间，但该 namespace **从未注册**。
+   查 dsh 源码 `packages/settings/settings/src/index.ts` 确认：`get(ns)` 只返回
+   `this.registrations.get(ns)?.resolved`，`write()` 在 `registration === undefined` 时直接
+   `throw new Error('settings namespace "..." is not registered')`——未注册命名空间**读写都不通**。
+   所以文档里"改 settings.yaml 即可覆盖单价/汇率"的说法与代码行为不符。
+2. **抓取价优先级最高**。原 `resolvePricing()` 顺序是「官网抓取 → settings 覆盖+内置 → 兜底」，
+   即便用户能配上，也会被抓取价压掉。这正是"费用不准又改不动"的直接原因。
+
+### 改法
+
+- **配置位置**：随插件一起注册的 `dsh-dock` 命名空间下新增 `tokenlog` 段
+  （`src/host-core.js` 的 `DockConfig`，schema 化：`usdCnyRate` / `fetchOfficial` / `pricingUrl` /
+  `pricingFetchIntervalHours` / `pricing[]` / `fallback`）。选它而非新建命名空间，是为了复用
+  既有的「功能配置写在自己段里」约定（notify/animation/visionProxy 同款），web 端只跟
+  `/dsh-dock/tokenlog/*` 打交道。
+- **优先级反转**：`resolvePricing()` 改为 自定义单价 > 官网同步价 > 内置价 > 兜底价，并返回
+  来源标签（custom/official/builtin/fallback）。
+- **改价即时生效**：费用不再只在采集时算死，而是在 `query`/`export` 时经 `withCost()` 按当前
+  单价重算（浅拷贝记录），因此改价无需重扫历史。KPI 卡/分组/明细/CSV 一并采用新价。
+- **面板**：用量记录页筛选行加「单价设置」按钮，展开 `PricingEditor`——按模型逐条配单价
+  （支持峰谷时段）、兜底单价、汇率、官网同步开关；模型名可用已用/已配置模型下拉，也可手输子串。
+  明细中走兜底价的金额标「兜底」，详情弹窗显示「计价来源」。
+- **路由**：新增 `pricing`（读）与 `setpricing`（写，校验后落盘）；`setpricing` 校验失败按
+  `statusCode` 返回 4xx（路由 catch 块改为按 `e.statusCode` 定状态码）。
+- **安全**：`pricingUrl` 出站前 `assertAllowedFetchUrl()` 校验——仅 http/https，拒绝
+  localhost/.local/.internal、环回、10./172.16-31./192.168./169.254./组播保留、IPv6 环回与
+  链路本地（满足 Mimosa 生成前安全约束）。
+- **测试**：新增 `scripts/test-tokenlog-host.mjs`（接入 `npm run test:host`），覆盖优先级、
+  即时重算、参数校验 4xx 不落盘、pricingUrl 出站拦截。
+
+### 验证
+
+- `npm run build:client` → `npm run test:client` 全绿（10 个功能视图 + 错误隔离 + 菜单 + id 一致性）。
+- `npm run test:host` 全绿（task/tokenlog 两个文件）。
+- 测试桩 fetch 的 HTML 需 >500 字节，否则被 `fetchOfficialPricing()` 的 "SPA shell too small"
+  早退、拿不到官网价——首次跑就踩到，fixture 里补了填充文本。
+- **顺带发现并修掉一个测试假通过**：`scripts/test-client-views.mjs` 的 fetch 桩从未返回
+  `/dsh-dock/tokenlog/query`，`TokenLogView` 渲染时读 `data.counts.matching` 直接抛错、被
+  `FeatureBoundary` 降级成一行提示；而该用例的 marker 是「用量」，恰好在功能卡片的**描述文字**
+  里命中，于是「✓ 用量记录渲染正常」长期是假的（视图其实一次都没真正渲染出来）。修法：补上
+  query 桩数据，marker 改成只有真实视图才有的「调用明细」，并追加明细表标题/单价入口按钮/金额
+  等断言。新增的「单价设置」面板因默认收起、测试桩无点击模拟，其内部渲染是用**临时把默认改为
+  展开**跑一遍确认的（表格/峰谷列/来源标注/内置价列表/KPI 金额均正常渲染），确认后已改回收起。
+
+### 沉淀
+
+- `docs/workflow.md` §2 检查表补注：`test:host` 现由两个用例文件组成；新增宿主功能照此追加并串进
+  `package.json`。
+- 教训：**读未注册的 settings 命名空间永远是 undefined**。写"可被 settings 覆盖"的配置前，
+  先确认该 namespace 有 `settings.register()`，否则文档与行为会长期背离。
+- 教训：**marker 断言要选"只有真实渲染才出现"的字符串**。用功能名/描述里的词做 marker，会在
+  视图抛错降级成提示时照样命中，把假通过藏起来；发现可疑的"渲染正常"时，先把渲染出的 HTML
+  打出来看一眼。
+
+## 2026-09-10（续4）· 单价设置改为独立子弹窗 + 分时段价支持多段
+
+### 需求
+
+用户看到首版「单价设置」后提了三点：① 不要内嵌在用量页里，改成**独立子弹窗**；② 子弹窗要能
+**最大化、拖动、缩放**；③ **峰谷时段要能多段**（举例 DeepSeek——它有高峰/优惠多个时段，
+单段表达不了）。
+
+### 改法
+
+- **独立子弹窗**：`PriceModal` 覆盖层（`position:fixed`，`z-index:2100`，高于功能坞弹层自身的
+  200），带标题栏拖动、右下角缩放手柄、最大化/还原、Esc 关闭、点遮罩关闭。拖动/缩放用 window
+  级 pointermove 监听，指针移出元素也不丢；最大化态禁用缩放手柄。原来内嵌的 `PricingEditor` 保留，
+  作为子弹窗内容（`embedded` 分支）。
+- **分时段多段**：数据模型从单段 `peak:{start,end,...}` 改为 `peaks:[{start,end,input,output,
+  cacheRead,cacheWrite}, ...]`（`src/host-core.js` 的 schema 与 `features/tokenlog/host.js`）。
+  - 匹配：`pickPeakSegment()` 按顺序命中第一段；`start<end` 普通区间、`start>end` 跨零点
+    （如 `23~7`）、`start===end` 全天；**用小数小时**（`getHours()+getMinutes()/60`）以便支持
+    `8.5 = 08:30` 这类半点边界（DeepSeek 刊例就是 08:30 分界）。命中哪段用哪段，段外回落基准价。
+  - 兼容：`normalizePricing()` 读旧数据时把 `peak` 归一为单元素 `peaks`，老配置不用手工迁移。
+  - 校验：每段 start/end ∈ [0,24]、各价 ≥ 0，非法 4xx 不落盘。
+- **UI**：每个模型一张卡片（`dtok-prow`），卡片内「基准价」+ 可增删的多个「时段」行（`dtok-pseg`），
+  时段行显示 `0~8.5（跨零点）` 之类的实时摘要；内置价表的分时段列改成列出全部段。
+- **可测性**：`TokenLogView` 支持 `params.openPricing` 深链直接展开子弹窗（`DockPanel` 也改为
+  透传 `props.params`），使客户端渲染回归测试能覆盖到子弹窗内容，而不必模拟点击。
+
+### 验证
+
+- `npm run test:host`：新增多段用例——03:00/08:15 命中优惠段、08:45 段外回落基准、10:00 命中
+  高价段；跨零点段覆盖凌晨 02:00 与深夜 23:30、段外回落；旧单段 `peak` 读取归一；非法时段 4xx
+  不落盘。全绿。
+- `npm run test:client`：tokenlog 用例带 `params.openPricing`，断言「分时段价」「添加时段」
+  「基准输入」「跨零点」等子弹窗内容；另加**用例 8** 用带 `document` 桩的沙箱断言子弹窗确实
+  `createPortal` 到 `document.body`（防祖先 `backdrop-filter`/transform 改变 fixed 包含块）。全绿。
+- **真机浏览器验证**（拖拽/缩放/最大化是 CSS 与指针行为，单元测试的 React 替身覆盖不到）：本机
+  dsh 有认证，起了一个注入 `dsh-auth-*` Cookie 的反向代理（临时脚本放仓库外，验完即删），用浏览器
+  实际打开用量记录 →「单价设置」，确认：
+  - 覆盖层铺满视口（1280×720，x/y=0），弹窗 980×688 居中；**最大化 → 1264×704（贴边 margin 8）**，
+    还原回 980×688；
+  - **拖动标题栏** 位移 (x+200, y+100)；**右下角手柄缩放** 980×688 → 840×598；
+  - 分时段：点两次「+ 添加时段」得到两段行，填入 `23~7` 与 `9~14`，行内摘要实时显示
+    **「23~7（跨零点）」** 与 **「9~14」**；四个时段价输入框带 输入/输出/缓存命中/缓存写入 占位提示。
+  - 说明：**没有点「保存单价」**——当时跑着的宿主进程是上一个修订版（`/dsh-dock/tokenlog/pricing`
+    还没有 `peaks` 字段），保存会被旧宿主丢掉分时段；真机验证只覆盖界面行为，数据往返由宿主测试覆盖。
+- 过程中发现并修掉一个自身引入的回归：`DockPanel` 原本未声明 `props` 形参，透传参数后全部功能
+  视图都报 `props is not defined`（测试立刻抓到）——补上 `props` 形参即恢复。
+
 
 
 
