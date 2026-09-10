@@ -177,6 +177,45 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 			return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, data: {} }) });
 		}
 		let data = {};
+		// 用量记录 query 的正常响应。此前该分支缺失 → TokenLogView 渲染时读 data.counts 抛错、
+		// 被错误边界降级为一行提示，而断言用的 marker「用量」恰好能在卡片描述里命中，于是
+		// 「渲染正常」是假的。补上真实响应后，下面用「调用明细」「单价设置」等内容做断言。
+		if (url.includes("/dsh-dock/tokenlog/query")) {
+			data = {
+				records: [{
+					id: "s1:1", time: 1_700_000_000_000, sessionId: "sess-1", provider: "deepseek", model: "deepseek-v4-flash",
+					inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200, cacheWriteTokens: 0, reasoningTokens: 0,
+					billedInput: 1200, totalTokens: 1700, cacheHitPercent: 17, cost: 0.5, pricingSource: "custom",
+					effort: "high", status: "completed", statusCode: 0, errorCode: "", errorMsg: "", llmMs: 1200, turn: 1, step: 1,
+				}],
+				counts: { total: 1, matching: 1 },
+				providers: ["deepseek"], models: ["deepseek-v4-flash"], modelsByProvider: { deepseek: ["deepseek-v4-flash"] },
+				statuses: ["completed"], efforts: ["high"], sessionIds: ["sess-1"],
+				rateUsdCny: 7.2,
+				pricingInfo: { hasCustom: true, customCount: 1, fetchOfficial: true, sources: ["自定义"] },
+				totals: {
+					calls: 1, inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200, cacheWriteTokens: 0, reasoningTokens: 0,
+					billedInput: 1200, totalTokens: 1700, cacheHitPct: 17, cost: 0.5, llmMs: 1200, timed: 1,
+				},
+				summary: [],
+			};
+		}
+		if (url.includes("/dsh-dock/tokenlog/pricing")) {
+			data = {
+				usdCnyRate: 7.2, fetchOfficial: true, pricingFetchIntervalHours: 24,
+				// 一段多段分时价（覆盖时段增删/跨零点展示分支）
+				pricing: [{
+					match: "deepseek-v4-flash", input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0,
+					peaks: [
+						{ start: 0, end: 8.5, input: 1, output: 3, cacheRead: 0.03, cacheWrite: 0 },
+						{ start: 9, end: 14, input: 3, output: 9, cacheRead: 0.1, cacheWrite: 0 },
+					],
+				}],
+				fallback: { input: 2.16, output: 6.48, cacheRead: 0.43, cacheWrite: 4.32 },
+				builtin: [{ match: "deepseek-v4-flash", input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0, peaks: [{ start: 9, end: 14 }] }],
+				models: ["deepseek-v4-flash", "glm-4"], sourcesByModel: { "deepseek-v4-flash": "自定义", "glm-4": "兜底" },
+			};
+		}
 		if (url.includes("/dsh-dock/animation/status")) data = resolveStatus(animationStatus);
 		else if (url.includes("/dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
 		else if (url.includes("/dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
@@ -202,11 +241,26 @@ function makeWindow() {
 }
 let loaded = null;
 
-function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus) {
+function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus, opts) {
 	const runtime = createRuntime();
 	const posts = [];
 	const store = { "dsh-dock/features/v1": JSON.stringify(enabled) };
 	const win = makeWindow();
+	// opts.body：提供最小 document 桩（body + head + createPortal 捕获），用于覆盖
+	// 「单价子弹窗 portal 到 document.body」这一真实浏览器分支。默认 document 仍为 undefined
+	// （DockModal 靠它保持展开，供其他用例渲染整棵弹层树）。
+	const portalNodes = [];
+	let doc = undefined;
+	if (opts && opts.body) {
+		runtime.react.createPortal = (node, target) => { portalNodes.push({ node, target }); return null; };
+		doc = {
+			body: opts.body,
+			head: { appendChild() {} },
+			querySelector() { return null; },
+			createElement() { return { dataset: {}, isConnected: true }; },
+			addEventListener() {}, removeEventListener() {},
+		};
+	}
 	const sandbox = {
 		console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
@@ -217,7 +271,7 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 			removeItem: (k) => { delete store[k]; },
 		},
 		window: win,
-		document: undefined,
+		document: doc,
 		requestAnimationFrame: (fn) => setTimeout(fn, 0),
 		cancelAnimationFrame: (id) => clearTimeout(id),
 	};
@@ -239,7 +293,7 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 		register: (def, comp) => regs.push({ def, comp }),
 	};
 	dock.apply({ get: (name) => (name === "slots" ? slots : undefined), interval: () => () => {} });
-	return { runtime, regs, dock, posts };
+	return { runtime, regs, dock, posts, portalNodes };
 }
 
 /** 多趟渲染：跑到状态稳定（最多 10 趟），覆盖「拉数据后」的渲染分支。 */
@@ -293,7 +347,9 @@ const FEATURES = [
 	{ id: "animation", name: "任务动画", marker: "运行动画", deep: true },
 	{ id: "notify", name: "任务通知", marker: "通知事件", deep: true },
 	{ id: "runstate", name: "运行状态", marker: "运行状态", deep: true },
-	{ id: "tokenlog", name: "用量记录", marker: "用量", deep: true },
+	// tokenlog 的 marker 用「调用明细」而非「用量」：后者能在卡片描述里命中，
+	// 会让「视图抛错降级为一行提示」也被判为渲染正常（曾实际发生，见下方 tokenlog 断言）。
+	{ id: "tokenlog", name: "用量记录", marker: "调用明细", deep: true },
 	{ id: "balance", name: "模型余额", marker: "余额", deep: true },
 	{ id: "modelconfig", name: "模型设置", marker: "模型", deep: true },
 	{ id: "heartbeat", name: "心跳监视", marker: "心跳", deep: true },
@@ -312,7 +368,7 @@ for (const f of FEATURES) {
 		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
 		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
 		if (!reg) throw new Error("没有注册 settings.section（设置 → 功能坞）");
-		const node = runtime.react.createElement(reg.comp, null);
+		const node = runtime.react.createElement(reg.comp, f.id === "tokenlog" ? { params: { openPricing: true } } : null);
 		html = f.deep ? await renderSettled(runtime, node) : runtime.render(node);
 	} catch (e) {
 		error = e;
@@ -326,9 +382,20 @@ for (const f of FEATURES) {
 	} else {
 		console.log(`✓ ${f.name}（${f.id}）渲染正常`);
 	}
+	// 用量记录：断言真实视图内容（而非仅命中卡片描述里的「用量」二字）。
+	// 该用例带 params.openPricing 直接展开「单价设置」子弹窗，因此下面同时覆盖：
+	// 明细表标题、单价入口、KPI 金额，以及子弹窗的分时段多段编辑区。
+	if (f.id === "tokenlog" && !error) {
+		for (const needle of [
+			"调用明细", "单价设置", "¥3.60", "deepseek-v4-flash",
+			"分时段价", "添加时段", "基准输入", "跨零点",
+		]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
+		}
+	}
 }
 
-if (failed) {
+	if (failed) {
 	console.log(`\n${failed} 个内置功能视图渲染失败——内置视图抛错会连带卸载整块面板 UI。`);
 	process.exit(1);
 }
@@ -518,6 +585,38 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log(`✓ 双半部功能 id 一致：${checked} 个双半部模块的视图 id 与宿主 id 全部相同`);
+}
+
+// ---------- 用例 8：单价子弹窗必须 portal 到 document.body ----------
+// 为什么必须 portal：功能坞弹层的祖先带 backdrop-filter，会改变 position:fixed 的包含块，
+// 子弹窗会从「覆盖整屏」退化成「贴着弹层内定位」；设置页的祖先更不可控。所以子弹窗一律
+// 挂到 body。这里用带 document 桩的沙箱验证「确实调用了 createPortal 且目标是不在面板树内的节点」。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const bodyStub = { tag: "body-stub" };
+	let detail = "";
+	try {
+		const { runtime, regs, portalNodes } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { body: bodyStub });
+		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+		if (!reg) throw new Error("没有注册 settings.section");
+		// 带 openPricing 直接展开子弹窗（省去模拟点击）
+		await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { openPricing: true } }));
+		if (portalNodes.length === 0) detail = "没有调用 createPortal（子弹窗未 portal 到 body）";
+		else if (portalNodes[0].target !== bodyStub) detail = "createPortal 的目标不是 document.body";
+		else {
+			// portal 出去的节点应含子弹窗结构（用替身渲染它校验内容）
+			const html = runtime.render(portalNodes[0].node);
+			if (!html.includes("单价设置")) detail = "portal 的节点里没有单价设置内容";
+		}
+	} catch (e) {
+		detail = "子弹窗 portal 渲染抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 单价子弹窗 portal：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 单价子弹窗 portal：createPortal 到 document.body（不受面板 transform/backdrop-filter 影响）");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。
