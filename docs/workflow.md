@@ -134,4 +134,43 @@ features/<id>/
 - 预设目录在 `DSH_HOME` 下，**不随仓库走**；换机/重装后按上表重建（`agentPresets.copy('standard', 'dsh-dock', 'dsh-dock 插件开发')` 再补 persona 与技能）。
 - **不要改部署自带的预设**（`standard`/`ptc`/`minimal`/`cordis` 所在目录，升级会被覆盖）；
   要改就复制一份再改。
+- ⚠️ **dsh 升级后必须把本预设与新版 `standard` 重新对齐**。预设是 `standard` 的副本，而 dsh 会改
+  预设 schema；不对齐的后果很重——预设挂载失败会让**所有绑定该预设的会话无法 resume**
+  （`agent-presets: preset "dsh-dock" failed to mount`），表现为切模型 / 打开历史会话卡住并弹
+  「模型操作失败」。
 - 改了预设后要重新校验能否挂载（`agentPresets.standingKeyFor('dsh-dock')`），再开一个新会话确认工具与提示词。
+
+### 升级核对（dsh 换版本后必做）
+
+把本预设与新版 shipped `standard` 做**结构化对比**（忽略注释与空行），只允许 persona 正文一处差异：
+
+```bash
+S="<dsh 安装目录>/@deepseek-ai/dsh-agent-presets/presets/standard/agent.cordis.yml"
+diff <(grep -v '^\s*#' "$S" | grep -v '^\s*$') \
+     <(grep -v '^\s*#' "$HOME/.dsh/.agent-presets/dsh-dock/agent.cordis.yml" | grep -v '^\s*$')
+```
+
+已知在 **dsh 0.1.5-rc.1** 上踩过的两处 schema 漂移：
+
+| 行 | 旧（0.1.4 及更早） | 新（0.1.5-rc.1） |
+|---|---|---|
+| `persona` 配置 | `config.text: \|` 整段（自带 `{{model}}`/`{{cwd}}`） | **`config.prefix`（必填）+ `config.suffix`**；`text` 字段已删除，缺 `prefix` 直接报 `$.prefix missing required value` |
+| 末尾新增行 | — | `- id: present` / `name: '@deepseek-ai/dsh-tool-present'`（每版可能新增，照抄 `standard`） |
+
+对齐后**必须真机验证挂载**——只查 roster 不够：`agentPresets/list` 只校验 YAML 形状，**不校验
+config schema**，真正会失败的是 mount：
+
+```bash
+# 用 dsh-dock 预设建一个会话；成功即说明能挂载
+# （$COOKIE 为自签的 dsh-auth Cookie，做法见下方说明）
+curl -sS -X POST -H 'content-type: application/json' -H "Cookie: $COOKIE" \
+  --data-binary '{"type":"client-request","rpcId":"c1","method":"session/create","payload":{"args":{"request":{"cwd":"<任一目录>","agentPreset":"dsh-dock"}}}}' \
+  http://127.0.0.1:3080/api/session/create
+```
+
+本机 `/api` 需要 `dsh-auth-*` Cookie：用 `~/.dsh/.credentials.yaml` 里
+`client-connection/browser-session` 的 secret，按 `dsh-client-connection` 的算法现签一张
+（name = `dsh-auth-` + base64url(sha256(authority))，value = `v1.<base64url(payload)>.<hmac>`）。
+做法与示例见 `docs/session-notes.md` 2026-09-10 一节；或直接用浏览器开页面、在 DevTools 里拷
+`document.cookie` 以外的 Cookie（`HttpOnly` 需从 Application 面板读）。
+

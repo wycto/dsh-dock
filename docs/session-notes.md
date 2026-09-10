@@ -743,6 +743,68 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 
 本机 dsh 开了认证（`/api` 与根页都需要 `dsh-auth-*` Cookie）。截图时用一个**注入 Cookie 的反向代理**（对本机 127.0.0.1:3080 上游，用 `~/.dsh/.credentials.yaml` 里 `client-connection/browser-session` 的 secret 现签一张 Cookie）起在本地端口，浏览器打开代理地址即可驱动真实 UI；WebSocket upgrade 也要一并转发。注意 `tab.screenshot({ clip })` 在本环境会出现**平铺错位**，一律用整窗截图（1280×720）。
 
+## 2026-09-10（续）· 「切模型卡住 → 模型操作失败」根因：dsh-dock **agent 预设**未跟上 dsh 0.1.5-rc.1 的 schema 漂移
+
+### 现象
+
+历史会话（原本用已删除的模型）**切到别的模型时卡住、切不动**，最后弹：
+
+```
+模型操作失败: gateway/internal: resume failed for session "session-f1f3959e-…":
+RemoteError: agent-presets: preset "dsh-dock" failed to mount: failed to apply loader entry
+persona (@deepseek-ai/dsh-persona): invalid config: - $.prefix missing required value
+(at prefix) (C:\Users\wzy60\.dsh\.agent-presets\dsh-dock\agent.cordis.yml)
+```
+
+### 根因
+
+`dsh-dock` **agent 预设**（`~/.dsh/.agent-presets/dsh-dock/agent.cordis.yml`）是 shipped `standard`
+在 2026-09-09 的**副本**。dsh 升到 `0.1.5-rc.1` 后 `@deepseek-ai/dsh-persona` 的 Config schema 改了：
+
+- 旧：`config.text: |`（一整段，自带 `{{model}}`/`{{cwd}}` 占位）
+- 新：**`config.prefix`（`z.string().required()`）+ `config.suffix`**，`text` 字段已删除
+
+预设里那行还是 `config.text` → `prefix` 缺失 → **预设挂载失败**。因为预设是 standing mount，
+**所有绑定该预设的会话都无法 resume**（切模型、打开历史会话都会走 resume → 撞上挂载失败），
+所以表现为「卡住 + 模型操作失败」的通用报错，而不是「persona 配置错」。
+
+> 注意：这跟 dsh-dock **插件**无关，是 agent 预设在 DSH_HOME 下的本地配置漂移；但预设名字叫
+> `dsh-dock`，报错里写的是 `preset "dsh-dock"`，很容易误以为是插件坏了。
+
+### 改法
+
+把预设与新版 `standard` 重新对齐（`diff` 忽略注释空行后只剩 persona 正文一处差异）：
+
+1. `persona.config`：`text: |` → `suffix: Your working directory is {{cwd}}.` +
+   `prefix: |-` + 原有正文（首行 `You are a coding agent powered by the {{model}} model.`，
+   其余 dsh-dock 铁律原样保留）。
+2. 补上 rc.1 新增的末尾行 `- id: present` / `name: '@deepseek-ai/dsh-tool-present'`。
+
+### 验证（**关键：只查 roster 不够**）
+
+- 单独用 `Config(config)` 校验 persona 行：✅ `prefix` 1495 字节、`suffix` 正确（旧行报
+  `$.prefix missing required value`）。
+- `agentPresets/list`：`dsh-dock ✅ ok`——**但这一步在修复前也是 ok**，因为 roster 只校验 YAML
+  形状、**不校验 config schema**，真正失败的是 mount。以后不能只靠它。
+- **真机 mount**（修复前失败、修复后通过）：
+  - `session/create` 带 `agentPreset: "dsh-dock"` → ✅ 返回 `agentPreset=dsh-dock`；
+  - 对报错里那个会话 `session-f1f3959e-4d6b-49ed-928c-dc678723bd45` 执行
+    `session/selectModel`（deepseek-official / deepseek-flash）→ ✅ 切模型成功。
+  - 注意 `/api` 的 RPC 参数形状：会话类接口要包一层 `args.request`（如
+    `{"args":{"request":{…}}}`），`selectModel` 用错形状会报 `missing "request"`。
+
+### 沉淀
+
+- `docs/workflow.md` §6 新增「升级核对（dsh 换版本后必做）」：diff 对齐 + 两处已知漂移表 +
+  真机 mount 验证命令。
+- 配套技能 `dsh-dock-release/SKILL.md` 新增「dsh 升级后必做：agent 预设对齐」一节（含
+  0.1.5-rc.1 踩坑记录），并顺手修正了环境坑（esbuild 用 `DSH_DOCK_ESBUILD` 显式指定；
+  Git Bash 参数要 Windows 路径；`git tag | tail` 的字典序坑）。
+- **教训**：凡是「预设 / 插件 schema 跨版本漂移」，症状往往是**下游操作卡死 + 笼统报错**
+  （resume failed → 模型操作失败），根因却在配置行；排查时先看**报错里的完整原文**——
+  这次原文把文件名与字段名（`persona`、`$.prefix`）都点出来了。
+
+
 
 
 
