@@ -8,10 +8,15 @@
 | 远端 | 地址 | 用途 |
 |---|---|---|
 | `origin` | `ssh://git@172.18.99.124:9022/wycto/dsh-dock.git`（自建 Gitea） | **开发库**：日常提交只推这里 |
-| `github` | `git@github.com:wycto/dsh-dock.git` | **发版库**：只在发版时同步 + 打 tag，npm 也以它为主页 |
+| `github` | `git@github.com:wycto/dsh-dock.git` | **发版库**：只在发版时同步（每次一条发版提交）+ 打 tag，npm 也以它为主页 |
 
 - 开发阶段**绝不推 `github`**；它只反映已发布的版本。
-- 两个远端的 `main` 在发版前应当一致（发版时才把开发提交推上去）。
+- **github 不收分批的开发提交**：每次发版把自上次发版以来的代码**压成一条**「发版」提交
+  （主标题写发版，正文汇总本版功能内容）推上去（见第 3 节第 8 步）；**既有历史原样保留，
+  不重写不删**——历史记录必须一直可见。
+- 本地 `release` 分支跟踪 `github/main`，只随发版脚本前移，**不要推 `origin`**。
+- 发版后两个远端的**代码内容**一致（树相同），提交历史不同：origin 是完整开发史；
+  github 在新规起点（v0.10.0）之前的完整历史保留，之后每次发版只多一条发版提交。
 
 ## 2. 开发阶段（默认状态）
 
@@ -62,15 +67,22 @@ Invoke-WebRequest http://127.0.0.1:3080/dsh-dock/<feature>/status -Method POST `
 4. **重建产物**：`npm run build:client`（版本号会进 `client.js`）。
 5. **全量测试**：`npm run test:client` + `npm run test:host` 全绿，无跳过。
 6. **复查文档**：README 里版本相关描述、`package.json` 的 description、功能一览表。
-7. **提交**：备注写 `发版 vX.Y.Z：<一句话要点>`，正文列本版变更（从 CHANGELOG 未发布段提炼）。
-8. **推两个远端**：`git push origin main` → `git push github main`。
-9. **打 tag 并推送**：
+7. **提交并推 `origin`**：备注写 `发版 vX.Y.Z：<一句话要点>`，正文列本版变更（从 CHANGELOG
+   未发布段提炼），保存成 message 文件（如 `.git/RELEASE_MSG.txt`）——第 8 步还要用；
+   `git push origin main`（开发库收全部提交：开发提交 + 这条发版提交）。
+8. **同步 `github`（一条提交，不分批）**：发版库不收开发提交——
+   `./scripts/push-github-release.sh <message-file>` 把 main 的**整棵树**压成一条
+   「发版 vX.Y.Z」提交推到 `github/main`：父提交是上一次发版提交，正文汇总本版功能内容
+   （可直接复用第 7 步的 message 文件）。本地 `release` 分支随之前移 = `github/main`。
+   正常发版是快进推送，不需要 force。
+9. **打 tag 并推送**（tag 指向开发库的发版提交；在 github 上它不在 main 线上，但树一致）：
    ```bash
    git tag -a vX.Y.Z -m "dsh-dock vX.Y.Z"
    git push origin vX.Y.Z
    git push github vX.Y.Z
    ```
 10. **发布 npm**：`./scripts/publish.sh`（先 `npm pack --dry-run` 预览、检查登录态，再 `npm publish`）。
+    本机 `bash` 会解析到 WSL，请用 Git Bash：`& "D:\Program Files\Git\bin\bash.exe" ./scripts/publish.sh`。
     若遇到 npm 缓存目录属主导致的 `EPERM`：`CACHE_DIR=/tmp/dsh-dock-npm-cache ./scripts/publish.sh`。
 11. **确认**：npm 页面版本、GitHub Release（可选）、本地 `git status` 干净。
 12. 发版后**不要**顺手改版本号回开发态——下一次开发提交按第 2 节走，直到下次发版。
@@ -100,6 +112,8 @@ features/<id>/
   再跑 `node scripts/build-client.mjs`。
 - **git 推送**：沙箱下 MSYS `ssh.exe` 会因 `CreateFileMapping … Win32 error 5` 起不来，
   推送需要放宽一次文件沙箱权限。
+- **Git Bash**：`bash` 在本机会解析到 WSL（CRLF 脚本报 `set: -e: invalid option` 一类错），
+  跑 `scripts/*.sh` 请用 `"D:\Program Files\Git\bin\bash.exe"`。
 - **`dsh web` 重启**：宿主半部改动（新路由、schema、迁移）必须重启才生效；重启后浏览器刷新即可。
 - **外链 watch 进程**：本机可能有外部进程在源文件变更后自动重建 `client.js`；以最新产物为准。
 - **settings 文件**：`C:\Users\wzy60\.dsh\settings.yaml` 的 `dsh-dock:` 段；改坏了可对照
