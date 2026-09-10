@@ -673,3 +673,76 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 
 **教训**：「目录名 = 视图 id = 宿主 id」的功能模块三方一致是开关同步的隐形契约。v0.9.7 的补推修复修的是**时机**（宿主旧进程时 POST 404），没查**id 本身对不对得上**——补推把错误 id 原样再推一遍，照样 404。跨半部契约必须用测试锁死，不能靠约定自觉。
 
+## 2026-09-09（续5）· 发版 v0.10.0；github 发版库改为「每次发版一条提交」
+
+**发版**：v0.10.0 已发布（两处版本号 → CHANGELOG 改名 → 重建产物 → 全量测试 → 发版提交 2560206 → tag v0.10.0 推两个远端 → npm 上线，registry latest 已返回 0.10.0）。
+
+**用户指正**：发版同步 github 时不要把开发提交分批推上去——把代码同步成**一条**提交：主标题写「发版」，body 汇总开发库提交内容（相当于把开发库提交记录总结一次提交）。
+
+**改法**：
+1. 新增 `scripts/push-github-release.sh`：发版时用 `git commit-tree` 把 main **整棵树**压成一条「发版 vX.Y.Z」提交（父提交 = 上一次发版提交，message 文件复用发版提交那份），快进推到 `github/main`；本地 `release` 分支跟踪 `github/main`（**勿推 origin**）。
+2. `docs/workflow.md`：§1 远端表补「github main 只有发版提交 / release 分支不推 origin / 两库树同史不同」；§3 第 7-10 步改为 提交+推 origin → 脚本一条同步 github → tag（指向开发库发版提交）→ npm（Git Bash 路径）；§5 补「本机 `bash` 解析到 WSL，跑 `scripts/*.sh` 用 `"D:\Program Files\Git\bin\bash.exe"`」。
+3. 预设 `dsh-dock 插件开发` 三处同步：persona 铁律（github 一条发版提交同步）、`skills/dsh-dock-release/SKILL.md`（铁律 3 + 发版步骤 7-9 + 环境坑 Git Bash）、`preset.yml` 描述。
+
+**github 历史重写**（用户拍板「重写为纯发版历史」）：`git commit-tree 'main^{tree}'`（无 `-p`）造 v0.10.0 根提交 `0bc4547`（message 汇总本版内容），`git push github +refs/heads/release:main --force-with-lease=refs/heads/main:2560206`。github main 从此只有发版提交；旧开发提交不再出现在 main 线上（历史版本 tag 仍指向原提交，可访问）；根提交树与 origin/main 完全一致（`82bc8337`）。origin 未动，完整开发史保留。
+
+**验证**：`git fetch github main` 后 `git log` 仅 1 条且树 = main 树；本地 release = github/main；origin/main 仍在 2560206；预设 `preset.yml` 直解、`agent.cordis.yml` 把 DSH 专有 `!!js` 标签替换成普通标量后结构解析通过（plain js-yaml 不认 `!!js` 属预期）；`bash -n` 语法检查通过。
+
+**教训**：tag 指向开发库的发版提交，在 github 上它不在 main 线上但树一致——这是约定不是事故：发版库看发版日志，开发库看开发史，npm 主页展示的是发版库。
+
+## 2026-09-09（续6）· github 历史重写翻车修正：历史记录必须保留，改为「上一发版点 + 每版一条」
+
+**用户反馈**：按「重写为纯发版历史」执行后，github Commits 页只剩 v0.10.0 一条，0.9.x 及更早的记录全部不可见——「搞错了吧……我0.9.x版本的记录呢？」
+
+**根因**：把「每次发版一条提交」执行成了「抹掉全部历史、只留一条根提交」。用户要的是**今后不再分批推开发提交**，不是**删掉历史**；历史可见性是底线，重写公开仓库历史必须默认保留全部旧记录。
+
+**修正**：
+- `git commit-tree '2560206^{tree}' -p ea08c46` 造 v0.10.0 汇总提交 `ef60b3f`（树 = v0.10.0 发布树 `82bc8337`，父提交 = v0.9.9 发版提交），`--force-with-lease` 推回 github main。
+- 效果：github main 恢复 95 条——0.9.x 及更早完整历史全部可见；v0.10.0 循环的 4 条开发提交收进一条「发版 v0.10.0」汇总提交（符合新规矩）；此后每次发版在 `ef60b3f` 之上快进追加一条（`scripts/push-github-release.sh` 逻辑不变）。
+- tag v0.10.0 仍指向原发版提交 2560206（其开发史经 tag 仍可达）；本地 `release` 分支跟随到 `ef60b3f`。
+
+**流程文档同步**：workflow.md §1「github 的 main 只有发版提交」改为「github 不收分批的开发提交——既有历史原样保留、不重写不删，每次发版只多一条汇总提交」。
+
+**教训**：「总结成一条」指的是**增量**（本次发版的开发提交收成一条），不是**替换**（把历史压掉）。涉及改写远端历史的操作，保留多少历史必须与用户逐字对齐；写进文档的规矩要写成「不删历史」的明文，不能只写「只推一条」。
+
+## 2026-09-10 · 「模型列表加载慢」定位结论：宿主空转，与 dsh-dock 无关 + v0.10.1 文档/截图
+
+### 现象
+
+升级到 dsh `0.1.5-rc.1` 后，原生「设置 → 模型」列表「很慢很慢甚至出不来」；随后侧边栏 / 文件面板也出现 `client api: workspaceFiles/list failed: Failed to fetch`。
+
+### 排查与根因（**不是本插件的兼容问题**）
+
+1. **插件宿主接口全是毫秒级**：`/dsh-dock/models` 10ms、`/dsh-dock/features` 3ms；RPC 侧 `llm/listProviders` 12ms、`llm/listConfigurableProviders` 26ms、`settings/describe` 8ms。
+2. **宿主进程在空转**：长时间运行的 `dsh web` 持续吃满约一整颗核（20 秒耗 20+ CPU 秒）。给该进程挂 Node inspector 采样，热点全在 dsh 自带包：`existsSync`（文件系统探测）→ `@deepseek-ai/dsh-agent-presets` 的 `packageInstalled → rowResolves → unresolvableRows`；异步栈为 `@deepseek-ai/dsh-commands` 的 `CommandRuntime.layers → notifyChange` 叠加 `@deepseek-ai/cordis` 的 `Fiber._reload`。
+3. **自我维持的反馈回路**：`CommandRuntime` 构造期注册命令 → 每次注册 emit `commands/change`（宿主侧 `notifyChange` 实测 24 次/秒，cordis `PresetTree` fiber `_reload` 约 115 次/秒）→ 浏览器端官方 `dsh-client-ui-commands` 收到 `commands/change` 就 `invalidateAll()` 重拉 `/api/commands/list`（实测约 35 次/秒）→ 重拉又 resolve agent / resume session → 再次 emit，闭环。浏览器同源连接池被这个高频请求占满，其它请求（`workspaceFiles/list` 等）便排队或 `Failed to fetch`——这才是「模型列表出不来、侧边栏失败」的直接原因。
+4. **与 dsh-dock 无关的证据**：a) 停用插件全部功能（宿主侧 + 浏览器 localStorage + chips）后循环照旧（6 秒 198 次）；b) 把 `~/.dsh/.agent-presets/dsh-dock` 目录移走后宿主照样满载；c) 新起 dsh 实例（带 / 不带本插件）均完全空闲，循环不出现；d) 循环栈里没有一帧本插件代码。
+5. **兼容性核对**：插件用到的宿主 API 在 rc.1 全部存在——`llm.listConfigurableProviders` / `resolveModelInfo` / `prepareCall` / `registerAdapter`、`BlockAssembler`（`@deepseek-ai/dsh-llm`）、`credentialRef`（`@deepseek-ai/dsh-credentials`）。
+
+### 处置
+
+重启 `dsh web` 即清空该进程态（所有新实例均未复现）；或先关掉全部 dsh 页面标签再重开——实测无浏览器连接后宿主自身就回到空闲（0.09 CPU 秒/10 秒）。**本次未改任何插件代码**：症状是宿主进程态问题，不属于本仓库可修范围。
+
+### 顺带发现（待跟进，非本版改动）
+
+- `~/.dsh/.agent-presets/dsh-dock/agent.cordis.yml` 是 `standard` 预设的旧副本：比 rc.1 的 shipped `standard` **少一行 `@deepseek-ai/dsh-tool-present`**（rc.1 新增）。仍可解析、不是本次循环的原因，但已与新版脱节；后续可用新版 `standard` 重做该副本并重新贴回 persona 铁律。
+
+### 排查方法备忘（踩过的坑）
+
+- **`git tag | tail` 会骗人**：tag 是**字典序**排序，`v0.10.0` 排在 `v0.9.x` **前面**，用 `tail -10` / `tail -6` 看「最新 tag」会把 `v0.10.0` 漏掉、误判成「tag 缺失」。核对版本 tag 一律用 `git tag | sort -V | tail`，或按具体版本 `git ls-remote --tags <remote> | grep v0.10`。本次一度据此误报「v0.10.0 tag 缺失」，实际本地 / `origin` / `github` 三处都有（annotated tag `6b0af30` → 提交 `2560206`）。
+- **`tab.screenshot({ clip })` 在本环境会平铺错位**：截指定区域时会得到重复平铺的错图，只能整窗截图再视需要裁（见下）。
+
+
+### 本次发布内容（v0.10.1）
+
+- **截图全部重拍**（10 张，统一 1280×720）：新增模型余额 / 任务通知 / 运行状态 / 趣味游戏 / 设置→功能坞；用量记录 / 模型设置 / 任务动画 / 会话区小控件按 v0.10.0 拆分后的界面更新。**任务通知页的钉钉 / 飞书 Webhook 已脱敏**——这一步是必须的：仓库内文本文件（README、`view.jsx` 的 placeholder、测试脚本）本就只用 `…` / `x` / `test` 占位、没有真实密钥，截图若不脱敏就会成为首次把真实群机器人地址写进公开仓库。
+- **README**：功能一览补【趣味游戏】；「手机接力」更正为菜单项实际名称【远程访问】；「各功能使用」下补齐截图（文件内「界面 / 安装 / 使用方法」整段有重复副本，两处同步）。
+- 版本号两处对齐 `0.10.1`（`package.json` + `src/client.jsx` 的 `DOCK_VERSION`），`npm run build:client` 重建 `client.js`（页脚版本号随产物刷新）。
+
+### 截图做法（可复用）
+
+本机 dsh 开了认证（`/api` 与根页都需要 `dsh-auth-*` Cookie）。截图时用一个**注入 Cookie 的反向代理**（对本机 127.0.0.1:3080 上游，用 `~/.dsh/.credentials.yaml` 里 `client-connection/browser-session` 的 secret 现签一张 Cookie）起在本地端口，浏览器打开代理地址即可驱动真实 UI；WebSocket upgrade 也要一并转发。注意 `tab.screenshot({ clip })` 在本环境会出现**平铺错位**，一律用整窗截图（1280×720）。
+
+
+
+
