@@ -6,6 +6,25 @@
 
 （暂无）
 
+## v0.10.2 — 2026-09-10
+
+### 修复
+
+- **切模型卡住 / 「模型操作失败」——dsh-dock agent 预设未跟上 dsh 0.1.5-rc.1 的 schema 漂移**
+  （仅影响本地 `~/.dsh/.agent-presets/dsh-dock` 预设，不改插件代码）：dsh 升到 `0.1.5-rc.1` 后
+  `@deepseek-ai/dsh-persona` 把 `config.text` 换成必填的 `config.prefix` + `config.suffix`，而本预设
+  仍是旧写法 → 预设挂载失败（`$.prefix missing required value`）→ 因为预设是 standing mount，
+  **所有绑定该预设的会话都无法 resume**：历史会话切模型、打开会话都卡住并弹
+  `preset "dsh-dock" failed to mount`。已按新版 `standard` 对齐（persona 改 `prefix`/`suffix`，
+  并补上 rc.1 新增的 `dsh-tool-present` 行）；实机验证：用该预设建会话成功、对报错会话切模型成功。
+
+### 文档
+
+- `docs/workflow.md` §6 新增「升级核对（dsh 换版本后必做）」：与新版 `standard` 结构化对比的方法、
+  0.1.5-rc.1 已知两处漂移（persona 的 `prefix`/`suffix`、新增 `dsh-tool-present` 行）、以及
+  **真机 mount 验证**步骤（并点明只查 `agentPresets/list` 不够——它不校验 config schema）。
+- `docs/session-notes.md` 记录本次定位与教训；配套技能 `dsh-dock-release` 补「预设对齐」一节。
+
 ## v0.10.1 — 2026-09-10
 
 ### 文档
