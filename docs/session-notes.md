@@ -804,6 +804,15 @@ persona (@deepseek-ai/dsh-persona): invalid config: - $.prefix missing required 
   （resume failed → 模型操作失败），根因却在配置行；排查时先看**报错里的完整原文**——
   这次原文把文件名与字段名（`persona`、`$.prefix`）都点出来了。
 
+## 2026-09-10（续2）· README 截图引用整理
+
+- README 的截图引用移除 1 张不再适用的示例图（保留 9 张，各自对应功能页）；`screenshots/` 目录
+  与 `package.json` 的 `files` 保持整洁一致。
+- 顺带修订发版提交的信息措辞：公开历史里的提交信息**只描述改动内容**，不展开事件经过／排查细节，
+  避免在仓库历史中留下不必要的注释；细节留在私有记录里。
+
+
+
 
 
 
