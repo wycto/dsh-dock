@@ -10503,7 +10503,7 @@ var feature10 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.10.1";
+var DOCK_VERSION = "0.10.2";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};

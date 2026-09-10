@@ -33,8 +33,6 @@
 - **模型余额**：当前选中 Provider 的账户余额（跟随模型切换实时更新），点击打开功能坞并定位到该 Provider 的余额详情；
 - **用量记录**：当前会话的总 Token 与估算花费（10 秒静默刷新），点击打开功能坞并跳转到该会话的用量记录。
 
-![会话区余额/用量小控件](screenshots/dock-chips.png)
-
 勾选「启用」即显示，点芯片跳转；每个功能可在面板页脚或设置页单独设置「会话页显示/隐藏」。
 
 ## 界面
@@ -190,8 +188,6 @@ dsh plugin --profile web remove dsh-dock  # 卸载
 
 - **模型余额**：当前选中 Provider 的账户余额（跟随模型切换实时更新），点击打开功能坞并定位到该 Provider 的余额详情；
 - **用量记录**：当前会话的总 Token 与估算花费（10 秒静默刷新），点击打开功能坞并跳转到该会话的用量记录。
-
-![会话区余额/用量小控件](screenshots/dock-chips.png)
 
 勾选「启用」即显示，点芯片跳转；每个功能可在面板页脚或设置页单独设置「会话页显示/隐藏」。
 
@@ -351,6 +347,12 @@ dsh plugin --profile web remove dsh-dock  # 卸载
 - **任务动画/任务通知/运行状态不生效**：三者的路由都在宿主进程内（动画/通知的配置持久化也在宿主），旧宿主需重启 `dsh web` 加载（面板页会提示「宿主进程是旧版本」）。另注意通知与运行状态已各自独立成菜单项，需在功能坞里分别开启「任务通知」「运行状态」。
 - **用量记录空白**：确认 dsh 是较新版本且插件宿主已加载（查看启动日志含 `[dsh-dock] host half loaded`）；旧宿主进程需重启 dsh web 加载新路由。
 - **余额显示「需登录 / 无密钥」**：对应 Provider 未在 dsh 凭据中配置可查询余额的密钥，属正常状态提示。
+- **切模型 / 打开历史会话卡住，报 `preset "…" failed to mount`**：这是该 **agent 预设**与 dsh 版本
+  的 schema 漂移，不是本插件的问题。预设目录在 `~/.dsh/.agent-presets/<id>/`，dsh 升级后预设里的
+  行可能不再合法（例如 `@deepseek-ai/dsh-persona` 在 0.1.5-rc.1 把 `config.text` 改为必填的
+  `config.prefix` + `config.suffix`），导致绑定了它的会话无法 resume。修法：把该预设与 dsh 自带的
+  `standard` 预设对齐（照抄新字段，保留自己的 persona 正文）；细节见
+  [`docs/workflow.md`](docs/workflow.md) §6「升级核对」。
 
 ## 开发：新增一个功能模块
 
