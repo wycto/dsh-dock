@@ -22,6 +22,44 @@ export const DockConfig = z.object({
     provider: z.string().default(''),
     model: z.string().default(''),
   }).default({}),
+  // 【用量记录】模块的单价配置：官网抓取的刊例价常与实际计费不符（第三方/中转、
+  // 折扣、自建端点等），这里保存用户自填单价并优先用于费用估算。
+  // 详见 features/tokenlog/host.js 的 resolvePricing（优先级：自定义 > 官网 > 内置 > 兜底）。
+  tokenlog: z.object({
+    /** USD→CNY 汇率（金额内部以 USD 记录，界面按人民币展示）。 */
+    usdCnyRate: z.number().default(7.2),
+    /** 是否仍抓取官网刊例价，作为「自定义单价」未命中时的兜底。 */
+    fetchOfficial: z.boolean().default(true),
+    /** 官网价目地址（仅 http/https，且拒绝本机/内网/保留地址）。 */
+    pricingUrl: z.string().default('https://api-docs.deepseek.com/zh-cn/quick_start/pricing'),
+    /** 官网价目抓取间隔（小时）。 */
+    pricingFetchIntervalHours: z.number().default(24),
+    /** 用户自定义单价（人民币元/百万 tokens）：命中即用、优先级最高，按数组顺序匹配。 */
+    pricing: z.array(z.object({
+      match: z.string().default(''),
+      input: z.number().default(0),
+      output: z.number().default(0),
+      cacheRead: z.number().default(0),
+      cacheWrite: z.number().default(0),
+      /** 分时段价（可多段，如 DeepSeek 的高峰/优惠时段）：命中某段用该段价，否则用上面的基准价。
+       *  start/end 为本地小时数 0~24；start>end 表示跨零点；单段等价旧的 peak。 */
+      peaks: z.array(z.object({
+        start: z.number().default(0),
+        end: z.number().default(0),
+        input: z.number().default(0),
+        output: z.number().default(0),
+        cacheRead: z.number().default(0),
+        cacheWrite: z.number().default(0),
+      })).default([]),
+    })).default([]),
+    /** 未匹配任何条目的模型所用兜底单价。 */
+    fallback: z.object({
+      input: z.number().default(2.16),
+      output: z.number().default(6.48),
+      cacheRead: z.number().default(0.43),
+      cacheWrite: z.number().default(4.32),
+    }).default({}),
+  }).default({}),
   // 【任务动画】模块：只放动画本身（动效开关/模式/桌面伙伴大小）。
   // 通知相关的字段已全部迁往下面的 notify 段（见 migrateNotifyConfig）；
   // 旧值不在 schema 里也会被 schemastery 原样保留，迁移读得到。
