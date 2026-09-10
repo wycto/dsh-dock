@@ -30,7 +30,7 @@ import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.10.3";
+const DOCK_VERSION = "0.11.0";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fGames, fMobileRelay];
@@ -547,7 +547,8 @@ function HomeView(props) {
 }
 
 // ---- 设置页管理面板（settings.section）：所有功能模块卡片一览 ----
-function DockPanel() {
+// props.params 由插槽透传（设置页链接可能带 deep-link 参数，如用量记录的 openPricing）。
+function DockPanel(props) {
 	const ctx = ctxRef.current;
 	const [, force] = react.useReducer((n) => n + 1, 0);
 	useExternalVersion();
@@ -565,7 +566,7 @@ function DockPanel() {
 			const viewNode = (!f.planned && st.enabled && View)
 				? react.createElement("div", { className: "dock-body" },
 					react.createElement(FeatureBoundary, { key: f.id, label: f.name },
-						react.createElement(View, { ctx: ctx, feature: f })))
+						react.createElement(View, { ctx: ctx, feature: f, params: props && props.params })))
 				: null;
 			return react.createElement("div", { className: "dock-card", key: f.id },
 				react.createElement("div", { className: "dock-card-head" },
@@ -662,7 +663,7 @@ export function apply(ctx) {
 		() => react.createElement(FeatureOverlays, null)));
 	slots.inject("settings.section", () => slots.register(
 		{ name: "settings.section", id: "dsh-dock", order: 90, label: "功能坞" },
-		() => react.createElement(DockPanel, null)));
+		(props) => react.createElement(DockPanel, props)));
 	// 会话输入卡工具行左端（模型选择器左侧）：已启用功能的随身小控件
 	slots.inject("conversation.input.left", () => slots.register(
 		{ name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "功能坞" },
