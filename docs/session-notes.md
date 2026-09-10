@@ -705,5 +705,44 @@ Host 冒烟新增：虚拟多模态（启用宣称/停用保真/多模态不重�
 
 **教训**：「总结成一条」指的是**增量**（本次发版的开发提交收成一条），不是**替换**（把历史压掉）。涉及改写远端历史的操作，保留多少历史必须与用户逐字对齐；写进文档的规矩要写成「不删历史」的明文，不能只写「只推一条」。
 
+## 2026-09-10 · 「模型列表加载慢」定位结论：宿主空转，与 dsh-dock 无关 + v0.10.1 文档/截图
+
+### 现象
+
+升级到 dsh `0.1.5-rc.1` 后，原生「设置 → 模型」列表「很慢很慢甚至出不来」；随后侧边栏 / 文件面板也出现 `client api: workspaceFiles/list failed: Failed to fetch`。
+
+### 排查与根因（**不是本插件的兼容问题**）
+
+1. **插件宿主接口全是毫秒级**：`/dsh-dock/models` 10ms、`/dsh-dock/features` 3ms；RPC 侧 `llm/listProviders` 12ms、`llm/listConfigurableProviders` 26ms、`settings/describe` 8ms。
+2. **宿主进程在空转**：长时间运行的 `dsh web` 持续吃满约一整颗核（20 秒耗 20+ CPU 秒）。给该进程挂 Node inspector 采样，热点全在 dsh 自带包：`existsSync`（文件系统探测）→ `@deepseek-ai/dsh-agent-presets` 的 `packageInstalled → rowResolves → unresolvableRows`；异步栈为 `@deepseek-ai/dsh-commands` 的 `CommandRuntime.layers → notifyChange` 叠加 `@deepseek-ai/cordis` 的 `Fiber._reload`。
+3. **自我维持的反馈回路**：`CommandRuntime` 构造期注册命令 → 每次注册 emit `commands/change`（宿主侧 `notifyChange` 实测 24 次/秒，cordis `PresetTree` fiber `_reload` 约 115 次/秒）→ 浏览器端官方 `dsh-client-ui-commands` 收到 `commands/change` 就 `invalidateAll()` 重拉 `/api/commands/list`（实测约 35 次/秒）→ 重拉又 resolve agent / resume session → 再次 emit，闭环。浏览器同源连接池被这个高频请求占满，其它请求（`workspaceFiles/list` 等）便排队或 `Failed to fetch`——这才是「模型列表出不来、侧边栏失败」的直接原因。
+4. **与 dsh-dock 无关的证据**：a) 停用插件全部功能（宿主侧 + 浏览器 localStorage + chips）后循环照旧（6 秒 198 次）；b) 把 `~/.dsh/.agent-presets/dsh-dock` 目录移走后宿主照样满载；c) 新起 dsh 实例（带 / 不带本插件）均完全空闲，循环不出现；d) 循环栈里没有一帧本插件代码。
+5. **兼容性核对**：插件用到的宿主 API 在 rc.1 全部存在——`llm.listConfigurableProviders` / `resolveModelInfo` / `prepareCall` / `registerAdapter`、`BlockAssembler`（`@deepseek-ai/dsh-llm`）、`credentialRef`（`@deepseek-ai/dsh-credentials`）。
+
+### 处置
+
+重启 `dsh web` 即清空该进程态（所有新实例均未复现）；或先关掉全部 dsh 页面标签再重开——实测无浏览器连接后宿主自身就回到空闲（0.09 CPU 秒/10 秒）。**本次未改任何插件代码**：症状是宿主进程态问题，不属于本仓库可修范围。
+
+### 顺带发现（待跟进，非本版改动）
+
+- `~/.dsh/.agent-presets/dsh-dock/agent.cordis.yml` 是 `standard` 预设的旧副本：比 rc.1 的 shipped `standard` **少一行 `@deepseek-ai/dsh-tool-present`**（rc.1 新增）。仍可解析、不是本次循环的原因，但已与新版脱节；后续可用新版 `standard` 重做该副本并重新贴回 persona 铁律。
+
+### 排查方法备忘（踩过的坑）
+
+- **`git tag | tail` 会骗人**：tag 是**字典序**排序，`v0.10.0` 排在 `v0.9.x` **前面**，用 `tail -10` / `tail -6` 看「最新 tag」会把 `v0.10.0` 漏掉、误判成「tag 缺失」。核对版本 tag 一律用 `git tag | sort -V | tail`，或按具体版本 `git ls-remote --tags <remote> | grep v0.10`。本次一度据此误报「v0.10.0 tag 缺失」，实际本地 / `origin` / `github` 三处都有（annotated tag `6b0af30` → 提交 `2560206`）。
+- **`tab.screenshot({ clip })` 在本环境会平铺错位**：截指定区域时会得到重复平铺的错图，只能整窗截图再视需要裁（见下）。
+
+
+### 本次发布内容（v0.10.1）
+
+- **截图全部重拍**（10 张，统一 1280×720）：新增模型余额 / 任务通知 / 运行状态 / 趣味游戏 / 设置→功能坞；用量记录 / 模型设置 / 任务动画 / 会话区小控件按 v0.10.0 拆分后的界面更新。**任务通知页的钉钉 / 飞书 Webhook 已脱敏**——这一步是必须的：仓库内文本文件（README、`view.jsx` 的 placeholder、测试脚本）本就只用 `…` / `x` / `test` 占位、没有真实密钥，截图若不脱敏就会成为首次把真实群机器人地址写进公开仓库。
+- **README**：功能一览补【趣味游戏】；「手机接力」更正为菜单项实际名称【远程访问】；「各功能使用」下补齐截图（文件内「界面 / 安装 / 使用方法」整段有重复副本，两处同步）。
+- 版本号两处对齐 `0.10.1`（`package.json` + `src/client.jsx` 的 `DOCK_VERSION`），`npm run build:client` 重建 `client.js`（页脚版本号随产物刷新）。
+
+### 截图做法（可复用）
+
+本机 dsh 开了认证（`/api` 与根页都需要 `dsh-auth-*` Cookie）。截图时用一个**注入 Cookie 的反向代理**（对本机 127.0.0.1:3080 上游，用 `~/.dsh/.credentials.yaml` 里 `client-connection/browser-session` 的 secret 现签一张 Cookie）起在本地端口，浏览器打开代理地址即可驱动真实 UI；WebSocket upgrade 也要一并转发。注意 `tab.screenshot({ clip })` 在本环境会出现**平铺错位**，一律用整窗截图（1280×720）。
+
+
 
 
