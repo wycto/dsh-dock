@@ -2470,9 +2470,9 @@ function Detail({ rec, onClose, rate }) {
     ["\u9519\u8BEF\u4FE1\u606F", rec.errorMsg || "\u2014"],
     ["\u9519\u8BEF\u7801", rec.errorCode || "\u2014"],
     ["Request ID", rec.requestId || "\u2014"],
-    ["\u8F93\u5165 Token(\u672A\u7F13\u5B58)", fmtNum(rec.inputTokens)],
+    ["\u8F93\u5165 Token(\u7F13\u5B58\u547D\u4E2D)", fmtNum(rec.cacheReadTokens)],
+    ["\u8F93\u5165 Token(\u7F13\u5B58\u672A\u547D\u4E2D)", fmtNum(rec.inputTokens)],
     ["\u8F93\u51FA Token", fmtNum(rec.outputTokens)],
-    ["\u7F13\u5B58\u547D\u4E2D Token", fmtNum(rec.cacheReadTokens)],
     ["\u7F13\u5B58\u5199\u5165 Token", fmtNum(rec.cacheWriteTokens)],
     ["\u63A8\u7406 Token", fmtNum(rec.reasoningTokens)],
     ["\u8BA1\u8D39\u8F93\u5165", fmtNum(rec.billedInput)],
@@ -2721,7 +2721,11 @@ function PricingEditor({ onClose, onSaved, embedded }) {
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u8F93\u5165" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u8F93\u5165\uFF08\u7F13\u5B58\u547D\u4E2D\uFF09" }),
+            num(r.cacheRead, (v) => patchRow(i, { cacheRead: v }))
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u8F93\u5165\uFF08\u7F13\u5B58\u672A\u547D\u4E2D\uFF09" }),
             num(r.input, (v) => patchRow(i, { input: v }))
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
@@ -2729,14 +2733,11 @@ function PricingEditor({ onClose, onSaved, embedded }) {
             num(r.output, (v) => patchRow(i, { output: v }))
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u7F13\u5B58\u547D\u4E2D" }),
-            num(r.cacheRead, (v) => patchRow(i, { cacheRead: v }))
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u57FA\u51C6\u7F13\u5B58\u5199\u5165" }),
             num(r.cacheWrite, (v) => patchRow(i, { cacheWrite: v }))
           ] })
         ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { marginTop: 2 }, children: "\u7F13\u5B58\u5199\u5165\uFF1D\u672A\u547D\u4E2D\u7F13\u5B58\u3001\u672C\u6B21\u65B0\u5EFA\u7F13\u5B58\u7684\u90A3\u90E8\u5206\u8F93\u5165\uFF08Claude \u7B49\u6309\u6EA2\u4EF7\u5355\u72EC\u6536\u5EFA\u7F13\u5B58\u8D39\uFF09\uFF1BDeepSeek \u4E0D\u6536\u6B64\u9879\uFF0C\u586B 0 \u5373\u53EF\u3002" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { marginTop: 2 }, children: "\u5206\u65F6\u6BB5\u4EF7\uFF08\u53EF\u591A\u6BB5\uFF0C\u547D\u4E2D\u54EA\u6BB5\u7528\u54EA\u6BB5\uFF1B\u65F6\u6BB5\u5916\u56DE\u843D\u5230\u57FA\u51C6\u4EF7\u3002start>end \u8868\u793A\u8DE8\u96F6\u70B9\uFF0C\u5982 23~7\uFF1Bstart=end \u8868\u793A\u5168\u5929\uFF09" }),
         r.peaks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", children: "\uFF08\u672A\u8BBE\u7F6E\u5206\u65F6\u6BB5\uFF0C\u6309\u57FA\u51C6\u4EF7\u8BA1\u8D39\uFF09" }) : null,
         r.peaks.map((s, k) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-pseg", children: [
@@ -2745,13 +2746,13 @@ function PricingEditor({ onClose, onSaved, embedded }) {
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pseg-tilde", children: "~" }),
           num(s.end, (v) => patchSeg(i, k, { end: v }), { width: 56 }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pseg-tilde", children: "\u65F6" }),
-          segNum(s.input, (v) => patchSeg(i, k, { input: v }), "\u8F93\u5165"),
-          segNum(s.output, (v) => patchSeg(i, k, { output: v }), "\u8F93\u51FA"),
           segNum(s.cacheRead, (v) => patchSeg(i, k, { cacheRead: v }), "\u7F13\u5B58\u547D\u4E2D"),
-          segNum(s.cacheWrite, (v) => patchSeg(i, k, { cacheWrite: v }), "\u7F13\u5B58\u5199\u5165"),
+          segNum(s.input, (v) => patchSeg(i, k, { input: v }), "\u672A\u547D\u4E2D"),
+          segNum(s.output, (v) => patchSeg(i, k, { output: v }), "\u8F93\u51FA"),
+          segNum(s.cacheWrite, (v) => patchSeg(i, k, { cacheWrite: v }), "\u5199\u5165"),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny", onClick: () => delSeg(i, k), children: "\u5220\u9664\u65F6\u6BB5" })
         ] }, k)),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { opacity: 0.85 }, children: "\u65F6\u6BB5\u4EF7\u4ECE\u5DE6\u5230\u53F3\uFF1A\u8F93\u5165 / \u8F93\u51FA / \u7F13\u5B58\u547D\u4E2D / \u7F13\u5B58\u5199\u5165" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { opacity: 0.85 }, children: "\u65F6\u6BB5\u4EF7\u4ECE\u5DE6\u5230\u53F3\uFF1A\u8F93\u5165\uFF08\u547D\u4E2D\uFF09/ \u8F93\u5165\uFF08\u672A\u547D\u4E2D\uFF09/ \u8F93\u51FA / \u7F13\u5B58\u5199\u5165" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny", onClick: () => addSeg(i), children: "+ \u6DFB\u52A0\u65F6\u6BB5" })
       ] }, i)),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", style: { marginTop: 6 }, children: [
@@ -2772,16 +2773,16 @@ function PricingEditor({ onClose, onSaved, embedded }) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-section-title", style: { margin: "0 0 4px" }, children: "\u515C\u5E95\u5355\u4EF7\uFF08\u672A\u5339\u914D\u4EFB\u4F55\u6761\u76EE\u65F6\u4F7F\u7528\uFF09" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u8F93\u5165" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u8F93\u5165\uFF08\u7F13\u5B58\u547D\u4E2D\uFF09" }),
+          num(fb.cacheRead, (v) => setFb((s) => Object.assign({}, s, { cacheRead: v })))
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u8F93\u5165\uFF08\u7F13\u5B58\u672A\u547D\u4E2D\uFF09" }),
           num(fb.input, (v) => setFb((s) => Object.assign({}, s, { input: v })))
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u8F93\u51FA" }),
           num(fb.output, (v) => setFb((s) => Object.assign({}, s, { output: v })))
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u7F13\u5B58\u547D\u4E2D" }),
-          num(fb.cacheRead, (v) => setFb((s) => Object.assign({}, s, { cacheRead: v })))
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u7F13\u5B58\u5199\u5165" }),
@@ -2798,17 +2799,17 @@ function PricingEditor({ onClose, onSaved, embedded }) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-table-wrap", style: { marginTop: 6 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", { className: "dtok-table", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u5339\u914D" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u547D\u4E2D)" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u672A\u547D\u4E2D)" }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u51FA" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7F13\u5B58\u547D\u4E2D" }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7F13\u5B58\u5199\u5165" }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u5206\u65F6\u6BB5" })
         ] }) }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: cfg.builtin.map((b) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.match }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.cacheRead }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.input }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.output }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.cacheRead }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.cacheWrite }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.peaks && b.peaks.length ? b.peaks.map((s) => s.start + "~" + s.end).join("\u3001") + "\u65F6" : "\u2014" })
         ] }, b.match)) })
@@ -2969,8 +2970,8 @@ function TokenLogView(props) {
   const cards = totals ? [
     { v: fmtNum(totals.calls), l: "\u8C03\u7528\u6B21\u6570" },
     { v: fmtCompact(totals.totalTokens), l: "\u603B Token" },
-    { v: fmtCompact(totals.inputTokens), l: "\u8F93\u5165(\u672A\u7F13\u5B58)" },
-    { v: fmtCompact(totals.cacheReadTokens), l: "\u7F13\u5B58\u547D\u4E2D" },
+    { v: fmtCompact(totals.cacheReadTokens), l: "\u8F93\u5165(\u547D\u4E2D)" },
+    { v: fmtCompact(totals.inputTokens), l: "\u8F93\u5165(\u672A\u547D\u4E2D)" },
     { v: totals.cacheHitPct + "%", l: "\u7F13\u5B58\u547D\u4E2D\u7387" },
     { v: fmtCompact(totals.outputTokens), l: "\u8F93\u51FA" },
     { v: fmtCostCny(totals.cost, rateCny), l: "\u6D88\u8017\u91D1\u989D(\u4F30\u7B97\xB7\u4EBA\u6C11\u5E01)" },
@@ -2981,8 +2982,8 @@ function TokenLogView(props) {
   const summaryRows = (data && data.summary || []).map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.key }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.calls) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.inputTokens) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.cacheReadTokens) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.inputTokens) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.cacheHitPct + "%" }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.outputTokens) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.totalTokens) }),
@@ -3003,8 +3004,8 @@ function TokenLogView(props) {
       }, children: shortId(r.sessionId) }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.provider || "\u2014" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.model || "\u2014" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.inputTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.cacheReadTokens) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.inputTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.cacheHitPercent + "%" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.outputTokens) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.reasoningTokens) }),
@@ -3047,8 +3048,8 @@ function TokenLogView(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7EF4\u5EA6" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8C03\u7528" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7F13\u5B58" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u547D\u4E2D)" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u672A\u547D\u4E2D)" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u547D\u4E2D\u7387" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u51FA" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u603BToken" }),
@@ -3090,8 +3091,8 @@ function TokenLogView(props) {
           sortTh("\u4F1A\u8BDDID", "sessionId"),
           sortTh("\u63D0\u4F9B\u5546", "provider"),
           sortTh("\u6A21\u578B", "model"),
-          sortTh("\u8F93\u5165", "inputTokens"),
-          sortTh("\u7F13\u5B58", "cacheReadTokens"),
+          sortTh("\u8F93\u5165(\u547D\u4E2D)", "cacheReadTokens"),
+          sortTh("\u8F93\u5165(\u672A\u547D\u4E2D)", "inputTokens"),
           sortTh("\u547D\u4E2D%", "cacheHitPercent"),
           sortTh("\u8F93\u51FA", "outputTokens"),
           sortTh("\u63A8\u7406", "reasoningTokens"),
@@ -10878,7 +10879,7 @@ var feature10 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.11.0";
+var DOCK_VERSION = "0.11.1";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};

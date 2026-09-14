@@ -157,7 +157,10 @@ try {
     await new Promise((r) => setTimeout(r, 30)) // 等启动抓取完成（走桩 fetch）
 
     // 官网价：input 1.5 / output 4.5（CNY/百万 tokens）
-    emitCall(host, { sessionId: 's1', model: 'deepseek-v4-flash', seq: 1, time: Date.now() })
+    // 用「现在倒退 12 小时」做时间戳：内置表 v4-flash 带高峰时段 9~14 时，
+    // 若测试跑在高峰时段内，峰时价会取代基准价、断言 1.5/4.5 必失败（与早晚无关才稳定）。
+    const tOffPeak = Date.now() - 12 * 3600 * 1000
+    emitCall(host, { sessionId: 's1', model: 'deepseek-v4-flash', seq: 1, time: tOffPeak })
     let q = (await host.call('query', {})).body.data
     assert.equal(q.records.length, 1, '应采集到 1 条记录')
     // 官网 1.5*1 + 4.5*1 = 6 CNY → USD = 6/7.2
