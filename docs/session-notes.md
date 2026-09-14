@@ -928,3 +928,41 @@ persona (@deepseek-ai/dsh-persona): invalid config: - $.prefix missing required 
 
 
 
+
+## 2026-09-14 · v0.11.2：用量 chip 点击即出当前会话结果（挂载查询竞态）+ chip 宽度放宽
+
+### 现象
+
+- 用户反馈：从会话输入区「⛁ 用量」chip 打开用量记录，面板显示的是全量/旧条件数据
+  （会话下拉框已选中当前会话、KPI 却是 1.2 万条全量），必须再点一次「查询」才按会话出结果。
+- 用户反馈：配置单价后费用段「· ¥0.11」出现，用量/余额两个 chip 的数值被省略号截尾
+  （「¥0....」「余额 3014....」），小数位看不到。
+
+### 根因
+
+- **竞态**：`TokenLogView` 挂载时两条初始查询并发——挂载 effect 先 `scan`（慢）再按
+  **上次暂存条件**查（不含本次带入的会话）；navSession effect 立即按 `params.sessionId` 查（快）。
+  慢链路的结果**最后到达覆盖**快链路的会话结果。截图佐证：下拉框已是当前会话、统计仍是全量。
+- **截断**：chip 行宽度上限 189px（≈25cqw）是 v0.10.x 实测收窄的值，当时「4~6M 用量 + 余额」
+  恰好放得下；配置单价后每 chip 多出「· ¥0.xx」一段，合计超出约两个字符。两个 chip 的文本
+  精度本来就够（费用/余额均 2 位小数），纯粹是宽度上限截断。
+
+### 改法
+
+- `features/tokenlog/view.jsx`：sessionId 初值直接用 navSession（优先于暂存条件）；挂载查询里
+  `navSession` 覆盖暂存的会话条件——**初始只跑这一条查询**；navSession effect 改为只处理
+  「面板已打开时再次点击」，以 `navAt`（chip 点击时间戳）判同跳过首次。chip 的 `openPanel`
+  带 `navAt: Date.now()`，同一会话再点也重查。
+- `src/client.jsx`：`.dockchip-row` 上限 189px/25cqw → **216px/28cqw**，注释里记录新测算
+  （两 chip 合计约 204px）与回退方案（若再挤换行，优先压用量 chip 的 ⛁ 前缀，别再收上限）。
+
+### 验证
+
+- `npm run build:client` + `npm run test:client` 全绿（10 个视图渲染 + 错误隔离/portal 等检查）。
+- **真机验证**（dsh web 3080 link 模式，注入 Cookie 反代 + 内置浏览器）：
+  - 点「会话用量」chip → 面板直接打开用量记录页，秒出「11 / 12354 条」（当前会话 11 条），
+    会话下拉框选中 `session-6fd8c951-…`，无需点「查询」；
+  - chip 完整显示「⛁ 525.5K · ¥0.11」「余额 3008.89」，模型选择器与发送键同行不换行。
+- 顺手修正截图记忆里的反代做法：转发请求的 `Host` 头必须保持代理 authority（3990），
+  不能改写成上游 3080——上游按 Host 校验 Cookie，改写必 401；dsh 页面 chip 的 Playwright
+  click 会因 React 周期刷新超时，改用 evaluate 原生 `el.click()`。
