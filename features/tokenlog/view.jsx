@@ -531,8 +531,10 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 
 // ---------- 主视图（嵌入 dock 面板内容区） ----------
 export function TokenLogView(props) {
-	// props.params.sessionId（chips 点击带入）：立即按该会话筛选并查询
+	// props.params.sessionId（chips 点击带入）：立即按该会话筛选并查询。
+	// navAt：每次 chip 点击的时间戳——面板已打开时再次点击（即便同一会话）也触发重查。
 	const navSession = props && props.params && props.params.sessionId ? props.params.sessionId : null;
+	const navAt = props && props.params && props.params.navAt ? props.params.navAt : 0;
 	// 挂载即视为「打开」：恢复上次暂存的条件(时间不选=显示全部记录); savedFilters 稳定快照, 仅初始化时读取一次
 	const [savedFilters] = useState(loadSavedFilters);
 	const [fromStr, setFromStr] = useState(() => (savedFilters && savedFilters.fromStr) || "");
@@ -541,7 +543,8 @@ export function TokenLogView(props) {
 	const [model, setModel] = useState(() => (savedFilters && savedFilters.model) || "");
 	const [status, setStatus] = useState(() => (savedFilters && savedFilters.status) || "");
 	const [effort, setEffort] = useState(() => (savedFilters && savedFilters.effort) || "");
-	const [sessionId, setSessionId] = useState(() => (savedFilters && savedFilters.sessionId) || "");
+	// 会话入口（chip/深链）带入的 sessionId 优先于暂存条件：下拉框初值即选中该会话
+	const [sessionId, setSessionId] = useState(() => navSession || (savedFilters && savedFilters.sessionId) || "");
 	const [dim, setDim] = useState(() => (savedFilters && savedFilters.dim) || "");
 	const [sortKey, setSortKey] = useState("time");
 	const [sortDir, setSortDir] = useState("desc");
@@ -575,6 +578,9 @@ export function TokenLogView(props) {
 			if (savedFilters.sessionId) q.sessionId = savedFilters.sessionId;
 			if (savedFilters.dim) q.dim = savedFilters.dim;
 		}
+		// 从会话入口点入时按带入的会话查（优先于暂存条件）：打开即出当前会话结果，
+		// 不再需要手动点「查询」。只保留这一条初始查询，避免并发的会话查询被本链路覆盖。
+		if (navSession) q.sessionId = navSession;
 		rpcCall("scan", {})
 			.then(() => (cancel ? null : rpcCall("query", q)))
 			.then((d) => {
@@ -609,16 +615,20 @@ export function TokenLogView(props) {
 			.finally(() => setLoading(false));
 	}, [buildQ]);
 
-	// chips 定位：按带入的会话立即筛选查询（覆盖暂存条件里的会话项）
+	// chips 定位：面板已打开时再次从会话入口点击 → 立即按该会话筛选查询。
+	// 挂载时的首次带入已并入初始查询（sessionId 初值 + 挂载 effect），以 navAt 判同跳过，
+	// 避免打开面板时同一条件跑两遍、且挂载查询链路较慢把会话结果覆盖回全量。
+	const navAppliedRef = useRef(navAt);
 	useEffect(() => {
-		if (!navSession) return;
+		if (!navSession || navAppliedRef.current === navAt) return;
+		navAppliedRef.current = navAt;
 		setSessionId(navSession);
 		setLoading(true); setErr("");
 		rpcCall("query", Object.assign({}, buildQ(true), { sessionId: navSession }))
 			.then((d) => { setData(d); setPage(0); })
 			.catch((e) => setErr(String((e && e.message) || e)))
 			.finally(() => setLoading(false));
-	}, [navSession]);
+	}, [navAt]);
 
 	// 重置: 清空所有筛选(时间不选=显示全部记录), 并立即查询
 	const resetFilters = useCallback(() => {		setFromStr(""); setToStr("");
@@ -902,7 +912,7 @@ export function TokenLogChip(props) {
 		: (snap.err ? snap.err + "\n" : "") + "点击在功能坞查看用量记录";
 	return (
 		<button type="button" className={"dockchip" + (snap.err && !t ? " err" : "")} title={title} aria-label="会话用量"
-			onClick={() => openPanel("tokenlog", { sessionId: sid })}>
+			onClick={() => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() })}>
 			<span className="dockchip-dot" style={{ background: "var(--dk-warn)" }} />
 			<span>{label}</span>
 		</button>
