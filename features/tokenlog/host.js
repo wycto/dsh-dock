@@ -851,7 +851,8 @@ export const feature = {
             if (method === 'export') {
               loadPricingConfig()
               const list = buildQuery(payload || {}).map(withCost)
-              const header = ['time', 'provider', 'model', 'apiKey', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens', 'billedInput', 'cacheHitPercent', 'totalTokens', 'costCny', 'effort', 'status', 'statusCode', 'errorCode', 'errorMsg', 'llmMs', 'sessionId', 'turn', 'step']
+              // 列序对齐界面习惯（缓存命中在前）：… 命中 → 未命中 → 输出 → 写入
+              const header = ['time', 'provider', 'model', 'apiKey', 'cacheReadTokens', 'inputTokens', 'outputTokens', 'cacheWriteTokens', 'reasoningTokens', 'billedInput', 'cacheHitPercent', 'totalTokens', 'costCny', 'effort', 'status', 'statusCode', 'errorCode', 'errorMsg', 'llmMs', 'sessionId', 'turn', 'step']
               const esc = (v) => {
                 const s = String(v === undefined || v === null ? '' : v)
                 return /[,"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s

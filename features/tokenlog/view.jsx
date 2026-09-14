@@ -189,9 +189,9 @@ function Detail({ rec, onClose, rate }) {
 		["错误信息", rec.errorMsg || "—"],
 		["错误码", rec.errorCode || "—"],
 		["Request ID", rec.requestId || "—"],
-		["输入 Token(未缓存)", fmtNum(rec.inputTokens)],
+		["输入 Token(缓存命中)", fmtNum(rec.cacheReadTokens)],
+		["输入 Token(缓存未命中)", fmtNum(rec.inputTokens)],
 		["输出 Token", fmtNum(rec.outputTokens)],
-		["缓存命中 Token", fmtNum(rec.cacheReadTokens)],
 		["缓存写入 Token", fmtNum(rec.cacheWriteTokens)],
 		["推理 Token", fmtNum(rec.reasoningTokens)],
 		["计费输入", fmtNum(rec.billedInput)],
@@ -451,10 +451,13 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 							<button className="dtok-btn tiny" onClick={() => delRow(i)}>删除模型</button>
 						</div>
 						<div className="dtok-price-grid">
-							<div className="dtok-price-field"><label>基准输入</label>{num(r.input, (v) => patchRow(i, { input: v }))}</div>
+							<div className="dtok-price-field"><label>基准输入（缓存命中）</label>{num(r.cacheRead, (v) => patchRow(i, { cacheRead: v }))}</div>
+							<div className="dtok-price-field"><label>基准输入（缓存未命中）</label>{num(r.input, (v) => patchRow(i, { input: v }))}</div>
 							<div className="dtok-price-field"><label>基准输出</label>{num(r.output, (v) => patchRow(i, { output: v }))}</div>
-							<div className="dtok-price-field"><label>基准缓存命中</label>{num(r.cacheRead, (v) => patchRow(i, { cacheRead: v }))}</div>
 							<div className="dtok-price-field"><label>基准缓存写入</label>{num(r.cacheWrite, (v) => patchRow(i, { cacheWrite: v }))}</div>
+						</div>
+						<div className="dtok-price-hint" style={{ marginTop: 2 }}>
+							缓存写入＝未命中缓存、本次新建缓存的那部分输入（Claude 等按溢价单独收建缓存费）；DeepSeek 不收此项，填 0 即可。
 						</div>
 						<div className="dtok-price-hint" style={{ marginTop: 2 }}>
 							分时段价（可多段，命中哪段用哪段；时段外回落到基准价。start&gt;end 表示跨零点，如 23~7；start=end 表示全天）
@@ -467,14 +470,14 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 								<span className="dtok-pseg-tilde">~</span>
 								{num(s.end, (v) => patchSeg(i, k, { end: v }), { width: 56 })}
 								<span className="dtok-pseg-tilde">时</span>
-								{segNum(s.input, (v) => patchSeg(i, k, { input: v }), "输入")}
-								{segNum(s.output, (v) => patchSeg(i, k, { output: v }), "输出")}
 								{segNum(s.cacheRead, (v) => patchSeg(i, k, { cacheRead: v }), "缓存命中")}
-								{segNum(s.cacheWrite, (v) => patchSeg(i, k, { cacheWrite: v }), "缓存写入")}
+								{segNum(s.input, (v) => patchSeg(i, k, { input: v }), "未命中")}
+								{segNum(s.output, (v) => patchSeg(i, k, { output: v }), "输出")}
+								{segNum(s.cacheWrite, (v) => patchSeg(i, k, { cacheWrite: v }), "写入")}
 								<button className="dtok-btn tiny" onClick={() => delSeg(i, k)}>删除时段</button>
 							</div>
 						))}
-						<div className="dtok-price-hint" style={{ opacity: .85 }}>时段价从左到右：输入 / 输出 / 缓存命中 / 缓存写入</div>
+						<div className="dtok-price-hint" style={{ opacity: .85 }}>时段价从左到右：输入（命中）/ 输入（未命中）/ 输出 / 缓存写入</div>
 						<button className="dtok-btn tiny" onClick={() => addSeg(i)}>+ 添加时段</button>
 					</div>
 				))}
@@ -492,9 +495,9 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 			<div>
 				<div className="dtok-section-title" style={{ margin: "0 0 4px" }}>兜底单价（未匹配任何条目时使用）</div>
 				<div className="dtok-price-grid">
-					<div className="dtok-price-field"><label>输入</label>{num(fb.input, (v) => setFb((s) => Object.assign({}, s, { input: v })))}</div>
+					<div className="dtok-price-field"><label>输入（缓存命中）</label>{num(fb.cacheRead, (v) => setFb((s) => Object.assign({}, s, { cacheRead: v })))}</div>
+					<div className="dtok-price-field"><label>输入（缓存未命中）</label>{num(fb.input, (v) => setFb((s) => Object.assign({}, s, { input: v })))}</div>
 					<div className="dtok-price-field"><label>输出</label>{num(fb.output, (v) => setFb((s) => Object.assign({}, s, { output: v })))}</div>
-					<div className="dtok-price-field"><label>缓存命中</label>{num(fb.cacheRead, (v) => setFb((s) => Object.assign({}, s, { cacheRead: v })))}</div>
 					<div className="dtok-price-field"><label>缓存写入</label>{num(fb.cacheWrite, (v) => setFb((s) => Object.assign({}, s, { cacheWrite: v })))}</div>
 				</div>
 			</div>
@@ -504,11 +507,11 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 					<summary className="dtok-price-hint" style={{ cursor: "pointer" }}>查看内置默认单价（{cfg.builtin.length} 条，自定义配置未命中时按此兜底）</summary>
 					<div className="dtok-table-wrap" style={{ marginTop: 6 }}>
 						<table className="dtok-table">
-							<thead><tr><th>匹配</th><th>输入</th><th>输出</th><th>缓存命中</th><th>缓存写入</th><th>分时段</th></tr></thead>
+							<thead><tr><th>匹配</th><th>输入(命中)</th><th>输入(未命中)</th><th>输出</th><th>缓存写入</th><th>分时段</th></tr></thead>
 							<tbody>
 								{cfg.builtin.map((b) => (
 									<tr key={b.match}>
-										<td>{b.match}</td><td>{b.input}</td><td>{b.output}</td><td>{b.cacheRead}</td><td>{b.cacheWrite}</td>
+										<td>{b.match}</td><td>{b.cacheRead}</td><td>{b.input}</td><td>{b.output}</td><td>{b.cacheWrite}</td>
 										<td>{b.peaks && b.peaks.length ? b.peaks.map((s) => s.start + "~" + s.end).join("、") + "时" : "—"}</td>
 									</tr>
 								))}
@@ -684,8 +687,8 @@ export function TokenLogView(props) {
 	const cards = totals ? [
 		{ v: fmtNum(totals.calls), l: "调用次数" },
 		{ v: fmtCompact(totals.totalTokens), l: "总 Token" },
-		{ v: fmtCompact(totals.inputTokens), l: "输入(未缓存)" },
-		{ v: fmtCompact(totals.cacheReadTokens), l: "缓存命中" },
+		{ v: fmtCompact(totals.cacheReadTokens), l: "输入(命中)" },
+		{ v: fmtCompact(totals.inputTokens), l: "输入(未命中)" },
 		{ v: totals.cacheHitPct + "%", l: "缓存命中率" },
 		{ v: fmtCompact(totals.outputTokens), l: "输出" },
 		{ v: fmtCostCny(totals.cost, rateCny), l: "消耗金额(估算·人民币)" },
@@ -702,8 +705,8 @@ export function TokenLogView(props) {
 
 	const summaryRows = (data && data.summary || []).map((r) => (
 		<tr key={r.key}>
-			<td>{r.key}</td><td>{fmtNum(r.calls)}</td><td>{fmtCompact(r.inputTokens)}</td>
-			<td>{fmtCompact(r.cacheReadTokens)}</td><td>{r.cacheHitPct + "%"}</td><td>{fmtCompact(r.outputTokens)}</td>
+			<td>{r.key}</td><td>{fmtNum(r.calls)}</td><td>{fmtCompact(r.cacheReadTokens)}</td>
+			<td>{fmtCompact(r.inputTokens)}</td><td>{r.cacheHitPct + "%"}</td><td>{fmtCompact(r.outputTokens)}</td>
 			<td>{fmtCompact(r.totalTokens)}</td>
 			<td>{fmtCostCny(r.cost, rateCny)}</td>
 			<td>{fmtDuration(r.llmMs)}</td>
@@ -724,8 +727,8 @@ export function TokenLogView(props) {
 				<td><span className="dtok-sid" title="点击按此会话筛选" onClick={() => { setSessionId(r.sessionId); runQuery(); }}>{shortId(r.sessionId)}</span></td>
 				<td>{r.provider || "—"}</td>
 				<td>{r.model || "—"}</td>
-				<td>{fmtNum(r.inputTokens)}</td>
 				<td>{fmtNum(r.cacheReadTokens)}</td>
+				<td>{fmtNum(r.inputTokens)}</td>
 				<td>{r.cacheHitPercent + "%"}</td>
 				<td>{fmtNum(r.outputTokens)}</td>
 				<td>{fmtNum(r.reasoningTokens)}</td>
@@ -756,7 +759,7 @@ export function TokenLogView(props) {
 		<div key="sumtab" className="dtok-table-wrap">
 			<table className="dtok-table">
 				<thead><tr>
-					<th>维度</th><th>调用</th><th>输入</th><th>缓存</th><th>命中率</th><th>输出</th><th>总Token</th><th>金额（人民币）</th><th>耗时</th>
+					<th>维度</th><th>调用</th><th>输入(命中)</th><th>输入(未命中)</th><th>命中率</th><th>输出</th><th>总Token</th><th>金额（人民币）</th><th>耗时</th>
 				</tr></thead>
 				<tbody>{summaryRows}</tbody>
 			</table>
@@ -788,7 +791,7 @@ export function TokenLogView(props) {
 				<table className="dtok-table">
 					<thead><tr>
 						{sortTh("时间", "time")}{sortTh("会话ID", "sessionId")}{sortTh("提供商", "provider")}{sortTh("模型", "model")}
-						{sortTh("输入", "inputTokens")}{sortTh("缓存", "cacheReadTokens")}{sortTh("命中%", "cacheHitPercent")}{sortTh("输出", "outputTokens")}
+						{sortTh("输入(命中)", "cacheReadTokens")}{sortTh("输入(未命中)", "inputTokens")}{sortTh("命中%", "cacheHitPercent")}{sortTh("输出", "outputTokens")}
 						{sortTh("推理", "reasoningTokens")}{sortTh("总额", "totalTokens")}{sortTh("金额（人民币）", "cost")}{sortTh("强度", "effort")}
 						{sortTh("状态", "status")}{sortTh("耗时", "llmMs")}
 					</tr></thead>
