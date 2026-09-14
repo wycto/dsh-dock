@@ -2823,6 +2823,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 }
 function TokenLogView(props) {
   const navSession = props && props.params && props.params.sessionId ? props.params.sessionId : null;
+  const navAt = props && props.params && props.params.navAt ? props.params.navAt : 0;
   const [savedFilters] = (0, import_react2.useState)(loadSavedFilters);
   const [fromStr, setFromStr] = (0, import_react2.useState)(() => savedFilters && savedFilters.fromStr || "");
   const [toStr, setToStr] = (0, import_react2.useState)(() => savedFilters && savedFilters.toStr || "");
@@ -2830,7 +2831,7 @@ function TokenLogView(props) {
   const [model, setModel] = (0, import_react2.useState)(() => savedFilters && savedFilters.model || "");
   const [status, setStatus] = (0, import_react2.useState)(() => savedFilters && savedFilters.status || "");
   const [effort, setEffort] = (0, import_react2.useState)(() => savedFilters && savedFilters.effort || "");
-  const [sessionId, setSessionId] = (0, import_react2.useState)(() => savedFilters && savedFilters.sessionId || "");
+  const [sessionId, setSessionId] = (0, import_react2.useState)(() => navSession || savedFilters && savedFilters.sessionId || "");
   const [dim, setDim] = (0, import_react2.useState)(() => savedFilters && savedFilters.dim || "");
   const [sortKey, setSortKey] = (0, import_react2.useState)("time");
   const [sortDir, setSortDir] = (0, import_react2.useState)("desc");
@@ -2859,6 +2860,7 @@ function TokenLogView(props) {
       if (savedFilters.sessionId) q.sessionId = savedFilters.sessionId;
       if (savedFilters.dim) q.dim = savedFilters.dim;
     }
+    if (navSession) q.sessionId = navSession;
     rpcCall("scan", {}).then(() => cancel ? null : rpcCall("query", q)).then((d) => {
       if (cancel) return;
       setData(d);
@@ -2892,8 +2894,10 @@ function TokenLogView(props) {
       setPage(0);
     }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
   }, [buildQ]);
+  const navAppliedRef = (0, import_react2.useRef)(navAt);
   (0, import_react2.useEffect)(() => {
-    if (!navSession) return;
+    if (!navSession || navAppliedRef.current === navAt) return;
+    navAppliedRef.current = navAt;
     setSessionId(navSession);
     setLoading(true);
     setErr("");
@@ -2901,7 +2905,7 @@ function TokenLogView(props) {
       setData(d);
       setPage(0);
     }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
-  }, [navSession]);
+  }, [navAt]);
   const resetFilters = (0, import_react2.useCallback)(() => {
     setFromStr("");
     setToStr("");
@@ -3222,7 +3226,7 @@ function TokenLogChip(props) {
       className: "dockchip" + (snap.err && !t ? " err" : ""),
       title,
       "aria-label": "\u4F1A\u8BDD\u7528\u91CF",
-      onClick: () => openPanel("tokenlog", { sessionId: sid }),
+      onClick: () => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() }),
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: "var(--dk-warn)" } }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: label })
@@ -10879,7 +10883,7 @@ var feature10 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.11.1";
+var DOCK_VERSION = "0.11.2";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
@@ -11039,11 +11043,14 @@ var SHELL_CSS = [
   //     注意：旧上限 min(280px,36cqw) 仍偏宽——标准 780px 输入卡下（.row 内容约 762px），
   //     add 钮(28)+工作区选择器(~214)+chips(280) 已与右侧模型选择器+发送键（~345px）合计超宽，
   //     即便 chips 未截断 .row 也会换行把模型选择器/发送键挤到第二行。实测把上限收到 189px
-  //     （≈25cqw）并使 chips 内距收紧（padding 2px 6px、gap 2px）后，实测 4~6M 用量 + 余额
-  //     两 chip 可完整显示且不再换行；超限时仍被省略号截断，完整值在 title 悬浮提示里。
+  //     （≈25cqw）并使 chips 内距收紧（padding 2px 6px、gap 2px）后，「4~6M 用量 + 余额」
+  //     两 chip 可完整显示且不再换行。v0.11.2：配置单价后费用段「· ¥0.03」让两 chip 合计
+  //     约需 204px，189px 恰好截掉约 2 个数字（费用/余额小数位看不到）——按用户反馈放宽到
+  //     216px（≈28cqw），标准卡下实测完整显示；若再出现把模型选择器挤换行，优先压缩用量
+  //     chip 的 ⛁ 前缀换空间，别再收这个上限。超限仍省略号截断，完整值在 title 悬浮提示里。
   //  2) 截断：超限部分用省略号截断（完整数值在 title 悬浮提示里），防 chips 凸出输入卡圆角（悬空）。
-  ".dockchip-row{display:inline-flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:189px;}",
-  "@supports (width:1cqw){.dockchip-row{max-width:min(189px,25cqw);}}",
+  ".dockchip-row{display:inline-flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:216px;}",
+  "@supports (width:1cqw){.dockchip-row{max-width:min(216px,28cqw);}}",
   ".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 6px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
   ".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
   ".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
