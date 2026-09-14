@@ -30,7 +30,7 @@ import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.11.1";
+const DOCK_VERSION = "0.11.2";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fGames, fMobileRelay];
@@ -206,11 +206,14 @@ const SHELL_CSS = [
 	//     注意：旧上限 min(280px,36cqw) 仍偏宽——标准 780px 输入卡下（.row 内容约 762px），
 	//     add 钮(28)+工作区选择器(~214)+chips(280) 已与右侧模型选择器+发送键（~345px）合计超宽，
 	//     即便 chips 未截断 .row 也会换行把模型选择器/发送键挤到第二行。实测把上限收到 189px
-	//     （≈25cqw）并使 chips 内距收紧（padding 2px 6px、gap 2px）后，实测 4~6M 用量 + 余额
-	//     两 chip 可完整显示且不再换行；超限时仍被省略号截断，完整值在 title 悬浮提示里。
+	//     （≈25cqw）并使 chips 内距收紧（padding 2px 6px、gap 2px）后，「4~6M 用量 + 余额」
+	//     两 chip 可完整显示且不再换行。v0.11.2：配置单价后费用段「· ¥0.03」让两 chip 合计
+	//     约需 204px，189px 恰好截掉约 2 个数字（费用/余额小数位看不到）——按用户反馈放宽到
+	//     216px（≈28cqw），标准卡下实测完整显示；若再出现把模型选择器挤换行，优先压缩用量
+	//     chip 的 ⛁ 前缀换空间，别再收这个上限。超限仍省略号截断，完整值在 title 悬浮提示里。
 	//  2) 截断：超限部分用省略号截断（完整数值在 title 悬浮提示里），防 chips 凸出输入卡圆角（悬空）。
-	".dockchip-row{display:inline-flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:189px;}",
-	"@supports (width:1cqw){.dockchip-row{max-width:min(189px,25cqw);}}",
+	".dockchip-row{display:inline-flex;align-items:center;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;max-width:216px;}",
+	"@supports (width:1cqw){.dockchip-row{max-width:min(216px,28cqw);}}",
 	".dockchip{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 6px;font-family:inherit;font-size:11px;line-height:18px;white-space:nowrap;min-width:0;overflow:hidden;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
 	".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
 	".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
