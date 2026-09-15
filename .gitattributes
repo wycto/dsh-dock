@@ -1,0 +1,11 @@
+# 统一按 LF 存储与检出。
+# 不设这一条时，Windows 侧的编辑器/工具把整仓库写成 CRLF，会让 git status 出现
+# 几十个文件的「已修改」假 diff（内容其实一模一样，只是行尾不同）。
+* text=auto eol=lf
+
+# 二进制资源不做行尾处理
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
