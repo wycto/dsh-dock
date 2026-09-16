@@ -1047,3 +1047,37 @@ AssertionError [ERR_ASSERTION]: 内置价 1.5/4.5 生效
 
 - 仅测试文件改动，插件运行代码零改动（`features/`、`src/`、`index.js` 未动），用户侧无需操作。
 - 顺带把本机 agent 记忆目录 `.workbuddy/` 加入 `.gitignore`（与 `.mimosa/` 同类，属本机产物，不进包）。
+
+## 2026-09-16（续）· 发版 v0.11.3：查询等待动画 + CSV 中文表头 + 开发机工具链
+
+### 本版内容（自上版 v0.11.2 以来在开发库累积的全部提交）
+
+- **用量记录点「查询」有等待动画**（03fa1a5）：状态行 `⟳ 加载中...`、按钮「查询中…」禁用、
+  数据区 sticky banner 轮流蹦跳换文案（>5 秒转安抚语气）、旧数据压暗不可点、结果到位闪
+  「✓ 数据已更新」；5 秒静默轮询不置 loading；遵守 `prefers-reduced-motion`。
+- **用量记录 CSV 导出改中文表头**（5d64756）：export 路由改回结构化明细，前端按界面「调用明细」表
+  同列序同取值生成 14 列 CSV，末尾追加合计行、前置 UTF-8 BOM；旧宿主进程自动回退原形式。
+- **宿主删掉任务开始/结束的例行终端日志**（b3b51ad）：运行状态以「运行状态」页为准，终端只留报错。
+- **文档与仓库卫生**（e3b9f5f、0f43952）：README 去重（397 → 241 行）+ 修正过时的远程访问口径 +
+  `.gitattributes` 统一 LF。
+- **开发机 link 安装 + 改码自动刷新**（15b34e1、c3e5377、158120e、31dde8e）：`dev-link-deps.mjs` /
+  `watch-client.mjs` / `npm run dev:link` / `npm run dev:client` + workflow 4b 节。
+- **esbuild 解析兼容 WSL / 本地命中**（eea8e2a、a1fe734）：`.exe` 直执 + `wslpath` 路径桥、本地命中改经
+  node 跑 JS 入口、win32 走 shell、失败包装报错信息。
+- **修复**（97270a5）：`test-tokenlog-host.mjs` 分时价用例写死本地 20:00，21:00 后跑不再必挂（上一节）。
+
+### 发版动作（按 docs/workflow.md §3）
+
+1. 版本号两处改 0.11.3（`package.json` + `src/client.jsx` 的 `DOCK_VERSION`）；
+   `CHANGELOG.md` 的「未发布（下一版）— 开发中」整段改名为 `## v0.11.3 — 2026-09-16`。
+2. `npm run build:client` 重建 `client.js`；`npm run test:client`（10 视图 + 6 项隔离/一致性断言）与
+   `npm run test:host`（task/animation/notify/runstate + tokenlog）全绿，无跳过。
+3. 复查 README / `package.json` description：无写死的版本号需改；功能一览表未受影响。
+4. 发版提交（开发库）→ 推 `origin`；tag `v0.11.3` 推 `origin` 与 `github`。
+5. 发版库 `github`：`scripts/push-github-release.sh` 把 main 整棵树压成**一条**「发版 v0.11.3」提交
+   （父提交 = 上一发版提交 `48d2293f` = v0.11.2），快进推 `github/main`——不重写、不删既有历史。
+6. `./scripts/publish.sh` 发布 npm `dsh-dock@0.11.3`（`npm pack --dry-run` 预览 + 登录态检查 + `npm publish`）。
+7. **本地发版库检出对齐**：`/Users/weiyi/develop/github/wycto/dsh-dock` 的 main 长期停在 v0.9.0，
+   且自 v0.10.0 那次「github 历史重写再修正」起就与远端分叉（本地 10 条 / 远端 101 条互不包含）。
+   本次不 force、不丢历史：先把旧 main 存成 `backup/main-pre-v0.11.3`，再 `fetch` + `reset --hard`
+   到 `origin/main`，使其与 `github/main` 完全一致。
