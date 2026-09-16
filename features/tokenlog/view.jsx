@@ -3,7 +3,7 @@
 // 嵌入功能坞面板的统计视图（无独立 overlay 外壳；全屏用 dock 弹窗自带的「最大化」）：
 //  - 秒级时间范围查询 + 会话ID/提供商/模型(联动)/状态/推理强度 筛选，条件本地暂存
 //  - 9 张 KPI 卡 + 分组统计表 + 明细表（点击表头排序、会话ID点击即筛选、100 行/页上下双分页）
-//  - 状态列显示 HTTP 状态码徽章，行内【查看详情】弹窗展示完整信息；CSV 导出
+//  - 状态列显示 HTTP 状态码徽章，行内【查看详情】弹窗展示完整信息；CSV 导出（中文表头，列序与明细表一致 + 合计行）
 //  - 独立的「单价设置」子弹窗：按模型配置单价（支持多段分时价）并持久化，费用按自填单价重算
 //  - 挂载即扫描历史+按暂存条件查询；挂载期间每 5s 静默自动刷新
 // Host 通信：fetch('/dsh-dock/tokenlog/<method>')（见 features/tokenlog/host.js）。
@@ -56,6 +56,61 @@ function fmtTime(ts) {
 	const d = new Date(ts);
 	const p = (x) => String(x).padStart(2, "0");
 	return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+// 金额: CSV 里逐条导出时保精确(不做 ¥xx万/取整), 否则对账会丢分。
+function fmtCostCnyExact(usd, rate) {
+	const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
+	return "¥" + v.toFixed(4);
+}
+
+// ---------- CSV 导出 ----------
+// 表头即「调用明细」表的中文列名, 列序/取值格式与页面完全一致(日期时间、千分位、命中%、¥xx.xxxx、
+// 耗时 1.2s、状态徽章标签)。host 的 export 返回原始 rows, 由这里统一格式化, 保证界面与导出同源。
+const EXPORT_COLUMNS = [
+	["时间", (r) => fmtTime(r.time)],
+	["会话ID", (r) => r.sessionId || ""],
+	["提供商", (r) => r.provider || "—"],
+	["模型", (r) => r.model || "—"],
+	["输入(命中)", (r) => fmtNum(r.cacheReadTokens)],
+	["输入(未命中)", (r) => fmtNum(r.inputTokens)],
+	["命中%", (r) => (Number(r.cacheHitPercent) || 0) + "%"],
+	["输出", (r) => fmtNum(r.outputTokens)],
+	["推理", (r) => fmtNum(r.reasoningTokens)],
+	["总额", (r) => fmtNum(r.totalTokens)],
+	["金额（人民币）", (r, rate) => fmtCostCnyExact(r.cost, rate)],
+	["强度", (r) => r.effort || "—"],
+	["状态", (r) => statusInfo(r).label],
+	["耗时", (r) => fmtDuration(r.llmMs)],
+];
+function csvCell(v) {
+	const s = String(v === undefined || v === null ? "" : v);
+	return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+/** rows → CSV 文本(不含 BOM)。末尾追加「合计」行: 调用数/各 Token 合计/金额合计, 与页面 KPI 卡口径一致。 */
+function buildExportCsv(rows, rate) {
+	const list = Array.isArray(rows) ? rows : [];
+	const lines = [EXPORT_COLUMNS.map(([title]) => csvCell(title)).join(",")];
+	for (const r of list) lines.push(EXPORT_COLUMNS.map(([, get]) => csvCell(get(r, rate))).join(","));
+	if (list.length) {
+		const sum = (k) => list.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+		const totalInput = sum("inputTokens") + sum("cacheReadTokens");
+		const hitPct = totalInput > 0 ? Math.round((sum("cacheReadTokens") / totalInput) * 100) : 0;
+		const totals = {
+			"调用次数": String(list.length),
+			"输入(命中)": fmtNum(sum("cacheReadTokens")),
+			"输入(未命中)": fmtNum(sum("inputTokens")),
+			"命中%": hitPct + "%",
+			"输出": fmtNum(sum("outputTokens")),
+			"推理": fmtNum(sum("reasoningTokens")),
+			"总额": fmtNum(sum("totalTokens")),
+			"金额（人民币）": fmtCostCnyExact(sum("cost"), rate),
+		};
+		lines.push(EXPORT_COLUMNS.map(([title]) => {
+			if (title === "提供商") return csvCell("合计(" + list.length + " 条调用)");
+			return csvCell(totals[title] === undefined ? "" : totals[title]);
+		}).join(","));
+	}
+	return lines.join("\r\n");
 }
 
 // ---------- 筛选条件暂存(本地) ----------
@@ -630,6 +685,11 @@ export function TokenLogView(props) {
 			.finally(() => setLoading(false));
 	}, [navAt]);
 
+	// USD→CNY 汇率: host 返回(默认 7.2, 可被 settings dsh-dock.tokenlog.usdCnyRate 覆盖)。
+	// 必须在所有引用它的表达式(cards/summaryRows/detailRows/Detail/exportCsv)之前声明,
+	// 否则 const 的 TDZ 会让组件渲染或导出直接抛错。
+	const rateCny = (data && data.rateUsdCny) || 7.2;
+
 	// 重置: 清空所有筛选(时间不选=显示全部记录), 并立即查询
 	const resetFilters = useCallback(() => {		setFromStr(""); setToStr("");
 		setProvider(""); setModel(""); setStatus(""); setEffort(""); setSessionId(""); setDim("");
@@ -643,7 +703,13 @@ export function TokenLogView(props) {
 	const exportCsv = useCallback(() => {
 		rpcCall("export", buildQ(false))
 			.then((d) => {
-				const blob = new Blob([d.csv], { type: "text/csv;charset=utf-8" });
+				// host 返回结构化 rows 时本地格式化（中文表头、与页面同款取值/合计行）。
+				// 旧宿主进程只回 csv 字段（英文表头）：回退到原样导出，避免导出空文件。
+				const csv = d && Array.isArray(d.rows)
+					? buildExportCsv(d.rows, (d && d.rateUsdCny) || rateCny)
+					: String((d && d.csv) || "");
+				// BOM 前置: 否则 Excel 按本地编码打开, 中文表头会乱码
+				const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
 				const url = URL.createObjectURL(blob);
 				const a = document.createElement("a");
 				a.href = url;
@@ -652,7 +718,7 @@ export function TokenLogView(props) {
 				URL.revokeObjectURL(url);
 			})
 			.catch((e) => setErr(String((e && e.message) || e)));
-	}, [buildQ]);
+	}, [buildQ, rateCny]);
 
 	// 自动刷新: 挂载期间每 5s 按当前筛选静默刷新(不闪烁 loading)。
 	// 注意: 依赖数组 [buildQ] 在声明时即求值, 必须放在 buildQ 定义之后(否则 TDZ 崩溃)。
@@ -689,10 +755,6 @@ export function TokenLogView(props) {
 	const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
 	const pageSafe = Math.min(page, pageCount - 1);
 	const pageRows = sorted.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize);
-
-	// USD→CNY 汇率: host 返回(默认 7.2, 可被 settings dsh-dock.tokenlog.usdCnyRate 覆盖)。
-	// 注意: 必须在本文件所有引用它的表达式(cards/summaryRows/detailRows/Detail)之前声明。
-	const rateCny = (data && data.rateUsdCny) || 7.2;
 
 	const cards = totals ? [
 		{ v: fmtNum(totals.calls), l: "调用次数" },

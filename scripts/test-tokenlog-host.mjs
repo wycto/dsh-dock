@@ -377,10 +377,29 @@ try {
     assert.equal(fetchedUrls.length, 1, '合法 https 地址应发起一次抓取')
     dispose()
   }
+  // ---------- 用例 6：export 返回结构化全量明细（中文表头由客户端统一格式化） ----------
+  {
+    const host = makeHost({ tokenlog: { fetchOfficial: false, usdCnyRate: 8 } })
+    const dispose = tokenlogFeature.setup(host.ctx)
+    await new Promise((r) => setTimeout(r, 20))
+    emitCall(host, { sessionId: 'e1', model: 'deepseek-v4-flash', seq: 1, time: Date.now() - 12 * 3600 * 1000 })
+    emitCall(host, { sessionId: 'e2', model: 'deepseek-v4-flash', seq: 11, time: Date.now() - 12 * 3600 * 1000 - 1000 })
+
+    const ex = (await host.call('export', {})).body.data
+    assert.equal(ex.count, 2, 'export 应覆盖全部匹配记录（不受界面分页限制）')
+    assert.equal(ex.rows.length, 2)
+    // 客户端 CSV 需要: 时间/会话/提供商/模型/各 Token 计数/命中率/金额/强度/状态/耗时
+    for (const k of ['time', 'sessionId', 'provider', 'model', 'cacheReadTokens', 'inputTokens',
+      'outputTokens', 'reasoningTokens', 'totalTokens', 'cacheHitPercent', 'cost', 'effort', 'status', 'llmMs']) {
+      assert.ok(k in ex.rows[0], 'export 明细应含字段 ' + k)
+    }
+    assert.equal(ex.rateUsdCny, 8, 'export 应带回汇率，供客户端把 USD 金额换算成人民币')
+    dispose()
+  }
 } finally {
   globalThis.fetch = realFetch
   globalThis.setInterval = realSetInterval
   globalThis.clearInterval = realClearInterval
 }
 
-console.log('tokenlog host: ok (自定义单价优先 + 查询即重算 + 参数校验 4xx + pricingUrl SSRF 防护)')
+console.log('tokenlog host: ok (自定义单价优先 + 查询即重算 + 参数校验 4xx + pricingUrl SSRF 防护 + export 结构化明细)')
