@@ -2342,6 +2342,55 @@ function fmtTime(ts) {
   const p = (x) => String(x).padStart(2, "0");
   return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
 }
+function fmtCostCnyExact(usd, rate) {
+  const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
+  return "\xA5" + v.toFixed(4);
+}
+var EXPORT_COLUMNS = [
+  ["\u65F6\u95F4", (r) => fmtTime(r.time)],
+  ["\u4F1A\u8BDDID", (r) => r.sessionId || ""],
+  ["\u63D0\u4F9B\u5546", (r) => r.provider || "\u2014"],
+  ["\u6A21\u578B", (r) => r.model || "\u2014"],
+  ["\u8F93\u5165(\u547D\u4E2D)", (r) => fmtNum(r.cacheReadTokens)],
+  ["\u8F93\u5165(\u672A\u547D\u4E2D)", (r) => fmtNum(r.inputTokens)],
+  ["\u547D\u4E2D%", (r) => (Number(r.cacheHitPercent) || 0) + "%"],
+  ["\u8F93\u51FA", (r) => fmtNum(r.outputTokens)],
+  ["\u63A8\u7406", (r) => fmtNum(r.reasoningTokens)],
+  ["\u603B\u989D", (r) => fmtNum(r.totalTokens)],
+  ["\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09", (r, rate) => fmtCostCnyExact(r.cost, rate)],
+  ["\u5F3A\u5EA6", (r) => r.effort || "\u2014"],
+  ["\u72B6\u6001", (r) => statusInfo(r).label],
+  ["\u8017\u65F6", (r) => fmtDuration(r.llmMs)]
+];
+function csvCell(v) {
+  const s = String(v === void 0 || v === null ? "" : v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function buildExportCsv(rows, rate) {
+  const list = Array.isArray(rows) ? rows : [];
+  const lines = [EXPORT_COLUMNS.map(([title]) => csvCell(title)).join(",")];
+  for (const r of list) lines.push(EXPORT_COLUMNS.map(([, get]) => csvCell(get(r, rate))).join(","));
+  if (list.length) {
+    const sum = (k) => list.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    const totalInput = sum("inputTokens") + sum("cacheReadTokens");
+    const hitPct = totalInput > 0 ? Math.round(sum("cacheReadTokens") / totalInput * 100) : 0;
+    const totals = {
+      "\u8C03\u7528\u6B21\u6570": String(list.length),
+      "\u8F93\u5165(\u547D\u4E2D)": fmtNum(sum("cacheReadTokens")),
+      "\u8F93\u5165(\u672A\u547D\u4E2D)": fmtNum(sum("inputTokens")),
+      "\u547D\u4E2D%": hitPct + "%",
+      "\u8F93\u51FA": fmtNum(sum("outputTokens")),
+      "\u63A8\u7406": fmtNum(sum("reasoningTokens")),
+      "\u603B\u989D": fmtNum(sum("totalTokens")),
+      "\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09": fmtCostCnyExact(sum("cost"), rate)
+    };
+    lines.push(EXPORT_COLUMNS.map(([title]) => {
+      if (title === "\u63D0\u4F9B\u5546") return csvCell("\u5408\u8BA1(" + list.length + " \u6761\u8C03\u7528)");
+      return csvCell(totals[title] === void 0 ? "" : totals[title]);
+    }).join(","));
+  }
+  return lines.join("\r\n");
+}
 var STORE_KEY = "dsh-dock/tokenlog/filters/v1";
 var FILTER_FIELDS = ["fromStr", "toStr", "provider", "model", "status", "effort", "sessionId", "dim"];
 function loadSavedFilters() {
@@ -2906,6 +2955,7 @@ function TokenLogView(props) {
       setPage(0);
     }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
   }, [navAt]);
+  const rateCny = data && data.rateUsdCny || 7.2;
   const resetFilters = (0, import_react2.useCallback)(() => {
     setFromStr("");
     setToStr("");
@@ -2924,7 +2974,8 @@ function TokenLogView(props) {
   }, []);
   const exportCsv = (0, import_react2.useCallback)(() => {
     rpcCall("export", buildQ(false)).then((d) => {
-      const blob = new Blob([d.csv], { type: "text/csv;charset=utf-8" });
+      const csv = d && Array.isArray(d.rows) ? buildExportCsv(d.rows, d && d.rateUsdCny || rateCny) : String(d && d.csv || "");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -2932,7 +2983,7 @@ function TokenLogView(props) {
       a.click();
       URL.revokeObjectURL(url);
     }).catch((e) => setErr(String(e && e.message || e)));
-  }, [buildQ]);
+  }, [buildQ, rateCny]);
   (0, import_react2.useEffect)(() => {
     const timer = setInterval(() => {
       rpcCall("query", buildQ(true)).then((d) => {
@@ -2970,7 +3021,6 @@ function TokenLogView(props) {
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const pageSafe = Math.min(page, pageCount - 1);
   const pageRows = sorted.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize);
-  const rateCny = data && data.rateUsdCny || 7.2;
   const cards = totals ? [
     { v: fmtNum(totals.calls), l: "\u8C03\u7528\u6B21\u6570" },
     { v: fmtCompact(totals.totalTokens), l: "\u603B Token" },
