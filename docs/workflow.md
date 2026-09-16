@@ -108,6 +108,56 @@ features/<id>/
 - 独立发布：`node scripts/extract-feature.mjs <featureId>` 生成可单独发布的包骨架（会一并复制
   `src/host-core.js`、`src/task-track.js`）。
 
+## 4b. 本地 link 安装 + 改码自动刷新（开发机专用）
+
+> 在开发机（有 git 检出、装了 dsh 的机器）上把本仓库以 `link:` 装进 dsh 的 `web` profile，
+> 从而「改代码即刷新」，不需要每次 `npm run build:client` 后手动重启 dsh。
+
+一次性设置：
+
+```bash
+# 1) 开发期依赖（esbuild 构建 + qrcode/js-yaml 运行）装到 .devdeps/（仓库内，git 忽略）
+cd .devdeps && pnpm install && cd ..
+
+# 2) 生成 <repo>/node_modules 链接：
+#    - @deepseek-ai/* → DSH 安装闭包（与宿主同一模块实例，避免 cordis 类身份分叉）
+#    - js-yaml / qrcode / esbuild → .devdeps
+node scripts/dev-link-deps.mjs
+
+# 3) 用 link: 装进 profile（替换掉 npm 版 dsh-dock）
+dsh plugin --profile web remove dsh-dock
+dsh plugin --profile web add link:$PWD
+```
+
+日常开发（两条自动刷新链，互不依赖）：
+
+```bash
+# A) 客户端半部：改 src/ 或 features/*/view.js(x) → 自动重建 client.js → dsh 的
+#    client-hmr 每 500ms 轮询发现文件变化 → 经 /plugins/events SSE 推浏览器换新版。
+npm run dev:client        # = node scripts/watch-client.mjs（长驻，Ctrl+C 退出）
+
+# B) 宿主半部：改 index.js / src/host-core.js / features/*/host.js → 保存后 dsh web
+#    内嵌的 cordis-plugin-hmr（web 层已 enable，base 锚到本仓库）约 100ms 防抖即
+#    自动重载插件，无需重启。若某机没配该 patch，则宿主改动仍需重启 dsh web。
+```
+
+宿主 HMR 由 profile 层 `~/.dsh/profiles/web/cordis.patch.yml` 里的
+`- id: hmr / disabled: false / base: <本仓库>` 行开启（见该文件注释）；
+`dsh --profile web --dump-config` 可看到合成结果。client 侧 HMR 不需要额外配置。
+
+踩坑备忘（本机）：
+
+- **link: 不装依赖**：pnpm 对 `link:` 包不安装其依赖，而 Node 对 symlink 走 realpath
+  解析，宿主提供的 `@deepseek-ai/*` 又不在仓库目录的 parent-walk 上——所以必须
+  `node scripts/dev-link-deps.mjs` 生成 `<repo>/node_modules`，把 `@deepseek-ai/*`
+  链到 DSH 安装闭包（`~/.dsh/profiles/node_modules/@deepseek-ai`，与宿主同一实例）。
+  漏掉这步 → 宿主半部一 import 就 MODULE_NOT_FOUND。
+- **dsh web 必须能看到 HMR**：client-hmr 的节点半部在 web profile 默认挂载；宿主 hmr
+  行是 opt-in（dsh-base 里 disabled），需在 profile patch 里 `disabled: false` 且
+  `base` 锚到仓库。
+- **client.js 是构建产物**：看 diff 是正常（路径前缀 `.devdeps/`、esbuild 版本差异），
+  以 `npm run test:client` / `npm run test:host` 为准。
+
 ## 5. 环境备忘（本机踩过的坑）
 
 - **esbuild**：`npx esbuild` 在本机找不到包（构建脚本里的 `--cache /tmp/npm-cache` 在 Windows 下无效）。
