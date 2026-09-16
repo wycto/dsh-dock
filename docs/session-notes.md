@@ -1011,3 +1011,39 @@ persona (@deepseek-ai/dsh-persona): invalid config: - $.prefix missing required 
 - 纯文档与仓库卫生改动，插件代码零改动、版本号未动（仍为 0.11.2），已发布的 npm 包不受影响
   （`docs/`、`.gitattributes` 都不在 `package.json` 的 `files` 白名单内）；用户侧无需任何操作。
 - 按仓库约定只推 `origin`（开发库），`github` 远端仍只在发版时同步。
+
+## 2026-09-16 · 发版 v0.11.3 前的全量测试：分时价用例第二次时间耦合（21:00 后必挂）
+
+### 现象
+
+发版前跑 `npm run test:host`（当时 22:53），`test-tokenlog-host.mjs` 挂在内置价断言：
+
+```
+AssertionError [ERR_ASSERTION]: 内置价 1.5/4.5 生效
+    at scripts/test-tokenlog-host.mjs:196
+```
+
+### 根因
+
+内置表 `deepseek-v4-flash` / `deepseek-v4` 带 9~14 时高峰分时价，而 `resolvePricing()` 是按**调用时刻的
+本地小时数**选段（`pickPeakSegment`）。v0.11.1 为「上午跑挂」改过一次：把时间戳从 `Date.now()` 换成
+「倒退 12 小时」——那只是把失败窗口从上午挪到了晚上：21:00 之后 `now - 12h` 正好落进 9~14 峰段，
+峰价 3/9 取代基准价 1.5/4.5，断言必失败。用例 6（export 结构化明细）用的是同一个时间戳，只是没断言金额。
+
+### 改法
+
+- 文件头新增 `atHour(h, m)` = `new Date(2026, 0, 15, h, m, 0, 0).getTime()`：写死「本地时刻」，
+  不随运行时刻漂；
+- 用例 1 / 用例 6 的时间戳由 `Date.now() - 12h` 改为 `atHour(20)`——20:00 在所有内置峰段
+  （9~14）与本文件自定义峰段（00:00~8:30、9~14、23~7）之外。
+
+### 验证
+
+- `npm run test:host` 全绿（`tokenlog host: ok …`，共两个用例文件）；
+- 额外用 `TZ=UTC` 与 `TZ=America/New_York` 各跑一遍同样全绿：`new Date(y, m, d, 20, 0)` 按本地时间解释，
+  写死的是「本地 20:00」，与运行时刻、时区均无关。
+
+### 部署
+
+- 仅测试文件改动，插件运行代码零改动（`features/`、`src/`、`index.js` 未动），用户侧无需操作。
+- 顺带把本机 agent 记忆目录 `.workbuddy/` 加入 `.gitignore`（与 `.mimosa/` 同类，属本机产物，不进包）。

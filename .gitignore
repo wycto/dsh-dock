@@ -6,4 +6,5 @@ node_modules/
 .idea/
 client.tmp.cjs
 .mimosa/
+.workbuddy/
 .npm-cache/
