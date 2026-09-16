@@ -43,7 +43,9 @@
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
     "test:client": "node scripts/test-client-views.mjs",
-    "test:host": "node scripts/test-task-host.mjs && node scripts/test-tokenlog-host.mjs"
+    "test:host": "node scripts/test-task-host.mjs && node scripts/test-tokenlog-host.mjs",
+    "dev:client": "node scripts/watch-client.mjs",
+    "dev:link": "node scripts/dev-link-deps.mjs"
   },
   "repository": {
     "type": "git",
