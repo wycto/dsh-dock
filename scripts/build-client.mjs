@@ -26,14 +26,17 @@ const LOCAL_ESBUILD = join(root, "node_modules", "esbuild", "bin", "esbuild");
 
 function runEsbuild(args) {
   // esbuild 来源三级解析：
-  //   1) DSH_DOCK_ESBUILD 环境变量：显式指定 esbuild 的 JS 入口（沙箱/离线环境指着现成二进制跑）；
+  //   1) DSH_DOCK_ESBUILD 环境变量：显式指定 esbuild 入口（沙箱/离线环境指着现成二进制跑）；
   //   2) 仓库本地安装（node_modules/esbuild）：装了 devDependency 就直接用；
   //   3) npx 动态解析（含 npx 缓存）。缓存目录用系统临时目录——曾写死 /tmp/npm-cache，
   //      Windows 下 npx 解析不到 esbuild 直接构建失败。
+  // 入口是 .exe（WSL 下只有 Windows 版 esbuild）时直接执行，不再套一层 node；
   // Windows 下经 shell 调用；stdio: inherit — esbuild 输出直通终端，不捕获管道（沙箱/CI 下避免管道 EPERM）
   const explicit = process.env.DSH_DOCK_ESBUILD;
-  const line = explicit || existsSync(LOCAL_ESBUILD)
-    ? `node ${JSON.stringify(explicit || LOCAL_ESBUILD)} ${args.map((a) => JSON.stringify(a)).join(" ")}`
+  const entry = explicit || (existsSync(LOCAL_ESBUILD) ? LOCAL_ESBUILD : null);
+  const cmd = entry ? (/\.exe$/i.test(entry) ? "" : "node ") + JSON.stringify(entry) : null;
+  const line = cmd
+    ? `${cmd} ${args.map((a) => JSON.stringify(a)).join(" ")}`
     : `npx --cache ${JSON.stringify(join(tmpdir(), "npm-cache"))} --yes esbuild ${args.map((a) => JSON.stringify(a)).join(" ")}`;
   try {
     execSync(line, {
