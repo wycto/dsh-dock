@@ -12,7 +12,7 @@
  *   （esbuild 解析顺序：环境变量 DSH_DOCK_ESBUILD 显式指定 → 仓库本地安装 → .devdeps 直装 → npx 动态拉取）
  */
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, rmSync, existsSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -33,15 +33,23 @@ function runEsbuild(args) {
   //   2) 仓库本地安装（node_modules/esbuild，dev-link-deps.mjs 生成 → .devdeps）；
   //   3) .devdeps 直装位置（node_modules 尚未生成时的兜底）；
   //   4) npx 动态解析（含 npx 缓存）。缓存目录用系统临时目录——曾写死 /tmp/npm-cache
+  // 本地命中时经 node 跑 esbuild 的 JS 入口（wrapper 从 hoisted node_modules 解析
+  // @esbuild/<arch> 没问题）；入口是 .exe（WSL 下只有 Windows 版 esbuild）时直接执行，
+  // 不再套一层 node。Windows 下经 shell 调用；stdio: inherit — esbuild 输出直通终端，
+  // 不捕获管道（沙箱/CI 下避免管道 EPERM）。
   const explicit = process.env.DSH_DOCK_ESBUILD;
   const local = explicit || (existsSync(LOCAL_ESBUILD) ? LOCAL_ESBUILD : existsSync(DEVTOOLS_ESBUILD) ? DEVTOOLS_ESBUILD : "");
-  if (local) {
-    const binPath = realpathSync(local);
-    execSync(binPath, { stdio: "inherit" });
-  } else {
-    execSync(`npx --cache ${JSON.stringify(join(tmpdir(), "npm-cache"))} --yes esbuild ${args.map((a) => JSON.stringify(a)).join(" ")}`, {
+  const cmd = local ? (/\.exe$/i.test(local) ? "" : "node ") + JSON.stringify(local) : "";
+  const line = cmd
+    ? `${cmd} ${args.map((a) => JSON.stringify(a)).join(" ")}`
+    : `npx --cache ${JSON.stringify(join(tmpdir(), "npm-cache"))} --yes esbuild ${args.map((a) => JSON.stringify(a)).join(" ")}`;
+  try {
+    execSync(line, {
       stdio: "inherit",
+      shell: process.platform === "win32",
     });
+  } catch (e) {
+    throw new Error(`esbuild failed: ${e.message || e}`);
   }
 }
 
