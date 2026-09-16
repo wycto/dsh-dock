@@ -401,6 +401,40 @@ for (const f of FEATURES) {
 }
 console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 
+// ---------- 用例 1.5：用量记录「查询」必须有可见的加载动画 ----------
+// 数据量大时点「查询」要等好几秒，旧版只有一行「加载中…」，用户不知道点上没点上、数据何时换掉。
+// 断言分两部分：
+//   a) 动画定义（CSS）只存在于构建产物文本里——渲染替身不产出 className，页面断言抓不到；
+//   b) 渲染帧：loading 帧必须出现 banner /「查询中」，收敛后必须换成「✓ 数据已更新」且不残留加载态。
+{
+	let ok = true;
+	for (const key of ["@keyframes dtok-hop", "@keyframes dtok-sweep", "@keyframes dtok-card-in", "@keyframes dtok-btn-sheen", ".dtok-dots i"]) {
+		if (!bundle.includes(key)) { ok = false; failed++; console.log(` 查询加载动画缺少 CSS 定义「${key}」`); }
+	}
+	const enabled = {};
+	for (const other of FEATURES) enabled[other.id] = other.id === "tokenlog";
+	const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
+	const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+	const node = runtime.react.createElement(reg.comp);
+	// 装载帧：渲染 → 跑副作用（挂载即发起查询，loading 置真）→ 再渲染，此时数据还没回来
+	runtime.beginPass();
+	runtime.render(node);
+	runtime.runEffects();
+	const loadingHtml = runtime.render(node);
+	for (const needle of ["加载中", "正在翻开账本", "正在按当前条件重新统计", "查询中"]) {
+		if (!loadingHtml.includes(needle)) { ok = false; failed++; console.log(`✗ 查询加载中应出现「${needle}」（等待过程没有任何反馈）`); }
+	}
+	// 收敛帧：数据到位后加载态必须撤掉，并给出「数据已更新」反馈
+	const settledHtml = await renderSettled(runtime, node);
+	for (const needle of ["✓ 数据已更新", "调用明细"]) {
+		if (!settledHtml.includes(needle)) { ok = false; failed++; console.log(`✗ 查询完成后应出现「${needle}」`); }
+	}
+	for (const needle of ["正在翻开账本", "查询中"]) {
+		if (settledHtml.includes(needle)) { ok = false; failed++; console.log(` 查询完成后不该残留「${needle}」`); }
+	}
+	if (ok) console.log("✓ 查询加载动画：loading 帧有 banner /「查询中」，收敛后换成「✓ 数据已更新」");
+}
+
 // ---------- 用例 2：视图渲染抛错必须被错误边界隔离，不能打没整块面板 ----------
 // 宿主把每个插槽条目换成空 div 是「界面整个没了」的直接机制，所以这条断言与上面同等重要。
 {
