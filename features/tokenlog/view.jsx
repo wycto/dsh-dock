@@ -6,6 +6,8 @@
 //  - 状态列显示 HTTP 状态码徽章，行内【查看详情】弹窗展示完整信息；CSV 导出（中文表头，列序与明细表一致 + 合计行）
 //  - 独立的「单价设置」子弹窗：按模型配置单价（支持多段分时价）并持久化，费用按自填单价重算
 //  - 挂载即扫描历史+按暂存条件查询；挂载期间每 5s 静默自动刷新
+//  - 查询等待动画：点「查询」后按钮转圈扫光 + 数据区顶部「记账小队清点」banner（轮换俏皮文案，
+//    等久了换语气），旧数据压暗禁点；结果到位时闪一次「✓ 数据已更新」并让 KPI 卡回弹
 // Host 通信：fetch('/dsh-dock/tokenlog/<method>')（见 features/tokenlog/host.js）。
 import react, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { openPanel } from "../../src/shared.js";
@@ -197,6 +199,58 @@ const css = `
 .dtok-pager.top{margin:0;}
 .dtok-pager.bottom{margin:0;}
 .dtok-err{color:var(--dsw-alias-state-error-primary,#ff7a7a);font-size:12px;}
+/* ---- 查询加载动画 ----
+   数据量大时「查询」要等好几秒，旧版只有一行「加载中…」：用户既不确定点上没点上，
+   也不知道数据什么时候换掉。这里用一段有趣的「记账小队清点」动画填满等待，并在结果
+   真正到位时给一次「✓ 数据已更新」+ KPI 卡回弹，让「数据变了」这件事被看见。 */
+.dtok-btn{transition:transform .08s ease,background .15s ease,filter .15s ease,border-color .15s ease;}
+.dtok-btn.primary:not([disabled]):active{transform:scale(.95);}
+.dtok-btn.loading{position:relative;overflow:hidden;opacity:1;cursor:progress;border-color:var(--dk-accent);}
+.dtok-btn.loading::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(100deg,transparent 18%,rgb(255 255 255 / .4) 50%,transparent 82%);transform:translateX(-130%);animation:dtok-btn-sheen 1.05s linear infinite;}
+@keyframes dtok-btn-sheen{to{transform:translateX(130%);}}
+.dtok-spin{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px;border:2px solid rgb(255 255 255 / .35);border-top-color:#fff;border-radius:50%;animation:dtok-rotate .7s linear infinite;}
+.dtok-spin.inline{width:9px;height:9px;margin:0;vertical-align:0;border-color:rgb(127 127 127 / .35);border-top-color:var(--dk-accent);}
+@keyframes dtok-rotate{to{transform:rotate(360deg);}}
+/* 状态行里的「⟳ 加载中...」：转圈 + 省略号一个一个蹦出来，最经典的那种加载动画 */
+.dtok-busy{display:inline-flex;align-items:center;gap:5px;}
+.dtok-dots{display:inline-block;width:12px;text-align:left;}
+.dtok-dots i{font-style:normal;opacity:0;animation:dtok-dot 1.2s linear infinite;}
+.dtok-dots i:nth-child(2){animation-delay:.2s;}
+.dtok-dots i:nth-child(3){animation-delay:.4s;}
+@keyframes dtok-dot{0%{opacity:0;}25%,80%{opacity:1;}100%{opacity:0;}}
+.dtok-body-inner{display:flex;flex-direction:column;gap:8px;min-width:0;transition:opacity .25s ease;}
+.dtok-body-inner.busy{opacity:.45;pointer-events:none;}
+.dtok-loading{position:sticky;top:0;z-index:6;display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;padding:9px 14px;border-radius:12px;border:1px solid var(--dk-accent);background:linear-gradient(180deg,rgb(255 255 255 / .07),rgb(0 0 0 / .1)),var(--dsw-alias-bg-layer-2,#1c212b);box-shadow:0 10px 26px rgb(0 0 0 / .3);animation:dtok-load-in .3s ease;}
+@keyframes dtok-load-in{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
+.dtok-load-scene{position:relative;display:flex;align-items:flex-end;gap:1px;height:30px;flex:none;padding:0 6px;}
+.dtok-load-emoji{display:inline-block;font-size:19px;line-height:1;animation:dtok-hop 1.1s cubic-bezier(.36,.07,.19,.97) infinite;filter:drop-shadow(0 2px 3px rgb(0 0 0 / .3));}
+.dtok-load-emoji.e2{animation-delay:.15s;}
+.dtok-load-emoji.e3{animation-delay:.3s;}
+@keyframes dtok-hop{0%,100%{transform:translateY(0) rotate(-5deg);}35%{transform:translateY(-9px) rotate(2deg) scale(1.1);}65%{transform:translateY(0) rotate(5deg);}}
+.dtok-load-spark{position:absolute;font-size:11px;color:var(--dk-accent);animation:dtok-twinkle 1.4s ease-in-out infinite;}
+.dtok-load-spark.s1{left:-2px;top:-4px;}
+.dtok-load-spark.s2{right:-2px;top:2px;animation-delay:.6s;}
+@keyframes dtok-twinkle{0%,100%{opacity:0;transform:scale(.4) rotate(0);}45%{opacity:1;transform:scale(1.2) rotate(90deg);}}
+.dtok-load-msg{flex:1 1 170px;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.dtok-load-msg b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:linear-gradient(90deg,var(--dsw-alias-label-primary),var(--dk-accent),var(--dsw-alias-label-primary));background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:dtok-shine 2.6s linear infinite,dtok-msg-in .32s ease;}
+@keyframes dtok-shine{0%{background-position:130% 0;}100%{background-position:-130% 0;}}
+@keyframes dtok-msg-in{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+.dtok-load-sub{font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dtok-load-sub.wait{color:var(--dk-warn);}
+.dtok-load-track{position:relative;flex:0 1 140px;min-width:88px;height:6px;border-radius:999px;background:rgb(127 127 127 / .22);overflow:hidden;}
+.dtok-load-fill{position:absolute;top:0;bottom:0;width:38%;border-radius:999px;background:linear-gradient(90deg,transparent,var(--dk-accent),transparent);animation:dtok-sweep 1.15s cubic-bezier(.45,.05,.55,.95) infinite;}
+@keyframes dtok-sweep{0%{transform:translateX(-115%);}100%{transform:translateX(380%);}}
+.dtok-cards.dtok-pop .dtok-card{animation:dtok-card-in .5s cubic-bezier(.2,.9,.3,1.3) both;animation-delay:calc(var(--i,0) * 45ms);}
+@keyframes dtok-card-in{from{opacity:0;transform:translateY(7px) scale(.96);}to{opacity:1;transform:none;}}
+.dtok-updated{font-size:11px;color:var(--dsw-alias-state-success-primary,#4ade80);animation:dtok-updated 2.4s ease forwards;}
+@keyframes dtok-updated{0%{opacity:0;transform:translateY(-3px) scale(.85);}12%{opacity:1;transform:none;}70%{opacity:1;}100%{opacity:0;}}
+@media (prefers-reduced-motion:reduce){
+.dtok-load-emoji,.dtok-load-spark,.dtok-load-fill,.dtok-load-msg b,.dtok-btn.loading::after,.dtok-spin,.dtok-loading,.dtok-cards.dtok-pop .dtok-card{animation:none !important;}
+.dtok-dots i{animation:none !important;opacity:1;}
+.dtok-load-emoji{transform:none;}
+.dtok-body-inner.busy{opacity:.75;}
+.dtok-btn.primary:not([disabled]):active{transform:none;}
+}
 /* ---- 单价设置（子弹窗） ---- */
 .dtok-pm-backdrop{position:fixed;inset:0;z-index:2100;background:rgba(15,17,21,.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;}
 .dtok-pm{box-sizing:border-box;width:min(980px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2,#1c212b);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .4);overflow:hidden;}
@@ -584,6 +638,43 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 	);
 }
 
+// ---------- 查询加载动画（数据多时要等几秒，用有梗的画面把等待变得好过一点） ----------
+// 每 1.3s 换一句文案；等久了（第 4 句起）语气变一变，顺便给个「数据较多」的安抚。
+const LOAD_MSGS = [
+	"正在翻开账本",
+	"正在一枚一枚数 Token",
+	"正在给每条调用贴价签",
+	"正在核对缓存命中率",
+	"正在把单价乘进每一行",
+	"正在把表格码整齐",
+];
+function LoadingBanner() {
+	const [tick, setTick] = useState(0);
+	useEffect(() => {
+		const timer = setInterval(() => setTick((t) => t + 1), 1300);
+		return () => clearInterval(timer);
+	}, []);
+	const long = tick >= 4;
+	return (
+		<div className="dtok-loading" role="status" aria-live="polite">
+			<span className="dtok-load-scene" aria-hidden="true">
+				<span className="dtok-load-spark s1">✦</span>
+				<span className="dtok-load-emoji e1">🧮</span>
+				<span className="dtok-load-emoji e2">📒</span>
+				<span className="dtok-load-emoji e3">🔍</span>
+				<span className="dtok-load-spark s2">✦</span>
+			</span>
+			<span className="dtok-load-msg">
+				<b key={tick}>{LOAD_MSGS[tick % LOAD_MSGS.length]}…</b>
+				<span className={"dtok-load-sub" + (long ? " wait" : "")}>
+					{long ? "数据较多，再等一小会儿，正在全力清点～" : "正在按当前条件重新统计，通常几秒内完成"}
+				</span>
+			</span>
+			<span className="dtok-load-track" aria-hidden="true"><span className="dtok-load-fill" /></span>
+		</div>
+	);
+}
+
 // ---------- 主视图（嵌入 dock 面板内容区） ----------
 export function TokenLogView(props) {
 	// props.params.sessionId（chips 点击带入）：立即按该会话筛选并查询。
@@ -611,6 +702,23 @@ export function TokenLogView(props) {
 	// 「单价设置」折叠面板：默认收起（费用不准确时才需要展开调整）
 	// 「单价设置」子弹窗：默认收起；支持经 params.openPricing 直接打开（深链/测试用）
 	const [showPricing, setShowPricing] = useState(() => !!(props && props.params && props.params.openPricing));
+	// 查询完成信号：loading 由 true→false 时记一次时间戳，用于「✓ 数据已更新」提示与 KPI 卡回弹。
+	// 5 秒静默自动刷新不置 loading，所以轮询不会每 5 秒闪一下。
+	const [fetchedAt, setFetchedAt] = useState(0);
+	const [justUpdated, setJustUpdated] = useState(false);
+	const wasLoadingRef = useRef(false);
+	useEffect(() => {
+		if (wasLoadingRef.current && !loading && !err) setFetchedAt(Date.now());
+		wasLoadingRef.current = loading;
+	}, [loading, err]);
+	// 「✓ 数据已更新」亮 2.4s 后必须真卸载（只靠动画 forwards 会留下一个透明的占位元素，
+	// 状态行会莫名多出一截空隙）；按 fetchedAt 重置计时，连续查询也不会提前熄灭。
+	useEffect(() => {
+		if (!fetchedAt) return;
+		setJustUpdated(true);
+		const timer = setTimeout(() => setJustUpdated(false), 2400);
+		return () => clearTimeout(timer);
+	}, [fetchedAt]);
 	const pageSize = 100;
 
 	// 暂存筛选条件: 任一筛选变化即写入 localStorage, 下次打开恢复同样条件
@@ -822,8 +930,9 @@ export function TokenLogView(props) {
 	const bodyNodes = [];
 	if (err) bodyNodes.push(<div key="err" className="dtok-err">错误: {err}</div>);
 	if (cards.length) bodyNodes.push(
-		<div className="dtok-cards" key="cards">
-			{cards.map((c) => <div className="dtok-card" key={c.l}><div className="v">{c.v}</div><div className="l">{c.l}</div></div>)}
+		// key 带 fetchedAt：每次「手动查询 / 首次加载」拿到新数据时重建一次，KPI 卡重播回弹动画
+		<div className={"dtok-cards" + (fetchedAt ? " dtok-pop" : "")} key={"cards-" + fetchedAt}>
+			{cards.map((c, i) => <div className="dtok-card" key={c.l} style={{ "--i": String(i) }}><div className="v">{c.v}</div><div className="l">{c.l}</div></div>)}
 		</div>
 	);
 	if (summaryRows.length) bodyNodes.push(
@@ -877,7 +986,15 @@ export function TokenLogView(props) {
 	return (
 		<div className="dtok-root" onClick={(e) => e.stopPropagation()}>
 			<div className="dtok-status">
-				<span className="count">{loading ? "加载中…" : (data ? data.counts.matching + " / " + data.counts.total + " 条" : "")}</span>
+				<span className="count">
+					{loading ? (
+						<span className="dtok-busy">
+							<span className="dtok-spin inline" aria-hidden="true" />
+							加载中<span className="dtok-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>
+						</span>
+					) : (data ? data.counts.matching + " / " + data.counts.total + " 条" : "")}
+				</span>
+				{!loading && justUpdated && !err ? <span key={fetchedAt} className="dtok-updated">✓ 数据已更新</span> : null}
 				<span>全屏请用面板右上角「最大化」；面板打开期间每 5 秒自动刷新</span>
 			</div>
 			<div className="dtok-filter">
@@ -905,7 +1022,9 @@ export function TokenLogView(props) {
 				<select className="dtok-select" value={effort} onChange={(e) => setEffort(e.target.value)}>
 					<option value="">全部</option>{opts(data && data.efforts)}
 				</select>
-				<button className="dtok-btn primary" onClick={runQuery}>查询</button>
+				<button className={"dtok-btn primary" + (loading ? " loading" : "")} disabled={loading} title="按当前条件查询" onClick={() => runQuery()}>
+					{loading ? <span className="dtok-spin" aria-hidden="true" /> : null}{loading ? "查询中…" : "查询"}
+				</button>
 				<button className="dtok-btn" onClick={resetFilters}>重置</button>
 				<button className="dtok-btn" onClick={exportCsv}>导出 CSV</button>
 				<button className={"dtok-btn" + (showPricing ? " primary" : "")} onClick={() => setShowPricing(true)} title="配置各模型单价，费用按自填单价计算">单价设置</button>
@@ -920,7 +1039,11 @@ export function TokenLogView(props) {
 						</span>
 					) : null}
 				</div>
-			<div className="dtok-body">{bodyNodes}</div>
+			<div className="dtok-body">
+				{loading ? <LoadingBanner /> : null}
+				{/* 加载期间旧数据整体压暗并禁用点击：既表明「这不是最新结果」，也避免照旧点进详情看错数 */}
+				<div className={"dtok-body-inner" + (loading ? " busy" : "")}>{bodyNodes}</div>
+			</div>
 			{detailRec ? <Detail rec={detailRec} onClose={() => setDetailRec(null)} rate={rateCny} /> : null}
 		</div>
 	);
