@@ -44,6 +44,15 @@
 - **仓库行尾统一为 LF**：新增 `.gitattributes`（`* text=auto eol=lf`，二进制资源标记 `binary`）；
   并清掉此前 49 个跟踪文件仅因 CRLF 产生的「已修改」假 diff（`git diff --ignore-cr-at-eol` 为空，无真实内容变更）。
 
+### 杂项
+
+- **开发机 link 安装 + 改码自动刷新支持**：新增 `scripts/dev-link-deps.mjs`（生成仓库
+  node_modules 链接，把宿主提供的 `@deepseek-ai/*` 链到 DSH 安装闭包保证同实例）、
+  `scripts/watch-client.mjs`（监视 src/ 与 features/ 客户端源码自动重建 client.js，
+  配合 dsh 内置 client-hmr 推浏览器）与 `.devdeps/`（仓库内 dev 依赖：esbuild + qrcode + js-yaml）；
+  新增 `npm run dev:client` / `npm run dev:link`。配合 profile 层 `cordis.patch.yml` 里
+  启用的 `hmr` 行（`base` 锚到本仓库），宿主半部改动也自动重载。详见 `docs/workflow.md` 4b 节。
+
 ## v0.11.2 — 2026-09-14
 
 ### 修复

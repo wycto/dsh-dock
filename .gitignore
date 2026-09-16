@@ -1,4 +1,5 @@
 node_modules/
+.devdeps/
 *.tgz
 *.log
 .DS_Store
