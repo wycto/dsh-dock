@@ -90,7 +90,7 @@ function createTracker(ctx) {
 
 	function addActiveSession(sid, sessionQuery, extra = {}) {
 		if (activeSessions.has(sid)) return activeSessions.get(sid)
-		console.log('[dsh-dock] task-track: task started', sid.substring(0, 8))
+		// 不在终端打「任务开始」日志：开始/结束状态界面（运行状态页）已实时可见
 		const record = {
 			startTime: Date.now(),
 			title: '',
@@ -134,11 +134,6 @@ function createTracker(ctx) {
 		activeSessions.delete(sid)
 		const endTime = Date.now()
 		const duration = endTime - session.startTime
-		console.log('[dsh-dock] task-track: task finished', {
-			sid: sid.substring(0, 8),
-			duration,
-			endReason: session.endReason || 'completed',
-		})
 		const record = {
 			sessionId: sid,
 			title: session.title || truncate(session.firstPrompt, 60) || '(无标题)',

@@ -4,6 +4,8 @@
 // 支持历史全量扫描 + 实时 session/event 增量；RPC 经 webServer HTTP 路由
 //   POST /dsh-dock/tokenlog/query|export|scan|hello|pricing|setpricing
 // 向浏览器半部提供查询/统计/导出，以及单价的读取与保存。
+// export 返回结构化明细 { rows, rateUsdCny, count }（不是 CSV 文本）：中文表头与取值格式由客户端
+// 按「调用明细」表统一生成，保证导出与页面显示一致；费用在导出时同样按当前单价重算。
 //
 // 数据模型（标量，无 Host 对象引用）：
 // {
@@ -851,15 +853,12 @@ export const feature = {
             if (method === 'export') {
               loadPricingConfig()
               const list = buildQuery(payload || {}).map(withCost)
-              // 列序对齐界面习惯（缓存命中在前）：… 命中 → 未命中 → 输出 → 写入
-              const header = ['time', 'provider', 'model', 'apiKey', 'cacheReadTokens', 'inputTokens', 'outputTokens', 'cacheWriteTokens', 'reasoningTokens', 'billedInput', 'cacheHitPercent', 'totalTokens', 'costCny', 'effort', 'status', 'statusCode', 'errorCode', 'errorMsg', 'llmMs', 'sessionId', 'turn', 'step']
-              const esc = (v) => {
-                const s = String(v === undefined || v === null ? '' : v)
-                return /[,"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-              }
-              const lines = [header.map(esc).join(',')]
-              for (const r of list) lines.push(header.map((h) => esc(h === 'costCny' ? ((Number(r.cost) || 0) * usdCnyRate) : r[h])).join(','))
-              return sendJson(res, 200, { ok: true, data: { csv: lines.join('\n'), count: list.length } })
+              // export 返回结构化明细（不是 CSV 文本）：客户端按「明细表列序 + 中文表头」统一
+              // 格式化成 CSV，取值格式与页面显示一致；rateUsdCny 供客户端把 cost(USD) 折人民币。
+              return sendJson(res, 200, {
+                ok: true,
+                data: { rows: list, rateUsdCny: usdCnyRate, count: list.length },
+              })
             }
             if (method === 'scan') {
               await scanHistory()

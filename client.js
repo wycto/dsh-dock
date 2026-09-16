@@ -2342,6 +2342,55 @@ function fmtTime(ts) {
   const p = (x) => String(x).padStart(2, "0");
   return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
 }
+function fmtCostCnyExact(usd, rate) {
+  const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
+  return "\xA5" + v.toFixed(4);
+}
+var EXPORT_COLUMNS = [
+  ["\u65F6\u95F4", (r) => fmtTime(r.time)],
+  ["\u4F1A\u8BDDID", (r) => r.sessionId || ""],
+  ["\u63D0\u4F9B\u5546", (r) => r.provider || "\u2014"],
+  ["\u6A21\u578B", (r) => r.model || "\u2014"],
+  ["\u8F93\u5165(\u547D\u4E2D)", (r) => fmtNum(r.cacheReadTokens)],
+  ["\u8F93\u5165(\u672A\u547D\u4E2D)", (r) => fmtNum(r.inputTokens)],
+  ["\u547D\u4E2D%", (r) => (Number(r.cacheHitPercent) || 0) + "%"],
+  ["\u8F93\u51FA", (r) => fmtNum(r.outputTokens)],
+  ["\u63A8\u7406", (r) => fmtNum(r.reasoningTokens)],
+  ["\u603B\u989D", (r) => fmtNum(r.totalTokens)],
+  ["\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09", (r, rate) => fmtCostCnyExact(r.cost, rate)],
+  ["\u5F3A\u5EA6", (r) => r.effort || "\u2014"],
+  ["\u72B6\u6001", (r) => statusInfo(r).label],
+  ["\u8017\u65F6", (r) => fmtDuration(r.llmMs)]
+];
+function csvCell(v) {
+  const s = String(v === void 0 || v === null ? "" : v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function buildExportCsv(rows, rate) {
+  const list = Array.isArray(rows) ? rows : [];
+  const lines = [EXPORT_COLUMNS.map(([title]) => csvCell(title)).join(",")];
+  for (const r of list) lines.push(EXPORT_COLUMNS.map(([, get]) => csvCell(get(r, rate))).join(","));
+  if (list.length) {
+    const sum = (k) => list.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    const totalInput = sum("inputTokens") + sum("cacheReadTokens");
+    const hitPct = totalInput > 0 ? Math.round(sum("cacheReadTokens") / totalInput * 100) : 0;
+    const totals = {
+      "\u8C03\u7528\u6B21\u6570": String(list.length),
+      "\u8F93\u5165(\u547D\u4E2D)": fmtNum(sum("cacheReadTokens")),
+      "\u8F93\u5165(\u672A\u547D\u4E2D)": fmtNum(sum("inputTokens")),
+      "\u547D\u4E2D%": hitPct + "%",
+      "\u8F93\u51FA": fmtNum(sum("outputTokens")),
+      "\u63A8\u7406": fmtNum(sum("reasoningTokens")),
+      "\u603B\u989D": fmtNum(sum("totalTokens")),
+      "\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09": fmtCostCnyExact(sum("cost"), rate)
+    };
+    lines.push(EXPORT_COLUMNS.map(([title]) => {
+      if (title === "\u63D0\u4F9B\u5546") return csvCell("\u5408\u8BA1(" + list.length + " \u6761\u8C03\u7528)");
+      return csvCell(totals[title] === void 0 ? "" : totals[title]);
+    }).join(","));
+  }
+  return lines.join("\r\n");
+}
 var STORE_KEY = "dsh-dock/tokenlog/filters/v1";
 var FILTER_FIELDS = ["fromStr", "toStr", "provider", "model", "status", "effort", "sessionId", "dim"];
 function loadSavedFilters() {
@@ -2425,6 +2474,58 @@ var css = `
 .dtok-pager.top{margin:0;}
 .dtok-pager.bottom{margin:0;}
 .dtok-err{color:var(--dsw-alias-state-error-primary,#ff7a7a);font-size:12px;}
+/* ---- \u67E5\u8BE2\u52A0\u8F7D\u52A8\u753B ----
+   \u6570\u636E\u91CF\u5927\u65F6\u300C\u67E5\u8BE2\u300D\u8981\u7B49\u597D\u51E0\u79D2\uFF0C\u65E7\u7248\u53EA\u6709\u4E00\u884C\u300C\u52A0\u8F7D\u4E2D\u2026\u300D\uFF1A\u7528\u6237\u65E2\u4E0D\u786E\u5B9A\u70B9\u4E0A\u6CA1\u70B9\u4E0A\uFF0C
+   \u4E5F\u4E0D\u77E5\u9053\u6570\u636E\u4EC0\u4E48\u65F6\u5019\u6362\u6389\u3002\u8FD9\u91CC\u7528\u4E00\u6BB5\u6709\u8DA3\u7684\u300C\u8BB0\u8D26\u5C0F\u961F\u6E05\u70B9\u300D\u52A8\u753B\u586B\u6EE1\u7B49\u5F85\uFF0C\u5E76\u5728\u7ED3\u679C
+   \u771F\u6B63\u5230\u4F4D\u65F6\u7ED9\u4E00\u6B21\u300C\u2713 \u6570\u636E\u5DF2\u66F4\u65B0\u300D+ KPI \u5361\u56DE\u5F39\uFF0C\u8BA9\u300C\u6570\u636E\u53D8\u4E86\u300D\u8FD9\u4EF6\u4E8B\u88AB\u770B\u89C1\u3002 */
+.dtok-btn{transition:transform .08s ease,background .15s ease,filter .15s ease,border-color .15s ease;}
+.dtok-btn.primary:not([disabled]):active{transform:scale(.95);}
+.dtok-btn.loading{position:relative;overflow:hidden;opacity:1;cursor:progress;border-color:var(--dk-accent);}
+.dtok-btn.loading::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(100deg,transparent 18%,rgb(255 255 255 / .4) 50%,transparent 82%);transform:translateX(-130%);animation:dtok-btn-sheen 1.05s linear infinite;}
+@keyframes dtok-btn-sheen{to{transform:translateX(130%);}}
+.dtok-spin{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px;border:2px solid rgb(255 255 255 / .35);border-top-color:#fff;border-radius:50%;animation:dtok-rotate .7s linear infinite;}
+.dtok-spin.inline{width:9px;height:9px;margin:0;vertical-align:0;border-color:rgb(127 127 127 / .35);border-top-color:var(--dk-accent);}
+@keyframes dtok-rotate{to{transform:rotate(360deg);}}
+/* \u72B6\u6001\u884C\u91CC\u7684\u300C\u27F3 \u52A0\u8F7D\u4E2D...\u300D\uFF1A\u8F6C\u5708 + \u7701\u7565\u53F7\u4E00\u4E2A\u4E00\u4E2A\u8E66\u51FA\u6765\uFF0C\u6700\u7ECF\u5178\u7684\u90A3\u79CD\u52A0\u8F7D\u52A8\u753B */
+.dtok-busy{display:inline-flex;align-items:center;gap:5px;}
+.dtok-dots{display:inline-block;width:12px;text-align:left;}
+.dtok-dots i{font-style:normal;opacity:0;animation:dtok-dot 1.2s linear infinite;}
+.dtok-dots i:nth-child(2){animation-delay:.2s;}
+.dtok-dots i:nth-child(3){animation-delay:.4s;}
+@keyframes dtok-dot{0%{opacity:0;}25%,80%{opacity:1;}100%{opacity:0;}}
+.dtok-body-inner{display:flex;flex-direction:column;gap:8px;min-width:0;transition:opacity .25s ease;}
+.dtok-body-inner.busy{opacity:.45;pointer-events:none;}
+.dtok-loading{position:sticky;top:0;z-index:6;display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;padding:9px 14px;border-radius:12px;border:1px solid var(--dk-accent);background:linear-gradient(180deg,rgb(255 255 255 / .07),rgb(0 0 0 / .1)),var(--dsw-alias-bg-layer-2,#1c212b);box-shadow:0 10px 26px rgb(0 0 0 / .3);animation:dtok-load-in .3s ease;}
+@keyframes dtok-load-in{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
+.dtok-load-scene{position:relative;display:flex;align-items:flex-end;gap:1px;height:30px;flex:none;padding:0 6px;}
+.dtok-load-emoji{display:inline-block;font-size:19px;line-height:1;animation:dtok-hop 1.1s cubic-bezier(.36,.07,.19,.97) infinite;filter:drop-shadow(0 2px 3px rgb(0 0 0 / .3));}
+.dtok-load-emoji.e2{animation-delay:.15s;}
+.dtok-load-emoji.e3{animation-delay:.3s;}
+@keyframes dtok-hop{0%,100%{transform:translateY(0) rotate(-5deg);}35%{transform:translateY(-9px) rotate(2deg) scale(1.1);}65%{transform:translateY(0) rotate(5deg);}}
+.dtok-load-spark{position:absolute;font-size:11px;color:var(--dk-accent);animation:dtok-twinkle 1.4s ease-in-out infinite;}
+.dtok-load-spark.s1{left:-2px;top:-4px;}
+.dtok-load-spark.s2{right:-2px;top:2px;animation-delay:.6s;}
+@keyframes dtok-twinkle{0%,100%{opacity:0;transform:scale(.4) rotate(0);}45%{opacity:1;transform:scale(1.2) rotate(90deg);}}
+.dtok-load-msg{flex:1 1 170px;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.dtok-load-msg b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:linear-gradient(90deg,var(--dsw-alias-label-primary),var(--dk-accent),var(--dsw-alias-label-primary));background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:dtok-shine 2.6s linear infinite,dtok-msg-in .32s ease;}
+@keyframes dtok-shine{0%{background-position:130% 0;}100%{background-position:-130% 0;}}
+@keyframes dtok-msg-in{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+.dtok-load-sub{font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dtok-load-sub.wait{color:var(--dk-warn);}
+.dtok-load-track{position:relative;flex:0 1 140px;min-width:88px;height:6px;border-radius:999px;background:rgb(127 127 127 / .22);overflow:hidden;}
+.dtok-load-fill{position:absolute;top:0;bottom:0;width:38%;border-radius:999px;background:linear-gradient(90deg,transparent,var(--dk-accent),transparent);animation:dtok-sweep 1.15s cubic-bezier(.45,.05,.55,.95) infinite;}
+@keyframes dtok-sweep{0%{transform:translateX(-115%);}100%{transform:translateX(380%);}}
+.dtok-cards.dtok-pop .dtok-card{animation:dtok-card-in .5s cubic-bezier(.2,.9,.3,1.3) both;animation-delay:calc(var(--i,0) * 45ms);}
+@keyframes dtok-card-in{from{opacity:0;transform:translateY(7px) scale(.96);}to{opacity:1;transform:none;}}
+.dtok-updated{font-size:11px;color:var(--dsw-alias-state-success-primary,#4ade80);animation:dtok-updated 2.4s ease forwards;}
+@keyframes dtok-updated{0%{opacity:0;transform:translateY(-3px) scale(.85);}12%{opacity:1;transform:none;}70%{opacity:1;}100%{opacity:0;}}
+@media (prefers-reduced-motion:reduce){
+.dtok-load-emoji,.dtok-load-spark,.dtok-load-fill,.dtok-load-msg b,.dtok-btn.loading::after,.dtok-spin,.dtok-loading,.dtok-cards.dtok-pop .dtok-card{animation:none !important;}
+.dtok-dots i{animation:none !important;opacity:1;}
+.dtok-load-emoji{transform:none;}
+.dtok-body-inner.busy{opacity:.75;}
+.dtok-btn.primary:not([disabled]):active{transform:none;}
+}
 /* ---- \u5355\u4EF7\u8BBE\u7F6E\uFF08\u5B50\u5F39\u7A97\uFF09 ---- */
 .dtok-pm-backdrop{position:fixed;inset:0;z-index:2100;background:rgba(15,17,21,.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;}
 .dtok-pm{box-sizing:border-box;width:min(980px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2,#1c212b);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .4);overflow:hidden;}
@@ -2821,6 +2922,39 @@ function PricingEditor({ onClose, onSaved, embedded }) {
     ] })
   ] });
 }
+var LOAD_MSGS = [
+  "\u6B63\u5728\u7FFB\u5F00\u8D26\u672C",
+  "\u6B63\u5728\u4E00\u679A\u4E00\u679A\u6570 Token",
+  "\u6B63\u5728\u7ED9\u6BCF\u6761\u8C03\u7528\u8D34\u4EF7\u7B7E",
+  "\u6B63\u5728\u6838\u5BF9\u7F13\u5B58\u547D\u4E2D\u7387",
+  "\u6B63\u5728\u628A\u5355\u4EF7\u4E58\u8FDB\u6BCF\u4E00\u884C",
+  "\u6B63\u5728\u628A\u8868\u683C\u7801\u6574\u9F50"
+];
+function LoadingBanner() {
+  const [tick, setTick] = (0, import_react2.useState)(0);
+  (0, import_react2.useEffect)(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 1300);
+    return () => clearInterval(timer);
+  }, []);
+  const long = tick >= 4;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-loading", role: "status", "aria-live": "polite", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-load-scene", "aria-hidden": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-spark s1", children: "\u2726" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-emoji e1", children: "\u{1F9EE}" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-emoji e2", children: "\u{1F4D2}" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-emoji e3", children: "\u{1F50D}" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-spark s2", children: "\u2726" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-load-msg", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [
+        LOAD_MSGS[tick % LOAD_MSGS.length],
+        "\u2026"
+      ] }, tick),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-sub" + (long ? " wait" : ""), children: long ? "\u6570\u636E\u8F83\u591A\uFF0C\u518D\u7B49\u4E00\u5C0F\u4F1A\u513F\uFF0C\u6B63\u5728\u5168\u529B\u6E05\u70B9\uFF5E" : "\u6B63\u5728\u6309\u5F53\u524D\u6761\u4EF6\u91CD\u65B0\u7EDF\u8BA1\uFF0C\u901A\u5E38\u51E0\u79D2\u5185\u5B8C\u6210" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-track", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-load-fill" }) })
+  ] });
+}
 function TokenLogView(props) {
   const navSession = props && props.params && props.params.sessionId ? props.params.sessionId : null;
   const navAt = props && props.params && props.params.navAt ? props.params.navAt : 0;
@@ -2841,6 +2975,19 @@ function TokenLogView(props) {
   const [page, setPage] = (0, import_react2.useState)(0);
   const [detailRec, setDetailRec] = (0, import_react2.useState)(null);
   const [showPricing, setShowPricing] = (0, import_react2.useState)(() => !!(props && props.params && props.params.openPricing));
+  const [fetchedAt, setFetchedAt] = (0, import_react2.useState)(0);
+  const [justUpdated, setJustUpdated] = (0, import_react2.useState)(false);
+  const wasLoadingRef = (0, import_react2.useRef)(false);
+  (0, import_react2.useEffect)(() => {
+    if (wasLoadingRef.current && !loading && !err) setFetchedAt(Date.now());
+    wasLoadingRef.current = loading;
+  }, [loading, err]);
+  (0, import_react2.useEffect)(() => {
+    if (!fetchedAt) return;
+    setJustUpdated(true);
+    const timer = setTimeout(() => setJustUpdated(false), 2400);
+    return () => clearTimeout(timer);
+  }, [fetchedAt]);
   const pageSize = 100;
   (0, import_react2.useEffect)(() => {
     saveFilters({ fromStr, toStr, provider, model, status, effort, sessionId, dim });
@@ -2906,6 +3053,7 @@ function TokenLogView(props) {
       setPage(0);
     }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
   }, [navAt]);
+  const rateCny = data && data.rateUsdCny || 7.2;
   const resetFilters = (0, import_react2.useCallback)(() => {
     setFromStr("");
     setToStr("");
@@ -2924,7 +3072,8 @@ function TokenLogView(props) {
   }, []);
   const exportCsv = (0, import_react2.useCallback)(() => {
     rpcCall("export", buildQ(false)).then((d) => {
-      const blob = new Blob([d.csv], { type: "text/csv;charset=utf-8" });
+      const csv = d && Array.isArray(d.rows) ? buildExportCsv(d.rows, d && d.rateUsdCny || rateCny) : String(d && d.csv || "");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -2932,7 +3081,7 @@ function TokenLogView(props) {
       a.click();
       URL.revokeObjectURL(url);
     }).catch((e) => setErr(String(e && e.message || e)));
-  }, [buildQ]);
+  }, [buildQ, rateCny]);
   (0, import_react2.useEffect)(() => {
     const timer = setInterval(() => {
       rpcCall("query", buildQ(true)).then((d) => {
@@ -2970,7 +3119,6 @@ function TokenLogView(props) {
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const pageSafe = Math.min(page, pageCount - 1);
   const pageRows = sorted.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize);
-  const rateCny = data && data.rateUsdCny || 7.2;
   const cards = totals ? [
     { v: fmtNum(totals.calls), l: "\u8C03\u7528\u6B21\u6570" },
     { v: fmtCompact(totals.totalTokens), l: "\u603B Token" },
@@ -3035,10 +3183,11 @@ function TokenLogView(props) {
     err
   ] }, "err"));
   if (cards.length) bodyNodes.push(
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-cards", children: cards.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-card", children: [
+    // key 带 fetchedAt：每次「手动查询 / 首次加载」拿到新数据时重建一次，KPI 卡重播回弹动画
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-cards" + (fetchedAt ? " dtok-pop" : ""), children: cards.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-card", style: { "--i": String(i) }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "v", children: c.v }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "l", children: c.l })
-    ] }, c.l)) }, "cards")
+    ] }, c.l)) }, "cards-" + fetchedAt)
   );
   if (summaryRows.length) bodyNodes.push(
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-section-title", children: [
@@ -3113,7 +3262,16 @@ function TokenLogView(props) {
   }
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-root", onClick: (e) => e.stopPropagation(), children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-status", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "count", children: loading ? "\u52A0\u8F7D\u4E2D\u2026" : data ? data.counts.matching + " / " + data.counts.total + " \u6761" : "" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "count", children: loading ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-busy", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-spin inline", "aria-hidden": "true" }),
+        "\u52A0\u8F7D\u4E2D",
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-dots", "aria-hidden": "true", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: "." }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: "." }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { children: "." })
+        ] })
+      ] }) : data ? data.counts.matching + " / " + data.counts.total + " \u6761" : "" }),
+      !loading && justUpdated && !err ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-updated", children: "\u2713 \u6570\u636E\u5DF2\u66F4\u65B0" }, fetchedAt) : null,
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "\u5168\u5C4F\u8BF7\u7528\u9762\u677F\u53F3\u4E0A\u89D2\u300C\u6700\u5927\u5316\u300D\uFF1B\u9762\u677F\u6253\u5F00\u671F\u95F4\u6BCF 5 \u79D2\u81EA\u52A8\u5237\u65B0" })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-filter", children: [
@@ -3149,7 +3307,10 @@ function TokenLogView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "", children: "\u5168\u90E8" }),
         opts(data && data.efforts)
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn primary", onClick: runQuery, children: "\u67E5\u8BE2" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { className: "dtok-btn primary" + (loading ? " loading" : ""), disabled: loading, title: "\u6309\u5F53\u524D\u6761\u4EF6\u67E5\u8BE2", onClick: () => runQuery(), children: [
+        loading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-spin", "aria-hidden": "true" }) : null,
+        loading ? "\u67E5\u8BE2\u4E2D\u2026" : "\u67E5\u8BE2"
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", onClick: resetFilters, children: "\u91CD\u7F6E" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", onClick: exportCsv, children: "\u5BFC\u51FA CSV" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn" + (showPricing ? " primary" : ""), onClick: () => setShowPricing(true), title: "\u914D\u7F6E\u5404\u6A21\u578B\u5355\u4EF7\uFF0C\u8D39\u7528\u6309\u81EA\u586B\u5355\u4EF7\u8BA1\u7B97", children: "\u5355\u4EF7\u8BBE\u7F6E" })
@@ -3161,7 +3322,10 @@ function TokenLogView(props) {
       " \xB7 \u5B98\u7F51\u81EA\u52A8\u540C\u6B65\uFF1A" + (data.pricingInfo.fetchOfficial ? "\u5F00" : "\u5173"),
       data.pricingInfo.sources && data.pricingInfo.sources.length ? " \xB7 \u672C\u9875\u6D89\u53CA\u6765\u6E90\uFF1A" + data.pricingInfo.sources.join("/") : ""
     ] }) : null }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-body", children: bodyNodes }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-body", children: [
+      loading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingBanner, {}) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-body-inner" + (loading ? " busy" : ""), children: bodyNodes })
+    ] }),
     detailRec ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Detail, { rec: detailRec, onClose: () => setDetailRec(null), rate: rateCny }) : null
   ] });
 }
@@ -10883,7 +11047,7 @@ var feature10 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.11.2";
+var DOCK_VERSION = "0.11.3";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};

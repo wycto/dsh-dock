@@ -966,3 +966,118 @@ persona (@deepseek-ai/dsh-persona): invalid config: - $.prefix missing required 
 - 顺手修正截图记忆里的反代做法：转发请求的 `Host` 头必须保持代理 authority（3990），
   不能改写成上游 3080——上游按 Host 校验 Cookie，改写必 401；dsh 页面 chip 的 Playwright
   click 会因 React 周期刷新超时，改用 evaluate 原生 `el.click()`。
+
+## 2026-09-15 · 仓库文档卫生：README 去重 + 行尾统一 LF + 修正过时的远程访问口径
+
+### 现象
+
+- `README.md` 里「界面 / 安装 / 使用方法」整段存在两份近似副本（L38–194 与 L195–351，其中 133 行完全相同），
+  正文等于讲两遍；两份已互相漂移，`docs/workflow.md` 甚至为此留了一条「两处都要改」的操作注记。
+- `git status` 长期显示 49 个文件「已修改」，`git diff` 合计 16422 增 / 16422 删，看着像全仓库重写。
+- 功能一览表【远程访问】那一行仍以「局域网电脑直连：另起一个 0.0.0.0 绑定的完整 DSH 子实例」为卖点。
+
+### 根因
+
+- **重复副本**：某次编辑是「追加而不是替换」，此后两份各自被改过几次。差异集中在「远程访问」段
+  （旧副本是 4 步骤版，新副本是登录网关版）与结尾（旧副本重复「会话区随身小控件」，新副本是「常见问题」）。
+- **假 diff**：仓库位于 `/mnt/f`（Windows 盘），Windows 侧编辑器把工作区文件全写成 CRLF，而仓库既没有
+  `.gitattributes`、`core.autocrlf` 也未配置，于是行尾差异全部暴露成内容改动。`git diff --ignore-cr-at-eol` 为空可证。
+- **过时口径**：远程访问经历过「主实例+子实例」→「服务器模式 0.0.0.0」→「账号登录网关」两次重构，
+  前两者均已删除；表格行当年只改了名字，括号里的旧卖点没跟着删，与同文件「各功能使用」段及
+  `features/mobile-relay/`（页面明写「不存在免登录的直连路径」）相矛盾。
+
+### 改法
+
+- `README.md`：保留较新的一份副本（含「常见问题」），删掉旧副本。**删之前先把旧副本独有的 3 处信息并回**：
+  异地组网（Tailscale/ZeroTier 用组网 IP 访问同一入口）、登录会话 Cookie 7 天滑动过期、
+  网关与主服务是同一台机器上的两个监听、不能共用一个端口；另给「心跳监视 / 主题信息」补空行。
+- `README.md` 功能一览表【远程访问】：去掉 0.0.0.0 子实例直连的说法，改为「主实例保持仅监听 `127.0.0.1`，
+  结构上不存在绕开登录的直连路径」。
+- 新增 `.gitattributes`：`* text=auto eol=lf` + 二进制资源 `binary`；`git checkout -- .` 把 49 个文件还原成 LF。
+- `docs/workflow.md` §2.6：删除「README 存在重复副本、两处都要改」的注记，改为「单一副本，改一处即可」。
+
+### 验证
+
+- 清理前 `git diff --ignore-cr-at-eol --numstat | wc -l` = 0 → 确认 49 个文件确为纯行尾差异，还原后 `git status` 干净。
+- 去重后做差集比对（原文件 vs 新文件的行集合）：只多出 8 行「消失」行，逐条核对均为被新副本改写、
+  等价覆盖或仅缩进/编号变化的旧行，无信息丢失；`## 界面` / `## 安装` 各只剩 1 处。
+- `.gitattributes` 落地后 `git ls-files --eol` 全库均为 `i/lf w/lf`，无需重新规范化；
+  `git add -A -n` 只列出本次的目标文件，没有冒出额外文件。
+- 仅文档与仓库元文件改动，未触碰 `features/`、`src/`、`index.js`：按 `docs/workflow.md` 的改动-测试对照表，
+  本次不需要跑 `build:client` / `test:client` / `test:host`。
+
+### 部署
+
+- 纯文档与仓库卫生改动，插件代码零改动、版本号未动（仍为 0.11.2），已发布的 npm 包不受影响
+  （`docs/`、`.gitattributes` 都不在 `package.json` 的 `files` 白名单内）；用户侧无需任何操作。
+- 按仓库约定只推 `origin`（开发库），`github` 远端仍只在发版时同步。
+
+## 2026-09-16 · 发版 v0.11.3 前的全量测试：分时价用例第二次时间耦合（21:00 后必挂）
+
+### 现象
+
+发版前跑 `npm run test:host`（当时 22:53），`test-tokenlog-host.mjs` 挂在内置价断言：
+
+```
+AssertionError [ERR_ASSERTION]: 内置价 1.5/4.5 生效
+    at scripts/test-tokenlog-host.mjs:196
+```
+
+### 根因
+
+内置表 `deepseek-v4-flash` / `deepseek-v4` 带 9~14 时高峰分时价，而 `resolvePricing()` 是按**调用时刻的
+本地小时数**选段（`pickPeakSegment`）。v0.11.1 为「上午跑挂」改过一次：把时间戳从 `Date.now()` 换成
+「倒退 12 小时」——那只是把失败窗口从上午挪到了晚上：21:00 之后 `now - 12h` 正好落进 9~14 峰段，
+峰价 3/9 取代基准价 1.5/4.5，断言必失败。用例 6（export 结构化明细）用的是同一个时间戳，只是没断言金额。
+
+### 改法
+
+- 文件头新增 `atHour(h, m)` = `new Date(2026, 0, 15, h, m, 0, 0).getTime()`：写死「本地时刻」，
+  不随运行时刻漂；
+- 用例 1 / 用例 6 的时间戳由 `Date.now() - 12h` 改为 `atHour(20)`——20:00 在所有内置峰段
+  （9~14）与本文件自定义峰段（00:00~8:30、9~14、23~7）之外。
+
+### 验证
+
+- `npm run test:host` 全绿（`tokenlog host: ok …`，共两个用例文件）；
+- 额外用 `TZ=UTC` 与 `TZ=America/New_York` 各跑一遍同样全绿：`new Date(y, m, d, 20, 0)` 按本地时间解释，
+  写死的是「本地 20:00」，与运行时刻、时区均无关。
+
+### 部署
+
+- 仅测试文件改动，插件运行代码零改动（`features/`、`src/`、`index.js` 未动），用户侧无需操作。
+- 顺带把本机 agent 记忆目录 `.workbuddy/` 加入 `.gitignore`（与 `.mimosa/` 同类，属本机产物，不进包）。
+
+## 2026-09-16（续）· 发版 v0.11.3：查询等待动画 + CSV 中文表头 + 开发机工具链
+
+### 本版内容（自上版 v0.11.2 以来在开发库累积的全部提交）
+
+- **用量记录点「查询」有等待动画**（03fa1a5）：状态行 `⟳ 加载中...`、按钮「查询中…」禁用、
+  数据区 sticky banner 轮流蹦跳换文案（>5 秒转安抚语气）、旧数据压暗不可点、结果到位闪
+  「✓ 数据已更新」；5 秒静默轮询不置 loading；遵守 `prefers-reduced-motion`。
+- **用量记录 CSV 导出改中文表头**（5d64756）：export 路由改回结构化明细，前端按界面「调用明细」表
+  同列序同取值生成 14 列 CSV，末尾追加合计行、前置 UTF-8 BOM；旧宿主进程自动回退原形式。
+- **宿主删掉任务开始/结束的例行终端日志**（b3b51ad）：运行状态以「运行状态」页为准，终端只留报错。
+- **文档与仓库卫生**（e3b9f5f、0f43952）：README 去重（397 → 241 行）+ 修正过时的远程访问口径 +
+  `.gitattributes` 统一 LF。
+- **开发机 link 安装 + 改码自动刷新**（15b34e1、c3e5377、158120e、31dde8e）：`dev-link-deps.mjs` /
+  `watch-client.mjs` / `npm run dev:link` / `npm run dev:client` + workflow 4b 节。
+- **esbuild 解析兼容 WSL / 本地命中**（eea8e2a、a1fe734）：`.exe` 直执 + `wslpath` 路径桥、本地命中改经
+  node 跑 JS 入口、win32 走 shell、失败包装报错信息。
+- **修复**（97270a5）：`test-tokenlog-host.mjs` 分时价用例写死本地 20:00，21:00 后跑不再必挂（上一节）。
+
+### 发版动作（按 docs/workflow.md §3）
+
+1. 版本号两处改 0.11.3（`package.json` + `src/client.jsx` 的 `DOCK_VERSION`）；
+   `CHANGELOG.md` 的「未发布（下一版）— 开发中」整段改名为 `## v0.11.3 — 2026-09-16`。
+2. `npm run build:client` 重建 `client.js`；`npm run test:client`（10 视图 + 6 项隔离/一致性断言）与
+   `npm run test:host`（task/animation/notify/runstate + tokenlog）全绿，无跳过。
+3. 复查 README / `package.json` description：无写死的版本号需改；功能一览表未受影响。
+4. 发版提交（开发库）→ 推 `origin`；tag `v0.11.3` 推 `origin` 与 `github`。
+5. 发版库 `github`：`scripts/push-github-release.sh` 把 main 整棵树压成**一条**「发版 v0.11.3」提交
+   （父提交 = 上一发版提交 `48d2293f` = v0.11.2），快进推 `github/main`——不重写、不删既有历史。
+6. `./scripts/publish.sh` 发布 npm `dsh-dock@0.11.3`（`npm pack --dry-run` 预览 + 登录态检查 + `npm publish`）。
+7. **本地发版库检出对齐**：`/Users/weiyi/develop/github/wycto/dsh-dock` 的 main 长期停在 v0.9.0，
+   且自 v0.10.0 那次「github 历史重写再修正」起就与远端分叉（本地 10 条 / 远端 101 条互不包含）。
+   本次不 force、不丢历史：先把旧 main 存成 `backup/main-pre-v0.11.3`，再 `fetch` + `reset --hard`
+   到 `origin/main`，使其与 `github/main` 完全一致。

@@ -1,8 +1,10 @@
 node_modules/
+.devdeps/
 *.tgz
 *.log
 .DS_Store
 .idea/
 client.tmp.cjs
 .mimosa/
+.workbuddy/
 .npm-cache/
