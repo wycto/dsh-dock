@@ -16,6 +16,13 @@ import assert from 'node:assert/strict'
 import { feature as tokenlogFeature } from '../features/tokenlog/host.js'
 import { DOCK_NS } from '../src/host-core.js'
 
+// 用例时间戳一律「本地时间明确指定」：内置表 deepseek-v4-flash / deepseek-v4 带 9~14 时高峰分时价
+// （features/tokenlog/host.js 的 pricingTable），而分时判断取的是调用时刻的本地小时数。
+// 所以既不能用 Date.now()，也不能用「倒退固定小时数」——那只会把漂移从上午挪到晚上：
+// 倒退 12 小时时，晚上（21:00 后）跑就会落进 9~14 峰段、断言基准价必然失败。写死 20:00
+// （所有内置/自定义峰段之外）后，任何时刻运行结果一致。
+const atHour = (h, m = 0) => new Date(2026, 0, 15, h, m, 0, 0).getTime()
+
 const OFFICIAL_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>定价</title></head><body>
 <h1>模型价格</h1><!-- padding so the parser's "SPA shell too small" guard (>500 bytes) does not skip this fixture -->
 <p>以下为官方刊例价（人民币元 / 百万 tokens）。${'详细说明。'.repeat(120)}</p>
@@ -157,9 +164,9 @@ try {
     await new Promise((r) => setTimeout(r, 30)) // 等启动抓取完成（走桩 fetch）
 
     // 官网价：input 1.5 / output 4.5（CNY/百万 tokens）
-    // 用「现在倒退 12 小时」做时间戳：内置表 v4-flash 带高峰时段 9~14 时，
-    // 若测试跑在高峰时段内，峰时价会取代基准价、断言 1.5/4.5 必失败（与早晚无关才稳定）。
-    const tOffPeak = Date.now() - 12 * 3600 * 1000
+    // 时间戳写死 20:00（atHour）：内置表 v4-flash 带 9~14 时高峰时段，必须避开，
+    // 否则峰时价取代基准价、断言 1.5/4.5 失败（详见文件头 atHour 说明）。
+    const tOffPeak = atHour(20)
     emitCall(host, { sessionId: 's1', model: 'deepseek-v4-flash', seq: 1, time: tOffPeak })
     let q = (await host.call('query', {})).body.data
     assert.equal(q.records.length, 1, '应采集到 1 条记录')
@@ -382,8 +389,8 @@ try {
     const host = makeHost({ tokenlog: { fetchOfficial: false, usdCnyRate: 8 } })
     const dispose = tokenlogFeature.setup(host.ctx)
     await new Promise((r) => setTimeout(r, 20))
-    emitCall(host, { sessionId: 'e1', model: 'deepseek-v4-flash', seq: 1, time: Date.now() - 12 * 3600 * 1000 })
-    emitCall(host, { sessionId: 'e2', model: 'deepseek-v4-flash', seq: 11, time: Date.now() - 12 * 3600 * 1000 - 1000 })
+    emitCall(host, { sessionId: 'e1', model: 'deepseek-v4-flash', seq: 1, time: atHour(20) })
+    emitCall(host, { sessionId: 'e2', model: 'deepseek-v4-flash', seq: 11, time: atHour(20) - 1000 })
 
     const ex = (await host.call('export', {})).body.data
     assert.equal(ex.count, 2, 'export 应覆盖全部匹配记录（不受界面分页限制）')
