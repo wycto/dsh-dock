@@ -2346,6 +2346,21 @@ function fmtCostCnyExact(usd, rate) {
   const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
   return "\xA5" + v.toFixed(4);
 }
+function fmtDurCompact(ms) {
+  if (ms === null || ms === void 0 || isNaN(ms)) return "\u2014";
+  if (ms < 1e3) return Math.round(ms) + "ms";
+  if (ms < 6e4) return (ms / 1e3).toFixed(1) + "s";
+  if (ms < 36e5) return Math.round(ms / 6e4) + "m";
+  return (ms / 36e5).toFixed(1) + "h";
+}
+function startOfToday() {
+  const d = /* @__PURE__ */ new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+function hourOf(ts) {
+  return new Date(ts).getHours();
+}
 var EXPORT_COLUMNS = [
   ["\u65F6\u95F4", (r) => fmtTime(r.time)],
   ["\u4F1A\u8BDDID", (r) => r.sessionId || ""],
@@ -2427,6 +2442,204 @@ function statusInfo(r) {
   if (r.status === "blocked") return { code: 403, label: "403", cls: "warn", title: "\u5DF2\u963B\u6B62" };
   if (r.status === "interrupted") return { code: 500, label: "500", cls: "warn", title: "\u4E2D\u65AD" };
   return { code: 0, label: "\u2026", cls: "pend", title: "\u8FDB\u884C\u4E2D" };
+}
+var CHART_COLORS = ["#60a5fa", "#fbbf24", "#4ade80", "#f472b6", "#a78bfa", "#fb923c", "#2dd4bf", "#e879f9", "#94a3b8", "#f87171"];
+function chartColor(i) {
+  return CHART_COLORS[i % CHART_COLORS.length];
+}
+var CHART_METRICS = [
+  ["totalTokens", "\u603B Token", (v) => fmtCompact(v)],
+  ["calls", "\u8C03\u7528\u6B21\u6570", (v) => fmtNum(v)],
+  ["cost", "\u91D1\u989D", (v, rate) => fmtCostCny(v, rate)],
+  ["outputTokens", "\u8F93\u51FA Token", (v) => fmtCompact(v)]
+];
+var CHART_DIMS = [
+  ["model", "\u6A21\u578B"],
+  ["provider", "\u63D0\u4F9B\u5546"],
+  ["status", "\u72B6\u6001"],
+  ["effort", "\u63A8\u7406\u5F3A\u5EA6"]
+];
+function emptyAgg() {
+  return { calls: 0, totalTokens: 0, outputTokens: 0, inputTokens: 0, cacheReadTokens: 0, reasoningTokens: 0, cost: 0, llmMs: 0, timed: 0 };
+}
+function addToAgg(a, r) {
+  a.calls += 1;
+  a.totalTokens += Number(r.totalTokens) || 0;
+  a.outputTokens += Number(r.outputTokens) || 0;
+  a.inputTokens += Number(r.inputTokens) || 0;
+  a.cacheReadTokens += Number(r.cacheReadTokens) || 0;
+  a.reasoningTokens += Number(r.reasoningTokens) || 0;
+  a.cost += Number(r.cost) || 0;
+  if (typeof r.llmMs === "number") {
+    a.llmMs += r.llmMs;
+    a.timed += 1;
+  }
+}
+function groupByKey(records, keyFn, metric) {
+  const map = /* @__PURE__ */ new Map();
+  for (const r of records) {
+    const k = keyFn(r);
+    let a = map.get(k);
+    if (!a) {
+      a = emptyAgg();
+      a.key = k;
+      map.set(k, a);
+    }
+    addToAgg(a, r);
+  }
+  return [...map.values()].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
+}
+function DonutChart({ items, metric, metricFmt, rate, centerLabel, emptyText }) {
+  const total = items.reduce((s, it) => s + (Number(it[metric]) || 0), 0);
+  if (!items.length || total <= 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-chart-empty", children: emptyText || "\u6682\u65E0\u6570\u636E" });
+  const shown = items.slice(0, 8);
+  const restSum = items.slice(8).reduce((s, it) => s + (Number(it[metric]) || 0), 0);
+  if (restSum > 0) {
+    const restAgg = Object.assign(emptyAgg(), { key: "\u5176\u4ED6(" + (items.length - 8) + "\u9879)" });
+    restAgg[metric] = restSum;
+    shown.push(restAgg);
+  }
+  const R = 15.9155;
+  let acc = 0;
+  const segs = shown.map((it, i) => {
+    const v = Number(it[metric]) || 0;
+    const frac = v / total;
+    const seg = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "circle",
+      {
+        cx: "21",
+        cy: "21",
+        r: R,
+        fill: "none",
+        stroke: chartColor(i),
+        strokeWidth: frac > 0.02 ? 7 : 5,
+        strokeDasharray: frac * 100 + " " + (100 - frac * 100),
+        strokeDashoffset: String(25 - acc * 100),
+        children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("title", { children: it.key + "\uFF1A" + metricFmt(v, rate) + "\uFF08" + (frac * 100).toFixed(1) + "%\uFF09" })
+      },
+      it.key
+    );
+    acc += frac;
+    return seg;
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-donut-wrap", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", { className: "dtok-donut", viewBox: "0 0 42 42", role: "img", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "21", cy: "21", r: R, fill: "none", stroke: "var(--dsw-alias-border-l1)", strokeWidth: "7" }),
+      segs,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("text", { x: "21", y: "19.5", textAnchor: "middle", className: "dtok-donut-v", children: metricFmt(total, rate) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("text", { x: "21", y: "26", textAnchor: "middle", className: "dtok-donut-l", children: centerLabel })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-legend", children: shown.map((it, i) => {
+      const v = Number(it[metric]) || 0;
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-legend-row", title: it.key, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-dot", style: { background: chartColor(i) } }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-legend-k", children: it.key }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-legend-v", children: [
+          metricFmt(v, rate),
+          " \xB7 ",
+          (v / total * 100).toFixed(1),
+          "%"
+        ] })
+      ] }, it.key);
+    }) })
+  ] });
+}
+function HBarChart({ items, metric, metricFmt, rate, maxRows, emptyText }) {
+  if (!items.length) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-chart-empty", children: emptyText || "\u6682\u65E0\u6570\u636E" });
+  const shown = items.slice(0, maxRows || 12);
+  const max = Math.max(...shown.map((it) => Number(it[metric]) || 0), 1e-9);
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-hbars", children: shown.map((it, i) => {
+    const v = Number(it[metric]) || 0;
+    const pct = Math.max(1.5, v / max * 100);
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-hbar-row", title: it.key + "\uFF1A" + metricFmt(v, rate), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-hbar-k", children: it.key }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-hbar-track", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-hbar-fill", style: { width: pct + "%", background: chartColor(i) } }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-hbar-v", children: metricFmt(v, rate) })
+    ] }, it.key);
+  }) });
+}
+function HourChart({ hours, metric, metricFmt, rate, emptyText }) {
+  const total = hours.reduce((s, h) => s + (Number(h[metric]) || 0), 0);
+  if (total <= 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-chart-empty", children: emptyText || "\u6682\u65E0\u6570\u636E" });
+  const max = Math.max(...hours.map((h) => Number(h[metric]) || 0), 1e-9);
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-hours", role: "img", children: hours.map((h) => {
+    const v = Number(h[metric]) || 0;
+    const pct = v > 0 ? Math.max(2, v / max * 100) : 0;
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-hour-col", title: h.hour + " \u65F6\uFF1A" + metricFmt(v, rate), children: pct > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-hour-bar", style: { height: pct + "%" } }) : null }, h.hour);
+  }) });
+}
+function ChartsPanel({ records, rate }) {
+  const [metric, setMetric] = (0, import_react2.useState)("totalTokens");
+  const [dim, setDimLocal] = (0, import_react2.useState)("model");
+  const metricDef = CHART_METRICS.find((m) => m[0] === metric) || CHART_METRICS[0];
+  const metricFmt = metricDef[2];
+  const todayRecs = (0, import_react2.useMemo)(() => {
+    const t0 = startOfToday();
+    return records.filter((r) => Number(r.time) >= t0);
+  }, [records]);
+  const todayByModel = (0, import_react2.useMemo)(() => groupByKey(todayRecs, (r) => r.model || "(\u672A\u77E5)", metric), [todayRecs, metric]);
+  const byDim = (0, import_react2.useMemo)(() => groupByKey(records, (r) => r[dim] || "(\u7A7A)", metric), [records, dim, metric]);
+  const modelTime = (0, import_react2.useMemo)(() => groupByKey(records, (r) => r.model || "(\u672A\u77E5)", "llmMs"), [records]);
+  const timedCalls = (0, import_react2.useMemo)(() => records.reduce((s, r) => s + (typeof r.llmMs === "number" ? 1 : 0), 0), [records]);
+  const hours = (0, import_react2.useMemo)(() => {
+    const arr = [];
+    for (let h = 0; h < 24; h++) {
+      const a = emptyAgg();
+      a.hour = h;
+      arr.push(a);
+    }
+    for (const r of records) addToAgg(arr[hourOf(r.time)], r);
+    return arr;
+  }, [records]);
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-charts", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-chart-toolbar-label", children: "\u6307\u6807" }),
+      CHART_METRICS.map(([id, label]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny" + (metric === id ? " primary" : ""), onClick: () => setMetric(id), children: label }, id)),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-chart-toolbar-note", children: "\u56FE\u8868\u8DDF\u968F\u4E0A\u65B9\u7B5B\u9009\u6761\u4EF6\uFF08\u65F6\u95F4 / \u4F1A\u8BDD / \u63D0\u4F9B\u5546 / \u6A21\u578B / \u72B6\u6001 / \u5F3A\u5EA6\uFF09\u5B9E\u65F6\u8054\u52A8" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-title", children: [
+          "\u4ECA\u65E5\u6A21\u578B\u7528\u91CF\u5360\u6BD4",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-chart-sub", children: [
+            metricDef[1],
+            " \xB7 ",
+            todayRecs.length,
+            " \u6B21\u8C03\u7528"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DonutChart, { items: todayByModel, metric, metricFmt, rate, centerLabel: "\u4ECA\u65E5" + metricDef[1], emptyText: "\u4ECA\u65E5\u6682\u65E0\u8C03\u7528" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-title", children: [
+          "24 \u5C0F\u65F6\u8C03\u7528\u5206\u5E03",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-chart-sub", children: [
+            "\u6309\u5C0F\u65F6\u805A\u5408 \xB7 ",
+            metricDef[1]
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HourChart, { hours, metric, metricFmt, rate })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-title", children: [
+          "\u6A21\u578B\u8017\u65F6\u6392\u884C",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dtok-chart-sub", children: [
+            "\u7D2F\u8BA1 LLM \u8017\u65F6 \xB7 \u5DF2\u8BA1\u65F6 ",
+            timedCalls,
+            " \u6B21"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HBarChart, { items: modelTime, metric: "llmMs", metricFmt: (v) => fmtDurCompact(v), rate, emptyText: "\u6682\u65E0\u8BA1\u65F6\u6570\u636E" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-chart-title", children: [
+          "\u5206\u5E03\u7EDF\u8BA1",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-chart-sub", children: CHART_DIMS.map(([id, label]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny" + (dim === id ? " primary" : ""), style: { marginLeft: 4 }, onClick: () => setDimLocal(id), children: label }, id)) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HBarChart, { items: byDim, metric, metricFmt, rate })
+      ] })
+    ] })
+  ] });
 }
 var css = `
 .dtok-root{display:flex;flex-direction:column;gap:8px;width:100%;min-width:0;}
@@ -2558,6 +2771,35 @@ var css = `
 .dtok-src{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);}
 .dtok-src.custom{color:var(--dsw-alias-state-success-primary,#4ade80);}
 .dtok-src.fallback{color:var(--dk-warn);}
+/* ---- \u56FE\u8868\u7EDF\u8BA1\uFF08\u7EAF CSS/SVG\uFF09 ---- */
+.dtok-charts{display:flex;flex-direction:column;gap:10px;min-width:0;}
+.dtok-chart-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);}
+.dtok-chart-toolbar-label{font-size:12px;color:var(--dsw-alias-label-secondary);flex:none;}
+.dtok-chart-toolbar-note{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);margin-left:auto;}
+.dtok-chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;}
+.dtok-chart-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);padding:10px 12px;min-width:0;display:flex;flex-direction:column;gap:8px;}
+.dtok-chart-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.dtok-chart-sub{font-size:11px;font-weight:400;color:var(--dsw-alias-label-secondary);}
+.dtok-chart-empty{text-align:center;color:var(--dsw-alias-label-secondary);padding:28px 0;font-size:12px;}
+.dtok-donut-wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.dtok-donut{width:150px;height:150px;flex:none;}
+.dtok-donut-v{font-size:6.5px;font-weight:700;fill:var(--dsw-alias-label-primary);}
+.dtok-donut-l{font-size:3.6px;fill:var(--dsw-alias-label-secondary);}
+.dtok-legend{flex:1;min-width:150px;display:flex;flex-direction:column;gap:3px;max-height:170px;overflow:auto;}
+.dtok-legend-row{display:flex;align-items:center;gap:6px;font-size:11px;min-width:0;}
+.dtok-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.dtok-legend-k{color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.dtok-legend-v{color:var(--dsw-alias-label-secondary);margin-left:auto;flex:none;}
+.dtok-hbars{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;}
+.dtok-hbar-row{display:flex;align-items:center;gap:8px;font-size:11px;min-width:0;}
+.dtok-hbar-k{flex:0 1 34%;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dtok-hbar-track{flex:1;height:12px;border-radius:4px;background:rgb(127 127 127 / .16);overflow:hidden;min-width:40px;}
+.dtok-hbar-fill{display:block;height:100%;border-radius:4px;transition:width .3s ease;}
+.dtok-hbar-v{flex:none;color:var(--dsw-alias-label-secondary);min-width:52px;text-align:right;}
+.dtok-hours{display:flex;align-items:flex-end;gap:3px;height:130px;padding-top:4px;}
+.dtok-hour-col{flex:1;display:flex;align-items:flex-end;height:100%;min-width:0;}
+.dtok-hour-bar{display:block;width:100%;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--dk-accent),rgb(127 127 127 / .25));min-height:2px;transition:height .3s ease;}
+.dtok-hour-col:hover .dtok-hour-bar{filter:brightness(1.3);}
 `;
 function Detail({ rec, onClose, rate }) {
   const st = statusInfo(rec);
@@ -2975,6 +3217,7 @@ function TokenLogView(props) {
   const [page, setPage] = (0, import_react2.useState)(0);
   const [detailRec, setDetailRec] = (0, import_react2.useState)(null);
   const [showPricing, setShowPricing] = (0, import_react2.useState)(() => !!(props && props.params && props.params.openPricing));
+  const [tab, setTab] = (0, import_react2.useState)(() => props && props.params && props.params.charts ? "charts" : "detail");
   const [fetchedAt, setFetchedAt] = (0, import_react2.useState)(0);
   const [justUpdated, setJustUpdated] = (0, import_react2.useState)(false);
   const wasLoadingRef = (0, import_react2.useRef)(false);
@@ -3182,83 +3425,95 @@ function TokenLogView(props) {
     "\u9519\u8BEF: ",
     err
   ] }, "err"));
-  if (cards.length) bodyNodes.push(
-    // key 带 fetchedAt：每次「手动查询 / 首次加载」拿到新数据时重建一次，KPI 卡重播回弹动画
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-cards" + (fetchedAt ? " dtok-pop" : ""), children: cards.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-card", style: { "--i": String(i) }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "v", children: c.v }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "l", children: c.l })
-    ] }, c.l)) }, "cards-" + fetchedAt)
-  );
-  if (summaryRows.length) bodyNodes.push(
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-section-title", children: [
-      "\u7EDF\u8BA1\u5206\u7EC4: ",
-      dim || "\u65E0",
-      " (",
-      summaryRows.length,
-      " \u7EC4)"
-    ] }, "sum"),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", { className: "dtok-table", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7EF4\u5EA6" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8C03\u7528" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u547D\u4E2D)" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u672A\u547D\u4E2D)" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u547D\u4E2D\u7387" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u51FA" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u603BToken" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8017\u65F6" })
-      ] }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: summaryRows })
-    ] }) }, "sumtab")
-  );
-  bodyNodes.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-section-title", children: "\u6309\u7EF4\u5EA6\u7EDF\u8BA1" }, "dimtitle"));
   bodyNodes.push(
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-filter", style: { padding: "4px 0 0", border: "none", background: "transparent" }, children: ["", "provider", "model", "status", "effort"].map((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn" + (dim === d ? " primary" : ""), onClick: () => {
-      setDim(d);
-      runQuery(d);
-    }, children: d === "" ? "\u65E0\u5206\u7EC4" : d }, d)) }, "dimrow")
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-filter", style: { padding: "2px 0 0", border: "none", background: "transparent", gap: 4 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn" + (tab === "detail" ? " primary" : ""), onClick: () => setTab("detail"), children: "\u660E\u7EC6" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn" + (tab === "charts" ? " primary" : ""), onClick: () => setTab("charts"), children: "\u56FE\u8868\u7EDF\u8BA1" })
+    ] }, "tabs")
   );
-  bodyNodes.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-section-title", children: "\u8C03\u7528\u660E\u7EC6" }, "dettitle"));
-  if (sorted.length === 0) {
-    bodyNodes.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-empty", children: loading ? "\u52A0\u8F7D\u4E2D\u2026" : "\u65E0\u5339\u914D\u8BB0\u5F55" }, "empty"));
-  } else {
-    const pager = (key, cls) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-pager " + cls, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", disabled: pageSafe <= 0, onClick: () => setPage(pageSafe - 1), children: "\u4E0A\u4E00\u9875" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-        "\u7B2C ",
-        pageSafe + 1,
-        " / ",
-        pageCount,
-        " \u9875 \xB7 \u5171 ",
-        sorted.length,
-        " \u6761"
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", disabled: pageSafe >= pageCount - 1, onClick: () => setPage(pageSafe + 1), children: "\u4E0B\u4E00\u9875" })
-    ] }, key);
-    bodyNodes.push(pager("pager-top", "top"));
+  if (tab === "charts") {
     bodyNodes.push(
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChartsPanel, { records, rate: rateCny }, "charts-" + fetchedAt)
+    );
+  } else {
+    if (cards.length) bodyNodes.push(
+      // key 带 fetchedAt：每次「手动查询 / 首次加载」拿到新数据时重建一次，KPI 卡重播回弹动画
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-cards" + (fetchedAt ? " dtok-pop" : ""), children: cards.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-card", style: { "--i": String(i) }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "v", children: c.v }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "l", children: c.l })
+      ] }, c.l)) }, "cards-" + fetchedAt)
+    );
+    if (summaryRows.length) bodyNodes.push(
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-section-title", children: [
+        "\u7EDF\u8BA1\u5206\u7EC4: ",
+        dim || "\u65E0",
+        " (",
+        summaryRows.length,
+        " \u7EC4)"
+      ] }, "sum"),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", { className: "dtok-table", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
-          sortTh("\u65F6\u95F4", "time"),
-          sortTh("\u4F1A\u8BDDID", "sessionId"),
-          sortTh("\u63D0\u4F9B\u5546", "provider"),
-          sortTh("\u6A21\u578B", "model"),
-          sortTh("\u8F93\u5165(\u547D\u4E2D)", "cacheReadTokens"),
-          sortTh("\u8F93\u5165(\u672A\u547D\u4E2D)", "inputTokens"),
-          sortTh("\u547D\u4E2D%", "cacheHitPercent"),
-          sortTh("\u8F93\u51FA", "outputTokens"),
-          sortTh("\u63A8\u7406", "reasoningTokens"),
-          sortTh("\u603B\u989D", "totalTokens"),
-          sortTh("\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09", "cost"),
-          sortTh("\u5F3A\u5EA6", "effort"),
-          sortTh("\u72B6\u6001", "status"),
-          sortTh("\u8017\u65F6", "llmMs")
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7EF4\u5EA6" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8C03\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u547D\u4E2D)" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u5165(\u672A\u547D\u4E2D)" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u547D\u4E2D\u7387" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8F93\u51FA" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u603BToken" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8017\u65F6" })
         ] }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: detailRows })
-      ] }) }, "detail")
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: summaryRows })
+      ] }) }, "sumtab")
     );
-    bodyNodes.push(pager("pager-bottom", "bottom"));
+    bodyNodes.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-section-title", children: "\u6309\u7EF4\u5EA6\u7EDF\u8BA1" }, "dimtitle"));
+    bodyNodes.push(
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-filter", style: { padding: "4px 0 0", border: "none", background: "transparent" }, children: ["", "provider", "model", "status", "effort"].map((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn" + (dim === d ? " primary" : ""), onClick: () => {
+        setDim(d);
+        runQuery(d);
+      }, children: d === "" ? "\u65E0\u5206\u7EC4" : d }, d)) }, "dimrow")
+    );
+    bodyNodes.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-section-title", children: "\u8C03\u7528\u660E\u7EC6" }, "dettitle"));
+    if (sorted.length === 0) {
+      bodyNodes.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-empty", children: loading ? "\u52A0\u8F7D\u4E2D\u2026" : "\u65E0\u5339\u914D\u8BB0\u5F55" }, "empty"));
+    } else {
+      const pager = (key, cls) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-pager " + cls, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", disabled: pageSafe <= 0, onClick: () => setPage(pageSafe - 1), children: "\u4E0A\u4E00\u9875" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+          "\u7B2C ",
+          pageSafe + 1,
+          " / ",
+          pageCount,
+          " \u9875 \xB7 \u5171 ",
+          sorted.length,
+          " \u6761"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn", disabled: pageSafe >= pageCount - 1, onClick: () => setPage(pageSafe + 1), children: "\u4E0B\u4E00\u9875" })
+      ] }, key);
+      bodyNodes.push(pager("pager-top", "top"));
+      bodyNodes.push(
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", { className: "dtok-table", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+            sortTh("\u65F6\u95F4", "time"),
+            sortTh("\u4F1A\u8BDDID", "sessionId"),
+            sortTh("\u63D0\u4F9B\u5546", "provider"),
+            sortTh("\u6A21\u578B", "model"),
+            sortTh("\u8F93\u5165(\u547D\u4E2D)", "cacheReadTokens"),
+            sortTh("\u8F93\u5165(\u672A\u547D\u4E2D)", "inputTokens"),
+            sortTh("\u547D\u4E2D%", "cacheHitPercent"),
+            sortTh("\u8F93\u51FA", "outputTokens"),
+            sortTh("\u63A8\u7406", "reasoningTokens"),
+            sortTh("\u603B\u989D", "totalTokens"),
+            sortTh("\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09", "cost"),
+            sortTh("\u5F3A\u5EA6", "effort"),
+            sortTh("\u72B6\u6001", "status"),
+            sortTh("\u8017\u65F6", "llmMs")
+          ] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: detailRows })
+        ] }) }, "detail")
+      );
+      bodyNodes.push(pager("pager-bottom", "bottom"));
+    }
   }
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-root", onClick: (e) => e.stopPropagation(), children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-status", children: [
