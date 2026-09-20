@@ -64,6 +64,19 @@ function fmtCostCnyExact(usd, rate) {
 	const v = (Number(usd) || 0) * (Number(rate) > 0 ? Number(rate) : 7.2);
 	return "¥" + v.toFixed(4);
 }
+function fmtDurCompact(ms) {
+	if (ms === null || ms === undefined || isNaN(ms)) return "—";
+	if (ms < 1000) return Math.round(ms) + "ms";
+	if (ms < 60000) return (ms / 1000).toFixed(1) + "s";
+	if (ms < 3600000) return Math.round(ms / 60000) + "m";
+	return (ms / 3600000).toFixed(1) + "h";
+}
+function startOfToday() {
+	const d = new Date();
+	d.setHours(0, 0, 0, 0);
+	return d.getTime();
+}
+function hourOf(ts) { return new Date(ts).getHours(); }
 
 // ---------- CSV 导出 ----------
 // 表头即「调用明细」表的中文列名, 列序/取值格式与页面完全一致(日期时间、千分位、命中%、¥xx.xxxx、
@@ -150,6 +163,201 @@ function statusInfo(r) {
 	if (r.status === "blocked") return { code: 403, label: "403", cls: "warn", title: "已阻止" };
 	if (r.status === "interrupted") return { code: 500, label: "500", cls: "warn", title: "中断" };
 	return { code: 0, label: "…", cls: "pend", title: "进行中" };
+}
+
+// ---------- 图表统计（纯 CSS/SVG，无第三方图表库：视图由外壳直接渲染，依赖越少越稳） ----------
+// 调色板按索引取色，循环使用；按值降序分配，颜色与排名绑定而不是与名字绑定。
+const CHART_COLORS = ["#60a5fa", "#fbbf24", "#4ade80", "#f472b6", "#a78bfa", "#fb923c", "#2dd4bf", "#e879f9", "#94a3b8", "#f87171"];
+function chartColor(i) { return CHART_COLORS[i % CHART_COLORS.length]; }
+const CHART_METRICS = [
+	["totalTokens", "总 Token", (v) => fmtCompact(v)],
+	["calls", "调用次数", (v) => fmtNum(v)],
+	["cost", "金额", (v, rate) => fmtCostCny(v, rate)],
+	["outputTokens", "输出 Token", (v) => fmtCompact(v)],
+];
+const CHART_DIMS = [
+	["model", "模型"],
+	["provider", "提供商"],
+	["status", "状态"],
+	["effort", "推理强度"],
+];
+function emptyAgg() {
+	return { calls: 0, totalTokens: 0, outputTokens: 0, inputTokens: 0, cacheReadTokens: 0, reasoningTokens: 0, cost: 0, llmMs: 0, timed: 0 };
+}
+function addToAgg(a, r) {
+	a.calls += 1;
+	a.totalTokens += Number(r.totalTokens) || 0;
+	a.outputTokens += Number(r.outputTokens) || 0;
+	a.inputTokens += Number(r.inputTokens) || 0;
+	a.cacheReadTokens += Number(r.cacheReadTokens) || 0;
+	a.reasoningTokens += Number(r.reasoningTokens) || 0;
+	a.cost += Number(r.cost) || 0;
+	if (typeof r.llmMs === "number") { a.llmMs += r.llmMs; a.timed += 1; }
+}
+/** records → [{key, ...agg}]，按 metric 降序。 */
+function groupByKey(records, keyFn, metric) {
+	const map = new Map();
+	for (const r of records) {
+		const k = keyFn(r);
+		let a = map.get(k);
+		if (!a) { a = emptyAgg(); a.key = k; map.set(k, a); }
+		addToAgg(a, r);
+	}
+	return [...map.values()].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
+}
+
+/** 环形占比图：SVG conic 扇区 + 中央合计 + 图例（最多 8 项，其余并入「其他」）。 */
+function DonutChart({ items, metric, metricFmt, rate, centerLabel, emptyText }) {
+	const total = items.reduce((s, it) => s + (Number(it[metric]) || 0), 0);
+	if (!items.length || total <= 0) return <div className="dtok-chart-empty">{emptyText || "暂无数据"}</div>;
+	const shown = items.slice(0, 8);
+	const restSum = items.slice(8).reduce((s, it) => s + (Number(it[metric]) || 0), 0);
+	if (restSum > 0) {
+		const restAgg = Object.assign(emptyAgg(), { key: "其他(" + (items.length - 8) + "项)" });
+		restAgg[metric] = restSum;
+		shown.push(restAgg);
+	}
+	const R = 15.9155; // 周长 100 的半径
+	let acc = 0;
+	const segs = shown.map((it, i) => {
+		const v = Number(it[metric]) || 0;
+		const frac = v / total;
+		const seg = (
+			<circle key={it.key} cx="21" cy="21" r={R} fill="none"
+				stroke={chartColor(i)} strokeWidth={frac > 0.02 ? 7 : 5}
+				strokeDasharray={(frac * 100) + " " + (100 - frac * 100)}
+				strokeDashoffset={String(25 - acc * 100)}>
+				<title>{it.key + "：" + metricFmt(v, rate) + "（" + (frac * 100).toFixed(1) + "%）"}</title>
+			</circle>
+		);
+		acc += frac;
+		return seg;
+	});
+	return (
+		<div className="dtok-donut-wrap">
+			<svg className="dtok-donut" viewBox="0 0 42 42" role="img">
+				<circle cx="21" cy="21" r={R} fill="none" stroke="var(--dsw-alias-border-l1)" strokeWidth="7" />
+				{segs}
+				<text x="21" y="19.5" textAnchor="middle" className="dtok-donut-v">{metricFmt(total, rate)}</text>
+				<text x="21" y="26" textAnchor="middle" className="dtok-donut-l">{centerLabel}</text>
+			</svg>
+			<div className="dtok-legend">
+				{shown.map((it, i) => {
+					const v = Number(it[metric]) || 0;
+					return (
+						<div className="dtok-legend-row" key={it.key} title={it.key}>
+							<span className="dtok-dot" style={{ background: chartColor(i) }} />
+							<span className="dtok-legend-k">{it.key}</span>
+							<span className="dtok-legend-v">{metricFmt(v, rate)} · {(v / total * 100).toFixed(1)}%</span>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+/** 横向条形图：行 = 分组（默认模型），条长 = 指标值（默认耗时）。 */
+function HBarChart({ items, metric, metricFmt, rate, maxRows, emptyText }) {
+	if (!items.length) return <div className="dtok-chart-empty">{emptyText || "暂无数据"}</div>;
+	const shown = items.slice(0, maxRows || 12);
+	const max = Math.max(...shown.map((it) => Number(it[metric]) || 0), 1e-9);
+	return (
+		<div className="dtok-hbars">
+			{shown.map((it, i) => {
+				const v = Number(it[metric]) || 0;
+				const pct = Math.max(1.5, (v / max) * 100);
+				return (
+					<div className="dtok-hbar-row" key={it.key} title={it.key + "：" + metricFmt(v, rate)}>
+						<span className="dtok-hbar-k">{it.key}</span>
+						<span className="dtok-hbar-track">
+							<span className="dtok-hbar-fill" style={{ width: pct + "%", background: chartColor(i) }} />
+						</span>
+						<span className="dtok-hbar-v">{metricFmt(v, rate)}</span>
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+/** 24 小时调用分布柱状图：柱高 = 指标值，hover 显示具体数值。 */
+function HourChart({ hours, metric, metricFmt, rate, emptyText }) {
+	const total = hours.reduce((s, h) => s + (Number(h[metric]) || 0), 0);
+	if (total <= 0) return <div className="dtok-chart-empty">{emptyText || "暂无数据"}</div>;
+	const max = Math.max(...hours.map((h) => Number(h[metric]) || 0), 1e-9);
+	return (
+		<div className="dtok-hours" role="img">
+			{hours.map((h) => {
+				const v = Number(h[metric]) || 0;
+				const pct = v > 0 ? Math.max(2, (v / max) * 100) : 0;
+				return (
+					<span key={h.hour} className="dtok-hour-col" title={h.hour + " 时：" + metricFmt(v, rate)}>
+						{pct > 0 ? <span className="dtok-hour-bar" style={{ height: pct + "%" }} /> : null}
+					</span>
+				);
+			})}
+		</div>
+	);
+}
+
+/** 图表统计区：所有图都基于「当前筛选结果 records」客户端聚合，筛选一变图表即时联动。
+ *  scope = "range"（整个时间范围）| "today"（records 里属于今天的部分）。 */
+function ChartsPanel({ records, rate }) {
+	const [metric, setMetric] = useState("totalTokens");
+	const [dim, setDimLocal] = useState("model");
+	const metricDef = CHART_METRICS.find((m) => m[0] === metric) || CHART_METRICS[0];
+	const metricFmt = metricDef[2];
+	const todayRecs = useMemo(() => {
+		const t0 = startOfToday();
+		return records.filter((r) => Number(r.time) >= t0);
+	}, [records]);
+	const todayByModel = useMemo(() => groupByKey(todayRecs, (r) => r.model || "(未知)", metric), [todayRecs, metric]);
+	const byDim = useMemo(() => groupByKey(records, (r) => r[dim] || "(空)", metric), [records, dim, metric]);
+	const modelTime = useMemo(() => groupByKey(records, (r) => r.model || "(未知)", "llmMs"), [records]);
+	const timedCalls = useMemo(() => records.reduce((s, r) => s + (typeof r.llmMs === "number" ? 1 : 0), 0), [records]);
+	const hours = useMemo(() => {
+		const arr = [];
+		for (let h = 0; h < 24; h++) { const a = emptyAgg(); a.hour = h; arr.push(a); }
+		for (const r of records) addToAgg(arr[hourOf(r.time)], r);
+		return arr;
+	}, [records]);
+	return (
+		<div className="dtok-charts">
+			<div className="dtok-chart-toolbar">
+				<span className="dtok-chart-toolbar-label">指标</span>
+				{CHART_METRICS.map(([id, label]) => (
+					<button key={id} className={"dtok-btn tiny" + (metric === id ? " primary" : "")} onClick={() => setMetric(id)}>{label}</button>
+				))}
+				<span className="dtok-chart-toolbar-note">图表跟随上方筛选条件（时间 / 会话 / 提供商 / 模型 / 状态 / 强度）实时联动</span>
+			</div>
+			<div className="dtok-chart-grid">
+				<div className="dtok-chart-card">
+					<div className="dtok-chart-title">今日模型用量占比<span className="dtok-chart-sub">{metricDef[1]} · {todayRecs.length} 次调用</span></div>
+					<DonutChart items={todayByModel} metric={metric} metricFmt={metricFmt} rate={rate} centerLabel={"今日" + metricDef[1]} emptyText="今日暂无调用" />
+				</div>
+				<div className="dtok-chart-card">
+					<div className="dtok-chart-title">24 小时调用分布<span className="dtok-chart-sub">按小时聚合 · {metricDef[1]}</span></div>
+					<HourChart hours={hours} metric={metric} metricFmt={metricFmt} rate={rate} />
+				</div>
+				<div className="dtok-chart-card">
+					<div className="dtok-chart-title">模型耗时排行<span className="dtok-chart-sub">累计 LLM 耗时 · 已计时 {timedCalls} 次</span></div>
+					<HBarChart items={modelTime} metric="llmMs" metricFmt={(v) => fmtDurCompact(v)} rate={rate} emptyText="暂无计时数据" />
+				</div>
+				<div className="dtok-chart-card">
+					<div className="dtok-chart-title">
+						分布统计
+						<span className="dtok-chart-sub">
+							{CHART_DIMS.map(([id, label]) => (
+								<button key={id} className={"dtok-btn tiny" + (dim === id ? " primary" : "")} style={{ marginLeft: 4 }} onClick={() => setDimLocal(id)}>{label}</button>
+							))}
+						</span>
+					</div>
+					<HBarChart items={byDim} metric={metric} metricFmt={metricFmt} rate={rate} />
+				</div>
+			</div>
+		</div>
+	);
 }
 
 // ---------- 样式（dtok- 前缀，dock 面板内自适应：宽度铺满、表格横向滚动） ----------
@@ -283,6 +491,35 @@ const css = `
 .dtok-src{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);}
 .dtok-src.custom{color:var(--dsw-alias-state-success-primary,#4ade80);}
 .dtok-src.fallback{color:var(--dk-warn);}
+/* ---- 图表统计（纯 CSS/SVG） ---- */
+.dtok-charts{display:flex;flex-direction:column;gap:10px;min-width:0;}
+.dtok-chart-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);}
+.dtok-chart-toolbar-label{font-size:12px;color:var(--dsw-alias-label-secondary);flex:none;}
+.dtok-chart-toolbar-note{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);margin-left:auto;}
+.dtok-chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;}
+.dtok-chart-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);padding:10px 12px;min-width:0;display:flex;flex-direction:column;gap:8px;}
+.dtok-chart-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.dtok-chart-sub{font-size:11px;font-weight:400;color:var(--dsw-alias-label-secondary);}
+.dtok-chart-empty{text-align:center;color:var(--dsw-alias-label-secondary);padding:28px 0;font-size:12px;}
+.dtok-donut-wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.dtok-donut{width:150px;height:150px;flex:none;}
+.dtok-donut-v{font-size:6.5px;font-weight:700;fill:var(--dsw-alias-label-primary);}
+.dtok-donut-l{font-size:3.6px;fill:var(--dsw-alias-label-secondary);}
+.dtok-legend{flex:1;min-width:150px;display:flex;flex-direction:column;gap:3px;max-height:170px;overflow:auto;}
+.dtok-legend-row{display:flex;align-items:center;gap:6px;font-size:11px;min-width:0;}
+.dtok-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.dtok-legend-k{color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.dtok-legend-v{color:var(--dsw-alias-label-secondary);margin-left:auto;flex:none;}
+.dtok-hbars{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;}
+.dtok-hbar-row{display:flex;align-items:center;gap:8px;font-size:11px;min-width:0;}
+.dtok-hbar-k{flex:0 1 34%;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dtok-hbar-track{flex:1;height:12px;border-radius:4px;background:rgb(127 127 127 / .16);overflow:hidden;min-width:40px;}
+.dtok-hbar-fill{display:block;height:100%;border-radius:4px;transition:width .3s ease;}
+.dtok-hbar-v{flex:none;color:var(--dsw-alias-label-secondary);min-width:52px;text-align:right;}
+.dtok-hours{display:flex;align-items:flex-end;gap:3px;height:130px;padding-top:4px;}
+.dtok-hour-col{flex:1;display:flex;align-items:flex-end;height:100%;min-width:0;}
+.dtok-hour-bar{display:block;width:100%;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--dk-accent),rgb(127 127 127 / .25));min-height:2px;transition:height .3s ease;}
+.dtok-hour-col:hover .dtok-hour-bar{filter:brightness(1.3);}
 `;
 
 // ---------- 详情弹窗 ----------
@@ -702,6 +939,9 @@ export function TokenLogView(props) {
 	// 「单价设置」折叠面板：默认收起（费用不准确时才需要展开调整）
 	// 「单价设置」子弹窗：默认收起；支持经 params.openPricing 直接打开（深链/测试用）
 	const [showPricing, setShowPricing] = useState(() => !!(props && props.params && props.params.openPricing));
+	// 明细 | 图表 页签：图表全部基于当前筛选结果客户端聚合，不额外发请求。
+	// params.charts 支持深链/测试直接落在图表页签。
+	const [tab, setTab] = useState(() => (props && props.params && props.params.charts) ? "charts" : "detail");
 	// 查询完成信号：loading 由 true→false 时记一次时间戳，用于「✓ 数据已更新」提示与 KPI 卡回弹。
 	// 5 秒静默自动刷新不置 loading，所以轮询不会每 5 秒闪一下。
 	const [fetchedAt, setFetchedAt] = useState(0);
@@ -929,6 +1169,17 @@ export function TokenLogView(props) {
 
 	const bodyNodes = [];
 	if (err) bodyNodes.push(<div key="err" className="dtok-err">错误: {err}</div>);
+	bodyNodes.push(
+		<div key="tabs" className="dtok-filter" style={{ padding: "2px 0 0", border: "none", background: "transparent", gap: 4 }}>
+			<button className={"dtok-btn" + (tab === "detail" ? " primary" : "")} onClick={() => setTab("detail")}>明细</button>
+			<button className={"dtok-btn" + (tab === "charts" ? " primary" : "")} onClick={() => setTab("charts")}>图表统计</button>
+		</div>
+	);
+	if (tab === "charts") {
+		bodyNodes.push(
+			<ChartsPanel key={"charts-" + fetchedAt} records={records} rate={rateCny} />
+		);
+	} else {
 	if (cards.length) bodyNodes.push(
 		// key 带 fetchedAt：每次「手动查询 / 首次加载」拿到新数据时重建一次，KPI 卡重播回弹动画
 		<div className={"dtok-cards" + (fetchedAt ? " dtok-pop" : "")} key={"cards-" + fetchedAt}>
@@ -981,6 +1232,7 @@ export function TokenLogView(props) {
 			</div>
 		);
 		bodyNodes.push(pager("pager-bottom", "bottom"));
+	}
 	}
 
 	return (

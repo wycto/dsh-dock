@@ -435,6 +435,32 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (ok) console.log("✓ 查询加载动画：loading 帧有 banner /「查询中」，收敛后换成「✓ 数据已更新」");
 }
 
+// ---------- 用例 1.6：用量记录「图表统计」页签渲染不崩 ----------
+// 图表区默认不渲染（默认页签是明细），一旦 ChartsPanel 抛错同样会被错误边界静默降级，
+// 而 marker「调用明细」仍能命中 → 假绿。这里直接以 ChartsPanel 组件渲染（props.params.charts
+// 让视图初始落在图表页签），断言四张图的标题都在。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tokenlog";
+	const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
+	const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+	const node = runtime.react.createElement(reg.comp, { params: { charts: true } });
+	let html = "";
+	let error = null;
+	try { html = await renderSettled(runtime, node); } catch (e) { error = e; }
+	if (error) {
+		failed++; console.log(`✗ 图表统计页签渲染抛错：${(error && error.message) || error}`);
+	} else {
+		for (const needle of ["今日模型用量占比", "24 小时调用分布", "模型耗时排行", "分布统计", "deepseek-v4-flash"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 图表统计页签缺少「${needle}」`); }
+		}
+		if (failed === 0 || !html.includes("渲染出错")) {
+			if (!html.includes("渲染出错")) console.log("✓ 图表统计页签：四张图渲染正常（今日占比/24小时分布/耗时排行/分布统计）");
+			else { failed++; console.log("✗ 图表统计页签被错误边界降级（视图里有「渲染出错」）"); }
+		}
+	}
+}
+
 // ---------- 用例 2：视图渲染抛错必须被错误边界隔离，不能打没整块面板 ----------
 // 宿主把每个插槽条目换成空 div 是「界面整个没了」的直接机制，所以这条断言与上面同等重要。
 {
