@@ -2,7 +2,7 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## Unreleased
+## v0.11.4 — 2026-09-20
 
 ### 新增
 
