@@ -51,7 +51,9 @@ export const DockConfig = z.object({
       cacheRead: z.number().default(0),
       cacheWrite: z.number().default(0),
       /** 分时段价（可多段，如 DeepSeek 的高峰/优惠时段）：命中某段用该段价，否则用上面的基准价。
-       *  start/end 为本地小时数 0~24；start>end 表示跨零点；单段等价旧的 peak。 */
+       *  start/end 为本地小时数 0~24；start>end 表示跨零点；单段等价旧的 peak。
+       *  days：日期类型——all=每天（默认）；workday=仅工作日（非周末且非下方 holidays）；
+       *  nonworkday=仅周末或节假日。用于「周末/节假日谷价、仅工作日高峰」这类计价。 */
       peaks: z.array(z.object({
         start: z.number().default(0),
         end: z.number().default(0),
@@ -59,8 +61,12 @@ export const DockConfig = z.object({
         output: z.number().default(0),
         cacheRead: z.number().default(0),
         cacheWrite: z.number().default(0),
+        days: z.string().default('all'),
       })).default([]),
     })).default([]),
+    /** 法定节假日：单日 YYYY-MM-DD 或区间 YYYY-MM-DD~YYYY-MM-DD（含两端）。
+     *  供 peaks.days=workday/nonworkday 判断；周末（周六/周日）始终视为非工作日。 */
+    holidays: z.array(z.string()).default([]),
     /** 未匹配任何条目的模型所用兜底单价。 */
     fallback: z.object({
       input: z.number().default(2.16),

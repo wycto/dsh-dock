@@ -1148,3 +1148,36 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
 压过后注册、无超高 z-index 的插件弹窗；单价 2100/明细 10000 还会盖 body Modal（1000）。
 压到 1–7 与 201，见 CHANGELOG。
 
+## 十二、续作会话（2026-09-23）· 单价分时段支持周末/节假日谷价
+
+### 现象 / 需求
+
+用户：DeepSeek 等价目「周末是谷、节假日也是谷，只有非节假期非周末的 9~12、14~18 双倍」。
+此前 `peaks` 只有小时区间，没有日期维度——周六 10 点也会吃高峰价，和口径不符。
+
+### 改法（四段贯通：schema → 归一/计价 → 传输 → 面板）
+
+1. **schema**（`src/host-core.js` `DockConfig.tokenlog`）：
+   - `peaks[]` 增 `days: string`（`all` | `workday` | `nonworkday`，默认 `all`）；
+   - tokenlog 顶层增 `holidays: string[]`（`YYYY-MM-DD` 或 `YYYY-MM-DD~YYYY-MM-DD`）。
+2. **宿主**（`features/tokenlog/host.js`）：
+   - `normalizeDays` / `daysMatch`：workday = 非周六日且不在 holidays；nonworkday 反之；
+   - `pickPeakSegment(peaks, hour, date, holidays)` 先过日期类型再过小时；
+   - `savePricingConfig` 校验非法 `days` 与节假日格式/区间倒置 → 4xx 不落盘；
+   - `readPricingConfig` 下发 `holidays`；`loadPricingConfig` 刷新模块级列表。
+   - 内置 DeepSeek V4：单段每日 9~14 → **双段工作日 9~12、14~18**（基准=谷，段=双倍）。
+3. **面板**（`features/tokenlog/view.jsx`）：时段行加日期类型下拉；顶部加节假日 textarea；
+   保存 payload 带 `days` + `holidays`；内置价表分时段列展示日期前缀。
+4. **测试**：`test-tokenlog-host` 3e（工作日峰/周末谷/单日与区间节假日/ nonworkday 反向 /
+   缺省 days=all）+ 3d 扩非法 days/节假日；`test-client-views` 断言「仅工作日」「法定节假日」。
+
+### 验证
+
+- `npm run build:client` → `npm run test:client` 全绿；
+- `npm run test:host` 全绿（task + tokenlog 含新 3e）。
+
+### 部署提醒
+
+改宿主半部后需**重启 dsh web**（或 4b HMR）；面板刷新即可看到日期类型与节假日框。
+旧 settings 里没有 `days`/`holidays` 的配置零迁移（缺省 all、空列表）。
+
