@@ -2764,6 +2764,9 @@ var css = `
 .dtok-pseg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0;}
 .dtok-pseg-name{font-size:11px;color:var(--dsw-alias-label-secondary);min-width:112px;}
 .dtok-pseg-tilde{font-size:11px;color:var(--dsw-alias-label-secondary);}
+.dtok-price select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+.dtok-price textarea{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:6px 8px;font-size:12px;font-family:inherit;min-height:64px;resize:vertical;width:100%;box-sizing:border-box;}
+.dtok-days{font-size:11px;}
 .dtok-src{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);}
 .dtok-src.custom{color:var(--dsw-alias-state-success-primary,#4ade80);}
 .dtok-src.fallback{color:var(--dk-warn);}
@@ -2836,9 +2839,11 @@ function numStr(v) {
   return v === void 0 || v === null ? "" : String(v);
 }
 function segToDraft(s) {
+  const d = s && s.days;
   return {
     start: numStr(s && s.start),
     end: numStr(s && s.end),
+    days: d === "workday" || d === "nonworkday" ? d : "all",
     input: numStr(s && s.input),
     output: numStr(s && s.output),
     cacheRead: numStr(s && s.cacheRead),
@@ -2943,23 +2948,27 @@ function PricingEditor({ onClose, onSaved, embedded }) {
   const [rate, setRate] = (0, import_react2.useState)("7.2");
   const [fetchOn, setFetchOn] = (0, import_react2.useState)(true);
   const [fb, setFb] = (0, import_react2.useState)({ input: "", output: "", cacheRead: "", cacheWrite: "" });
+  const [holidaysText, setHolidaysText] = (0, import_react2.useState)("");
   const [newMatch, setNewMatch] = (0, import_react2.useState)("");
   const [msg, setMsg] = (0, import_react2.useState)(null);
   const [saving, setSaving] = (0, import_react2.useState)(false);
+  const applyCfg = (d) => {
+    setCfg(d);
+    setRate(numStr(d.usdCnyRate));
+    setFetchOn(!!d.fetchOfficial);
+    setFb({
+      input: numStr(d.fallback && d.fallback.input),
+      output: numStr(d.fallback && d.fallback.output),
+      cacheRead: numStr(d.fallback && d.fallback.cacheRead),
+      cacheWrite: numStr(d.fallback && d.fallback.cacheWrite)
+    });
+    setHolidaysText((d.holidays || []).join("\n"));
+    setRows((d.pricing || []).map(rowToDraft));
+  };
   (0, import_react2.useEffect)(() => {
     let cancel = false;
     rpcCall("pricing", {}).then((d) => {
-      if (cancel) return;
-      setCfg(d);
-      setRate(numStr(d.usdCnyRate));
-      setFetchOn(!!d.fetchOfficial);
-      setFb({
-        input: numStr(d.fallback && d.fallback.input),
-        output: numStr(d.fallback && d.fallback.output),
-        cacheRead: numStr(d.fallback && d.fallback.cacheRead),
-        cacheWrite: numStr(d.fallback && d.fallback.cacheWrite)
-      });
-      setRows((d.pricing || []).map(rowToDraft));
+      if (!cancel) applyCfg(d);
     }).catch((e) => {
       if (!cancel) setMsg({ ok: false, text: String(e && e.message || e) });
     });
@@ -2997,6 +3006,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
       const peaks = (r.peaks || []).map((s) => ({
         start: Number(s.start || 0),
         end: Number(s.end || 0),
+        days: s.days === "workday" || s.days === "nonworkday" ? s.days : "all",
         input: Number(s.input || 0),
         output: Number(s.output || 0),
         cacheRead: Number(s.cacheRead || 0),
@@ -3005,6 +3015,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
       if (peaks.length) out.peaks = peaks;
       return out;
     });
+    payload.holidays = holidaysText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
     payload.fallback = {
       input: Number(fb.input || 0),
       output: Number(fb.output || 0),
@@ -3014,8 +3025,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
     setSaving(true);
     setMsg(null);
     rpcCall("setpricing", payload).then((d) => {
-      setCfg(d);
-      setRows((d.pricing || []).map(rowToDraft));
+      applyCfg(d);
       setMsg({ ok: true, text: "\u5355\u4EF7\u5DF2\u4FDD\u5B58\uFF0C\u8D39\u7528\u5DF2\u6309\u65B0\u4EF7\u5373\u65F6\u91CD\u7B97" });
       if (onSaved) onSaved();
     }).catch((e) => setMsg({ ok: false, text: String(e && e.message || e) })).finally(() => setSaving(false));
@@ -3040,9 +3050,15 @@ function PricingEditor({ onClose, onSaved, embedded }) {
   );
   const segLabel = (s) => {
     const a = numStr(s.start), b = numStr(s.end);
-    if (a === "" || b === "") return "\u65F6\u6BB5";
-    return a + "~" + b + (Number(a) === Number(b) ? "\uFF08\u5168\u5929\uFF09" : Number(a) > Number(b) ? "\uFF08\u8DE8\u96F6\u70B9\uFF09" : "");
+    const dayTag = s.days === "workday" ? "\u5DE5\u4F5C\u65E5" : s.days === "nonworkday" ? "\u5468\u672B/\u8282\u5047\u65E5" : "";
+    const time = a === "" || b === "" ? "\u65F6\u6BB5" : a + "~" + b + (Number(a) === Number(b) ? "\uFF08\u5168\u5929\uFF09" : Number(a) > Number(b) ? "\uFF08\u8DE8\u96F6\u70B9\uFF09" : "");
+    return dayTag ? dayTag + " " + time : time;
   };
+  const daysSelect = (value, onChange) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", { className: "dtok-days", value: value || "all", onChange: (e) => onChange(e.target.value), title: "\u8BE5\u65F6\u6BB5\u5728\u54EA\u7C7B\u65E5\u671F\u751F\u6548", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "all", children: "\u6BCF\u5929" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "workday", children: "\u4EC5\u5DE5\u4F5C\u65E5" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "nonworkday", children: "\u4EC5\u5468\u672B/\u8282\u5047\u65E5" })
+  ] });
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: embedded ? "dtok-price emb" : "dtok-price", onClick: (e) => e.stopPropagation(), children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", children: [
@@ -3053,6 +3069,22 @@ function PricingEditor({ onClose, onSaved, embedded }) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { type: "checkbox", checked: fetchOn, onChange: (e) => setFetchOn(e.target.checked) }),
         "\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\uFF08\u5173\u95ED\u540E\u4EC5\u7528\u81EA\u5B9A\u4E49/\u5185\u7F6E\u4EF7\uFF09"
       ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-section-title", style: { margin: "0 0 4px" }, children: "\u6CD5\u5B9A\u8282\u5047\u65E5\uFF08\u4F9B\u300C\u4EC5\u5DE5\u4F5C\u65E5\u300D\u5206\u65F6\u6BB5\u5224\u5B9A\uFF09" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-field", style: { maxWidth: 420 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u6BCF\u884C\u4E00\u6761\uFF1A\u5355\u65E5 2026-10-01\uFF0C\u6216\u533A\u95F4 2026-10-01~2026-10-07\uFF08\u542B\u4E24\u7AEF\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "textarea",
+          {
+            value: holidaysText,
+            placeholder: "2026-10-01~2026-10-07\n2027-01-01",
+            onChange: (e) => setHolidaysText(e.target.value),
+            spellCheck: false
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", children: "\u5468\u672B\uFF08\u5468\u516D/\u5468\u65E5\uFF09\u4E0E\u8FD9\u4E9B\u8282\u5047\u65E5\u89C6\u4E3A\u975E\u5DE5\u4F5C\u65E5\uFF1B\u6807\u4E86\u300C\u4EC5\u5DE5\u4F5C\u65E5\u300D\u7684\u9AD8\u5CF0\u6BB5\u5728\u8FD9\u4E9B\u65E5\u671F\u56DE\u843D\u57FA\u51C6\u4EF7\uFF08\u8C37\u4EF7\uFF09\u3002" })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-section-title", style: { margin: "0 0 4px" }, children: [
@@ -3092,10 +3124,11 @@ function PricingEditor({ onClose, onSaved, embedded }) {
           ] })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { marginTop: 2 }, children: "\u7F13\u5B58\u5199\u5165\uFF1D\u672A\u547D\u4E2D\u7F13\u5B58\u3001\u672C\u6B21\u65B0\u5EFA\u7F13\u5B58\u7684\u90A3\u90E8\u5206\u8F93\u5165\uFF08Claude \u7B49\u6309\u6EA2\u4EF7\u5355\u72EC\u6536\u5EFA\u7F13\u5B58\u8D39\uFF09\uFF1BDeepSeek \u4E0D\u6536\u6B64\u9879\uFF0C\u586B 0 \u5373\u53EF\u3002" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { marginTop: 2 }, children: "\u5206\u65F6\u6BB5\u4EF7\uFF08\u53EF\u591A\u6BB5\uFF0C\u547D\u4E2D\u54EA\u6BB5\u7528\u54EA\u6BB5\uFF1B\u65F6\u6BB5\u5916\u56DE\u843D\u5230\u57FA\u51C6\u4EF7\u3002start>end \u8868\u793A\u8DE8\u96F6\u70B9\uFF0C\u5982 23~7\uFF1Bstart=end \u8868\u793A\u5168\u5929\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { marginTop: 2 }, children: "\u5206\u65F6\u6BB5\u4EF7\uFF08\u53EF\u591A\u6BB5\uFF0C\u547D\u4E2D\u54EA\u6BB5\u7528\u54EA\u6BB5\uFF1B\u65F6\u6BB5\u5916\u56DE\u843D\u5230\u57FA\u51C6\u4EF7\u3002start>end \u8868\u793A\u8DE8\u96F6\u70B9\uFF0C\u5982 23~7\uFF1Bstart=end \u8868\u793A\u5168\u5929\u3002 \u6BCF\u6BB5\u53EF\u9009\u65E5\u671F\u7C7B\u578B\uFF1A\u6BCF\u5929 / \u4EC5\u5DE5\u4F5C\u65E5\uFF08\u975E\u5468\u672B\u4E14\u975E\u4E0B\u65B9\u8282\u5047\u65E5\uFF09/ \u4EC5\u5468\u672B\u6216\u8282\u5047\u65E5\u2014\u2014\u5982 DeepSeek\u300C\u5DE5\u4F5C\u65E5 9~12\u300114~18 \u53CC\u500D\uFF0C\u5468\u672B\u4E0E\u8282\u5047\u65E5\u5168\u5929\u8C37\u4EF7\u300D\uFF09" }),
         r.peaks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", children: "\uFF08\u672A\u8BBE\u7F6E\u5206\u65F6\u6BB5\uFF0C\u6309\u57FA\u51C6\u4EF7\u8BA1\u8D39\uFF09" }) : null,
         r.peaks.map((s, k) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-pseg", children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pseg-name", children: segLabel(s) }),
+          daysSelect(s.days, (v) => patchSeg(i, k, { days: v })),
           num(s.start, (v) => patchSeg(i, k, { start: v }), { width: 56 }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-pseg-tilde", children: "~" }),
           num(s.end, (v) => patchSeg(i, k, { end: v }), { width: 56 }),
@@ -3106,7 +3139,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
           segNum(s.cacheWrite, (v) => patchSeg(i, k, { cacheWrite: v }), "\u5199\u5165"),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny", onClick: () => delSeg(i, k), children: "\u5220\u9664\u65F6\u6BB5" })
         ] }, k)),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { opacity: 0.85 }, children: "\u65F6\u6BB5\u4EF7\u4ECE\u5DE6\u5230\u53F3\uFF1A\u8F93\u5165\uFF08\u547D\u4E2D\uFF09/ \u8F93\u5165\uFF08\u672A\u547D\u4E2D\uFF09/ \u8F93\u51FA / \u7F13\u5B58\u5199\u5165" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-price-hint", style: { opacity: 0.85 }, children: "\u65F6\u6BB5\u4EF7\u4ECE\u5DE6\u5230\u53F3\uFF1A\u65E5\u671F\u7C7B\u578B / \u8D77~\u6B62\u65F6 / \u8F93\u5165\uFF08\u547D\u4E2D\uFF09/ \u8F93\u5165\uFF08\u672A\u547D\u4E2D\uFF09/ \u8F93\u51FA / \u7F13\u5B58\u5199\u5165" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "dtok-btn tiny", onClick: () => addSeg(i), children: "+ \u6DFB\u52A0\u65F6\u6BB5" })
       ] }, i)),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-price-grid", style: { marginTop: 6 }, children: [
@@ -3165,7 +3198,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.input }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.output }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.cacheWrite }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.peaks && b.peaks.length ? b.peaks.map((s) => s.start + "~" + s.end).join("\u3001") + "\u65F6" : "\u2014" })
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: b.peaks && b.peaks.length ? b.peaks.map((s) => (s.days === "workday" ? "\u5DE5\u4F5C\u65E5" : s.days === "nonworkday" ? "\u5468\u672B/\u8282\u5047" : "") + s.start + "~" + s.end).join("\u3001") + "\u65F6" : "\u2014" })
         ] }, b.match)) })
       ] }) })
     ] }) : null,
@@ -3669,7 +3702,7 @@ var feature = {
   name: "\u7528\u91CF\u8BB0\u5F55",
   order: 110,
   accent: "#fbbf24",
-  description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u65F6\u95F4\u7B5B\u9009\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u53EF\u914D\u7F6E\u5404\u6A21\u578B\u5355\u4EF7\uFF0C\u6301\u4E45\u4FDD\u5B58\u5E76\u6309\u81EA\u586B\u5355\u4EF7\u8BA1\u8D39\uFF1B\u5185\u7F6E\u5CF0\u8C37\u8BA1\u4EF7+\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\u4F5C\u515C\u5E95\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
+  description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u65F6\u95F4\u7B5B\u9009\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u53EF\u914D\u7F6E\u5404\u6A21\u578B\u5355\u4EF7\uFF0C\u6301\u4E45\u4FDD\u5B58\u5E76\u6309\u81EA\u586B\u5355\u4EF7\u8BA1\u8D39\uFF1B\u591A\u6BB5\u5206\u65F6\u4EF7\u53EF\u9650\u5B9A\u5DE5\u4F5C\u65E5/\u5468\u672B\u8282\u5047\u65E5\uFF0C\u5185\u7F6E\u5CF0\u8C37\u8BA1\u4EF7+\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\u4F5C\u515C\u5E95\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
   css,
   View: TokenLogView,
   HomeStat: TokenLogHomeStat,
@@ -11392,7 +11425,7 @@ var feature10 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.11.6";
+var DOCK_VERSION = "0.12.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};

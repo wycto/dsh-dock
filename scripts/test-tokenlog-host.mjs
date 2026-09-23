@@ -8,19 +8,21 @@
  * 覆盖契约：
  *   1) 自定义单价优先于官网抓取价；清空后回落到官网价 → 内置价 → 兜底价；
  *   2) 改价后无需重扫历史，查询结果按新价重算（withCost）；
- *   3) setpricing 校验：空匹配 / '*' / 负单价一律 4xx 拒绝，不落盘；
+ *   3) setpricing 校验：空匹配 / '*' / 负单价 / 非法 days / 非法节假日 一律 4xx 拒绝，不落盘；
  *   4) pricingUrl 出站前校验：本机/内网/保留地址或被禁协议时，不发起请求（SSRF 防护）；
- *   5) pricing 路由能读回当前生效配置（含 builtin/custom 列表与来源标注）。
+ *   5) pricing 路由能读回当前生效配置（含 builtin/custom 列表、holidays 与来源标注）；
+ *   6) 分时段 days=workday/nonworkday：周末与法定节假日回落基准价（谷）。
  */
 import assert from 'node:assert/strict'
 import { feature as tokenlogFeature } from '../features/tokenlog/host.js'
 import { DOCK_NS } from '../src/host-core.js'
 
-// 用例时间戳一律「本地时间明确指定」：内置表 deepseek-v4-flash / deepseek-v4 带 9~14 时高峰分时价
-// （features/tokenlog/host.js 的 pricingTable），而分时判断取的是调用时刻的本地小时数。
+// 用例时间戳一律「本地时间明确指定」：内置表 deepseek-v4-flash / deepseek-v4 带工作日 9~12、14~18 高峰
+// （features/tokenlog/host.js 的 DEFAULT_PRICING），而分时判断取的是调用时刻的本地日期+小时数。
 // 所以既不能用 Date.now()，也不能用「倒退固定小时数」——那只会把漂移从上午挪到晚上：
-// 倒退 12 小时时，晚上（21:00 后）跑就会落进 9~14 峰段、断言基准价必然失败。写死 20:00
-// （所有内置/自定义峰段之外）后，任何时刻运行结果一致。
+// 倒退 12 小时时，晚上（21:00 后）跑就会落进峰段、断言基准价必然失败。写死 2026-01-15（周四）
+// 20:00（所有内置/自定义峰段之外的小时；workday 判定在测试机任何时区下都是工作日）
+// 后，任何时刻运行结果一致。周末/节假日专项用例（3e）用显式日期，见该用例注释。
 const atHour = (h, m = 0) => new Date(2026, 0, 15, h, m, 0, 0).getTime()
 
 const OFFICIAL_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>定价</title></head><body>
@@ -295,7 +297,7 @@ try {
     dispose()
   }
 
-  // ---------- 用例 3d：分时段参数非法时 4xx 拒绝 ----------
+  // ---------- 用例 3d：分时段/节假日参数非法时 4xx 拒绝 ----------
   {
     const host = makeHost()
     const dispose = tokenlogFeature.setup(host.ctx)
@@ -306,12 +308,90 @@ try {
       { pricing: [{ match: 'x', input: 1, output: 1, peaks: [{ start: 1, end: 25, input: 1, output: 1 }] }], label: '时段终点超 24' },
       { pricing: [{ match: 'x', input: 1, output: 1, peaks: [{ start: 1, end: 5, input: -1, output: 1 }] }], label: '时段内负单价' },
       { pricing: [{ match: 'x', input: 1, output: 1, peaks: [{ start: 'a', end: 5, input: 1, output: 1 }] }], label: '时段时刻非数字' },
+      { pricing: [{ match: 'x', input: 1, output: 1, peaks: [{ start: 1, end: 5, input: 1, output: 1, days: 'holiday' }] }], label: '日期类型非枚举' },
+      { holidays: ['not-a-date'], label: '节假日非日期' },
+      { holidays: ['2026-10-07~2026-10-01'], label: '节假日区间倒置' },
+      { holidays: '2026-10-01', label: '节假日非数组' },
     ]
     for (const b of bad) {
       const r = await host.call('setpricing', b)
-      assert.ok(r.status >= 400 && r.status < 500, b.label + ' 应被拒绝（4xx），实际 ' + r.status)
+      assert.ok(r.status >= 400 && r.status < 500, b.label + ' 应被拒绝（4xx），实际 ' + r.status + ' ' + JSON.stringify(r.body && r.body.error))
     }
-    assert.equal(host.mutateCount(), before, '非法分时段配置不得落盘')
+    assert.equal(host.mutateCount(), before, '非法分时段/节假日配置不得落盘')
+    dispose()
+  }
+
+  // ---------- 用例 3e：days=workday —— 周末/法定节假日回落谷价（基准价） ----------
+  {
+    const host = makeHost()
+    const dispose = tokenlogFeature.setup(host.ctx)
+    await new Promise((r) => setTimeout(r, 20))
+
+    // 基准 100 = 谷价；仅工作日 9~12 双倍 200。
+    // 日期：2026-01-15 周四（工作日）、2026-01-16 周五（配置为节假日）、2026-01-17 周六（周末）。
+    const saved = await host.call('setpricing', {
+      usdCnyRate: 1, fetchOfficial: false,
+      pricing: [{
+        match: 'wd', input: 100, output: 100, cacheRead: 0, cacheWrite: 0,
+        peaks: [{ start: 9, end: 12, days: 'workday', input: 200, output: 200, cacheRead: 0, cacheWrite: 0 }],
+      }],
+      holidays: ['2026-01-16', '2026-10-01~2026-10-07'],
+      fallback: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    })
+    assert.equal(saved.status, 200)
+    assert.deepEqual(saved.body.data.holidays, ['2026-01-16', '2026-10-01~2026-10-07'], 'holidays 应原样读回')
+    assert.equal(saved.body.data.pricing[0].peaks[0].days, 'workday', 'days 应保留')
+
+    const at = (y, m, d, h) => new Date(y, m - 1, d, h, 0, 0, 0).getTime()
+    // 工作日 10:00 → 高峰
+    emitCall(host, { sessionId: 'w1', model: 'wd', seq: 1, time: at(2026, 1, 15, 10), input: 1_000_000, output: 0 })
+    // 周末 10:00 → 谷
+    emitCall(host, { sessionId: 'w2', model: 'wd', seq: 1, time: at(2026, 1, 17, 10), input: 1_000_000, output: 0 })
+    // 法定节假日（周五）10:00 → 谷
+    emitCall(host, { sessionId: 'w3', model: 'wd', seq: 1, time: at(2026, 1, 16, 10), input: 1_000_000, output: 0 })
+    // 工作日 13:00（时段外）→ 谷
+    emitCall(host, { sessionId: 'w4', model: 'wd', seq: 1, time: at(2026, 1, 15, 13), input: 1_000_000, output: 0 })
+    // 区间节假日内的工作日 10:00（2026-10-06 周二，落在 10-01~10-07）→ 谷
+    emitCall(host, { sessionId: 'w5', model: 'wd', seq: 1, time: at(2026, 10, 6, 10), input: 1_000_000, output: 0 })
+
+    const bySid = {}
+    for (const r of (await host.call('query', {})).body.data.records) bySid[r.sessionId] = r
+    assert.ok(Math.abs(bySid['w1'].cost - 200) < 1e-9, '工作日峰段内应用 200')
+    assert.ok(Math.abs(bySid['w2'].cost - 100) < 1e-9, '周末应回落谷价 100')
+    assert.ok(Math.abs(bySid['w3'].cost - 100) < 1e-9, '单日节假日应回落谷价 100')
+    assert.ok(Math.abs(bySid['w4'].cost - 100) < 1e-9, '工作日峰段外应回落谷价 100')
+    assert.ok(Math.abs(bySid['w5'].cost - 100) < 1e-9, '区间节假日应回落谷价 100')
+
+    // days=nonworkday：反向——仅周末/节假日用高峰价
+    await host.call('setpricing', {
+      pricing: [{
+        match: 'nw', input: 100, output: 100, cacheRead: 0, cacheWrite: 0,
+        peaks: [{ start: 9, end: 12, days: 'nonworkday', input: 300, output: 300, cacheRead: 0, cacheWrite: 0 }],
+      }],
+      holidays: ['2026-01-16'],
+    })
+    emitCall(host, { sessionId: 'n1', model: 'nw', seq: 1, time: at(2026, 1, 17, 10), input: 1_000_000, output: 0 }) // 周六
+    emitCall(host, { sessionId: 'n2', model: 'nw', seq: 1, time: at(2026, 1, 16, 10), input: 1_000_000, output: 0 }) // 节假日
+    emitCall(host, { sessionId: 'n3', model: 'nw', seq: 1, time: at(2026, 1, 15, 10), input: 1_000_000, output: 0 }) // 周四
+    const nw = {}
+    for (const r of (await host.call('query', { model: 'nw' })).body.data.records) nw[r.sessionId] = r
+    assert.ok(Math.abs(nw['n1'].cost - 300) < 1e-9, '周末应命中 nonworkday 段 300')
+    assert.ok(Math.abs(nw['n2'].cost - 300) < 1e-9, '节假日应命中 nonworkday 段 300')
+    assert.ok(Math.abs(nw['n3'].cost - 100) < 1e-9, '普通工作日 nonworkday 段不命中，回落 100')
+
+    // 缺省 days 等价 all（旧数据零迁移）：任何日期都可命中
+    await host.call('setpricing', {
+      pricing: [{
+        match: 'alld', input: 100, output: 100, cacheRead: 0, cacheWrite: 0,
+        peaks: [{ start: 9, end: 12, input: 400, output: 400, cacheRead: 0, cacheWrite: 0 }],
+      }],
+      holidays: ['2026-01-16'],
+    })
+    emitCall(host, { sessionId: 'a1', model: 'alld', seq: 1, time: at(2026, 1, 17, 10), input: 1_000_000, output: 0 })
+    const alld = {}
+    for (const r of (await host.call('query', { model: 'alld' })).body.data.records) alld[r.sessionId] = r
+    assert.ok(Math.abs(alld['a1'].cost - 400) < 1e-9, '缺省 days=all 时周末仍应命中段价')
+
     dispose()
   }
 
@@ -409,4 +489,4 @@ try {
   globalThis.clearInterval = realClearInterval
 }
 
-console.log('tokenlog host: ok (自定义单价优先 + 查询即重算 + 参数校验 4xx + pricingUrl SSRF 防护 + export 结构化明细)')
+console.log('tokenlog host: ok (自定义单价优先 + 查询即重算 + 参数校验 4xx + 工作日/周末/节假日峰谷 + pricingUrl SSRF 防护 + export 结构化明细)')

@@ -4,7 +4,7 @@
 //  - 秒级时间范围查询 + 会话ID/提供商/模型(联动)/状态/推理强度 筛选，条件本地暂存
 //  - 9 张 KPI 卡 + 分组统计表 + 明细表（点击表头排序、会话ID点击即筛选、100 行/页上下双分页）
 //  - 状态列显示 HTTP 状态码徽章，行内【查看详情】弹窗展示完整信息；CSV 导出（中文表头，列序与明细表一致 + 合计行）
-//  - 独立的「单价设置」子弹窗：按模型配置单价（支持多段分时价）并持久化，费用按自填单价重算
+//  - 独立的「单价设置」子弹窗：按模型配置单价（多段分时价 + 日期类型/法定节假日）并持久化，费用按自填单价重算
 //  - 挂载即扫描历史+按暂存条件查询；挂载期间每 5s 静默自动刷新
 //  - 查询等待动画：点「查询」后按钮转圈扫光 + 数据区顶部「记账小队清点」banner（轮换俏皮文案，
 //    等久了换语气），旧数据压暗禁点；结果到位时闪一次「✓ 数据已更新」并让 KPI 卡回弹
@@ -488,6 +488,9 @@ const css = `
 .dtok-pseg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0;}
 .dtok-pseg-name{font-size:11px;color:var(--dsw-alias-label-secondary);min-width:112px;}
 .dtok-pseg-tilde{font-size:11px;color:var(--dsw-alias-label-secondary);}
+.dtok-price select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit;}
+.dtok-price textarea{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:6px 8px;font-size:12px;font-family:inherit;min-height:64px;resize:vertical;width:100%;box-sizing:border-box;}
+.dtok-days{font-size:11px;}
 .dtok-src{font-size:11px;color:var(--dsw-alias-label-tertiary,#94a3b8);}
 .dtok-src.custom{color:var(--dsw-alias-state-success-primary,#4ade80);}
 .dtok-src.fallback{color:var(--dk-warn);}
@@ -571,10 +574,12 @@ function Detail({ rec, onClose, rate }) {
 // 独立子弹窗（可最大化 / 拖动 / 缩放），与功能坞面板解耦，方便配置较长时段表。
 function numStr(v) { return v === undefined || v === null ? "" : String(v); }
 
-/** 时段草稿：一个 { start,end,input,output,cacheRead,cacheWrite } 的可编辑副本。 */
+/** 时段草稿：一个 { start,end,days,input,output,cacheRead,cacheWrite } 的可编辑副本。 */
 function segToDraft(s) {
+	const d = s && s.days;
 	return {
 		start: numStr(s && s.start), end: numStr(s && s.end),
+		days: d === "workday" || d === "nonworkday" ? d : "all",
 		input: numStr(s && s.input), output: numStr(s && s.output),
 		cacheRead: numStr(s && s.cacheRead), cacheWrite: numStr(s && s.cacheWrite),
 	};
@@ -692,24 +697,27 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 	const [rate, setRate] = useState("7.2");
 	const [fetchOn, setFetchOn] = useState(true);
 	const [fb, setFb] = useState({ input: "", output: "", cacheRead: "", cacheWrite: "" });
+	const [holidaysText, setHolidaysText] = useState("");
 	const [newMatch, setNewMatch] = useState("");
 	const [msg, setMsg] = useState(null);
 	const [saving, setSaving] = useState(false);
 
+	const applyCfg = (d) => {
+		setCfg(d);
+		setRate(numStr(d.usdCnyRate));
+		setFetchOn(!!d.fetchOfficial);
+		setFb({
+			input: numStr(d.fallback && d.fallback.input), output: numStr(d.fallback && d.fallback.output),
+			cacheRead: numStr(d.fallback && d.fallback.cacheRead), cacheWrite: numStr(d.fallback && d.fallback.cacheWrite),
+		});
+		setHolidaysText((d.holidays || []).join("\n"));
+		setRows((d.pricing || []).map(rowToDraft));
+	};
+
 	useEffect(() => {
 		let cancel = false;
 		rpcCall("pricing", {})
-			.then((d) => {
-				if (cancel) return;
-				setCfg(d);
-				setRate(numStr(d.usdCnyRate));
-				setFetchOn(!!d.fetchOfficial);
-				setFb({
-					input: numStr(d.fallback && d.fallback.input), output: numStr(d.fallback && d.fallback.output),
-					cacheRead: numStr(d.fallback && d.fallback.cacheRead), cacheWrite: numStr(d.fallback && d.fallback.cacheWrite),
-				});
-				setRows((d.pricing || []).map(rowToDraft));
-			})
+			.then((d) => { if (!cancel) applyCfg(d); })
 			.catch((e) => { if (!cancel) setMsg({ ok: false, text: String((e && e.message) || e) }); });
 		return () => { cancel = true; };
 	}, []);
@@ -741,12 +749,14 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 			};
 			const peaks = (r.peaks || []).map((s) => ({
 				start: Number(s.start || 0), end: Number(s.end || 0),
+				days: s.days === "workday" || s.days === "nonworkday" ? s.days : "all",
 				input: Number(s.input || 0), output: Number(s.output || 0),
 				cacheRead: Number(s.cacheRead || 0), cacheWrite: Number(s.cacheWrite || 0),
 			}));
 			if (peaks.length) out.peaks = peaks;
 			return out;
 		});
+		payload.holidays = holidaysText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 		payload.fallback = {
 			input: Number(fb.input || 0), output: Number(fb.output || 0),
 			cacheRead: Number(fb.cacheRead || 0), cacheWrite: Number(fb.cacheWrite || 0),
@@ -754,8 +764,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 		setSaving(true); setMsg(null);
 		rpcCall("setpricing", payload)
 			.then((d) => {
-				setCfg(d);
-				setRows((d.pricing || []).map(rowToDraft));
+				applyCfg(d);
 				setMsg({ ok: true, text: "单价已保存，费用已按新价即时重算" });
 				if (onSaved) onSaved();
 			})
@@ -778,9 +787,18 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 	);
 	const segLabel = (s) => {
 		const a = numStr(s.start), b = numStr(s.end);
-		if (a === "" || b === "") return "时段";
-		return a + "~" + b + (Number(a) === Number(b) ? "（全天）" : Number(a) > Number(b) ? "（跨零点）" : "");
+		const dayTag = s.days === "workday" ? "工作日" : s.days === "nonworkday" ? "周末/节假日" : "";
+		const time = a === "" || b === "" ? "时段"
+			: a + "~" + b + (Number(a) === Number(b) ? "（全天）" : Number(a) > Number(b) ? "（跨零点）" : "");
+		return dayTag ? dayTag + " " + time : time;
 	};
+	const daysSelect = (value, onChange) => (
+		<select className="dtok-days" value={value || "all"} onChange={(e) => onChange(e.target.value)} title="该时段在哪类日期生效">
+			<option value="all">每天</option>
+			<option value="workday">仅工作日</option>
+			<option value="nonworkday">仅周末/节假日</option>
+		</select>
+	);
 
 	return (
 		<div className={embedded ? "dtok-price emb" : "dtok-price"} onClick={(e) => e.stopPropagation()}>
@@ -793,6 +811,20 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 					<input type="checkbox" checked={fetchOn} onChange={(e) => setFetchOn(e.target.checked)} />
 					官网价目自动同步（关闭后仅用自定义/内置价）
 				</label>
+			</div>
+
+			<div>
+				<div className="dtok-section-title" style={{ margin: "0 0 4px" }}>法定节假日（供「仅工作日」分时段判定）</div>
+				<div className="dtok-price-field" style={{ maxWidth: 420 }}>
+					<label>每行一条：单日 2026-10-01，或区间 2026-10-01~2026-10-07（含两端）</label>
+					<textarea
+						value={holidaysText}
+						placeholder={"2026-10-01~2026-10-07\n2027-01-01"}
+						onChange={(e) => setHolidaysText(e.target.value)}
+						spellCheck={false}
+					/>
+				</div>
+				<div className="dtok-price-hint">周末（周六/周日）与这些节假日视为非工作日；标了「仅工作日」的高峰段在这些日期回落基准价（谷价）。</div>
 			</div>
 
 			<div>
@@ -819,12 +851,14 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 							缓存写入＝未命中缓存、本次新建缓存的那部分输入（Claude 等按溢价单独收建缓存费）；DeepSeek 不收此项，填 0 即可。
 						</div>
 						<div className="dtok-price-hint" style={{ marginTop: 2 }}>
-							分时段价（可多段，命中哪段用哪段；时段外回落到基准价。start&gt;end 表示跨零点，如 23~7；start=end 表示全天）
+							分时段价（可多段，命中哪段用哪段；时段外回落到基准价。start&gt;end 表示跨零点，如 23~7；start=end 表示全天。
+							每段可选日期类型：每天 / 仅工作日（非周末且非下方节假日）/ 仅周末或节假日——如 DeepSeek「工作日 9~12、14~18 双倍，周末与节假日全天谷价」）
 						</div>
 						{r.peaks.length === 0 ? <div className="dtok-price-hint">（未设置分时段，按基准价计费）</div> : null}
 						{r.peaks.map((s, k) => (
 							<div className="dtok-pseg" key={k}>
 								<span className="dtok-pseg-name">{segLabel(s)}</span>
+								{daysSelect(s.days, (v) => patchSeg(i, k, { days: v }))}
 								{num(s.start, (v) => patchSeg(i, k, { start: v }), { width: 56 })}
 								<span className="dtok-pseg-tilde">~</span>
 								{num(s.end, (v) => patchSeg(i, k, { end: v }), { width: 56 })}
@@ -836,7 +870,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 								<button className="dtok-btn tiny" onClick={() => delSeg(i, k)}>删除时段</button>
 							</div>
 						))}
-						<div className="dtok-price-hint" style={{ opacity: .85 }}>时段价从左到右：输入（命中）/ 输入（未命中）/ 输出 / 缓存写入</div>
+						<div className="dtok-price-hint" style={{ opacity: .85 }}>时段价从左到右：日期类型 / 起~止时 / 输入（命中）/ 输入（未命中）/ 输出 / 缓存写入</div>
 						<button className="dtok-btn tiny" onClick={() => addSeg(i)}>+ 添加时段</button>
 					</div>
 				))}
@@ -871,7 +905,7 @@ function PricingEditor({ onClose, onSaved, embedded }) {
 								{cfg.builtin.map((b) => (
 									<tr key={b.match}>
 										<td>{b.match}</td><td>{b.cacheRead}</td><td>{b.input}</td><td>{b.output}</td><td>{b.cacheWrite}</td>
-										<td>{b.peaks && b.peaks.length ? b.peaks.map((s) => s.start + "~" + s.end).join("、") + "时" : "—"}</td>
+										<td>{b.peaks && b.peaks.length ? b.peaks.map((s) => (s.days === "workday" ? "工作日" : s.days === "nonworkday" ? "周末/节假" : "") + s.start + "~" + s.end).join("、") + "时" : "—"}</td>
 									</tr>
 								))}
 							</tbody>
@@ -1374,7 +1408,7 @@ export const feature = {
 	name: "用量记录",
 	order: 110,
 	accent: "#fbbf24",
-	description: "记录全部 LLM API 调用：秒级时间筛选、Token/费用统计（可配置各模型单价，持久保存并按自填单价计费；内置峰谷计价+官网价目自动同步作兜底）、分组汇总、明细检索与 CSV 导出",
+	description: "记录全部 LLM API 调用：秒级时间筛选、Token/费用统计（可配置各模型单价，持久保存并按自填单价计费；多段分时价可限定工作日/周末节假日，内置峰谷计价+官网价目自动同步作兜底）、分组汇总、明细检索与 CSV 导出",
 	css,
 	View: TokenLogView,
 	HomeStat: TokenLogHomeStat,
