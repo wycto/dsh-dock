@@ -3,6 +3,8 @@
 > 给后续 DSH 会话的交接文档：新会话继续完善本项目前，先读本文件 + README。
 > **2026-08-22 更新**：0.2.0 模型余额已接入，见文末「八、续作会话（2026-08-22）」；
 > 其中 8.7 记录了「CSS 全局名冲突致 dsh 启动崩溃」事故与修复，改 client 半部前必读。
+> **2026-09-23 更新**：宿主 SettingsForms 换代适配 + skill 见文末「十一、续作会话（2026-09-23）」；
+> **开发新功能前先读** `.mimocode/skills/dsh-plugin-dev/SKILL.md` + 官方 develop 文档 + `docs/dsh-compat.md`。
 
 ## 一、本项目是什么
 
@@ -1081,3 +1083,68 @@ AssertionError [ERR_ASSERTION]: 内置价 1.5/4.5 生效
    且自 v0.10.0 那次「github 历史重写再修正」起就与远端分叉（本地 10 条 / 远端 101 条互不包含）。
    本次不 force、不丢历史：先把旧 main 存成 `backup/main-pre-v0.11.3`，再 `fetch` + `reset --hard`
    到 `origin/main`，使其与 `github/main` 完全一致。
+
+## 十一、续作会话（2026-09-23）· 宿主 SettingsForms 换代适配
+
+### 现象
+
+面板保存任务动画报：`保存配置被拒绝：No configurable plugin entry "dsh-dock"`。
+dsh 已升到 0.1.7-alpha.1（SettingsForms），旧 `settings.register`/`get` 已删除。
+
+### 根因
+
+`settings.mutate(ns, …)` 在 `SettingsForms.write()` 里要求：插件 **导出 Config**、
+ns = **profile 条目 id**、mutate 路径落在 **`.volatile()`** 字段上。
+dsh-dock 此前只 `settings.register(DOCK_NS, DockConfig, {})`（API 已不存在），
+从未 `export Config`，故 mutate 找不到可配置条目。
+
+另：profile 的 dsh-dock link 曾指向不存在的 `F:/workspace/wycto/gitea/dsh-dock`（路径顺序写反），
+junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
+
+### 改法
+
+- `index.js`：`export const Config = DockConfig`；`apply(ctx, config)` 里
+  `bindDockConfig` + `loader/volatile-update` 重绑；删除 `settings.register` 调用。
+- `src/host-core.js`：DockConfig 顶层段全部 `.volatile()`；新增
+  `readDockRoot` / `mutateDockSection` / `bindDockConfig` / `seedDockConfig` /
+  `migrateImportedFeatures`（从 `settings.yaml.imported` 补功能开关）。
+- 各 feature host：读写改走上述助手；`llm-pi-ai` 改 `settings.describe()`。
+- `package.json`：`@deepseek-ai/*` 改 `peerDependencies: "*"`（禁止带版本副本）。
+- Skill：`.mimocode/skills/dsh-plugin-dev/`；事实快照：`docs/dsh-compat.md`。
+
+### 验证
+
+- `npm run test:host` 全绿（task + tokenlog）。
+- `npm run build:client` + `npm run test:client` 全绿（10 视图 + 隔离 + 双半部 id + portal）。
+
+### 部署提醒
+
+改宿主半部后需**重启 dsh web**（或走 4b 的 HMR）；保存前确认 profile link 指向本仓库。
+
+### 补充：启动竞态（同日）
+
+首次带新代码冷启动时，若 profile 的 `dsh-dock.config.features` 还是空的，
+`bindDockConfig` 绑到 schema 默认（全空），随后 `migrateImportedFeatures` 还是异步的，
+**初始 `setEnabled` 跑在迁移之前** → 运行时全部未启用（仅 `defaultEnabled: true` 的 mobile-relay 开着），
+而 `/dsh-dock/features` 的 `persisted` 在迁移落盘后显示 true——面板「运行中」卡片与真实路由不一致，
+各功能 HTTP 404/405。修法：inject 内用 Promise 链 **先 await 三个迁移 → 再 rebind → 再 setEnabled**。
+12080 可临时对每个功能 POST `{id,enabled:true}` 热恢复；根治需带修复重启。
+
+### 补充：单价子弹窗误关（同日）
+
+`PriceModal` 遮罩原 `onClick={onClose}`：弹窗内按下拖选、遮罩上松开 → click 打到共同祖先（遮罩）→ 关窗。
+修法：`onPointerDown` 记录是否按在遮罩本身，`onClick` 仅当按下与目标都是遮罩才 `onClose`；Esc/✕ 不变。
+
+### 补充：开合插件后样式丢失（同日）
+
+根因：`ensureCss` 只设 `data-plugin-css`，无 `data-plugin`。官方 `claimStyles` 会把
+`style:not([data-plugin])` 划给当前 materialize 的插件；对方 `removeOwnedStyles` 时一并删除
+功能坞样式 →「开关别的插件后样式坏了、刷新才好」。修法：标签打 `data-plugin="dsh-dock"`，
+`apply()` 同步 `ensureCss()`；test-client 用例 9 锁死归属。
+
+### 补充：浮层 z-index 盖住其它插件弹窗（同日）
+
+动画徽标/氛围、notify toast、游戏浮标原用 9985–9995，落在 overlayLayer（官方 z=20）内会
+压过后注册、无超高 z-index 的插件弹窗；单价 2100/明细 10000 还会盖 body Modal（1000）。
+压到 1–7 与 201，见 CHANGELOG。
+
