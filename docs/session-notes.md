@@ -1135,3 +1135,10 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
 `PriceModal` 遮罩原 `onClick={onClose}`：弹窗内按下拖选、遮罩上松开 → click 打到共同祖先（遮罩）→ 关窗。
 修法：`onPointerDown` 记录是否按在遮罩本身，`onClick` 仅当按下与目标都是遮罩才 `onClose`；Esc/✕ 不变。
 
+### 补充：开合插件后样式丢失（同日）
+
+根因：`ensureCss` 只设 `data-plugin-css`，无 `data-plugin`。官方 `claimStyles` 会把
+`style:not([data-plugin])` 划给当前 materialize 的插件；对方 `removeOwnedStyles` 时一并删除
+功能坞样式 →「开关别的插件后样式坏了、刷新才好」。修法：标签打 `data-plugin="dsh-dock"`，
+`apply()` 同步 `ensureCss()`；test-client 用例 9 锁死归属。
+
