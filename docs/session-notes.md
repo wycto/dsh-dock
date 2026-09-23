@@ -1142,3 +1142,9 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
 功能坞样式 →「开关别的插件后样式坏了、刷新才好」。修法：标签打 `data-plugin="dsh-dock"`，
 `apply()` 同步 `ensureCss()`；test-client 用例 9 锁死归属。
 
+### 补充：浮层 z-index 盖住其它插件弹窗（同日）
+
+动画徽标/氛围、notify toast、游戏浮标原用 9985–9995，落在 overlayLayer（官方 z=20）内会
+压过后注册、无超高 z-index 的插件弹窗；单价 2100/明细 10000 还会盖 body Modal（1000）。
+压到 1–7 与 201，见 CHANGELOG。
+
