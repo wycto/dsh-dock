@@ -396,7 +396,7 @@ const css = `
 .dtok-code.pend{color:var(--dsw-alias-label-tertiary,#94a3b8);}
 .dtok-detail-link{color:var(--dk-accent);cursor:pointer;font-size:11px;}
 .dtok-detail-link:hover{text-decoration:underline;}
-.dtok-detail{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;}
+.dtok-detail{position:fixed;inset:0;z-index:201;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;}
 .dtok-detail-card{background:var(--dsw-alias-bg-layer-2,#1c212b);border:1px solid var(--dsw-alias-border-l2,#3a4150);border-radius:12px;padding:20px 24px;max-width:640px;width:92%;max-height:80vh;overflow:auto;color:var(--dsw-alias-label-primary,#e8eaf0);}
 .dtok-detail-card h3{margin:0 0 12px;font-size:15px;}
 .dtok-detail-row{display:flex;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid var(--dk-tdim);}
@@ -460,7 +460,7 @@ const css = `
 .dtok-btn.primary:not([disabled]):active{transform:none;}
 }
 /* ---- 单价设置（子弹窗） ---- */
-.dtok-pm-backdrop{position:fixed;inset:0;z-index:2100;background:rgba(15,17,21,.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;}
+.dtok-pm-backdrop{position:fixed;inset:0;z-index:201;background:rgba(15,17,21,.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;}
 .dtok-pm{box-sizing:border-box;width:min(980px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2,#1c212b);color:var(--dsw-alias-label-primary);box-shadow:0 20px 64px rgb(0 0 0 / .4);overflow:hidden;}
 .dtok-pm.max{border-radius:10px;}
 .dtok-pm-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);cursor:move;user-select:none;flex:none;background:var(--dsw-alias-bg-layer-1);}
@@ -641,6 +641,11 @@ function PriceModal({ onClose, onSaved }) {
 		return () => window.removeEventListener("keydown", onKey);
 	}, [onClose]);
 
+	// 遮罩关闭必须「按下也在遮罩上」。
+	// 从弹窗内按下、拖选/拖出后在遮罩松开时，click 会派发到共同祖先（遮罩），
+	// 若无此标记会把框选误判成点外部关闭（2026-09-23 用户反馈）。
+	const backdropDownRef = useRef(false);
+
 	const style = maxed
 		? { position: "fixed", left: 8, top: 8, right: 8, bottom: 8, width: "auto", height: "auto" }
 		: geom
@@ -651,7 +656,15 @@ function PriceModal({ onClose, onSaved }) {
 	// 无 document（测试沙箱）/无 createPortal 时退回就地渲染，行为不变。
 	const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
 	const overlay = (
-		<div className="dtok-pm-backdrop" onClick={onClose}>
+		<div
+			className="dtok-pm-backdrop"
+			onPointerDown={(e) => { backdropDownRef.current = e.target === e.currentTarget; }}
+			onClick={(e) => {
+				if (!backdropDownRef.current) return;
+				if (e.target !== e.currentTarget) return;
+				onClose();
+			}}
+		>
 			<div ref={dlgRef} className={"dtok-pm" + (maxed ? " max" : "")} style={style} onClick={(e) => e.stopPropagation()}>
 				<div className="dtok-pm-head" onPointerDown={(e) => startDrag(e, "move")} onDoubleClick={() => setMaxed((v) => !v)}>
 					<b>单价设置</b>

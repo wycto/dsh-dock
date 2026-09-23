@@ -7,7 +7,7 @@
 // 配置存自有 settings 命名空间 dsh-dock（visionProxy: enabled/provider/model），
 // 其编辑 UI 在模型设置页内（见 features/modelconfig/view.js）。
 import { BlockAssembler } from '@deepseek-ai/dsh-llm'
-import { DOCK_NS } from '../../src/host-core.js'
+import { readDockRoot } from '../../src/host-core.js'
 import { readModelDirectory } from '../modelconfig/host.js'
 
 /** 递归判断内容块里是否有图片（含 tool-result 嵌套，与官方 contentHasImage 同构）。 */
@@ -223,8 +223,7 @@ function installVisionProxy(ctx, directory) {
   const deps = {
     config: () => {
       try {
-        const settings = ctx.get('settings')
-        const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : undefined
+        const v = readDockRoot(ctx)
         return v && v.visionProxy ? v.visionProxy : { enabled: false, provider: '', model: '' }
       } catch {
         return { enabled: false, provider: '', model: '' }
