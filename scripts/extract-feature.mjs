@@ -87,7 +87,7 @@ function StandalonePanel(props) {
 	if (!open) return null;
 	return react.createElement("div", {
 		style: {
-			position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column",
+			position: "fixed", inset: 0, zIndex: 100, display: "flex", flexDirection: "column",
 			background: "var(--dsw-alias-bg-layer-1, rgba(16,18,24,.97))",
 			color: "var(--dsw-alias-label-primary, #e8eaf0)", fontFamily: "inherit",
 		},
@@ -109,6 +109,8 @@ export function apply(ctx) {
 			const tagId = "${pkgName}/panel.css";
 			if (!document.querySelector('style[data-plugin-css="' + tagId + '"]')) {
 				const tag = document.createElement("style");
+				// data-plugin 归属：无主标签会被其它插件 claim 后随对方卸载被删（功能坞同款坑）
+				tag.dataset.plugin = "${pkgName}";
 				tag.dataset.pluginCss = tagId;
 				tag.textContent = (feature.css || "") + "\\n.standalone-host{background:var(--dsw-alias-bg-layer-1,#141720);color:var(--dsw-alias-label-primary,#e8eaf0);min-height:100%;}";
 				document.head.appendChild(tag);

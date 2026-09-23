@@ -14,10 +14,10 @@
 //   systemNotify / soundNotify / soundEffect / dingtalkEnabled / dingtalkWebhook /
 //   feishuEnabled / feishuWebhook
 // 模块启停由功能坞的 features.notify 开关负责（独立菜单项），本模块不再有第二个总开关。
-import { DOCK_NS, SOUND_EFFECTS, sendJson, readBody } from '../../src/host-core.js'
+import { SOUND_EFFECTS, sendJson, readBody, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 import { acquireTaskTracker } from '../../src/task-track.js'
 
-// 默认配置（schema 默认值一致；settings.get 未挂载时的兜底）
+// 默认配置（schema 默认值一致；settings 未挂载时的兜底）
 function defaultConfig() {
   return {
     notifyOnComplete: true,
@@ -37,12 +37,11 @@ function defaultConfig() {
   }
 }
 
-// 读 settings 里的 notify 配置（resolved 值已含 schema 默认），异常时回退默认
+// 读本地 Config 镜像里的 notify 配置（resolved 值已含 schema 默认），异常时回退默认
 function readConfig(ctx) {
   const cfg = defaultConfig()
   try {
-    const settings = ctx.get('settings')
-    const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : null
+    const v = readDockRoot(ctx)
     const n = v && typeof v === 'object' && v.notify && typeof v.notify === 'object' ? v.notify : null
     if (n) {
       for (const key of Object.keys(cfg)) {
@@ -291,12 +290,8 @@ export const feature = {
                 cfg.feishuWebhook = hook
               }
 
-              const settings = ctx.get('settings')
-              if (!settings || typeof settings.mutate !== 'function') {
-                throw new Error('settings 服务不可用，配置无法持久化')
-              }
               try {
-                await settings.mutate(DOCK_NS, [{ op: 'set', path: ['notify'], value: cfg }])
+                await mutateDockSection(ctx, ['notify'], cfg)
               } catch (e) {
                 const err = new Error('保存配置被拒绝：' + ((e && e.message) || String(e)))
                 err.statusCode = 400

@@ -20,7 +20,7 @@ import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import yaml from 'js-yaml'
-import { DOCK_NS, readBody, sendJson } from '../../src/host-core.js'
+import { DOCK_NS, readBody, sendJson, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 import { lanAddresses, startProtectedLanGateway } from './gateway.js'
 
 function dshHome() { return process.env.DSH_HOME || join(homedir(), '.dsh') }
@@ -154,6 +154,24 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-drawer-btn:active{transform:scale(.94)}',
   '  .dsh-mobile-drawer-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
   '  .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}',
+  // ---- 仿 ZCode 手机端：底部 Tab 栏 + 输入区吸附底部 ----
+  // Tab 栏 z 序 65：低于遮罩 75 / 抽屉 80 / overlayLayer 90 / 功能坞面板 200，
+  // 这些浮层打开时自然盖住 Tab 栏。功能坞面板打开时另由行为脚本整体隐藏（防露边）。
+  '  .dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:65;display:flex;align-items:stretch;justify-content:space-around;padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));touch-action:manipulation}',
+  '  .dsh-mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;padding:4px 0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary,#8b95ab);font-size:11px;font-weight:600;line-height:1.2;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;border-radius:10px}',
+  '  .dsh-mobile-tab svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}',
+  '  .dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}',
+  '  .dsh-mobile-tab.on svg{color:#4d9fff}',
+  '  .dsh-mobile-tab:active{transform:scale(.94)}',
+  // 输入区吸附到 Tab 栏上方：宿主把欢迎内容 justify-content:center 垂直居中，
+  // 手机视口下输入卡片悬在中部、下方留出大片空白。改为 flex-end 贴底，并给
+  // 滚动体留出 Tab 栏高度的内边距，避免内容被 Tab 栏遮挡。
+  '  [class*="scrollBody"]{justify-content:flex-end!important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))!important}',
+  '  [class*="scrollBody"]>[class*="composerSeat"]{padding-bottom:6px}',
+  // 收起的侧栏轨道（collapsed rail）在窄屏只剩 1px 占位，但轨道里的按钮
+  // 仍会溢出贴在左边缘（功能坞/进化/设置三枚露出半边的圆钮）。隐藏整列，
+  // 这些入口已由底部 Tab 栏接管；展开抽屉（z 80）不受影响。
+  '  [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
   '}',
 ].join('\n')
 const MOBILE_LAYOUT_MARKER = 'data-dsh-mobile-layout'
@@ -180,10 +198,39 @@ const MOBILE_BEHAVIOR_JS = [
   'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
   'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
   'function closeDetails(){var d=document.querySelector(\'[class*="detailsCol"]\');if(!d||!d.getBoundingClientRect().width)return;var c=d.querySelector(\'button[aria-label="关闭详情"]\');if(c)c.click()}',
-  'var fab=null,scrim=null;',
+  'var fab=null,scrim=null,tabbar=null;',
+  'var TAB_DEFS=[',
+  '  {id:"sessions",label:"会话",icon:\'<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>\',act:function(){expand()}},',
+  '  {id:"dock",label:"功能坞",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){var b=document.querySelector("button.docke2-rail,button[class*=\'docke2-btn\'][class*=\'docke2-rail\']");if(b){var col=b.closest(\'[class*="sidebarCol"]\');if(col)col.style.visibility="";b.click();if(col)setTimeout(function(){col.style.visibility=""},0)}}},',
+  '  {id:"settings",label:"设置",icon:\'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>\',act:function(){var bs=document.querySelectorAll("button");for(var i=0;i<bs.length;i++){if(bs[i].getAttribute("aria-label")==="设置"){bs[i].click();return}}}}',
+  '];',
+  'function syncTabs(){',
+  '  if(!tabbar)return;',
+  '  var expanded=!sidebarCollapsed();',
+  '  var settingsOpen=dialogOpen();',
+  '  var dockOpen=!!document.querySelector(".dockm-backdrop");',
+  '  var bs=tabbar.querySelectorAll(".dsh-mobile-tab");',
+  '  for(var i=0;i<bs.length;i++){',
+  '    var id=bs[i].dataset.tab;',
+  '    var on=(id==="sessions"&&expanded)||(id==="dock"&&dockOpen)||(id==="settings"&&settingsOpen);',
+  '    if(on)bs[i].classList.add("on");else bs[i].classList.remove("on");',
+  '  }',
+  '}',
   'function ensureChrome(){',
   '  if(!fab){fab=document.createElement("button");fab.type="button";fab.className="dsh-mobile-drawer-btn";fab.setAttribute("aria-label","打开会话列表");fab.innerHTML=\'<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>\';fab.addEventListener("click",function(){expand()});document.body.appendChild(fab)}',
   '  if(!scrim){scrim=document.createElement("div");scrim.className="dsh-mobile-scrim";document.body.appendChild(scrim)}',
+  '  if(!tabbar){',
+  '    tabbar=document.createElement("nav");tabbar.className="dsh-mobile-tabbar";tabbar.setAttribute("aria-label","底部导航");',
+  '    for(var i=0;i<TAB_DEFS.length;i++){',
+  '      (function(def){',
+  '        var b=document.createElement("button");b.type="button";b.className="dsh-mobile-tab";b.dataset.tab=def.id;',
+  '        b.innerHTML=def.icon+"<span>"+def.label+"</span>";',
+  '        b.addEventListener("click",function(){def.act()});',
+  '        tabbar.appendChild(b);',
+  '      })(TAB_DEFS[i]);',
+  '    }',
+  '    document.body.appendChild(tabbar);',
+  '  }',
   '}',
   // 把手定位：贴着趣味游戏浮标（.dgfab，可拖拽）正上方；浮标太靠上时改放它下面
   // （避开顶栏标题），被拖走/隐藏/不存在时兜底左侧中部（38% 视高）。
@@ -206,10 +253,15 @@ const MOBILE_BEHAVIOR_JS = [
   '  if(!fab||!scrim)return;',
   '  var on=narrow()&&!!frameEl()&&!dialogOpen();',
   '  var col=sidebarCollapsed();',
-  '  var showFab=on&&col;',
+  '  var dockOpen=!!document.querySelector(".dockm-backdrop");',
+  '  var showFab=on&&col&&!dockOpen;',
   '  fab.style.display=showFab?"":"none";',
   '  if(showFab)place();',
   '  scrim.style.display=on&&!col?"":"none";',
+  // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板打开时整体隐藏（面板全屏
+  // 模态，Tab 栏 z 序低于它仍可能从边缘露出）；宿主设置弹窗 z 序更高，自然盖住。
+  '  if(tabbar)tabbar.style.display=narrow()&&!!frameEl()&&!dockOpen?"":"none";',
+  '  syncTabs();',
   '}',
   'function boot(){',
   '  ensureChrome();syncChrome();',
@@ -224,7 +276,7 @@ const MOBILE_BEHAVIOR_JS = [
   '  if(!narrow())return;',
   '  var t=e.target;',
   '  if(!t||!t.closest)return;',
-  '  if(t.closest(".dsh-mobile-drawer-btn"))return;',
+  '  if(t.closest(".dsh-mobile-drawer-btn")||t.closest(".dsh-mobile-tabbar"))return;',
   '  var expanded=!!document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');',
   '  var col=document.querySelector(\'[class*="sidebarCol"]\');',
   '  var inSidebar=col&&col.contains(t);',
@@ -272,7 +324,6 @@ export const feature = {
     const disposers = []
     let gateway = null
     let gatewayStarting = null
-    let settingsCtx = null
 
     // 自愈：早期版本把 browse 行平铺写进补丁层——DSH 会把未知 id 的普通补丁行整行
     // 跳过（且 auto 已被停用），结果 directoryPicker 服务无人提供，/api 整面 404，
@@ -284,8 +335,6 @@ export const feature = {
         writePatchList(file, upsertRemotePatches(list))
       }
     } catch { /* 补丁层不可读时交给 lanStatus 的错误呈现，不在启动路径上放大 */ }
-
-    disposers.push(ctx.inject(['settings'], (sctx) => { settingsCtx = sctx }))
 
     // ── 浏览模式目录选择器的 Windows 跨盘补全 ──
     // 官方 browse 后端从主目录起步，只能列出当前盘内的子目录，面包屑在主目录之上
@@ -349,23 +398,25 @@ export const feature = {
       return ba.length > 0 && ba.length === bb.length && timingSafeEqual(ba, bb)
     }
     function getAuth() {
-      if (!settingsCtx) return null
-      const value = settingsCtx.settings.get(DOCK_NS)
-      const auth = value && value.remoteAuth
-      return auth && auth.username && auth.passwordHash && auth.salt ? auth : null
+      try {
+        const value = readDockRoot(ctx)
+        const auth = value && value.remoteAuth
+        return auth && auth.username && auth.passwordHash && auth.salt ? auth : null
+      } catch {
+        return null
+      }
     }
     async function saveAuth(username, password) {
-      if (!settingsCtx || typeof settingsCtx.settings.mutate !== 'function') {
+      const settings = ctx.get('settings')
+      if (!settings || typeof settings.mutate !== 'function') {
         const error = new Error('settings 服务未就绪，无法保存账号')
         error.statusCode = 500
         throw error
       }
       const salt = randomBytes(16).toString('hex')
-      await settingsCtx.settings.mutate(DOCK_NS, [{
-        op: 'set',
-        path: ['remoteAuth'],
-        value: { username, salt, passwordHash: hashPassword(salt, password) },
-      }])
+      await mutateDockSection(ctx, ['remoteAuth'], {
+        username, salt, passwordHash: hashPassword(salt, password),
+      })
       // 账号密码变更：作废所有已登录设备，强制重新登录。
       if (gateway) gateway.revokeAllSessions()
     }

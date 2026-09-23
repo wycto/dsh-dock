@@ -16,7 +16,7 @@
 //   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
 //   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
 //   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
-import { DOCK_NS, DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId } from './src/host-core.js'
+import { DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
@@ -28,7 +28,10 @@ import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 
 export const name = 'dsh-dock'
 
-// 硬依赖 webServer（路由注册）+ llm（图片理解代理包装）+ settings（自有命名空间读写）。
+/** Config schema：dsh ≥ 0.1.7-alpha.1 SettingsForms 要求插件导出同名 Config，否则 mutate 报 No configurable plugin entry。 */
+export const Config = DockConfig
+
+// 硬依赖 webServer（路由注册）+ llm（图片理解代理包装）+ settings（SettingsForms 写回）。
 export const inject = ['webServer', 'llm', 'settings']
 
 /** 测试钩子：清空识别缓存（冒烟在用例间隔离；实现在 visionproxy 模块）。 */
@@ -50,7 +53,7 @@ if (typeof process !== 'undefined' && typeof process.on === 'function' && !proce
   })
 }
 
-export function apply(ctx) {
+export function apply(ctx, config) {
   // ---- 功能注册表（Host 侧）：每个条目来自对应功能模块的 feature 描述符 ----
   // defaultEnabled：与 Client 半部保持一致。已接入的功能默认打开，
   // 规划中的功能缺省 false，等实现后移除 roadmap 并打开。
@@ -65,17 +68,22 @@ export function apply(ctx) {
     fMobileRelay,
   ]
 
+  // 绑定 Config 镜像（替代已移除的 settings.get）；volatile 字段热更时重绑。
+  bindDockConfig(config)
+  ctx.on('loader/volatile-update', () => {
+    try { bindDockConfig(config) } catch { /* Config 形态异常时保持旧镜像 */ }
+  })
+
   const state = new Map()
   for (const f of FEATURES) state.set(f.id, { enabled: false, dispose: null, error: null })
 
-  /** 读宿主侧功能开关表（settings 持久化；settings 未挂载时回退 defaultEnabled）。
-   *  兼容别名：宿主侧【模型设置】功能 id 曾叫 models（与客户端 modelconfig 对不上，
-   *  开关永远推不到宿主）；迁移落盘前（异步）在这里读时兜底换算，保证启动开关表
-   *  与 /dsh-dock/features 响应第一时间就是新口径。 */
+  // 读宿主侧功能开关表（本地 Config 镜像优先；settings 未挂载时回退 defaultEnabled）。
+  // 兼容别名：宿主侧【模型设置】功能 id 曾叫 models（与客户端 modelconfig 对不上，
+  // 开关永远推不到宿主）；迁移落盘前（异步）在这里读时兜底换算，保证启动开关表
+  // 与 /dsh-dock/features 响应第一时间就是新口径。
   function persistedFeatureMap() {
     try {
-      const settings = ctx.get('settings')
-      const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : null
+      const v = readDockRoot(ctx)
       if (v && typeof v === 'object' && v.features && typeof v.features === 'object') {
         const map = v.features
         if (typeof map.models === 'boolean' && typeof map.modelconfig !== 'boolean') {
@@ -115,25 +123,47 @@ export function apply(ctx) {
     }
   }
 
-  // 自有 settings 命名空间（dsh-dock）：功能开关与各功能配置的持久化；
-  // 读取走 settings.get（内存 resolved 值，写入经 settings.mutate，均热生效）。
-  // 宿主侧初始开关也在这里应用：settings 命名空间注册完成后才能读到持久化开关表
-  // （apply() 同步执行时注册尚未生效，读到的永远是空值）。
+  // 自有 Config 段（profile 条目 id dsh-dock）：功能开关与各功能配置的持久化。
+  // 读走本地镜像（apply 的 config / loader/volatile-update），写经 settings.mutate。
+  // 关键顺序：先跑完一次性迁移（可能改写 features），再应用初始开关——
+  // 否则首次启动时 bind 的还是空默认值，migrate 尚未落盘就 setEnabled，
+  // 面板显示 persisted=true 却全部「未启用」、路由 404/405（2026-09-23 事故）。
   let initialTogglesApplied = false
   ctx.inject(['settings'], (sctx) => {
-    sctx.settings.register(DOCK_NS, DockConfig, {})
-    // 一次性迁移：通知配置从 animation 段搬到 notify 段（【任务通知】独立成模块）。
-    // 必须在任何面板保存动作之前跑——animation 模块保存时整段写回，旧字段会被覆盖丢失。
-    migrateNotifyConfig(sctx)
-    // 一次性迁移：宿主侧【模型设置】功能 id models → modelconfig（开关表键名对齐客户端）。
-    migrateModelsFeatureId(sctx)
-    if (initialTogglesApplied) return
-    initialTogglesApplied = true
-    const persisted = persistedFeatureMap()
-    for (const f of FEATURES) {
-      const saved = persisted ? persisted[f.id] : undefined
-      setEnabled(f.id, typeof saved === 'boolean' ? saved : !!f.defaultEnabled)
-    }
+    // 0.1.7-alpha.1 起 settings.register 已移除——不再调用；导出 Config 即注册。
+    Promise.resolve()
+      // 通知配置从 animation 段搬到 notify 段（【任务通知】独立成模块）。
+      // 必须在任何面板保存动作之前跑——animation 模块保存时整段写回，旧字段会被覆盖丢失。
+      .then(() => migrateNotifyConfig(sctx))
+      // 宿主侧【模型设置】功能 id models → modelconfig（开关表键名对齐客户端）。
+      .then(() => migrateModelsFeatureId(sctx))
+      // settings.yaml.imported 里停住的功能开关表（Config 导出前 import 失败的那段）。
+      .then(() => migrateImportedFeatures(sctx))
+      .then(() => {
+        // 迁移可能 mutate 过 Config：刷新镜像后再读开关表。
+        try { bindDockConfig(config) } catch { /* 保持旧镜像 */ }
+        if (initialTogglesApplied) return
+        initialTogglesApplied = true
+        const persisted = persistedFeatureMap()
+        for (const f of FEATURES) {
+          const saved = persisted ? persisted[f.id] : undefined
+          setEnabled(f.id, typeof saved === 'boolean' ? saved : !!f.defaultEnabled)
+        }
+        console.log('[dsh-dock] initial toggles applied:', FEATURES
+          .filter((f) => state.get(f.id).enabled)
+          .map((f) => f.id).join(', ') || '(none)')
+      })
+      .catch((e) => {
+        console.error('[dsh-dock] settings init/migration failed:', (e && e.message) || e)
+        // 迁移失败也要尝试按当前镜像启用，避免整坞空白。
+        if (initialTogglesApplied) return
+        initialTogglesApplied = true
+        const persisted = persistedFeatureMap()
+        for (const f of FEATURES) {
+          const saved = persisted ? persisted[f.id] : undefined
+          setEnabled(f.id, typeof saved === 'boolean' ? saved : !!f.defaultEnabled)
+        }
+      })
   })
 
   // 功能开关管理路由（无条件注册）：GET 查询各功能宿主侧状态；POST 同步开关——
@@ -152,10 +182,11 @@ export function apply(ctx) {
               const enabled = !!(body && body.enabled)
               if (!state.has(id)) return sendJson(res, 404, { ok: false, error: { message: `未知功能：${id}` } })
               setEnabled(id, enabled)
-              const settings = ctx.get('settings')
-              if (settings && typeof settings.mutate === 'function') {
+              try {
                 const features = Object.assign({}, persistedFeatureMap() || {}, { [id]: enabled })
-                await settings.mutate(DOCK_NS, [{ op: 'set', path: ['features'], value: features }])
+                await mutateDockSection(ctx, ['features'], features)
+              } catch (e) {
+                console.error('[dsh-dock] feature toggle persist failed:', (e && e.message) || e)
               }
             }
             const persisted = persistedFeatureMap() || {}

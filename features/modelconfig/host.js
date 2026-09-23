@@ -9,7 +9,7 @@
 //   - 输入类型官方 schema 仅接受 text/image；「视频」等以 dockTags 标注随配置持久化（不参与请求路由）
 //   - schemastery 保留未知字段（实测），dockTags 对官方校验透明
 //   - POST 也收图片理解代理配置（visionProxy 分支，写 dsh-dock 自有命名空间）
-import { DOCK_NS, sendJson, readBody, walkPath } from '../../src/host-core.js'
+import { DOCK_NS, sendJson, readBody, walkPath, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 
 /** 官方 schema 接受的输入模态（写回配置的 input 只允许这两个）。 */
 const HOST_MODALITIES = ['text', 'image']
@@ -294,7 +294,7 @@ async function writeModelConfig(ctx, body) {
     }
     const revision = body.revisions && typeof body.revisions[DOCK_NS] === 'number' ? body.revisions[DOCK_NS] : undefined
     try {
-      await settings.mutate(DOCK_NS, [{ op: 'set', path: ['visionProxy'], value }], revision)
+      await mutateDockSection(ctx, ['visionProxy'], value, revision)
     } catch (e) {
       const msg = e && e.message ? e.message : String(e)
       const err = new Error(`保存图片理解代理配置被拒绝：${msg}`)
@@ -373,11 +373,11 @@ export const feature = {
           await enrichRuntimeInput(ctx, payload)
           // 附带图片理解代理配置与自有命名空间 revision（面板保存用）
           try {
-            const settings = ctx.get('settings')
-            const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : undefined
+            const v = readDockRoot(ctx)
             payload.visionProxy = v && v.visionProxy
               ? { enabled: !!v.visionProxy.enabled, provider: String(v.visionProxy.provider || ''), model: String(v.visionProxy.model || '') }
               : { enabled: false, provider: '', model: '' }
+            const settings = ctx.get('settings')
             const desc = settings && typeof settings.describe === 'function'
               ? settings.describe({ redactSecrets: true }) : []
             for (const d of desc || []) {

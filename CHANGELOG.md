@@ -2,6 +2,44 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.11.6 — 2026-09-23
+
+### 修复
+
+- **环境浮层不再压住其它插件的弹窗**：
+  任务动画徽标/氛围层、通知 toast、游戏浮标/窗口原先 `z-index: 9985–9995`（单价弹窗 2100、明细 10000），
+  在 `overlayLayer`（官方 z≈20，Modal portal 到 body z=1000）里会盖住同层后注册的插件弹窗。
+  已按层级压到：氛围/fab=1、徽标/伙伴=2、完成流光=3、火花=4、卡住卡/游戏窗=5、货运=6、toast=7；
+  功能坞内子弹窗（单价/明细）=201（高于面板 200、低于 body Modal 1000）。
+
+- **开合其它插件后功能坞样式坏掉、要手动刷新才正常**：
+  注入的 `<style>` 只写了 `data-plugin-css`，缺官方归属协议要求的 `data-plugin`。
+  它会被任意后 materialize 的插件 `claimStyles` 划走，对方卸载时 `removeOwnedStyles` 连带删掉。
+  现 `ensureCss` 一律打上 `data-plugin="dsh-dock"`（已有标签也会补），`apply()` 改为同步注入；
+  `extract-feature` 骨架同步补归属。测试新增用例断言样式标签带 `data-plugin=dsh-dock`。
+
+- **单价设置子弹窗：拖选/从弹窗内拖出到遮罩松开时不再误关**：
+  遮罩原先任意 `click` 都 `onClose`；从弹窗内按下做文本框选、指针移出弹窗后在遮罩松开，
+  click 会派发到共同祖先（遮罩），被当成「点外部关闭」。现要求 **pointerdown 与 click 都落在遮罩本身**
+  才关闭——框选、拖动、粘贴过程中指针越过弹窗边界不会关窗；Esc / 标题栏 ✕ / 真正点空遮罩仍可关。
+
+- **适配 dsh ≥ 0.1.7-alpha.1 的 SettingsForms 换代：面板保存不再报「No configurable plugin entry "dsh-dock"」**：
+  新宿主删除了 `settings.register` / `settings.get`，`settings.mutate(ns, …)` 要求插件导出同名 `Config`、
+  ns 等于 profile 条目 id、且路径落在 `.volatile()` 字段上。本版：
+  - `index.js` 导出 `Config = DockConfig`；`apply(ctx, config)` 绑定本地配置镜像并监听 `loader/volatile-update`；
+  - `DockConfig` 各顶层段（features / remoteAuth / visionProxy / tokenlog / animation / notify）标记 `.volatile()`；
+  - 统一读写入口 `readDockRoot` / `mutateDockSection`（host-core），替换全部 `settings.get(DOCK_NS)` 直调；
+  - 官方 `llm-pi-ai` 提供商列表改走 `settings.describe()`（`get` 已不存在）；
+  - 一次性迁移 `migrateImportedFeatures`：从 `settings.yaml.imported` 补回 Config 导出前导入失败的功能开关表；
+  - **启动竞态修复**：迁移必须 await 完成后再 `setEnabled`——否则首次启动读到空默认 features，
+    面板 `persisted=true` 但宿主全部未启用、功能路由 404/405（「模型目录拉取失败 / 余额查询失败」）。
+
+### 变更
+
+- **`package.json`：`@deepseek-ai/*` 从 dependencies 改为 peerDependencies `*`**（宿主提供、禁止带版本副本，避免 cordis Service 类身份分裂导致路由 404）。
+- **新增 skill** `.mimocode/skills/dsh-plugin-dev/`：开发新功能前先读官方 develop 文档 + 本机兼容事实；配套事实快照 `docs/dsh-compat.md`。
+- **本机 profile 链接修正**：`~/.dsh/profiles/web` 的 dsh-dock link 曾指向不存在的 `F:/workspace/wycto/gitea/dsh-dock`，已改为 `F:/workspace/gitea/wycto/dsh-dock`（junction + package-map）。
+
 ## v0.11.4 — 2026-09-20
 
 ### 新增
