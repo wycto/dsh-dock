@@ -47,22 +47,58 @@
 
 ## 安装
 
-dsh-dock 是 DeepSeek Harness（dsh）的插件，通过 dsh 插件命令安装：
+dsh-dock 是 DeepSeek Harness（dsh）的插件，装进 dsh 的 `web` profile（dsh 把插件当作 profile 的一层
+bundle 层，由 `dsh plugin` 管理）。两种方式，选一个即可。
+
+### 方式一：npm 安装
 
 ```bash
-# 安装 npm 版
 dsh plugin --profile web add dsh-dock
-
-# 或安装本地开发版（克隆仓库后）
-dsh plugin --profile web add /path/to/dsh-dock
 ```
 
-查看 / 卸载：
+### 方式二：从源码安装（本地检出 + `link:`）
+
+适合要用最新提交、或自己改代码（改完刷新就能看到）的场景。
+
+> **关键点**：dsh 的 `link:` 安装**不会替插件安装依赖**（pnpm 对 `link:` 包不装 deps），而本插件宿主
+> 半部运行时要 import `js-yaml`、`qrcode`；Node 又按符号链接的真实路径解析——两者叠加，必须先在
+> 源码树里备好 `<repo>/node_modules`，否则插件一加载就 `MODULE_NOT_FOUND`。
+> （`@deepseek-ai/*` 由 dsh 运行时从自身安装闭包统一解析——插件源码树里有没有那份都不影响运行。）
+
+```bash
+# 1) 克隆（发版库在 GitHub；内网开发库地址见 docs/workflow.md §1）
+git clone https://github.com/wycto/dsh-dock.git
+cd dsh-dock
+
+# 2) 在源码树里装运行期依赖（这步不能省，见上面关键点）
+npm install
+
+# 3) 以 link: 装进 web profile。本地路径必须是绝对路径；dsh 会同时把 dsh-dock
+#    写进 profile 的 dsh.profile.bundles（等价写法：直接给绝对路径，不带 link:）
+dsh plugin --profile web add "link:$PWD"
+
+# 4) 重启 dsh web 生效
+dsh web
+```
+
+> 同一 profile 里同名包只能有一个：如果之前装过 npm 版 dsh-dock，先
+> `dsh plugin --profile web remove dsh-dock` 再执行第 3 步（见下方「换回 npm 版」的反向操作）。
+
+验证 / 卸载 / 换回 npm 版：
 
 ```bash
 dsh web --dump-config                     # 查看合成配置（确认 dsh-dock 已加载）
 dsh plugin --profile web remove dsh-dock  # 卸载
+dsh plugin --profile web add dsh-dock     # 换回 npm 版
 ```
+
+源码安装后的维护：
+
+- **更新代码**：仓库里 `git pull` 即可；`client.js` 是随仓库提交的构建产物，会跟着一起更新。
+- **改了客户端源码**（`src/`、`features/*/view.jsx`）：`npm run build:client` 重建 `client.js`，再刷新页面。
+- **改了宿主半部**（`index.js`、`src/host-core.js`、`features/*/host.js`）：重启 `dsh web` 才生效。
+- **想「改代码即刷新」的开发机流程**（`.devdeps` 依赖 + 宿主/客户端双 HMR + 自动重建），见
+  [`docs/workflow.md`](docs/workflow.md) §4b。
 
 也可以手动在 `cordis.patch.yml` 中声明插件后重启 dsh。
 
