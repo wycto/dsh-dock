@@ -685,7 +685,7 @@ function NotifyStat(props) {
 // ---------- 样式（dknt- 前缀；全部走主题变量，暗/亮色自适应） ----------
 const css = [
 	// 通知卡片栈（右上角，不遮 dsh 自身 UI）
-	".dknt-toasts{position:fixed;top:16px;right:16px;z-index:9995;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));}",
+	".dknt-toasts{position:fixed;top:16px;right:16px;z-index:7;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));}",
 	".dknt-toast{border-radius:12px;padding:12px 14px;pointer-events:auto;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 10px 36px rgb(0 0 0 / .22);animation:dknt-toast-in .32s var(--ds-ease-in-out);}",
 	".dknt-toast.out{animation:dknt-toast-out .24s var(--ds-ease-in-out) forwards;}",
 	"@keyframes dknt-toast-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}",
