@@ -87,7 +87,7 @@ function StandalonePanel(props) {
 	if (!open) return null;
 	return react.createElement("div", {
 		style: {
-			position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column",
+			position: "fixed", inset: 0, zIndex: 100, display: "flex", flexDirection: "column",
 			background: "var(--dsw-alias-bg-layer-1, rgba(16,18,24,.97))",
 			color: "var(--dsw-alias-label-primary, #e8eaf0)", fontFamily: "inherit",
 		},
