@@ -2,6 +2,32 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## 未发布（下一版）— 开发中
+
+### 修复
+
+- **单价设置子弹窗：拖选/从弹窗内拖出到遮罩松开时不再误关**：
+  遮罩原先任意 `click` 都 `onClose`；从弹窗内按下做文本框选、指针移出弹窗后在遮罩松开，
+  click 会派发到共同祖先（遮罩），被当成「点外部关闭」。现要求 **pointerdown 与 click 都落在遮罩本身**
+  才关闭——框选、拖动、粘贴过程中指针越过弹窗边界不会关窗；Esc / 标题栏 ✕ / 真正点空遮罩仍可关。
+
+- **适配 dsh ≥ 0.1.7-alpha.1 的 SettingsForms 换代：面板保存不再报「No configurable plugin entry "dsh-dock"」**：
+  新宿主删除了 `settings.register` / `settings.get`，`settings.mutate(ns, …)` 要求插件导出同名 `Config`、
+  ns 等于 profile 条目 id、且路径落在 `.volatile()` 字段上。本版：
+  - `index.js` 导出 `Config = DockConfig`；`apply(ctx, config)` 绑定本地配置镜像并监听 `loader/volatile-update`；
+  - `DockConfig` 各顶层段（features / remoteAuth / visionProxy / tokenlog / animation / notify）标记 `.volatile()`；
+  - 统一读写入口 `readDockRoot` / `mutateDockSection`（host-core），替换全部 `settings.get(DOCK_NS)` 直调；
+  - 官方 `llm-pi-ai` 提供商列表改走 `settings.describe()`（`get` 已不存在）；
+  - 一次性迁移 `migrateImportedFeatures`：从 `settings.yaml.imported` 补回 Config 导出前导入失败的功能开关表；
+  - **启动竞态修复**：迁移必须 await 完成后再 `setEnabled`——否则首次启动读到空默认 features，
+    面板 `persisted=true` 但宿主全部未启用、功能路由 404/405（「模型目录拉取失败 / 余额查询失败」）。
+
+### 变更
+
+- **`package.json`：`@deepseek-ai/*` 从 dependencies 改为 peerDependencies `*`**（宿主提供、禁止带版本副本，避免 cordis Service 类身份分裂导致路由 404）。
+- **新增 skill** `.mimocode/skills/dsh-plugin-dev/`：开发新功能前先读官方 develop 文档 + 本机兼容事实；配套事实快照 `docs/dsh-compat.md`。
+- **本机 profile 链接修正**：`~/.dsh/profiles/web` 的 dsh-dock link 曾指向不存在的 `F:/workspace/wycto/gitea/dsh-dock`，已改为 `F:/workspace/gitea/wycto/dsh-dock`（junction + package-map）。
+
 ## v0.11.4 — 2026-09-20
 
 ### 新增
