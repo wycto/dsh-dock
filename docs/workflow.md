@@ -3,6 +3,13 @@
 本文件是 dsh-dock 插件开发流程与发版流程的唯一真源。人读它，agent 也读它。
 （配套的 agent 预设 `dsh-dock` 只承载硬规则摘要，细节一律以本文件为准。）
 
+**开发新功能 / 改配置持久化 / 对接宿主 API 前，先加载 skill**
+`.mimocode/skills/dsh-plugin-dev`：强制先读官方
+[develop/basic](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)
+并对照本机宿主版本兼容事实（`docs/dsh-compat.md`）。SettingsForms 换代后
+（≥0.1.7-alpha.1）禁止 `settings.register/get`；自有配置读写走
+`readDockRoot` / `mutateDockSection`，插件必须 `export const Config`。
+
 ## 1. 仓库与远端
 
 | 远端 | 地址 | 用途 |
@@ -102,8 +109,9 @@ features/<id>/
 - **新功能默认 `defaultEnabled: false`**（v0.9.5 起的约定：默认全关、按需开启）。
 - 宿主共享内核：`src/host-core.js`（settings schema、常量、`sendJson`/`readBody`）、`src/task-track.js`
   （会话级任务追踪，引用计数共享）；客户端共享：`src/shared.js`（功能开关状态、导航总线、错误边界）。
-- 配置统一存在 settings 命名空间 `dsh-dock` 下，**每个功能一个段**；功能启停由
+- 配置统一存在 **插件 Config**（profile 条目 id `dsh-dock`）下，**每个功能一个段**；功能启停由
   `features.<id>` 布尔表控制，客户端开关通过 `POST /dsh-dock/features` 同步到宿主。
+  读写一律 `readDockRoot` / `mutateDockSection`（host-core），勿再直接 `settings.get/mutate`。
 - 宿主路由前缀 `/dsh-dock/<featureId>/<method>`，统一 `{ ok, data }` / `{ ok, error }` 响应体。
 - 独立发布：`node scripts/extract-feature.mjs <featureId>` 生成可单独发布的包骨架（会一并复制
   `src/host-core.js`、`src/task-track.js`）。
