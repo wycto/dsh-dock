@@ -10,10 +10,10 @@
 //
 // 配置模型（schemastery schema 见 src/host-core.js DockConfig.animation）：
 //   animationEnabled / effectMode / robotScale
-import { DOCK_NS, ANIMATION_MODES, sendJson, readBody } from '../../src/host-core.js'
+import { ANIMATION_MODES, sendJson, readBody, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 import { acquireTaskTracker } from '../../src/task-track.js'
 
-// 默认配置（schema 默认值一致；settings.get 未挂载时的兜底）
+// 默认配置（schema 默认值一致；settings 未挂载时的兜底）
 function defaultConfig() {
   return {
     animationEnabled: true,
@@ -22,12 +22,11 @@ function defaultConfig() {
   }
 }
 
-// 读 settings 里的 animation 配置（resolved 值已含 schema 默认），异常时回退默认
+// 读本地 Config 镜像里的 animation 段（resolved 值已含 schema 默认），异常时回退默认
 function readConfig(ctx) {
   const cfg = defaultConfig()
   try {
-    const settings = ctx.get('settings')
-    const v = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : null
+    const v = readDockRoot(ctx)
     const a = v && typeof v === 'object' && v.animation && typeof v.animation === 'object' ? v.animation : null
     if (a) {
       for (const key of Object.keys(cfg)) {
@@ -86,12 +85,8 @@ export const feature = {
                 cfg.robotScale = Math.max(0.85, Math.min(2.2, Math.round(p.robotScale * 100) / 100))
               }
 
-              const settings = ctx.get('settings')
-              if (!settings || typeof settings.mutate !== 'function') {
-                throw new Error('settings 服务不可用，配置无法持久化')
-              }
               try {
-                await settings.mutate(DOCK_NS, [{ op: 'set', path: ['animation'], value: cfg }])
+                await mutateDockSection(ctx, ['animation'], cfg)
               } catch (e) {
                 const err = new Error('保存配置被拒绝：' + ((e && e.message) || String(e)))
                 err.statusCode = 400
