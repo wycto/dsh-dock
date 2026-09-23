@@ -641,6 +641,11 @@ function PriceModal({ onClose, onSaved }) {
 		return () => window.removeEventListener("keydown", onKey);
 	}, [onClose]);
 
+	// 遮罩关闭必须「按下也在遮罩上」。
+	// 从弹窗内按下、拖选/拖出后在遮罩松开时，click 会派发到共同祖先（遮罩），
+	// 若无此标记会把框选误判成点外部关闭（2026-09-23 用户反馈）。
+	const backdropDownRef = useRef(false);
+
 	const style = maxed
 		? { position: "fixed", left: 8, top: 8, right: 8, bottom: 8, width: "auto", height: "auto" }
 		: geom
@@ -651,7 +656,15 @@ function PriceModal({ onClose, onSaved }) {
 	// 无 document（测试沙箱）/无 createPortal 时退回就地渲染，行为不变。
 	const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
 	const overlay = (
-		<div className="dtok-pm-backdrop" onClick={onClose}>
+		<div
+			className="dtok-pm-backdrop"
+			onPointerDown={(e) => { backdropDownRef.current = e.target === e.currentTarget; }}
+			onClick={(e) => {
+				if (!backdropDownRef.current) return;
+				if (e.target !== e.currentTarget) return;
+				onClose();
+			}}
+		>
 			<div ref={dlgRef} className={"dtok-pm" + (maxed ? " max" : "")} style={style} onClick={(e) => e.stopPropagation()}>
 				<div className="dtok-pm-head" onPointerDown={(e) => startDrag(e, "move")} onDoubleClick={() => setMaxed((v) => !v)}>
 					<b>单价设置</b>
