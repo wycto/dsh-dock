@@ -20,7 +20,7 @@ import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import yaml from 'js-yaml'
-import { DOCK_NS, readBody, sendJson } from '../../src/host-core.js'
+import { DOCK_NS, readBody, sendJson, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 import { lanAddresses, startProtectedLanGateway } from './gateway.js'
 
 function dshHome() { return process.env.DSH_HOME || join(homedir(), '.dsh') }
@@ -324,7 +324,6 @@ export const feature = {
     const disposers = []
     let gateway = null
     let gatewayStarting = null
-    let settingsCtx = null
 
     // 自愈：早期版本把 browse 行平铺写进补丁层——DSH 会把未知 id 的普通补丁行整行
     // 跳过（且 auto 已被停用），结果 directoryPicker 服务无人提供，/api 整面 404，
@@ -336,8 +335,6 @@ export const feature = {
         writePatchList(file, upsertRemotePatches(list))
       }
     } catch { /* 补丁层不可读时交给 lanStatus 的错误呈现，不在启动路径上放大 */ }
-
-    disposers.push(ctx.inject(['settings'], (sctx) => { settingsCtx = sctx }))
 
     // ── 浏览模式目录选择器的 Windows 跨盘补全 ──
     // 官方 browse 后端从主目录起步，只能列出当前盘内的子目录，面包屑在主目录之上
@@ -401,23 +398,25 @@ export const feature = {
       return ba.length > 0 && ba.length === bb.length && timingSafeEqual(ba, bb)
     }
     function getAuth() {
-      if (!settingsCtx) return null
-      const value = settingsCtx.settings.get(DOCK_NS)
-      const auth = value && value.remoteAuth
-      return auth && auth.username && auth.passwordHash && auth.salt ? auth : null
+      try {
+        const value = readDockRoot(ctx)
+        const auth = value && value.remoteAuth
+        return auth && auth.username && auth.passwordHash && auth.salt ? auth : null
+      } catch {
+        return null
+      }
     }
     async function saveAuth(username, password) {
-      if (!settingsCtx || typeof settingsCtx.settings.mutate !== 'function') {
+      const settings = ctx.get('settings')
+      if (!settings || typeof settings.mutate !== 'function') {
         const error = new Error('settings 服务未就绪，无法保存账号')
         error.statusCode = 500
         throw error
       }
       const salt = randomBytes(16).toString('hex')
-      await settingsCtx.settings.mutate(DOCK_NS, [{
-        op: 'set',
-        path: ['remoteAuth'],
-        value: { username, salt, passwordHash: hashPassword(salt, password) },
-      }])
+      await mutateDockSection(ctx, ['remoteAuth'], {
+        username, salt, passwordHash: hashPassword(salt, password),
+      })
       // 账号密码变更：作废所有已登录设备，强制重新登录。
       if (gateway) gateway.revokeAllSessions()
     }

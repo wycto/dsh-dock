@@ -25,7 +25,7 @@
 // 定价优先级：用户自定义单价 > 官网抓取刊例价 > 内置默认表 > 兜底单价。
 // 分时段价支持多段（start>end 跨零点、start=end 全天、小数小时表示半点）；旧单段 peak 自动归一。
 // 费用在查询/导出时按当前单价即时重算，因此改价无需重扫历史。
-import { DOCK_NS, sendJson, readBody } from '../../src/host-core.js'
+import { sendJson, readBody, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 
 export const feature = {
   id: 'tokenlog',
@@ -119,8 +119,7 @@ export const feature = {
     // 取值做防御性归一(schema 已给默认, 但 settings 未挂载/异常时仍需兜底)。
     function loadPricingConfig() {
       try {
-        const settings = ctx.get('settings')
-        const root = settings && typeof settings.get === 'function' ? settings.get(DOCK_NS) : null
+        const root = readDockRoot(ctx)
         const t = root && typeof root === 'object' && root.tokenlog && typeof root.tokenlog === 'object' ? root.tokenlog : null
         if (!t) return
         if (typeof t.usdCnyRate === 'number' && t.usdCnyRate > 0) usdCnyRate = t.usdCnyRate
@@ -247,7 +246,7 @@ export const feature = {
     // 的字段) → 落盘。保存后由调用方 loadPricingConfig() 刷新内存, 使改价立即影响费用估算。
     async function savePricingConfig(input) {
       const settings = ctx.get('settings')
-      if (!settings || typeof settings.get !== 'function' || typeof settings.mutate !== 'function') {
+      if (!settings || typeof settings.mutate !== 'function') {
         throw new Error('settings 服务不可用，单价无法持久化')
       }
       const bad = (msg) => { const err = new Error(msg); err.statusCode = 400; return err }
@@ -256,7 +255,7 @@ export const feature = {
         if (!Number.isFinite(n) || n < 0) throw bad(`「${label}」需为不小于 0 的数字`)
         return n
       }
-      const root = settings.get(DOCK_NS)
+      const root = readDockRoot(ctx)
       const current = root && typeof root === 'object' && root.tokenlog && typeof root.tokenlog === 'object' ? root.tokenlog : {}
       const next = Object.assign({}, current)
       if (input.usdCnyRate !== undefined) {
@@ -314,7 +313,7 @@ export const feature = {
         }
       }
       try {
-        await settings.mutate(DOCK_NS, [{ op: 'set', path: ['tokenlog'], value: next }])
+        await mutateDockSection(ctx, ['tokenlog'], next)
       } catch (e) {
         const err = new Error('保存单价被拒绝：' + ((e && e.message) || String(e)))
         err.statusCode = 400
@@ -481,17 +480,19 @@ export const feature = {
       }
     }
 
-    // 读取 settings.yaml 的 llm-pi-ai 命名空间, 返回「现有提供商」路由名 -> [模型 id]。
+    // 读官方 llm-pi-ai 配置的「现有提供商」路由名 -> [模型 id]。
     // 用途: 前端提供商/模型下拉 = 现有配置 ∪ 历史记录, 去重合并 ——
     //   - 没有任何记录时仍可选现有提供商;
     //   - 提供商/模型已从配置删除时, 因有历史记录仍可选中(兼容两者)。
+    // 0.1.7-alpha.1 起 settings.get 已移除：改走 describe()（SettingsForms 读路径）。
     function readConfiguredProviders() {
       const out = {}
       try {
         const settings = ctx.get('settings')
-        if (!settings || typeof settings.get !== 'function') return out
-        const sec = settings.get('llm-pi-ai')
-        const providers = sec && typeof sec === 'object' && sec.providers ? sec.providers : {}
+        if (!settings || typeof settings.describe !== 'function') return out
+        const views = settings.describe({ redactSecrets: true }) || []
+        const hit = views.find((d) => d && d.ns === 'llm-pi-ai' && d.value && typeof d.value === 'object')
+        const providers = hit && hit.value.providers ? hit.value.providers : {}
         for (const pid of Object.keys(providers || {})) {
           const p = providers[pid]
           if (!p || typeof p !== 'object') { out[pid] = []; continue }
