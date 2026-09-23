@@ -21,9 +21,12 @@
 //       fetchOfficial: true
 //       pricing:
 //         - { match: deepseek-v4-flash, input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0,
-//             peaks: [{ start: 9, end: 14, input: 3, output: 9, cacheRead: 0.1, cacheWrite: 0 }] }
+//             peaks: [{ start: 9, end: 12, days: workday, input: 3, output: 9, cacheRead: 0.1, cacheWrite: 0 },
+//                     { start: 14, end: 18, days: workday, input: 3, output: 9, cacheRead: 0.1, cacheWrite: 0 }] }
+//       holidays: ['2026-10-01~2026-10-07', '2027-01-01']   # 法定节假日（供 days=workday 判定）
 // 定价优先级：用户自定义单价 > 官网抓取刊例价 > 内置默认表 > 兜底单价。
 // 分时段价支持多段（start>end 跨零点、start=end 全天、小数小时表示半点）；旧单段 peak 自动归一。
+// 每段可带 days=all|workday|nonworkday：workday=非周末且非 holidays；nonworkday=周末或节假日。
 // 费用在查询/导出时按当前单价即时重算，因此改价无需重扫历史。
 import { sendJson, readBody, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 
@@ -70,14 +73,22 @@ export const feature = {
     let usdCnyRate = 7.2
     let fallbackPricing = { match: '*', ...DEFAULT_FALLBACK }
     // 内置定价表(人民币元 / 百万 tokens), 按 model 子串匹配; 未匹配走 fallback。
-    // 支持分时段定价: 条目可带 peaks=[{start,end,input,output,cacheRead,cacheWrite}, ...],
+    // 支持分时段定价: 条目可带 peaks=[{start,end,days,input,output,cacheRead,cacheWrite}, ...],
     // 命中某段(插件运行机器本地时间)用该段价, 其余时段用基准价; 支持多段与跨零点(start>end)。
-    // 官方来源: DeepSeek-V4 系列 2026-08-17 生效的分时段刊例(高峰每日 9:00-14:00, 空闲为高峰一半)。
+    // days 默认 all(每天)；workday=仅工作日(非周末且非配置的法定节假日)。
+    // 官方来源(按用户口径): DeepSeek 高峰为工作日 9:00-12:00、14:00-18:00 双倍；
+    // 周末与节假日全天为谷价(基准价)，高峰外时段也回落基准价。
     const DEFAULT_PRICING = [
       { match: 'deepseek-v4-flash', input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0,
-        peaks: [{ start: 9, end: 14, input: 3.0, output: 9.0, cacheRead: 0.10, cacheWrite: 0 }] },
+        peaks: [
+          { start: 9, end: 12, days: 'workday', input: 3.0, output: 9.0, cacheRead: 0.10, cacheWrite: 0 },
+          { start: 14, end: 18, days: 'workday', input: 3.0, output: 9.0, cacheRead: 0.10, cacheWrite: 0 },
+        ] },
       { match: 'deepseek-v4-pro', input: 4.5, output: 13.5, cacheRead: 0.15, cacheWrite: 0,
-        peaks: [{ start: 9, end: 14, input: 9.0, output: 27.0, cacheRead: 0.30, cacheWrite: 0 }] },
+        peaks: [
+          { start: 9, end: 12, days: 'workday', input: 9.0, output: 27.0, cacheRead: 0.30, cacheWrite: 0 },
+          { start: 14, end: 18, days: 'workday', input: 9.0, output: 27.0, cacheRead: 0.30, cacheWrite: 0 },
+        ] },
       { match: 'deepseek-v3', input: 3.6, output: 7.2, cacheRead: 0.72, cacheWrite: 7.2 },
       { match: 'deepseek-chat', input: 1.94, output: 7.92, cacheRead: 0.5, cacheWrite: 7.92 },
       { match: 'deepseek-reasoner', input: 3.96, output: 15.77, cacheRead: 1.01, cacheWrite: 7.92 },
@@ -87,6 +98,8 @@ export const feature = {
     let pricingTable = DEFAULT_PRICING
     // 用户自定义单价(最高优先)与官网抓取开关/地址——均由 loadPricingConfig() 从 settings 刷新。
     let userPricing = []
+    // 法定节假日(YYYY-MM-DD 或 区间 YYYY-MM-DD~YYYY-MM-DD)，供 peaks.days 判定工作日。
+    let holidays = []
     let fetchOfficialEnabled = true
     let pricingUrl = DEFAULT_PRICING_URL
     let fetchIntervalMs = DEFAULT_FETCH_INTERVAL_HOURS * 3600000
@@ -94,7 +107,7 @@ export const feature = {
     function normalizePricing(match, e) {
       const n = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : 0)
       const row = { match, input: n(e.input), output: n(e.output), cacheRead: n(e.cacheRead), cacheWrite: n(e.cacheWrite) }
-      // 分时段价支持多段: peaks=[{start,end,input,output,cacheRead,cacheWrite}, ...]。
+      // 分时段价支持多段: peaks=[{start,end,days,input,output,cacheRead,cacheWrite}, ...]。
       // 兼容旧的单段写法 peak={...}(以及旧版本存盘数据), 统一归一到 peaks。
       const src = Array.isArray(e.peaks) && e.peaks.length ? e.peaks : (e.peak && typeof e.peak === 'object' ? [e.peak] : [])
       const peaks = []
@@ -102,12 +115,18 @@ export const feature = {
         if (!s || typeof s !== 'object') continue
         peaks.push({
           start: n(s.start), end: n(s.end),
+          days: normalizeDays(s.days),
           input: n(s.input), output: n(s.output),
           cacheRead: n(s.cacheRead), cacheWrite: n(s.cacheWrite),
         })
       }
       if (peaks.length) row.peaks = peaks
       return row
+    }
+
+    /** 归一日期类型：仅接受 all/workday/nonworkday，其余(含缺失)一律 all（旧数据零迁移）。 */
+    function normalizeDays(v) {
+      return v === 'workday' || v === 'nonworkday' ? v : 'all'
     }
 
     /** 浅拷贝分时段数组（RPC 下发与落盘都用它，避免调用方改到内存态）。 */
@@ -133,19 +152,53 @@ export const feature = {
             .filter((e) => e && typeof e === 'object' && typeof e.match === 'string' && e.match)
             .map((e) => normalizePricing(String(e.match).toLowerCase(), e))
           : []
+        holidays = Array.isArray(t.holidays)
+          ? t.holidays.filter((h) => typeof h === 'string' && h)
+          : []
         if (t.fallback && typeof t.fallback === 'object') fallbackPricing = normalizePricing('*', t.fallback)
       } catch (e) {
         console.error('[dsh-dock] tokenlog read pricing config failed', e && e.message)
       }
     }
 
-    // 分时段命中: start<end 为普通区间 [start,end); start>end 表示跨零点(如 23~7 点);
+    // 本地日期键 YYYY-MM-DD（供节假日区间比较；字符串序即日期序）。
+    function dateKey(d) {
+      const p = (n) => (n < 10 ? '0' : '') + n
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+    }
+
+    // 是否法定节假日：单日等值，或落入 start~end 区间（含两端）。
+    function isHoliday(d, list) {
+      const key = dateKey(d)
+      for (const h of list || []) {
+        const i = h.indexOf('~')
+        if (i > 0) {
+          if (key >= h.slice(0, i) && key <= h.slice(i + 1)) return true
+        } else if (h === key) return true
+      }
+      return false
+    }
+
+    // 段的日期类型是否匹配：all=每天；workday=非周末且非节假日；nonworkday=周末或节假日。
+    function daysMatch(days, d, holidayList) {
+      const kind = normalizeDays(days)
+      if (kind === 'all') return true
+      const w = d.getDay()
+      const weekend = w === 0 || w === 6
+      const holiday = isHoliday(d, holidayList)
+      if (kind === 'workday') return !weekend && !holiday
+      return weekend || holiday // nonworkday
+    }
+
+    // 分时段命中: 先过 days(日期类型)，再过小时区间。
+    // start<end 为普通区间 [start,end); start>end 表示跨零点(如 23~7 点);
     // start===end 视为全天。多段命中时取第一段(按配置顺序)。
-    function pickPeakSegment(peaks, hour) {
-      if (!Array.isArray(peaks) || hour < 0) return null
+    function pickPeakSegment(peaks, hour, d, holidayList) {
+      if (!Array.isArray(peaks) || hour < 0 || !(d instanceof Date) || Number.isNaN(d.getTime())) return null
       for (const s of peaks) {
         const a = Number(s.start), b = Number(s.end)
         if (!Number.isFinite(a) || !Number.isFinite(b)) continue
+        if (!daysMatch(s.days, d, holidayList)) continue
         const hit = a === b ? true : (a < b ? (hour >= a && hour < b) : (hour >= a || hour < b))
         if (hit) return s
       }
@@ -180,13 +233,14 @@ export const feature = {
       }
       // 4) 兜底
       if (!row) { row = fallbackPricing; source = 'fallback' }
-      // 分时段判断(本地时间, 支持多段与跨零点; 用小数小时以便 08:30 这类半点边界); 未命中用基准价
+      // 分时段判断(本地时间, 支持多段/跨零点/days 日期类型; 用小数小时以便 08:30 这类半点边界); 未命中用基准价
       let h = -1
+      let d = null
       if (typeof timeMs === 'number' && Number.isFinite(timeMs)) {
-        const d = new Date(timeMs)
+        d = new Date(timeMs)
         h = d.getHours() + d.getMinutes() / 60
       }
-      const seg = pickPeakSegment(row.peaks, h)
+      const seg = pickPeakSegment(row.peaks, h, d, holidays)
       const prices = seg
         ? { input: seg.input, output: seg.output, cacheRead: seg.cacheRead, cacheWrite: seg.cacheWrite }
         : { input: row.input, output: row.output, cacheRead: row.cacheRead, cacheWrite: row.cacheWrite }
@@ -235,6 +289,7 @@ export const feature = {
         pricingUrl,
         pricingFetchIntervalHours: Math.round(fetchIntervalMs / 3600000),
         pricing: userPricing.map((r) => Object.assign({}, r, { peaks: clonePeaks(r.peaks) })),
+        holidays: holidays.slice(),
         fallback: Object.assign({}, fallbackPricing),
         builtin: pricingTable.map((r) => ({ match: r.match, input: r.input, output: r.output, cacheRead: r.cacheRead, cacheWrite: r.cacheWrite, peaks: clonePeaks(r.peaks) })),
         models: [...seen].sort(),
@@ -281,6 +336,7 @@ export const feature = {
           }
           // 分时段价(可多段): 每段 start/end 为 0~24 的本地小时(支持 8.5 表示 08:30);
           // start>end 表示跨零点, start===end 表示全天。
+          // days: all|workday|nonworkday —— 周末/节假日谷价时把高峰段标成 workday。
           const rawPeaks = Array.isArray(raw.peaks) ? raw.peaks : []
           const peaks = []
           for (const seg of rawPeaks) {
@@ -289,8 +345,12 @@ export const feature = {
             if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start > 24 || end < 0 || end > 24) {
               throw bad(`「${match}」分时段时刻需为 0~24 的小时数`)
             }
+            const days = seg.days === undefined || seg.days === null || seg.days === '' ? 'all' : String(seg.days)
+            if (days !== 'all' && days !== 'workday' && days !== 'nonworkday') {
+              throw bad(`「${match}」分时段日期类型需为 all / workday / nonworkday`)
+            }
             peaks.push({
-              start, end,
+              start, end, days,
               input: nonNeg(seg.input, `${match} 分时段输入单价`),
               output: nonNeg(seg.output, `${match} 分时段输出单价`),
               cacheRead: nonNeg(seg.cacheRead, `${match} 分时段缓存命中单价`),
@@ -301,6 +361,25 @@ export const feature = {
           rows.push(row)
         }
         next.pricing = rows
+      }
+      if (input.holidays !== undefined) {
+        if (!Array.isArray(input.holidays)) throw bad('「法定节假日」需为数组')
+        const dayRe = /^\d{4}-\d{2}-\d{2}$/
+        const rangeRe = /^\d{4}-\d{2}-\d{2}~\d{4}-\d{2}-\d{2}$/
+        const list = []
+        for (const raw of input.holidays) {
+          const h = String(raw == null ? '' : raw).trim()
+          if (!h) continue
+          if (!dayRe.test(h) && !rangeRe.test(h)) {
+            throw bad(`节假日「${h}」格式不符：单日用 2026-10-01，区间用 2026-10-01~2026-10-07`)
+          }
+          if (rangeRe.test(h)) {
+            const [a, b] = h.split('~')
+            if (a > b) throw bad(`节假日区间「${h}」起始日期不能晚于结束日期`)
+          }
+          list.push(h)
+        }
+        next.holidays = list
       }
       if (input.fallback !== undefined) {
         const f = input.fallback

@@ -203,16 +203,17 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		if (url.includes("/dsh-dock/tokenlog/pricing")) {
 			data = {
 				usdCnyRate: 7.2, fetchOfficial: true, pricingFetchIntervalHours: 24,
-				// 一段多段分时价（覆盖时段增删/跨零点展示分支）
+				// 多段分时价（覆盖时段增删/跨零点/日期类型展示分支）
 				pricing: [{
 					match: "deepseek-v4-flash", input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0,
 					peaks: [
-						{ start: 0, end: 8.5, input: 1, output: 3, cacheRead: 0.03, cacheWrite: 0 },
-						{ start: 9, end: 14, input: 3, output: 9, cacheRead: 0.1, cacheWrite: 0 },
+						{ start: 0, end: 8.5, days: "all", input: 1, output: 3, cacheRead: 0.03, cacheWrite: 0 },
+						{ start: 9, end: 14, days: "workday", input: 3, output: 9, cacheRead: 0.1, cacheWrite: 0 },
 					],
 				}],
+				holidays: ["2026-10-01~2026-10-07"],
 				fallback: { input: 2.16, output: 6.48, cacheRead: 0.43, cacheWrite: 4.32 },
-				builtin: [{ match: "deepseek-v4-flash", input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0, peaks: [{ start: 9, end: 14 }] }],
+				builtin: [{ match: "deepseek-v4-flash", input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0, peaks: [{ start: 9, end: 12, days: "workday" }, { start: 14, end: 18, days: "workday" }] }],
 				models: ["deepseek-v4-flash", "glm-4"], sourcesByModel: { "deepseek-v4-flash": "自定义", "glm-4": "兜底" },
 			};
 		}
@@ -393,6 +394,7 @@ for (const f of FEATURES) {
 		for (const needle of [
 			"调用明细", "单价设置", "¥3.60", "deepseek-v4-flash",
 			"分时段价", "添加时段", "基准输入", "跨零点",
+			"仅工作日", "法定节假日",
 		]) {
 			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
 		}
