@@ -1181,3 +1181,54 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
 改宿主半部后需**重启 dsh web**（或 4b HMR）；面板刷新即可看到日期类型与节假日框。
 旧 settings 里没有 `days`/`holidays` 的配置零迁移（缺省 all、空列表）。
 
+## 十三、续作会话（2026-09-23）· README 补「从源码安装」+ 全新检出链接脚本修复
+
+### 现象
+
+用户要求「看下当前 dsh 的 dsh-dock 插件是怎么安装的，在 README.md 写一个源码安装的方式」。
+核对本机现状：`~/.dsh/profiles/web/package.json` 里是 `"dsh-dock": "link:/Users/weiyi/develop/gitea/wycto/dsh-dock"`
+（`dsh.profile.bundles` 也含 `dsh-dock`），profile 的 `node_modules/dsh-dock` 是指向本仓库的符号链接；
+即当前就是「源码 link 安装」，不是 npm 版。而 README 的「安装」只有 npm 一行 + 本地路径一行，
+漏掉了源码安装必须的一步，照做会踩坑。
+
+### 根因
+
+1. **`link:` 不装依赖**：pnpm 对 `link:` 包不安装其 dependencies，而 Node 对符号链接按 realpath 解析，
+   插件宿主半部（`features/mobile-relay/host.js` 等）运行时要 import `js-yaml`、`qrcode`——
+   这两者不在 DSH 运行时提供的闭包里，必须存在于 `<repo>/node_modules`。
+   `@deepseek-ai/*` 则由 DSH 的 profile-resolution 从**运行中 dsh 的安装闭包**统一解析
+   （`packages/boot/app-boot/src/profile.ts` 的 `collectInstallationScopePackages`），源码树里那份不参与运行。
+2. **`dev-link-deps.mjs` 在全新检出上直接崩**：清理旧链接的 `if (existsSync(link) || lstatSync(link)...)`
+   中 `lstatSync` 对不存在路径抛 ENOENT（`existsSync` 对悬空链接同样 false，短路不了），
+   全新树 `node_modules` 刚建好、四个链接都不存在，第一次跑必挂。
+3. **`docs/workflow.md` §4b 的 `.devdeps` 步骤不可执行**：写作 `cd .devdeps && pnpm install`，
+   但 `.devdeps` 被 git 忽略、全新检出不存在；且 `.devdeps` 不是合法包名（`npm init -y` 报
+   `Invalid name: ".devdeps"`），manifest 必须手写。
+
+### 改法
+
+- `README.md`「安装」拆成两条：方式一 npm；方式二「从源码安装（本地检出 + `link:`）」，
+  给出 克隆 → `npm install`（源码树备运行期依赖）→ `dsh plugin --profile web add "link:$PWD"`
+  → 重启 `dsh web` 的完整步骤，并附「验证/卸载/换回 npm 版」与源码安装后的维护约定
+  （宿主改动重启、客户端改动 `npm run build:client`、HMR 详见 `docs/workflow.md` §4b）。
+- `docs/workflow.md` §4b 步骤 1 改为：手写 `.devdeps/package.json`（`{"name":"dsh-dock-devdeps","private":true}`）
+  + `npm install --prefix .devdeps js-yaml@^4.1.0 qrcode@^1.5.4 esbuild`；注明 **js-yaml 必须锁 v4**
+  （v5 起无 default 导出，`import yaml from 'js-yaml'` 直接抛）与 pnpm 需 `pnpm approve-builds`
+  （否则 esbuild 构建脚本被拦、二进制不可用）。
+- `scripts/dev-link-deps.mjs`：把 lstat 收进 try/catch，拿不到就当「不存在」，直接建链接。
+
+### 验证
+
+- 在 `/tmp` 从 `git archive HEAD` 解出全新树（无 node_modules/.devdeps），完整走了一遍源码安装前两步：
+  手写 `.devdeps/package.json` → `npm install --prefix .devdeps js-yaml@^4.1.0 qrcode@^1.5.4 esbuild`
+  → `node scripts/dev-link-deps.mjs` 输出 `完成 4/4`（修复前同一路径必定 ENOENT 崩溃）。
+- 反证 pins：不锁版本装到的 js-yaml 5.4.2 会让 `import yaml from 'js-yaml'` 报
+  `does not provide an export named 'default'`；锁 `^4.1.0` 后正常。
+- 运行现状核对（未改动线上）：`curl http://127.0.0.1:3080/dsh-dock/features` 返回 `ok:true`、
+  8 个功能模块状态正常，证明本机这套 link: + 源码树 node_modules 的组合确实在跑。
+
+### 部署
+
+纯文档 + 脚本修复，插件运行代码零改动，无需重启 dsh web。用户侧只有「首次源码安装」会走到
+修复后的 `dev-link-deps.mjs`。
+

@@ -81,13 +81,14 @@ if (existsSync(nm)) {
 let ok = 0;
 for (const [name, source] of Object.entries(links)) {
   const link = join(nm, name);
-  // 清掉错的（符号链接指错 / 普通目录混进 .devdeps 路径等）
-  if (existsSync(link) || lstatSync(link).isSymbolicLink?.()) {
-    try {
-      const cur = lstatSync(link);
-      if (cur.isSymbolicLink() && readlinkSync(link) === source) { console.log(`✓ ${name}（已是正确链接）`); ok++; continue; }
-      rmSync(link, { recursive: true, force: true });
-    } catch { /* ENOENT：继续建 */ }
+  // 清掉错的（符号链接指错 / 普通目录混进 .devdeps 路径等）。
+  // lstatSync 对「不存在」会抛 ENOENT（existsSync 对悬空链接也返回 false），必须整体捕获：
+  // 全新检出时 node_modules 刚建好，四个链接都不存在，这里不能崩。
+  let cur;
+  try { cur = lstatSync(link); } catch { cur = undefined; }
+  if (cur !== undefined) {
+    if (cur.isSymbolicLink() && readlinkSync(link) === source) { console.log(`✓ ${name}（已是正确链接）`); ok++; continue; }
+    rmSync(link, { recursive: true, force: true });
   }
   try { symlinkSync(source, link); ok++; console.log(`✓ ${name} → ${source}`); }
   catch (e) { console.error(`✗ ${name}: ${e.message}`); }

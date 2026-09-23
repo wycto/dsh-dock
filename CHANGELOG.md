@@ -2,6 +2,27 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## 未发布（下一版）— 开发中
+
+### 文档
+
+- **README 补「从源码安装」方式**：原有「安装」只写了 `dsh plugin --profile web add dsh-dock` 和一句
+  本地路径安装，没提 `link:` 不装依赖这一步——照做会 MODULE_NOT_FOUND。现在拆成「npm 安装」与
+  「从源码安装（本地检出 + link:）」两条，后者给出 克隆 → 源码树装运行期依赖（`js-yaml`/`qrcode`）
+  → `dsh plugin --profile web add "link:$PWD"` → 重启生效 的完整步骤，并说明源码安装后的更新/重建约定
+  （宿主半部改动重启 `dsh web`、客户端源码改动 `npm run build:client`），开发机 HMR 流程指向
+  `docs/workflow.md` §4b。
+- **`docs/workflow.md` §4b 补 `.devdeps` 首次自建步骤**：此前写作 `cd .devdeps && pnpm install`，
+  但 `.devdeps` 被 git 忽略、全新检出并不存在，且目录名不是合法包名（`npm init -y` 会报
+  `Invalid name: ".devdeps"`）。现在给出写 manifest + `npm install --prefix .devdeps` 的可用命令，
+  并注明 `js-yaml` 必须锁 v4（v5 起无 default 导出）与 pnpm 需 `approve-builds`。
+
+### 修复
+
+- **`scripts/dev-link-deps.mjs` 在全新检出上崩溃**：清理旧链接时 `lstatSync(link)` 裸调用对不存在的
+  路径抛 ENOENT（`existsSync` 对悬空链接也返回 false，短路不了），全新树第一次跑必挂；改为整体
+  try/catch 取 lstat 结果。源码安装 / 新机初始化因此才能一次跑通。
+
 ## v0.12.0 — 2026-09-23
 
 ### 新增
