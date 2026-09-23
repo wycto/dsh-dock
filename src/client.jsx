@@ -238,6 +238,11 @@ function fullDockCss() {
 // 样式全局注入一次（入口按钮与右下角浮层挂在设置页之外，不能依赖页内 <style>）。
 // 这里用 SHELL_CSS 唯一命名，并做防御：注入永不抛错、失败只降级不打断启动；
 // 外部功能注册携带样式时可重算更新（外部样式后到）。
+//
+// ⚠️ 必须同时打 data-plugin="dsh-dock"（官方 claimStyles/removeOwnedStyles 归属协议）：
+// 只有 data-plugin-css 的无主 <style> 会被任意后 materialize 的插件 claim 走，
+// 对方卸载时 removeOwnedStyles 会连带删掉功能坞样式——表现为「开关别的插件后样式坏了、
+// 要手动刷新才正常」。见 packages/client/modules claimStyles。
 function ensureCss() {
 	if (typeof document === "undefined") return;
 	cancelInitialCssSchedule();
@@ -247,19 +252,21 @@ function ensureCss() {
 				dockCssTag = document.querySelector('style[data-plugin-css="dsh-dock"]');
 			} else {
 				dockCssTag = document.createElement("style");
-				dockCssTag.dataset.pluginCss = "dsh-dock";
 				document.head.appendChild(dockCssTag);
 			}
 		}
+		// 归属与标识：缺 data-plugin 的旧标签/被 claim 走的标签一律改回本插件
+		dockCssTag.dataset.plugin = "dsh-dock";
+		dockCssTag.dataset.pluginCss = "dsh-dock";
 		dockCssTag.textContent = fullDockCss();
 	} catch (e) {
 		console.error("[dsh-dock] ensureCss failed:", e && e.message ? e.message : String(e));
 	}
 }
-// 刷新页时宿主内容优先绘制：功能坞样式很大，首帧同步解析会让整页短暂停顿。
-// 首次注入延后到浏览器空闲期；之后的外部模块注册仍走 ensureCss() 立即更新。
+// 首次注入延后到浏览器空闲期：功能坞样式很大，首帧同步解析会让整页短暂停顿。
+// 之后的外部模块注册仍走 ensureCss() 立即更新；apply() 另有同步一击（见下）。
 function scheduleInitialCss() {
-	if (typeof document === "undefined" || initialCssSchedule || (dockCssTag && dockCssTag.isConnected)) return;
+	if (typeof document === "undefined" || initialCssSchedule || (dockCssTag && dockCssTag.isConnected && dockCssTag.dataset.plugin === "dsh-dock")) return;
 	const run = () => {
 		initialCssSchedule = null;
 		ensureCss();
@@ -649,7 +656,10 @@ const ctxRef = { current: null };
 
 export function apply(ctx) {
 	ctxRef.current = ctx;
-	scheduleInitialCss();
+	// 同步注入归属完整的样式：插件开关/HMR 重进 apply 时若只靠 idle，
+	// 窗口期内其它插件 materialize 会 claim 走无主标签（或标签已被对方删掉）。
+	// 首屏成本可接受（textContent 写入），换「开合插件样式不坏」。
+	ensureCss();
 	initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
 	const slots = ctx.get("slots");
 	if (slots === undefined) return;

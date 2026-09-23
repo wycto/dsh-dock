@@ -6,6 +6,12 @@
 
 ### 修复
 
+- **开合其它插件后功能坞样式坏掉、要手动刷新才正常**：
+  注入的 `<style>` 只写了 `data-plugin-css`，缺官方归属协议要求的 `data-plugin`。
+  它会被任意后 materialize 的插件 `claimStyles` 划走，对方卸载时 `removeOwnedStyles` 连带删掉。
+  现 `ensureCss` 一律打上 `data-plugin="dsh-dock"`（已有标签也会补），`apply()` 改为同步注入；
+  `extract-feature` 骨架同步补归属。测试新增用例断言样式标签带 `data-plugin=dsh-dock`。
+
 - **单价设置子弹窗：拖选/从弹窗内拖出到遮罩松开时不再误关**：
   遮罩原先任意 `click` 都 `onClose`；从弹窗内按下做文本框选、指针移出弹窗后在遮罩松开，
   click 会派发到共同祖先（遮罩），被当成「点外部关闭」。现要求 **pointerdown 与 click 都落在遮罩本身**

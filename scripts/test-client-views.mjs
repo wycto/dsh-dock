@@ -249,9 +249,13 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 	// opts.body：提供最小 document 桩（body + head + createPortal 捕获），用于覆盖
 	// 「单价子弹窗 portal 到 document.body」这一真实浏览器分支。默认 document 仍为 undefined
 	// （DockModal 靠它保持展开，供其他用例渲染整棵弹层树）。
+	// opts.document：完整 document 桩（覆盖 ensureCss 注入与 data-plugin 归属断言）。
 	const portalNodes = [];
 	let doc = undefined;
-	if (opts && opts.body) {
+	if (opts && opts.document) {
+		runtime.react.createPortal = (node, target) => { portalNodes.push({ node, target }); return null; };
+		doc = opts.document;
+	} else if (opts && opts.body) {
 		runtime.react.createPortal = (node, target) => { portalNodes.push({ node, target }); return null; };
 		doc = {
 			body: opts.body,
@@ -677,6 +681,70 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 单价子弹窗 portal：createPortal 到 document.body（不受面板 transform/backdrop-filter 影响）");
+}
+
+// ---------- 用例 9：样式标签必须带 data-plugin 归属 ----------
+// 官方 claimStyles 只认 style[data-plugin]；无主标签会被任意后 materialize 的插件
+// claim 走，对方卸载 removeOwnedStyles 时连带删掉——表现为「开合别的插件后功能坞样式坏了」。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const styles = [];
+	let detail = "";
+	try {
+		const bodyStub = { tag: "body-stub" };
+		const head = {
+			appendChild(el) { styles.push(el); },
+		};
+		const doc = {
+			body: bodyStub,
+			head,
+			querySelector(sel) {
+				// 仅支持 ensureCss 用的 data-plugin-css 选择器
+				const m = /data-plugin-css="([^"]+)"/.exec(String(sel));
+				if (!m) return null;
+				return styles.find((el) => el.dataset && el.dataset.pluginCss === m[1]) || null;
+			},
+			createElement() {
+				return {
+					dataset: {},
+					isConnected: true,
+					textContent: "",
+					setAttribute(k, v) {
+						if (k === "data-plugin") this.dataset.plugin = v;
+						if (k === "data-plugin-css") this.dataset.pluginCss = v;
+					},
+					getAttribute(k) {
+						if (k === "data-plugin") return this.dataset.plugin || null;
+						if (k === "data-plugin-css") return this.dataset.pluginCss || null;
+						return null;
+					},
+				};
+			},
+			addEventListener() {},
+			removeEventListener() {},
+		};
+		const { dock } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { body: bodyStub, document: doc });
+		if (!dock || typeof dock.apply !== "function") detail = "apply 不可用";
+		else if (styles.length === 0) detail = "apply 后 head 上没有注入任何 <style>";
+		else {
+			const tag = styles[styles.length - 1];
+			if (!tag.dataset || tag.dataset.plugin !== "dsh-dock") {
+				detail = `style 缺 data-plugin=dsh-dock（实际=${tag.dataset && tag.dataset.plugin}）`;
+			} else if (tag.dataset.pluginCss !== "dsh-dock") {
+				detail = `style 缺 data-plugin-css=dsh-dock（实际=${tag.dataset.pluginCss}）`;
+			} else if (!String(tag.textContent || "").includes("dockm-backdrop")) {
+				detail = "样式内容缺少外壳 CSS（dockm-backdrop）";
+			}
+		}
+	} catch (e) {
+		detail = "样式归属断言抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 样式 data-plugin 归属：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 样式 data-plugin 归属：style 带 data-plugin=dsh-dock，不被其它插件 claim 后误删");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

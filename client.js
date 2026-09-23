@@ -11589,25 +11589,14 @@ function ensureCss() {
         dockCssTag = document.querySelector('style[data-plugin-css="dsh-dock"]');
       } else {
         dockCssTag = document.createElement("style");
-        dockCssTag.dataset.pluginCss = "dsh-dock";
         document.head.appendChild(dockCssTag);
       }
     }
+    dockCssTag.dataset.plugin = "dsh-dock";
+    dockCssTag.dataset.pluginCss = "dsh-dock";
     dockCssTag.textContent = fullDockCss();
   } catch (e) {
     console.error("[dsh-dock] ensureCss failed:", e && e.message ? e.message : String(e));
-  }
-}
-function scheduleInitialCss() {
-  if (typeof document === "undefined" || initialCssSchedule || dockCssTag && dockCssTag.isConnected) return;
-  const run = () => {
-    initialCssSchedule = null;
-    ensureCss();
-  };
-  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
-    initialCssSchedule = { type: "idle", id: window.requestIdleCallback(run, { timeout: 350 }) };
-  } else {
-    initialCssSchedule = { type: "timer", id: setTimeout(run, 48) };
   }
 }
 function useExternalVersion() {
@@ -12038,7 +12027,7 @@ function FeatureOverlays() {
 var ctxRef = { current: null };
 function apply(ctx) {
   ctxRef.current = ctx;
-  scheduleInitialCss();
+  ensureCss();
   initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
   const slots = ctx.get("slots");
   if (slots === void 0) return;
