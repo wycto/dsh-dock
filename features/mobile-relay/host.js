@@ -145,7 +145,15 @@ const MOBILE_LAYOUT_CSS = [
   '  [class$="frame"]{grid-template-columns:0px minmax(0,1fr) 0px!important}',
   '  [class$="_handle"]{display:none!important}',
   '  [class$="frame"]:not([data-sidebar-collapsed]) [class*="sidebarCol"]{position:fixed!important;top:0!important;bottom:0!important;left:0!important;width:min(85vw,320px)!important;z-index:80!important;box-shadow:0 12px 48px rgba(0,0,0,.45)}',
-  '  [class$="frame"]:not([data-details-collapsed="true"]) [class*="detailsCol"]{position:fixed!important;top:0!important;bottom:0!important;right:0!important;left:auto!important;width:min(85vw,320px)!important;z-index:85!important;box-shadow:-12px 0 48px rgba(0,0,0,.45)}',
+  // 右侧详情列：dsh 0.1.7 起 detailsCol 改名 rightbarCol（data-rightbar-col），且窄屏
+  // （<768px）原生就把面板切成全屏（data-sidebar-right-panel="fullscreen"，自身 100vw
+  // 盖满视口），不再需要旧版「固定到右缘抽屉」的兜底规则。
+  // ⚠️ 实测原生全屏态两个缺陷（手机上双重曝光）：① 面板背景透明——会话页 Hero 从缝隙里
+  // 整屏透出来，两层内容叠花；② 面板/panelBody 是 pointer-events:none，空隙处的点击
+  // 穿透到下层（能误点到 Hero 卡片和底部 Tab）。这里补不透明背景 + 拦截穿透；z 88 把
+  // 底部 Tab(65)/抽屉把手(70) 压在面板下，配合行为脚本 rightOpen 时主动隐藏（双保险）。
+  '  [class*="rightbarCol"]{min-width:0}',
+  '  [data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]{z-index:88!important;pointer-events:auto!important;background:var(--dsw-alias-bg-layer-2,rgb(22,24,28))!important}',
   '  [class*="overlayLayer"]{z-index:90!important}',
   // 抽屉把手：贴左边缘（同趣味游戏浮标的边缘吸附语言），top 由 place() 动态设定
   // （趣味游戏浮标正上方，兜底左侧中部）；z 序 70 < 遮罩 75 < 侧栏 80 < overlayLayer 90，
@@ -172,6 +180,11 @@ const MOBILE_LAYOUT_CSS = [
   // 仍会溢出贴在左边缘（功能坞/进化/设置三枚露出半边的圆钮）。隐藏整列，
   // 这些入口已由底部 Tab 栏接管；展开抽屉（z 80）不受影响。
   '  [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
+  // ⚠️ 设置/插件管理弹层挂在侧栏列内部（footArea → settingsArea → overlay → panel），
+  // 上面隐藏整列会把它连坐隐藏——点「设置」得到一个 390×844 的空气弹层（属性齐全但不绘制）。
+  // visibility 可被后代覆盖，弹层关闭态会整体卸载（DOM 里没有 [role=dialog]），所以强制
+  // 显示只在弹层真正打开时命中，是安全的；列本身继续隐藏，轨道按钮照旧被藏住。
+  '  [class*="sidebarCol"]:has([class*="collapsed"]) [role="dialog"]{visibility:visible}',
   '}',
 ].join('\n')
 const MOBILE_LAYOUT_MARKER = 'data-dsh-mobile-layout'
@@ -197,7 +210,7 @@ const MOBILE_BEHAVIOR_JS = [
   'function dialogOpen(){return !!document.querySelector(\'[role="dialog"][class*="panel"]\')}',
   'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
   'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
-  'function closeDetails(){var d=document.querySelector(\'[class*="detailsCol"]\');if(!d||!d.getBoundingClientRect().width)return;var c=d.querySelector(\'button[aria-label="关闭详情"]\');if(c)c.click()}',
+  'function closeDetails(){var d=document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');if(!d)return;var c=d.querySelector(\'[data-sidebar-right-toggle]\');if(c)c.click()}',
   'var fab=null,scrim=null,tabbar=null;',
   'var TAB_DEFS=[',
   '  {id:"sessions",label:"会话",icon:\'<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>\',act:function(){expand()}},',
@@ -254,13 +267,16 @@ const MOBILE_BEHAVIOR_JS = [
   '  var on=narrow()&&!!frameEl()&&!dialogOpen();',
   '  var col=sidebarCollapsed();',
   '  var dockOpen=!!document.querySelector(".dockm-backdrop");',
-  '  var showFab=on&&col&&!dockOpen;',
+  // 右侧详情面板在窄屏是原生全屏（z 40），而把手 70 / Tab 栏 65 都比它高会压边——
+  // 面板打开时整体让位，收起（面板自带的折叠按钮）后再回来。
+  '  var rightOpen=!!document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');',
+  '  var showFab=on&&col&&!dockOpen&&!rightOpen;',
   '  fab.style.display=showFab?"":"none";',
   '  if(showFab)place();',
   '  scrim.style.display=on&&!col?"":"none";',
-  // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板打开时整体隐藏（面板全屏
-  // 模态，Tab 栏 z 序低于它仍可能从边缘露出）；宿主设置弹窗 z 序更高，自然盖住。
-  '  if(tabbar)tabbar.style.display=narrow()&&!!frameEl()&&!dockOpen?"":"none";',
+  // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板/右侧详情面板打开时隐藏（它们
+  // 或是全屏模态、或是原生全屏面板，Tab 栏 z 序更高会盖住内容边缘）；宿主设置弹窗 z 序更高，自然盖住。
+  '  if(tabbar)tabbar.style.display=narrow()&&!!frameEl()&&!dockOpen&&!rightOpen?"":"none";',
   '  syncTabs();',
   '}',
   'function boot(){',
@@ -288,7 +304,7 @@ const MOBILE_BEHAVIOR_JS = [
   '    if(leaf||fresh)setTimeout(function(){collapse();closeDetails()},300);',
   '    return',
   '  }',
-  '  if(t.closest(\'[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[class*="detailsCol"]\'))return;',
+  '  if(t.closest(\'[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]\'))return;',
   '  collapse()',
   '},true)',
   '})();',
@@ -457,9 +473,15 @@ export const feature = {
         webserverActive = legacyWebserverRowPresent(list)
       } catch { applied = false }
       const auth = getAuth()
+      let saved = null
+      try {
+        const root = readDockRoot(ctx)
+        saved = root && root.remoteGateway ? root.remoteGateway : null
+      } catch { saved = null }
       return {
         gatewayActive: Boolean(gateway),
         gatewayPort: gateway ? gateway.port : null,
+        gatewayEnabled: Boolean(saved && saved.enabled),
         mainPort: webServer.port,
         addresses: lanAddresses(),
         patchApplied: applied,
@@ -467,6 +489,18 @@ export const feature = {
         accountSet: Boolean(auth),
         username: auth ? auth.username : '',
         patchPath: file,
+      }
+    }
+
+    /** 持久化网关开关（remoteGateway 段）：dsh web 重启后据此自动拉起。 */
+    async function persistGatewayState(enabled, port) {
+      try {
+        await mutateDockSection(ctx, ['remoteGateway'], {
+          enabled: Boolean(enabled),
+          port: Number.isInteger(port) && port > 0 ? port : 0,
+        })
+      } catch (error) {
+        console.warn('[dsh-dock] 远程访问开关状态保存失败:', (error && error.message) || String(error))
       }
     }
 
@@ -586,13 +620,17 @@ export const feature = {
               const list = readPatchList(file) || []
               const changed = !serverPatchApplied(list) || legacyWebserverRowPresent(list)
               writePatchList(file, upsertRemotePatches(list))
-              await ensureGateway(wsCtx.webServer, payload && payload.port, () => mintUpstreamSession(wsCtx.webServer.port))
+              const started = await ensureGateway(wsCtx.webServer, payload && payload.port, () => mintUpstreamSession(wsCtx.webServer.port))
+              // 记住「开过」：重启 dsh web 后凭此自动拉起（账号存在才拉）。
+              await persistGatewayState(true, started.port)
               return sendJson(res, 200, { ok: true, data: { ...lanStatus(wsCtx.webServer), needsRestart: changed } })
             }
             if (method === 'lan/stop') {
               const file = serverPatchFile()
               const list = readPatchList(file)
+              const wasPort = gateway ? gateway.port : 0
               await stopGateway()
+              await persistGatewayState(false, wasPort)
               if (list === null) {
                 return sendJson(res, 200, { ok: true, data: { ...lanStatus(wsCtx.webServer), needsRestart: false } })
               }
@@ -608,6 +646,34 @@ export const feature = {
           }
         },
       }), 'dsh-dock mobile relay: /dsh-dock/mobile-relay HTTP route')
+
+      // ── 网关自动拉起 ──
+      // 面板开过远程访问（remoteGateway.enabled=true）就持久记住：dsh web 重启后
+      // 只要账号还在，直接把网关重新监听起来，局域网设备不用等进面板再点一次。
+      // 门禁语义不变：未登录一律 302 到登录页；账号被清掉则只日志提醒不拉起。
+      void (async () => {
+        try {
+          const root = readDockRoot(ctx)
+          const saved = root && root.remoteGateway
+          if (!saved || !saved.enabled) return
+          if (!getAuth()) {
+            console.warn('[dsh-dock] 远程访问曾开启但账号不存在，网关未自动拉起（请在面板重新设置账号）')
+            return
+          }
+          // 目录选择器浏览模式补丁若被清掉则补回（幂等；重启生效，网关本身不受影响）。
+          try {
+            const file = serverPatchFile()
+            const list = readPatchList(file) || []
+            if (!serverPatchApplied(list) || legacyWebserverRowPresent(list)) {
+              writePatchList(file, upsertRemotePatches(list))
+            }
+          } catch { /* 补丁层异常不阻断网关 */ }
+          const started = await ensureGateway(wsCtx.webServer, saved.port || undefined, () => mintUpstreamSession(wsCtx.webServer.port))
+          console.log(`[dsh-dock] 远程访问网关已自动拉起: http://<本机IP>:${started.port}`)
+        } catch (error) {
+          console.warn('[dsh-dock] 远程访问网关自动拉起失败:', (error && error.message) || String(error))
+        }
+      })()
     }))
 
     return () => {

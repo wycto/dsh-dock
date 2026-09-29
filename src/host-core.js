@@ -3,6 +3,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import yaml from 'js-yaml'
 import z from '@deepseek-ai/schemastery'
 
 /** dsh-dock 自有 settings 命名空间 = profile 条目 id（cordis.patch.yml 的 id）。 */
@@ -26,6 +27,15 @@ export const DockConfig = z.object({
     passwordHash: z.string().default(''),
     salt: z.string().default(''),
   }).default({}).volatile(),
+  /** 远程访问网关的持久化状态：enabled=上次是否在跑；port=自选端口（0=主端口+1）。
+   *  dsh web 重启后按此自动拉起网关（账号存在才拉），免得每次重启都要进面板点一次。 */
+  remoteGateway: z.object({
+    enabled: z.boolean().default(false),
+    /** 网关端口（0 = 跟随默认的主端口+1）；面板「开启远程访问」时回写。 */
+    port: z.natural().default(0),
+  }).default({}).volatile(),
+  /** settings.yaml.imported 全量恢复（migrateImportedSections）是否已执行过的一次性标记。 */
+  importedRestored: z.boolean().default(false).volatile(),
   visionProxy: z.object({
     enabled: z.boolean().default(false),
     provider: z.string().default(''),
@@ -293,6 +303,125 @@ export async function migrateImportedFeatures(ctx) {
     console.log('[dsh-dock] features imported from settings.yaml.imported:', imported)
   } catch (e) {
     console.warn('[dsh-dock] imported features migration skipped:', (e && e.message) || String(e))
+  }
+}
+
+/** 深比较（JSON 化配置快照之间的相等判断）。 */
+function sameValue(a, b) {
+  if (a === b) return true
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => sameValue(v, b[i]))
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+    const ka = Object.keys(a)
+    const kb = Object.keys(b)
+    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameValue(a[k], b[k]))
+  }
+  return false
+}
+
+/** schema 缺省值的普通对象快照（用来判断「现网这一段用户从没写过」）。
+ *  schemastery 没有 parse()：走 Standard Schema validate 取值，volatile 读写器交给 plainify 解开。 */
+function dockDefaults() {
+  try {
+    const standard = DockConfig['~standard'] || DockConfig[Symbol.for('standard.schema')]
+    if (!standard || typeof standard.validate !== 'function') return null
+    const result = standard.validate({})
+    if (!result || result.issues || !result.value) return null
+    return plainifyDockConfig(result.value)
+  } catch {
+    return null
+  }
+}
+
+/** 只保留 schema 认识的顶层键：imported 旧文件可能带已废弃字段（如 animation 段里的
+ *  旧通知字段），整段原样写会被 mutate 校验拒绝——丢字段会让整次恢复失败。
+ *  值原样透传（嵌套结构交 schema 处理），这里只做顶层白名单。 */
+function sanitizeSection(value, template) {
+  if (!template || typeof template !== 'object' || Array.isArray(template)) return value
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const out = {}
+  for (const key of Object.keys(template)) {
+    if (Object.hasOwn(value, key)) out[key] = value[key]
+  }
+  return out
+}
+
+/**
+ * 一次性全量恢复：`~/.dsh/settings.yaml` 被 dsh 升级改名为 `settings.yaml.imported`
+ * 并尝试导入 profile 时，dsh-dock 当时还没导出 Config → 整段导入失败，账号
+ * （remoteAuth）、通知、动画、图片代理等配置全部停在 imported 文件里；后来只补迁了
+ * features（见 migrateImportedFeatures），于是「远程访问账号丢失、网关开不起来」。
+ *
+ * 这里把整段补回来，规则保守：
+ * - `features`：逐键补缺（现网已有的键绝不覆盖）；
+ * - 其余 schema 认识的段：仅当现网该段仍等于 schema 缺省值（= 用户从未在此写过）
+ *   才整段恢复，现网有任何改动一律以现网为准（不覆盖新配置）；
+ * - 执行过写入或确认无 imported 文档后置 `importedRestored` 标记，仅跑一次。
+ */
+export async function migrateImportedSections(ctx) {
+  try {
+    const root = readDockRoot(ctx)
+    if (root && root.importedRestored === true) return
+    const home = process.env.DSH_HOME || join(homedir(), '.dsh')
+    const file = join(home, 'settings.yaml.imported')
+    if (!existsSync(file)) return
+    let data = null
+    try {
+      data = yaml.load(readFileSync(file, 'utf8'))
+    } catch (error) {
+      console.warn('[dsh-dock] settings.yaml.imported 不是合法 YAML，跳过恢复:', (error && error.message) || String(error))
+      return
+    }
+    const section = data && typeof data === 'object' && !Array.isArray(data) ? data[DOCK_NS] : null
+    if (!section || typeof section !== 'object' || Array.isArray(section)) {
+      await mutateDockSection(ctx, ['importedRestored'], true)
+      return
+    }
+    const defaults = dockDefaults()
+    const live = root && typeof root === 'object' ? root : {}
+    const writes = []
+    const importedFeatures = section.features && typeof section.features === 'object' ? section.features : null
+    if (importedFeatures) {
+      const merged = live.features && typeof live.features === 'object' ? { ...live.features } : {}
+      let added = 0
+      for (const [key, value] of Object.entries(importedFeatures)) {
+        if (typeof value === 'boolean' && typeof merged[key] !== 'boolean') {
+          merged[key] = value
+          added++
+        }
+      }
+      if (added > 0) writes.push(['features', merged])
+    }
+    if (defaults) {
+      for (const key of Object.keys(section)) {
+        if (key === 'features') continue
+        if (!Object.hasOwn(defaults, key)) continue
+        // 现网缺该段（= 从没写过）或仍等于 schema 缺省 → 恢复；现网有用户改动一律不覆盖。
+        if (live[key] !== undefined && !sameValue(live[key], defaults[key])) continue
+        writes.push([key, sanitizeSection(section[key], defaults[key])])
+      }
+    }
+    // 逐段独立落盘：一个段被拒（schema 不认/写盘瞬时失败）不拖死其余段——
+    // 尤其 remoteAuth 必须尽量恢复，否则远程访问账号一直起不来。
+    const restored = []
+    const failed = []
+    for (const [path, value] of writes) {
+      try {
+        await mutateDockSection(ctx, [path], value)
+        restored.push(path)
+      } catch (error) {
+        failed.push(path)
+        console.warn(`[dsh-dock] 恢复 ${path} 段失败:`, (error && error.message) || String(error))
+      }
+    }
+    // 全部落盘（或本来就无事可做）才置一次性标记；有失败则下次启动重试。
+    if (failed.length === 0) await mutateDockSection(ctx, ['importedRestored'], true)
+    if (restored.length > 0) {
+      console.log('[dsh-dock] restored from settings.yaml.imported:', restored.join(', '))
+    }
+  } catch (e) {
+    console.warn('[dsh-dock] imported section restore skipped:', (e && e.message) || String(e))
   }
 }
 

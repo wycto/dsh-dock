@@ -50,26 +50,32 @@ const mainPort = await listen(mainServer)
 const gatewayPort = await freePort()
 
 // settings/webServer 桩（两个 setup 实例共用：内存 settings + 路由注册槽）。
+// settings 桩提到外层：0.1.7 起宿主半部经 ctx.get('settings') 做就绪检查（saveAuth 等），
+// mock ctx 也必须提供同一个服务对象，否则 auth/set 必 500。
+// store 同样外置：跨 setup 实例（模拟 dsh web 重启）保留 remoteGateway/账号状态，
+// 这样「重启自动拉起」用例才验得到持久化语义。
+const settingsStore = new Map()
+const settingsService = {
+  get(ns) {
+    const value = settingsStore.get(ns)
+    return value ? JSON.parse(JSON.stringify(value)) : undefined
+  },
+  async mutate(ns, ops) {
+    let value = settingsStore.get(ns) || {}
+    for (const op of ops) {
+      if (op.op !== 'set') throw new Error('unsupported test op: ' + op.op)
+      value = { ...value, [op.path[0]]: JSON.parse(JSON.stringify(op.value)) }
+    }
+    settingsStore.set(ns, value)
+  },
+}
+const mockCtx = {
+  inject: injectMock,
+  get(key) { return key === 'settings' ? settingsService : undefined },
+}
 function injectMock(keys, callback) {
   if (keys.includes('settings')) {
-    // settings 桩：内存态 DockConfig，仅支持本测试用到的 remoteAuth.set 操作。
-    const store = new Map()
-    callback({
-      settings: {
-        get(ns) {
-          const value = store.get(ns)
-          return value ? JSON.parse(JSON.stringify(value)) : undefined
-        },
-        async mutate(ns, ops) {
-          let value = store.get(ns) || {}
-          for (const op of ops) {
-            if (op.op !== 'set') throw new Error('unsupported test op: ' + op.op)
-            value = { ...value, [op.path[0]]: JSON.parse(JSON.stringify(op.value)) }
-          }
-          store.set(ns, value)
-        },
-      },
-    })
+    callback({ settings: settingsService })
   }
   if (keys.includes('webServer')) callback({
     webServer: {
@@ -82,8 +88,9 @@ function injectMock(keys, callback) {
   return () => {}
 }
 
-const dispose = feature.setup({ inject: injectMock })
+const dispose = feature.setup(mockCtx)
 let healDispose = () => {}
+let autoDispose = () => {}
 
 // 手机端适配注入（tapIndex）：必须含抽屉按钮/遮罩与 UUID 兜底，且幂等。
 assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
@@ -96,6 +103,8 @@ assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
   assert.match(once1, /dsh-mobile-scrim/)
   assert.match(once1, /data-dsh-mobile-behave/)
   assert.match(once1, /打开侧边栏/)
+  // 设置弹层挂在侧栏列内部：列隐藏不能连坐弹层（否则点设置是空气弹层）
+  assert.match(once1, /\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\) \[role="dialog"\]\{visibility:visible\}/)
   const twice = indexTransforms.reduce((html, fn) => fn(html), once1)
   assert.equal(countOf(twice, 'data-dsh-mobile-layout'), 1, 'injection must be idempotent')
   assert.equal(countOf(twice, 'data-dsh-mobile-behave'), 1)
@@ -124,6 +133,7 @@ try {
   assert.equal(started.accountSet, true)
   assert.equal(started.username, 'wzy')
   assert.equal(started.patchApplied, true)
+  assert.equal(started.gatewayEnabled, true, 'lan/start 必须持久化「远程访问已开启」')
   const patchText = readFileSync(patchFile, 'utf8')
   assert.match(patchText, /directory-picker-browse/)
   // browse 行必须包在 insert 块里：DSH 补丁语义对未知 id 的普通行整行跳过，
@@ -183,6 +193,7 @@ try {
   assert.equal(stopped.gatewayActive, false)
   assert.equal(stopped.patchApplied, false)
   assert.equal(stopped.needsRestart, true)
+  assert.equal(stopped.gatewayEnabled, false, 'lan/stop 必须清掉「远程访问已开启」标记')
   assert.doesNotMatch(readFileSync(patchFile, 'utf8'), /directory-picker-browse/)
   await assert.rejects(fetch(gatewayBase + '/__dsh_auth/health'))
 
@@ -198,13 +209,29 @@ try {
     "  name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'",
     '',
   ].join('\n'), 'utf8')
-  healDispose = feature.setup({ inject: injectMock })
+  healDispose = feature.setup(mockCtx)
   const healed = readFileSync(patchFile, 'utf8')
   assert.match(healed, /insert:/)
   assert.equal(healed.match(/- id: directory-picker-browse/g).length, 1)
 
+  // 重启自动拉起（模拟 dsh web 重启）：remoteGateway.enabled=true 且账号还在 →
+  // 新实例 setup 时把网关直接监听回同一端口，不必进面板再点一次。
+  await settingsService.mutate('dsh-dock', [{ op: 'set', path: ['remoteGateway'], value: { enabled: true, port: gatewayPort } }])
+  autoDispose = feature.setup(mockCtx)
+  let autoActive = false
+  for (let i = 0; i < 60 && !autoActive; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    try {
+      autoActive = (await rpc(mainBase, 'lan')).gatewayActive === true
+    } catch { /* 路由切换的瞬时窗口 */ }
+  }
+  const autoStatus = await rpc(mainBase, 'lan')
+  assert.equal(autoActive, true, '开过远程访问后重启应自动拉起网关')
+  assert.equal(autoStatus.gatewayPort, gatewayPort, '自动拉起应复用上次端口')
+
   console.log(`remote access host: ok (main 127.0.0.1:${mainPort}, gateway 0.0.0.0:${gatewayPort}, credentials + patch roundtrip)`)
 } finally {
+  autoDispose()
   healDispose()
   dispose()
   rmSync(patchFile, { force: true })
