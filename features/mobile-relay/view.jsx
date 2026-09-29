@@ -164,52 +164,53 @@ export function MobileRelayView() {
  * 挂到 body 下 z 序才是设计值（按钮 70 < 遮罩 75 < 侧栏 80 < overlayLayer 90）。
  *
  * 与宿主 tapIndex 注入版（features/mobile-relay/host.js，重启 dsh web 后才生效）互斥：
- * window.__dshDockMobileDrawer 先到先得——宿主脚本在 <head> 先跑，重启后总是宿主版接管，
- * 本组件自动让位；本组件的价值是 client bundle 按内容 hash 服务、刷新页面即生效，无需重启。
+ * window.__dshDockMobileDrawer 先到先得——宿主脚本在 <head> 先跑并置 'host'，本组件
+ * 见旗标即整体让位（把手/遮罩/底部 Tab/收起逻辑全归宿主）；宿主未就位（旧版无注入、
+ * 或刷新早于重启）时本组件自建全套。本组件的价值是 client bundle 按内容 hash 服务、
+ * 刷新页面即生效，无需重启。
+ * ⚠️ 两个版本绝不能各建一套：曾出现双底部 Tab 栏（两套按钮叠在一起）与客户端 CSS 的
+ * 把手 bottom 覆盖宿主 place() 定位、把手压在输入区工具行上的回归。
  * 与旧版宿主行为脚本（无抽屉按钮、只有自动收起）并存是安全的：收起链路同一事件内
  * 第二次 collapse() 因 aria-label 已翻转而自然空转。
  */
 export function MobileRelayOverlay() {
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined
-    // 宿主版（<head> 注入，重启后接管）就位时，抽屉把手/遮罩/收起逻辑由宿主负责，
-    // 本组件只补宿主旧版没有的底部 Tab 栏；宿主未就位（旧版无抽屉 DOM）时全套自建。
-    const hostPresent = !!(window.__dshDockMobileDrawer && document.querySelector('.dsh-mobile-drawer-btn'))
     const mq = window.matchMedia ? window.matchMedia('(max-width:700px)') : null
     if (!mq) return undefined
-    if (!hostPresent) window.__dshDockMobileDrawer = 'client'
+    // 宿主版接管中：整套 chrome 由宿主负责，本组件零副作用退出。
+    if (window.__dshDockMobileDrawer === 'host') return undefined
+    window.__dshDockMobileDrawer = 'client'
 
     const narrow = () => mq.matches
     const frameEl = () => document.querySelector('[class$="frame"]')
     const sidebarCollapsed = () => { const f = frameEl(); return !!f && f.hasAttribute('data-sidebar-collapsed') }
     const dialogOpen = () => !!document.querySelector('[role="dialog"][class*="panel"]')
+    // 右侧详情面板：dsh 0.1.7 起 detailsCol 改名 rightbarCol，窄屏原生全屏展开
+    // （data-sidebar-right-panel / data-sidebar-right-open，折叠钮 data-sidebar-right-toggle）。
+    const rightOpen = () => !!document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]')
     const collapse = () => { const b = document.querySelector('button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]'); if (b) b.click() }
     const expand = () => { const b = document.querySelector('button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]'); if (b) b.click() }
     const closeDetails = () => {
-      const d = document.querySelector('[class*="detailsCol"]')
-      if (!d || !d.getBoundingClientRect().width) return
-      const c = d.querySelector('button[aria-label="关闭详情"]')
-      if (c) c.click()
+      const panel = document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]')
+      if (!panel) return
+      const toggle = panel.querySelector('[data-sidebar-right-toggle]')
+      if (toggle) toggle.click()
     }
 
     // 抽屉按钮：窄屏 + 侧栏收起 + 无设置弹窗时才显示（见 sync）。
     // 视觉是贴左边缘的「抽屉把手」（与趣味游戏浮标 dgfab 同款边缘吸附语言），
     // 位置动态放在趣味游戏浮标正上方（place()），游戏浮标不在时兜底左侧中部。
-    // 宿主就位时把手/遮罩已由宿主创建，这里置 null 走纯 Tab 栏模式。
-    let fab = null
-    let scrim = null
-    if (!hostPresent) {
-      fab = document.createElement('button')
-      fab.type = 'button'
-      fab.className = 'dsh-mobile-drawer-btn'
-      fab.setAttribute('aria-label', '打开会话列表')
-      fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>'
-      fab.addEventListener('click', expand)
-      scrim = document.createElement('div')
-      scrim.className = 'dsh-mobile-scrim'
-      document.body.appendChild(fab)
-      document.body.appendChild(scrim)
-    }
+    const fab = document.createElement('button')
+    fab.type = 'button'
+    fab.className = 'dsh-mobile-drawer-btn'
+    fab.setAttribute('aria-label', '打开会话列表')
+    fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>'
+    fab.addEventListener('click', expand)
+    const scrim = document.createElement('div')
+    scrim.className = 'dsh-mobile-scrim'
+    document.body.appendChild(fab)
+    document.body.appendChild(scrim)
 
     // ---- 仿 ZCode 手机端底部 Tab 栏：会话 / 功能坞 / 设置 ----
     // 挂 body（与抽屉把手同理，避开 overlayLayer 堆叠上下文），z 序 65：
@@ -279,14 +280,17 @@ export function MobileRelayOverlay() {
     const sync = () => {
       const on = narrow() && !!frameEl() && !dialogOpen()
       const collapsed = sidebarCollapsed()
+      // 右侧详情面板（窄屏原生全屏，z 40）打开时：把手 70 / Tab 栏 65 都比它高会压边，
+      // 整体让位，面板收起（它自带折叠钮）后再回来。
+      const right = rightOpen()
       if (fab) {
-        const showFab = on && collapsed && !panelNav.open
+        const showFab = on && collapsed && !panelNav.open && !right
         fab.style.display = showFab ? '' : 'none'
         if (showFab) place()
       }
       if (scrim) scrim.style.display = on && !collapsed ? '' : 'none'
-      // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板/宿主设置弹窗打开时隐藏（它们的遮罩更高，避免露边）
-      tabbar.style.display = narrow() && !!frameEl() && !panelNav.open ? '' : 'none'
+      // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板/设置弹窗/右侧详情面板打开时隐藏（避免露边压内容）
+      tabbar.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? '' : 'none'
       syncTabs()
     }
     sync()
@@ -318,13 +322,13 @@ export function MobileRelayOverlay() {
         if (leaf || fresh) setTimeout(() => { collapse(); closeDetails() }, 300)
         return
       }
-      if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[class*="detailsCol"]')) return
+      if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]')) return
       collapse()
     }
-    if (!hostPresent) document.addEventListener('click', onClick, true)
+    document.addEventListener('click', onClick, true)
 
     return () => {
-      if (!hostPresent) document.removeEventListener('click', onClick, true)
+      document.removeEventListener('click', onClick, true)
       if (observer) observer.disconnect()
       clearInterval(timer)
       unsubPanel()
@@ -374,7 +378,7 @@ export const feature = {
  * 仍会溢出贴在左边缘（功能坞/进化/设置三枚露出半边的圆钮）。隐藏整列，
  * 这些入口已由底部 Tab 栏接管；展开抽屉（z 80）不受影响。 */
 [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}
-/* 抽屉把手从屏幕中部挪到 Tab 栏上方一点，免得孤零零悬在半空 */
-.dsh-mobile-drawer-btn{top:auto !important;bottom:calc(96px + env(safe-area-inset-bottom,0px))}}`,
+/* 把手位置统一交给 place()（与宿主版同一套：游戏浮标正上方，兜底左侧中部）。
+ * 这里不再用 bottom 覆盖——两版样式打架会把手压到输入区工具行上（见文件头注释）。 */}`,
   View: MobileRelayView, HomeStat: MobileRelayHomeStat, Overlay: MobileRelayOverlay,
 }

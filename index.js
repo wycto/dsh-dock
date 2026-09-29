@@ -16,7 +16,7 @@
 //   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
 //   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
 //   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
-import { DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
+import { DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
@@ -132,6 +132,10 @@ export function apply(ctx, config) {
   ctx.inject(['settings'], (sctx) => {
     // 0.1.7-alpha.1 起 settings.register 已移除——不再调用；导出 Config 即注册。
     Promise.resolve()
+      // settings.yaml.imported 整段恢复（账号 remoteAuth / notify / animation /
+      // visionProxy——Config 导出前导入失败停在 imported 文件里的那批）。必须最先跑：
+      // 后面的迁移与功能启用都要读到恢复后的配置（远程访问账号丢了网关就开不起来）。
+      .then(() => migrateImportedSections(sctx))
       // 通知配置从 animation 段搬到 notify 段（【任务通知】独立成模块）。
       // 必须在任何面板保存动作之前跑——animation 模块保存时整段写回，旧字段会被覆盖丢失。
       .then(() => migrateNotifyConfig(sctx))
