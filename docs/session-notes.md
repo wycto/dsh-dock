@@ -1232,3 +1232,85 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
 纯文档 + 脚本修复，插件运行代码零改动，无需重启 dsh web。用户侧只有「首次源码安装」会走到
 修复后的 `dev-link-deps.mjs`。
 
+## 十四、续作会话（2026-09-24）· 远程访问恢复 + 重启自动拉起 + 手机端四区布局修复
+
+### 症状
+
+- 【远程访问】dsh 升到 0.1.7-rc.1 后 `/dsh-dock/mobile-relay/lan` 返回 `accountSet:false,
+  gatewayActive:false`，3081 没人监听——账号密码像"丢了"。
+- 【手机端】用户点名四区都要改进：会话页整体、设置页、功能坞面板、右侧详情面板。
+  实测（390×844 Playwright）：底部 Tab 栏出现两套（`tabbars:2, tabs:6`）、抽屉把手
+  y=700 压在输入工具行、设置弹层打开是"空气"（390×844 属性齐全但不绘制）、
+  右侧详情双重曝光 + 空隙点击穿透。
+
+### 根因
+
+1. **账号滞留 imported 文件**：dsh 升级把 `~/.dsh/settings.yaml` 改名
+   `settings.yaml.imported` 并尝试把各段导入 profile——当时 dsh-dock 还没导出 `Config`，
+   官方对 `dsh-dock` 段的导入失败，`remoteAuth/notify/animation/visionProxy` 全卡在里面；
+   旧迁移只补 `features`（`migrateImportedFeatures`）。
+2. **网关只由手动 `lan/start` 启动**：重启 dsh web 即死，没有状态、没有自动拉起。
+3. **双 chrome**：宿主 `<head>` 注入版与客户端 Overlay 版各建一套 Tab/把手；
+   客户端 CSS `.dsh-mobile-drawer-btn{bottom:96px !important}` 覆盖宿主 `place()` 定位。
+4. **dsh 0.1.7 UI 改名**：`detailsCol` → `rightbarCol`，面板结构换
+   `data-sidebar-right-panel/-open/-toggle`，旧选择器（`关闭详情` aria、detailsCol 抽屉
+   规则）全部失效；窄屏原生全屏态背景透明且 `pointer-events:none`。
+5. **隐藏轨道连坐弹层**：设置/插件管理弹层挂在侧栏列内部（footArea → settingsArea →
+   overlay → panel），我们隐藏塌陷轨道的 `visibility:hidden` 把它一起藏了。
+
+### 改动清单
+
+- `src/host-core.js`：`remoteGateway{enabled,port}` 与 `importedRestored` 顶层段
+  （`.volatile()`，端口 `z.natural()`——**schemastery 没有 `z.number().int()`**）；
+  `sameValue` / `dockDefaults()`（**schema 没有 `parse()`，走 `['~standard'].validate({})`
+  再 `plainifyDockConfig` 解 volatile 读写器**）/ `sanitizeSection`（schema 顶层白名单，
+  animation 旧通知字段不带进去）；`migrateImportedSections`——features 逐键补缺、
+  现网缺/等于缺省的段整段恢复、现网有改动不覆盖、逐段 try/catch 隔离、
+  全成功才置 `importedRestored`（失败下次启动重试）。
+- `index.js`：迁移链顺序——`migrateImportedSections` 必须最先（先于 notify 迁移与
+  setEnabled，否则 restored notify 的 `migratedFromAnimation:true` 会把旧字段搬家变空转、
+  拉起网关前拿不到 remoteAuth）。
+- `features/mobile-relay/host.js`：`lanStatus.gatewayEnabled`；`persistGatewayState`
+  在 `lan/start`/`lan/stop` 落盘；webServer 注入里自动拉起（读 `remoteGateway`、必要时
+  重放浏览模式补丁、按上次端口 `ensureGateway`，失败只 warn）；`MOBILE_LAYOUT_CSS`
+  ——rightbarCol 新选择器、**设置弹层 `visibility:visible` 例外**、**全屏右面板
+  不透明背景 + `pointer-events:auto` + z 88**；`MOBILE_BEHAVIOR_JS`——`closeDetails`
+  走 `[data-sidebar-right-toggle]`、`rightOpen` 时隐藏把手与 Tab、点击排除清单换新选择器。
+- `features/mobile-relay/view.jsx`：`__dshDockMobileDrawer==='host'` 时 Overlay **整体
+  return**（此前只拦 fab/scrim，Tab 照建 → 双 Tab 栏）；删 bottom 覆盖 CSS；客户端路径
+  同步 rightbar 选择器 + `rightOpen` 隐藏 chrome。
+- 测试：新增 `scripts/test-legacy-import.mjs`（恢复语义五断言）；`test-mobile-relay-host`
+  settings 桩提层 + `ctx.get('settings')`（0.1.7 宿主半部就绪检查走它，旧桩 `auth/set`
+  必 500）+ 网关持久化/跨实例自动拉起断言 + 设置例外规则断言；
+  `package.json` `test:host` 扩到五套脚本。
+- `client.js` 已重建（esbuild 三径全挂：npx 拉取失败、`npm install` 撞 `~/.npm` 权限，
+  最终 `DSH_DOCK_ESBUILD=/tmp/dsh-mobile/esbuild-cli.mjs` 壳转 pnpm store 里的原生二进制）。
+
+### 验证
+
+- `npm run test:host`（task/tokenlog/legacy-import/remote-host/gateway 五套）与
+  `test:client` 全绿。
+- Playwright 390×844 结构化断言：`tabbars:1 tabs:3 fabs:1 fabY:321`；
+  设置弹层 `visibility:visible` 且在 `elementsFromPoint` 栈顶（修复前 hidden 且不绘制）；
+  功能坞面板全屏开合正常；右面板 `bg rgb(44,44,46)/pe auto/z 88`、空隙命中被面板捕获。
+  宿主注入未重启的部分（新 CSS/行为）用 `addStyleTag` 注入模拟验证。
+- 截图在 `/tmp/dsh-mobile/`（final3-*、rightbar-fixed.png 等）。
+
+### 部署（重要）
+
+- **宿主半部改动需用户重启 `dsh web`**（会话跑在 3080 上，代理不能自行重启）。
+  重启后依次生效：imported 一次性恢复 → 网关自动拉起（上次端口，仍要登录）→
+  手机端新注入（设置弹层例外 / 右面板不透明 + chrome 隐藏 / rightbar 新结构适配）。
+- 客户端半部已 build，刷新页面即用。
+- 重启后终验点：手机开设置弹层可见；开右面板时底部 Tab 与把手消失、面板不再透底；
+  `http://<局域网IP>:3081`（en0 为 172.18.98.20）登录进入同一实例。
+
+### 遗留 / 知识点
+
+- z 序：tabbar 65 < 把手 70 < 遮罩 75 < 侧栏抽屉 80 < 右面板 88 < overlayLayer 90 <
+  功能坞面板 200（行为脚本 `display:none` 隐藏是主手段，z 是兜底）。
+- 手机端 iOS `<16px` 字体聚焦缩放未处理（composer 字号 12–14px，可考虑
+  `font-size:16px` 的聚焦守卫，本轮未做）。
+- dsh 进程内存里仍是旧 `host.js`；重启前一切宿主新行为都以注入模拟验证为准。
+
+

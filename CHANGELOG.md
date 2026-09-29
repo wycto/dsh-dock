@@ -22,6 +22,41 @@
 - **`scripts/dev-link-deps.mjs` 在全新检出上崩溃**：清理旧链接时 `lstatSync(link)` 裸调用对不存在的
   路径抛 ENOENT（`existsSync` 对悬空链接也返回 false，短路不了），全新树第一次跑必挂；改为整体
   try/catch 取 lstat 结果。源码安装 / 新机初始化因此才能一次跑通。
+- **远程访问账号丢失、网关开不起来**：dsh 升级把 `~/.dsh/settings.yaml` 改名
+  `settings.yaml.imported` 后，官方导入 `dsh-dock` 段失败（当时插件还没导出 Config），
+  `remoteAuth`/通知/动画/视觉模型配置全部滞留其中，只剩 features 被补迁——表现为
+  `accountSet:false`、网关无法开启。新增 `migrateImportedSections` 启动时一次性全量恢复：
+  features 逐键补缺（现网已有键不回退）、现网仍等于 schema 缺省的段整段恢复、现网有用户
+  改动的段一律不覆盖（如单价表）、imported 旧字段按 schema 白名单过滤（animation 段的旧通知
+  字段不再拖垮写入，完整配置由 notify 段承接）、逐段隔离失败不互相拖累、
+  `importedRestored` 标记幂等（第二次执行零写入）。
+- **重启 dsh web 后远程访问不再自动拉起**：网关只由面板手动「开启」启动。新增
+  `remoteGateway.enabled/port` 持久化（`lan/start` 落盘 true、`lan/stop` 落盘 false），
+  插件加载时若曾开启且账号仍在，自动按上次端口把网关重新监听（仍需登录才可进入）。
+- **手机端出现两套底部 Tab 栏、抽屉把手压住输入工具行**：宿主 `<head>` 注入版与客户端
+  Overlay 版各建一套 chrome（诊断 `tabbars:2, tabs:6`），且客户端 CSS 用 `bottom:96px !important`
+  覆盖宿主 `place()` 定位，把手掉到 y=700 挨着输入框。客户端 Overlay 见到宿主旗标
+  `__dshDockMobileDrawer==='host'` 后整体让位（零副作用退出），并删除该 bottom 覆盖——
+  把手位置统一由宿主 `place()` 决定。
+- **手机端点「设置」打开的是空气弹层**：设置/插件管理弹层挂在侧栏列内部
+  （footArea → settingsArea → overlay → panel），而窄屏隐藏塌陷轨道的
+  `visibility:hidden` 规则把它连坐隐藏（390×844、属性齐全但不绘制）。补后代例外
+  `[role=dialog]{visibility:visible}`；关闭态弹层整体卸载，例外只在真正打开时命中。
+- **手机端右侧详情面板双重曝光、点击穿透**：dsh 0.1.7 窄屏原生全屏态
+  （`data-sidebar-right-panel="fullscreen"`）背景透明——会话页从缝隙整屏透出；面板与
+  panelBody 还是 `pointer-events:none`，空隙点击穿到下层。补不透明背景 + 拦穿透 + z 88，
+  行为脚本与客户端在面板打开时隐藏底部 Tab 与抽屉把手；同时适配 `detailsCol` →
+  `rightbarCol` 改名与 `data-sidebar-right-*` 新结构（旧选择器已全部失效，收起详情
+  改走面板内 `[data-sidebar-right-toggle]`）。
+
+### 测试
+
+- `npm run test:host` 扩容：并入 `scripts/test-legacy-import.mjs`（imported 恢复语义五条断言）
+  与 `scripts/test-mobile-relay-host.mjs` / `test-mobile-relay.mjs`（远程访问网关全链路）；
+  远程访问宿主用例补网关持久化断言（start 落盘 true / stop 落盘 false）与「重启自动拉起」
+  用例（跨 setup 实例复用 settings 桩验证自动监听同端口）。`test-mobile-relay-host` 的
+  settings 桩补 `ctx.get('settings')`（0.1.7 起宿主半部就绪检查走该路径，旧桩必 500）。
+- 注入 HTML 增加断言：设置弹层的 `visibility:visible` 例外必须存在（防回归连坐隐藏）。
 
 ## v0.12.0 — 2026-09-23
 
