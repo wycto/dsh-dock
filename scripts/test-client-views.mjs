@@ -790,6 +790,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/dsh-dock-kbd/.test(bundle)) issues.push("缺少软键盘让位（dsh-dock-kbd）");
 	if (!/visualViewport/.test(bundle)) issues.push("软键盘判定没有用 visualViewport");
 	if (!/querySelector\('\[role="dialog"\]'\)\)\s*collapse\(\)/.test(bundle)) issues.push("侧栏入口点击后没有「面板弹出即收起抽屉」的探测（面板被抽屉盖住等于点了没反应）");
+	if (!/startsWith\(["']session:["']\)/.test(bundle)) issues.push("会话行识别没有按 data-row-key 的 session: 前缀（点工作区文件夹会被误收抽屉）");
 	if (issues.length) {
 		console.log(`✗ 手机端任务页签契约：${issues.join("；")}`);
 		process.exit(1);

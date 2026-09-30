@@ -359,10 +359,16 @@ export function MobileRelayOverlay() {
       const inSidebar = col && col.contains(t)
       if (!expanded && !inSidebar) return
       if (inSidebar) {
+        // 只有点「会话」才收抽屉：会话行的 data-row-key 以 session: 开头（0.1.7 结构，
+        // ui-workspace Rows.tsx）；工作区文件夹行是 workspace: 开头——点它只是展开/收拢
+        // 分组，不能收抽屉（旧的「无子 treeitem 即叶子」判定会误伤折叠状态的文件夹：
+        // 折叠时其子节点不在 DOM 里）。搜索结果行无 data-row-key，回退按无子叶判定。
         const row = t.closest('[role="treeitem"]')
-        const leaf = row && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]')
+        const rowKey = (row && row.getAttribute('data-row-key')) || ''
+        const sessionRow = (rowKey && rowKey.startsWith('session:'))
+          || (row && !rowKey && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]'))
         const fresh = t.closest('[class*="newSession"]')
-        if (leaf || fresh) setTimeout(() => { collapse(); closeDetails() }, 300)
+        if (sessionRow || fresh) setTimeout(() => { collapse(); closeDetails() }, 300)
         else {
           // 侧栏入口（插件/自动化任务/设置/记忆/自动进化…）点击后会弹出面板，而面板
           // z 序常低于展开的抽屉——被盖住等于「点了没反应」（用户实测截图）。稍候
