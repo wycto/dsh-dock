@@ -360,6 +360,12 @@ export function MobileRelayOverlay() {
         const leaf = row && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]')
         const fresh = t.closest('[class*="newSession"]')
         if (leaf || fresh) setTimeout(() => { collapse(); closeDetails() }, 300)
+        else {
+          // 侧栏入口（插件/自动化任务/设置/记忆/自动进化…）点击后会弹出面板，而面板
+          // z 序常低于展开的抽屉——被盖住等于「点了没反应」（用户实测截图）。稍候
+          // 探测：有面板弹出就收起抽屉让它露出来；目录折叠/搜索等不弹面板的点击不受影响。
+          setTimeout(() => { if (document.querySelector('[role="dialog"]')) collapse() }, 260)
+        }
         return
       }
       if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]')) return

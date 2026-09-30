@@ -11394,6 +11394,11 @@ function MobileRelayOverlay() {
           collapse();
           closeDetails();
         }, 300);
+        else {
+          setTimeout(() => {
+            if (document.querySelector('[role="dialog"]')) collapse();
+          }, 260);
+        }
         return;
       }
       if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]')) return;
