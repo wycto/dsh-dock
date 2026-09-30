@@ -4,7 +4,7 @@
 // 访问地址二维码；远程设备上经 window.__DSH_REMOTE__ 显示退出登录。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
-import { openPanel, setPanelOpen, subscribePanel, panelNav } from '../../src/shared.js'
+import { openPanel, subscribePanel, panelNav } from '../../src/shared.js'
 
 function rpc(method, payload) {
   return fetch('/dsh-dock/mobile-relay/' + method, {
@@ -231,8 +231,11 @@ export function MobileRelayOverlay() {
         id: 'dock', label: '插件',
         icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
         act: () => {
-          if (panelNav.open) setPanelOpen(false)
-          else openPanel((tasksActive > 0 || tasksWaiting > 0) ? 'runstate' : 'home')
+          // 始终打开、不再当开关用：若功能坞处于打开态但被原生全屏页/弹层（如从侧栏
+          // 进的官方插件管理页）盖住，再点一下会把功能坞关掉、露出的反而是原生页——
+          // 看起来就是「点插件出官方插件页」（用户实测截图）。关闭走面板自己的 ✕。
+          // 配合手机端把功能坞面板 z 序抬到原生弹层之上（媒体查询内 2000）。
+          openPanel((tasksActive > 0 || tasksWaiting > 0) ? 'runstate' : 'home')
         },
       },
       {
@@ -454,6 +457,9 @@ export const feature = {
  * 它只会挤占键盘上方的一线空间），滚动体留白收窄。选择器特异性高于上面的 72px
  * 留白规则，能压过去。宿主接管期间由宿主脚本同步置/摘这个类。 */
 html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}
-html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}}`,
+html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}
+/* 功能坞面板在手机端抬到原生弹层之上：从侧栏进的官方插件管理页等原生弹层 z 序高于
+ * 面板默认的 200，功能坞开在下面会被盖住——「插件」页签点了像没反应/露出原页面。 */
+[class*="dockm-backdrop"]{z-index:2000 !important}}`,
   View: MobileRelayView, HomeStat: MobileRelayHomeStat, Overlay: MobileRelayOverlay,
 }
