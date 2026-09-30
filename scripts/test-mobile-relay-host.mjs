@@ -122,9 +122,11 @@ assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
   assert.match(once1, /\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/, '输入区贴底必须走 margin-top:auto')
   // 输入区工具行的 chip 窄屏收起（28cqw 上限把它们挤成「余..」，读不出数值）
   assert.match(once1, /\.dockchip-row\{display:none\}/)
-  // 「任务」页签 + 等待确认角标 + 软键盘让位（与客户端半部同款契约，两半部必须一起改）。
-  assert.match(once1, /\{id:"tasks",label:"任务"/, 'Tab 栏缺「任务」页签')
-  assert.match(once1, /dsh-mobile-tab-badge/, '缺「任务」角标样式/元素')
+  // 「插件」页签（任务/功能坞并入）+ 等待确认角标 + 软键盘让位（与客户端半部同款契约，
+  // 两半部必须一起改）。
+  assert.doesNotMatch(once1, /\{id:"tasks"/, '不应再有独立「任务」页签（应并入「插件」）')
+  assert.match(once1, /\{id:"dock",label:"插件"/, 'Tab 栏缺「插件」页签')
+  assert.match(once1, /dsh-mobile-tab-badge/, '缺「插件」页签任务角标样式/元素')
   assert.match(once1, /\/dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
   assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
   assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]/, '滚动体留白没有区分键盘弹出态')

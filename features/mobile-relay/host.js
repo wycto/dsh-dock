@@ -230,10 +230,10 @@ const MOBILE_BEHAVIOR_JS = [
   'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
   'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
   'function closeDetails(){var d=document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');if(!d)return;var c=d.querySelector(\'[data-sidebar-right-toggle]\');if(c)c.click()}',
-  'var scrim=null,tabbar=null,badge=null,runstateGone=false;',
+  'var scrim=null,tabbar=null,badge=null,runstateGone=false,tasksActive=0,tasksWaiting=0;',
   // 打开功能坞（可再点进指定页面）：宿主版没有客户端的 openPanel 总线，先点侧栏
   // 轨道上的功能坞按钮开面板，再在面板里找文字匹配的导航按钮点进去（找不到就停在
-  // 面板首页——宿主版「任务」页签的降级导航路径）。
+  // 面板首页——宿主版「插件」页签的降级导航路径）。
   'function openDockPage(page){',
   '  var b=document.querySelector("button.docke2-rail,button[class*=\'docke2-btn\'][class*=\'docke2-rail\']");',
   '  if(b){var col=b.closest(\'[class*="sidebarCol"]\');if(col)col.style.visibility="";b.click();if(col)setTimeout(function(){col.style.visibility=""},0)}',
@@ -244,10 +244,12 @@ const MOBILE_BEHAVIOR_JS = [
   '    for(var i=0;i<bs.length;i++){var tx=bs[i].textContent||"";if(tx.indexOf(page)>=0&&bs[i].offsetParent){bs[i].click();return}}',
   '  },120);',
   '}',
+  // 「任务」「功能坞」合并为「插件」页签（与客户端自建版同款）：有任务在跑/等确认时
+  // 直接落到运行状态页，否则进面板首页。
+  'function openDockSmart(){openDockPage((tasksActive>0||tasksWaiting>0)?"运行状态":null)}',
   'var TAB_DEFS=[',
   '  {id:"sessions",label:"会话",icon:\'<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>\',act:function(){expand()}},',
-  '  {id:"tasks",label:"任务",icon:\'<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>\',act:function(){openDockPage("运行状态")}},',
-  '  {id:"dock",label:"功能坞",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){openDockPage(null)}},',
+  '  {id:"dock",label:"插件",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){openDockSmart()}},',
   '  {id:"settings",label:"设置",icon:\'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>\',act:function(){var bs=document.querySelectorAll("button");for(var i=0;i<bs.length;i++){if(bs[i].getAttribute("aria-label")==="设置"){bs[i].click();return}}}}',
   '];',
   'function syncTabs(){',
@@ -271,24 +273,25 @@ const MOBILE_BEHAVIOR_JS = [
   '        var b=document.createElement("button");b.type="button";b.className="dsh-mobile-tab";b.dataset.tab=def.id;',
   '        b.innerHTML=def.icon+"<span>"+def.label+"</span>";',
   '        b.addEventListener("click",function(){def.act()});',
-  '        if(def.id==="tasks"){badge=document.createElement("span");badge.className="dsh-mobile-tab-badge";badge.style.display="none";b.appendChild(badge)}',
+  '        if(def.id==="dock"){badge=document.createElement("span");badge.className="dsh-mobile-tab-badge";badge.style.display="none";b.appendChild(badge)}',
   '        tabbar.appendChild(b);',
   '      })(TAB_DEFS[i]);',
   '    }',
   '    document.body.appendChild(tabbar);',
   '  }',
   '}',
-  // 「任务」角标轮询（低频、页面可见且窄屏才发）：进行中=蓝、等待确认=红+脉冲。
+  // 「插件」页签上的任务角标轮询（低频、页面可见且窄屏才发）：进行中=蓝、等待确认=红+脉冲。
   // runstate 路由不存在（功能未启用/宿主旧版）时静默停轮询。
   'function pollTasks(){',
   '  if(runstateGone||!badge||!narrow()||document.visibilityState==="hidden"||!tabbar||!tabbar.isConnected)return;',
   '  fetch("/dsh-dock/runstate/status",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(function(r){',
-  '    if(r.status===404||r.status===405){runstateGone=true;badge.style.display="none";return null}',
+  '    if(r.status===404||r.status===405){runstateGone=true;tasksActive=0;tasksWaiting=0;badge.style.display="none";return null}',
   '    return r.json()',
   '  }).then(function(body){',
   '    if(!body||!badge)return;',
   '    var active=(body.data&&body.data.active)||[],wait=0;',
   '    for(var i=0;i<active.length;i++){var ap=active[i].approvals;if(ap&&ap.length)wait++}',
+  '    tasksActive=active.length;tasksWaiting=wait;',
   '    if(wait>0){badge.textContent=String(wait);badge.className="dsh-mobile-tab-badge wait";badge.style.display=""}',
   '    else if(active.length>0){badge.textContent=String(active.length);badge.className="dsh-mobile-tab-badge";badge.style.display=""}',
   '    else{badge.style.display="none"}',
