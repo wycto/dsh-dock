@@ -145,7 +145,7 @@ function RemoteCard() {
       <label className="dmr-field"><span>监听端口</span><input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" type="number" min="1024" max="65535" placeholder={'默认 ' + suggestedPort} aria-describedby="dmr-lan-port-help"/><small id="dmr-lan-port-help">网关和主服务是同一台机器上的两个端口，不能相同：主实例 {lan && lan.mainPort ? lan.mainPort : '…'} 只留给本机，其他设备走网关端口登录。留空即用 {suggestedPort}（主端口+1）。</small></label>
       <div className="dmr-security"><strong>安全说明</strong><p>主实例保持仅监听 127.0.0.1：远程设备只能经这个登录网关进入，不存在免登录的直连路径。账号密码只发给自己；改密后所有设备需重新登录。</p></div>
     </div>
-    {active ? <div className="dmr-share"><div className="dmr-share-layout"><div className="dmr-qr-card">{qr ? <img src={qr} alt="远程访问地址二维码" width="220" height="220"/> : <div className="dmr-qr-loading">正在生成二维码…</div>}<strong>扫码或输入地址</strong><small>打开后输入账号密码登录</small></div><div className="dmr-share-detail"><div><span className="dmr-eyebrow"><i/> 登录网关已运行</span><h4>{lanLink}</h4></div><div className="dmr-link" title={lanLink}>{lanLink}</div><div className="dmr-share-actions"><button type="button" className="dmr-primary" onClick={copyLink} disabled={!lanLink}><RelayIcon name="copy"/>复制地址</button><button type="button" className="dmr-secondary dmr-danger" onClick={disable} disabled={busy === 'stop'}><RelayIcon name="close"/>{busy === 'stop' ? '正在关闭…' : '关闭远程访问'}</button></div><small>主实例保持仅本机（结构上不存在免登录直连）；账号密码只发给自己。若开启前已有旧服务器模式（0.0.0.0）配置，会一并移除并提示重启。</small></div></div></div>
+    {active ? <div className="dmr-share"><div className="dmr-share-layout"><div className="dmr-qr-card">{qr ? <img src={qr} alt="远程访问地址二维码" width="220" height="220"/> : <div className="dmr-qr-loading">正在生成二维码…</div>}<strong>扫码或输入地址</strong><small>打开后输入账号密码登录</small></div><div className="dmr-share-detail"><div><span className="dmr-eyebrow"><i/> 登录网关已运行</span><h4>{lanLink}</h4></div><div className="dmr-link" title={lanLink}>{lanLink}</div><div className="dmr-share-actions"><button type="button" className="dmr-primary" onClick={copyLink} disabled={!lanLink}><RelayIcon name="copy"/>复制地址</button><button type="button" className="dmr-secondary dmr-danger" onClick={disable} disabled={busy === 'stop'}><RelayIcon name="close"/>{busy === 'stop' ? '正在关闭…' : '关闭远程访问'}</button></div><small>已登录设备：{typeof lan.devices === 'number' ? lan.devices : 0} 台（改密或关闭入口即全部下线）</small><small>主实例保持仅本机（结构上不存在免登录直连）；账号密码只发给自己。若开启前已有旧服务器模式（0.0.0.0）配置，会一并移除并提示重启。</small></div></div></div>
       : <button type="button" className="dmr-primary" onClick={enable} disabled={busy === 'start'}>{busy === 'start' ? '正在开启…' : <><RelayIcon name="link"/>开启远程访问</>}</button>}
     {active ? <div className="dmr-section"><div className="dmr-section-head"><h4>修改账号密码</h4><button type="button" className="dmr-text-button" onClick={() => setChanging((v) => !v)}>{changing ? '收起' : '修改'}</button></div>{changing ? <div className="dmr-note"><div className="dmr-network-grid"><label className="dmr-field"><span>账号</span><input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username"/></label><label className="dmr-field"><span>新密码</span><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" placeholder="至少 6 位"/></label></div><button type="button" className="dmr-secondary" onClick={saveAuth} disabled={busy === 'auth' || !username.trim() || newPassword.length < 6}>{busy === 'auth' ? '保存中…' : '保存（所有设备重新登录）'}</button></div> : <p className="dmr-note">当前账号：{lan.username || '—'}。修改后所有已登录设备将被强制退出。</p>}</div> : null}
     {message ? <div className={'dmr-message ' + (messageKind === 'success' ? 'success' : 'error')} role="alert">{message}</div> : null}
@@ -212,9 +212,12 @@ export function MobileRelayOverlay() {
     document.body.appendChild(fab)
     document.body.appendChild(scrim)
 
-    // ---- 仿 ZCode 手机端底部 Tab 栏：会话 / 功能坞 / 设置 ----
+    // ---- 仿 ZCode 手机端底部 Tab 栏：会话 / 任务 / 功能坞 / 设置 ----
     // 挂 body（与抽屉把手同理，避开 overlayLayer 堆叠上下文），z 序 65：
     // 低于遮罩 75 / 侧栏抽屉 80 / 功能坞面板 200，这些打开时自然盖住 Tab 栏。
+    // 走到这里说明宿主旗标不存在（宿主版未注入）——宿主版自建的 Tab 栏不会出现；
+    // 兜底摘一次历史上可能残留的旧 Tab 栏，保证全程只有一份。
+    document.querySelectorAll('.dsh-mobile-tabbar').forEach((el) => el.remove())
     const tabbar = document.createElement('nav')
     tabbar.className = 'dsh-mobile-tabbar'
     tabbar.setAttribute('aria-label', '底部导航')
@@ -223,6 +226,13 @@ export function MobileRelayOverlay() {
         id: 'sessions', label: '会话',
         icon: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>',
         act: () => expand(),
+      },
+      {
+        // 接力核心入口：公司电脑上跑着的任务，手机点这一下就能看到进度；
+        // 等待确认（任务停住等批准）时角标变红脉冲，这才是需要人插手的时刻。
+        id: 'tasks', label: '任务',
+        icon: '<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>',
+        act: () => openPanel('runstate'),
       },
       {
         id: 'dock', label: '功能坞',
@@ -235,6 +245,7 @@ export function MobileRelayOverlay() {
         act: () => { const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('aria-label') || '') === '设置' || (x.textContent || '').trim() === '设置'); if (b) b.click() },
       },
     ]
+    let tasksBadge = null
     const tabButtons = tabDefs.map((def) => {
       const b = document.createElement('button')
       b.type = 'button'
@@ -242,6 +253,12 @@ export function MobileRelayOverlay() {
       b.dataset.tab = def.id
       b.innerHTML = def.icon + '<span>' + def.label + '</span>'
       b.addEventListener('click', () => def.act())
+      if (def.id === 'tasks') {
+        tasksBadge = document.createElement('span')
+        tasksBadge.className = 'dsh-mobile-tab-badge'
+        tasksBadge.style.display = 'none'
+        b.appendChild(tasksBadge)
+      }
       tabbar.appendChild(b)
       return b
     })
@@ -251,49 +268,117 @@ export function MobileRelayOverlay() {
       const settingsOpen = dialogOpen()
       for (const b of tabButtons) {
         const id = b.dataset.tab
-        const on = (id === 'sessions' && expanded) || (id === 'dock' && panelNav.open) || (id === 'settings' && settingsOpen)
+        const on = (id === 'sessions' && expanded)
+          || (id === 'tasks' && panelNav.open && panelNav.active === 'runstate')
+          || (id === 'dock' && panelNav.open && panelNav.active !== 'runstate')
+          || (id === 'settings' && settingsOpen)
         b.classList.toggle('on', on)
       }
     }
     const unsubPanel = subscribePanel(syncTabs)
 
-    // 把手定位：贴着趣味游戏浮标（.dgfab，可拖拽、位置内联在 style 上）正上方；
-    // 浮标被拖到顶/隐藏/不存在时兜底左侧中部（38% 视高）。sync 每 1.5s 复测，
-    // 拖拽浮标后把手最迟一个周期跟上；resize 立即复测。
+    // 「任务」角标：低频轮询 runstate 宿主路由（3s，仅窄屏 + 页面可见时发）；
+    // 进行中 = 蓝色数量，等待确认 = 红色数量 + 脉冲。路由不存在（runstate 未启用
+    // 或宿主旧版）时静默停轮询并摘掉角标，不报错不打扰。
+    let runstateGone = false
+    const pollTasks = () => {
+      if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === 'hidden' || !tabbar.isConnected) return
+      fetch('/dsh-dock/runstate/status', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      }).then(async (res) => {
+        if (res.status === 404 || res.status === 405) { runstateGone = true; tasksBadge.style.display = 'none'; return null }
+        const body = await res.json().catch(() => null)
+        if (!body) return null
+        const active = (body.data && body.data.active) || []
+        const waiting = active.filter((t) => t.approvals && t.approvals.length).length
+        if (waiting > 0) {
+          tasksBadge.textContent = String(waiting)
+          tasksBadge.className = 'dsh-mobile-tab-badge wait'
+          tasksBadge.style.display = ''
+        } else if (active.length > 0) {
+          tasksBadge.textContent = String(active.length)
+          tasksBadge.className = 'dsh-mobile-tab-badge'
+          tasksBadge.style.display = ''
+        } else {
+          tasksBadge.style.display = 'none'
+        }
+      }).catch(() => {})
+    }
+    const tasksTimer = setInterval(pollTasks, 3000)
+
+    // 软键盘判定：visualViewport 与布局视口高度差超阈值视为键盘弹出（挂
+    // html.dsh-dock-kbd，样式表随之隐藏 Tab 栏/把手并收窄滚动体留白——打字时
+    // 这两样只会挤占键盘上方的一线空间）。老内核没有 visualViewport 就跳过
+    // （那些内核键盘行为是整页缩放，原生命中适配）。
+    const vv = window.visualViewport || null
+    const kbdSync = () => {
+      if (!vv) return
+      const kbd = vv.height > 0 && (window.innerHeight - vv.height) > 120
+      document.documentElement.classList.toggle('dsh-dock-kbd', kbd)
+    }
+
+    // 把手定位（自建版；宿主版 place() 是同款算法）：贴着趣味游戏浮标（.dgfab，
+    // 可拖拽、位置内联在 style 上）正上方；浮标被拖到顶/隐藏/不存在时兜底左侧中部
+    // （38% 视高）。顶部天花板是底部输入区（composerSeat）的顶边——把手压在输入卡上
+    // 会盖掉左下角的 + 按钮（用户实测），所以算完位置再往上收；实在放不下（输入区
+    // 很高、软键盘顶起来）就挂 dsh-dock-drawer-off 整只隐藏，会话入口交给底部 Tab 栏。
+    // 位置写内联 top（样式表不再用 bottom/var 覆盖，两版不打架——见文件头注释）。
+    // sync 每 1.5s 复测，拖拽浮标后最迟一个周期跟上；resize 立即复测。
+    const handleEl = () => fab || document.querySelector('.dsh-mobile-drawer-btn')
     const place = () => {
-      if (!fab) return
+      const el = handleEl()
+      if (!el) return
+      const h = el.offsetHeight || 48
       const vh = window.innerHeight
       let top = null
       const g = document.querySelector('.dgfab')
       if (g && !g.classList.contains('dgfab-hide') && g.getBoundingClientRect) {
         const r = g.getBoundingClientRect()
         if (r && r.height > 0 && r.top > 0) {
-          top = r.top - fab.offsetHeight - 8
+          top = r.top - h - 8
           if (top < 64) top = r.bottom + 8 // 浮标太靠上时改放它下面，避开顶栏标题
-          if (top + fab.offsetHeight > vh - 16) top = null
         }
       }
       if (top == null) top = Math.round(vh * 0.38)
+      // 天花板 = 最靠下的那个输入区（贴底那条）的顶边；取不到就退回视口底部上面一点。
+      // 注意别用 `top > 64` 之类的条件把它筛掉：输入区高到把顶边推到 64 以上时，正是
+      // 必须让位的时候，筛掉反而会退回到「贴着视口底」——把手又压回输入卡上。
+      let ceiling = vh - 16
+      const seats = document.querySelectorAll('[class*="composerSeat"]')
+      let dockedBottom = -1
+      for (const s of seats) {
+        const r = s.getBoundingClientRect ? s.getBoundingClientRect() : null
+        if (!r || r.height <= 0 || r.bottom > vh + 1 || r.bottom <= dockedBottom) continue
+        dockedBottom = r.bottom
+        ceiling = r.top - 8
+      }
+      if (top + h > ceiling) top = ceiling - h
+      const off = document.documentElement.classList
+      if (top < 64) { off.add('dsh-dock-drawer-off'); return }
+      off.remove('dsh-dock-drawer-off')
       fab.style.top = top + 'px'
     }
 
     const sync = () => {
+      kbdSync()
+      // 兜底摘除历史上可能残留的旧 Tab 栏（正常路径下走到这里说明宿主版未注入，
+      // 不会有第二份；保险起见 sync 周期里也保持全局只有一份）。
+      document.querySelectorAll('.dsh-mobile-tabbar').forEach((el) => { if (el !== tabbar) el.remove() })
       const on = narrow() && !!frameEl() && !dialogOpen()
       const collapsed = sidebarCollapsed()
       // 右侧详情面板（窄屏原生全屏，z 40）打开时：把手 70 / Tab 栏 65 都比它高会压边，
       // 整体让位，面板收起（它自带折叠钮）后再回来。
       const right = rightOpen()
-      if (fab) {
-        const showFab = on && collapsed && !panelNav.open && !right
-        fab.style.display = showFab ? '' : 'none'
-        if (showFab) place()
-      }
+      const showFab = on && collapsed && !panelNav.open && !right
+      fab.style.display = showFab ? '' : 'none'
+      if (showFab) place()
       if (scrim) scrim.style.display = on && !collapsed ? '' : 'none'
       // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板/设置弹窗/右侧详情面板打开时隐藏（避免露边压内容）
       tabbar.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? '' : 'none'
       syncTabs()
     }
     sync()
+    pollTasks()
     // MutationObserver 跟属性翻转即时同步；1.5s 轮询覆盖路由重渲等一切边角
     const observer = typeof MutationObserver !== 'undefined' ? new MutationObserver(sync) : null
     if (observer) observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-sidebar-collapsed'], subtree: true })
@@ -301,7 +386,11 @@ export function MobileRelayOverlay() {
     const onMq = () => sync()
     if (mq.addEventListener) mq.addEventListener('change', onMq)
     else if (mq.addListener) mq.addListener(onMq)
-    window.addEventListener('resize', place)
+    const onResize = () => { place(); kbdSync() }
+    window.addEventListener('resize', onResize)
+    if (vv && vv.addEventListener) vv.addEventListener('resize', kbdSync)
+    const onVisible = () => { if (document.visibilityState === 'visible') pollTasks() }
+    document.addEventListener('visibilitychange', onVisible)
 
     // 捕获阶段统一处理（仅自建模式；宿主就位时宿主已有同款全局捕获）：
     // 抽屉按钮自身排除（否则展开动作会被"点外部收起"当场撤销）；
@@ -331,10 +420,16 @@ export function MobileRelayOverlay() {
       document.removeEventListener('click', onClick, true)
       if (observer) observer.disconnect()
       clearInterval(timer)
+      clearInterval(tasksTimer)
       unsubPanel()
       if (mq.removeEventListener) mq.removeEventListener('change', onMq)
       else if (mq.removeListener) mq.removeListener(onMq)
-      window.removeEventListener('resize', place)
+      window.removeEventListener('resize', onResize)
+      if (vv && vv.removeEventListener) vv.removeEventListener('resize', kbdSync)
+      document.removeEventListener('visibilitychange', onVisible)
+      document.documentElement.classList.remove('dsh-dock-drawer-off')
+      document.documentElement.classList.remove('dsh-dock-kbd')
+      document.documentElement.style.removeProperty('--dsh-dock-drawer-top')
       if (fab) fab.remove()
       if (scrim) scrim.remove()
       tabbar.remove()
@@ -347,9 +442,15 @@ export function MobileRelayOverlay() {
 export function MobileRelayHomeStat() {
   const [summary, setSummary] = useState('未开启，开启后可远程登录')
   useEffect(() => {
-    rpc('lan').then((data) => {
-      setSummary(data.gatewayActive ? '入口运行中 · 端口 ' + data.gatewayPort : data.accountSet ? '账号已设置，入口未开启' : '未开启，开启后可远程登录')
-    }).catch(() => {})
+    const refresh = () => {
+      rpc('lan').then((data) => {
+        const devices = typeof data.devices === 'number' && data.devices > 0 ? ' · ' + data.devices + ' 台设备在线' : ''
+        setSummary(data.gatewayActive ? '入口运行中 · 端口 ' + data.gatewayPort + devices : data.accountSet ? '账号已设置，入口未开启' : '未开启，开启后可远程登录')
+      }).catch(() => {})
+    }
+    refresh()
+    const timer = setInterval(refresh, 10000)
+    return () => clearInterval(timer)
   }, [])
   return <span>{summary}</span>
 }
@@ -369,16 +470,42 @@ export const feature = {
 .dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}
 .dsh-mobile-tab.on svg{color:var(--dk-accent,#4d9fff)}
 .dsh-mobile-tab:active{transform:scale(.94)}
+/* 「任务」页签角标：进行中=蓝（数量），等待确认=红（数量+脉冲）——接力场景里
+ * 等待确认是最需要人介入的状态，一眼可见；数据来自 runstate 宿主路由低频轮询。 */
+.dsh-mobile-tab{position:relative}
+.dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}
+.dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}
+@keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}
 /* 输入区吸附到 Tab 栏上方：宿主把欢迎内容 justify-content:center 垂直居中，
- * 手机视口下输入卡片悬在中部、下方留出大片空白。改为 flex-end 贴底，并给
- * 滚动体留出 Tab 栏高度的内边距，避免内容被 Tab 栏遮挡。 */
-[class*="scrollBody"]{justify-content:flex-end !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
-[class*="scrollBody"]>[class*="composerSeat"]{padding-bottom:6px}
+ * 手机视口下输入卡片悬在中部、下方留出大片空白。改用「输入区 margin-top:auto」
+ * 贴底，并给滚动体留出 Tab 栏高度的内边距，避免内容被 Tab 栏遮挡。
+ * ⚠️ 绝不能给滚动体加 justify-content:flex-end/center 贴底：内容会被挤到滚动体
+ * 起点之外，Chrome 不把起点方向溢出算进 scrollHeight（手机视口实测
+ * scrollHeight==clientHeight、maxScroll==0），会话记录彻底滚不动、首条消息永远
+ * 看不到。宿主半部旧版注入里还留着那条 flex-end（要重启 dsh web 才消失），这里
+ * 用更高优先级的选择器显式复位：刷新页面即修好，不必等重启。 */
+[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
+[class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
+[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}
+/* 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
+ * 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
+ * 底部「功能坞」里看（用量/余额页信息更全）；桌面端不动。 */
+.dockchip-row{display:none}
 /* 收起的侧栏轨道（collapsed rail）在窄屏只剩 1px 占位，但轨道里的按钮
  * 仍会溢出贴在左边缘（功能坞/进化/设置三枚露出半边的圆钮）。隐藏整列，
  * 这些入口已由底部 Tab 栏接管；展开抽屉（z 80）不受影响。 */
 [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}
-/* 把手位置统一交给 place()（与宿主版同一套：游戏浮标正上方，兜底左侧中部）。
- * 这里不再用 bottom 覆盖——两版样式打架会把手压到输入区工具行上（见文件头注释）。 */}`,
+/* 把手纵向位置：两版 place() 各自把算好的位置写进内联 top（自建版归本组件、宿主版
+ * 归宿主脚本），样式表不再用 bottom/var 覆盖——两版样式打架会把手压到输入区工具行上
+ * （见文件头注释）。放不下时（输入区太高、软键盘顶起）place() 挂 dsh-dock-drawer-off
+ * 整只隐藏，会话入口交给底部 Tab 栏。 */
+.dsh-dock-drawer-off .dsh-mobile-drawer-btn{display:none !important}
+/* 软键盘弹出（visualViewport 判定，挂 html.dsh-dock-kbd）：Tab 栏/把手整体让位
+ * （打字时它们只会挤占键盘上方的一线空间），滚动体留白收窄。选择器特异性高于上面的
+ * 72px 留白规则，能压过去。宿主接管期间由宿主脚本同步置/摘这个类。 */
+html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}
+html.dsh-dock-kbd .dsh-mobile-drawer-btn{display:none !important}
+html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}}`,
   View: MobileRelayView, HomeStat: MobileRelayHomeStat, Overlay: MobileRelayOverlay,
 }

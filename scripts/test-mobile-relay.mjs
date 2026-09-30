@@ -108,6 +108,29 @@ try {
   const loginHtml = await loginPage.text()
   assert.match(loginHtml, /账号/)
   assert.match(loginHtml, /__dsh_auth\/login/)
+  // 登录页带 PWA head 标签（未登录也能「添加到主屏幕」）与密码明文切换。
+  assert.match(loginHtml, /rel="manifest"/)
+  assert.match(loginHtml, /apple-mobile-web-app-capable/)
+  assert.match(loginHtml, /theme-color/)
+  assert.match(loginHtml, /peek/)
+
+  // PWA 资源在登录前即可取（manifest + 零依赖 PNG 图标）。
+  const manifestRes = await fetch(base + '/__dsh_auth/manifest.webmanifest')
+  assert.equal(manifestRes.status, 200)
+  assert.match(manifestRes.headers.get('content-type') || '', /manifest\+json/)
+  const manifest = await manifestRes.json()
+  assert.equal(manifest.display, 'standalone')
+  assert.equal(manifest.start_url, '/')
+  assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 3, 'manifest 需要 192/512/maskable 图标')
+  const iconRes = await fetch(base + '/__dsh_auth/icon-192.png')
+  assert.equal(iconRes.status, 200)
+  assert.equal(iconRes.headers.get('content-type'), 'image/png')
+  const iconBytes = Buffer.from(await iconRes.arrayBuffer())
+  assert.equal(iconBytes.subarray(0, 4).toString('hex'), '89504e47', '图标必须是合法 PNG')
+  assert.ok(iconBytes.length > 1000, '图标不应是空壳')
+  const maskableRes = await fetch(base + '/__dsh_auth/icon-maskable-512.png')
+  assert.equal(maskableRes.status, 200)
+  assert.ok(Buffer.from(await maskableRes.arrayBuffer()).length > 1000)
 
   // 错误凭据 → 401；正确凭据 → 会话 Cookie。
   const bad = await login(ACCOUNT.username, 'wrong')
@@ -154,7 +177,14 @@ try {
   const page = await fetch(base + '/app', { headers: { cookie: good.cookie } })
   assert.equal(page.status, 200)
   const html = await page.text()
-  assert.match(html, /<head><script data-dsh-mobile-compat src="\/__dsh_mobile\/compat\.js"><\/script><script>/)
+  assert.match(html, /<head><script data-dsh-mobile-compat src="\/__dsh_mobile\/compat\.js"><\/script><meta name="theme-color"/)
+  // PWA head 标签注入进 DSH 页面（主页面里「添加到主屏幕」才有清单可用）。
+  assert.match(html, /rel="manifest"/)
+  assert.match(html, /apple-mobile-web-app-capable/)
+  // 远程标记 + 断线监视在 compat.js 文件内（退出登录按钮的依赖 + 断线顶部胶囊）。
+  const compat = await (await fetch(base + '/__dsh_mobile/compat.js', { headers: { cookie: good.cookie } })).text()
+  assert.match(compat, /__DSH_REMOTE__/)
+  assert.match(compat, /连接已断开/)
   const probe = await (await fetch(base + '/probe', {
     headers: { cookie: good.cookie, origin: `http://127.0.0.1:${gateway.port}` },
   })).json()

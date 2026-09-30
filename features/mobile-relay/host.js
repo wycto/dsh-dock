@@ -161,6 +161,12 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-drawer-btn{position:fixed;left:0;top:38vh;z-index:70;box-sizing:border-box;width:30px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.35));border-left:none;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);box-shadow:4px 0 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}',
   '  .dsh-mobile-drawer-btn:active{transform:scale(.94)}',
   '  .dsh-mobile-drawer-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
+  // 把手纵向位置由行为脚本经 --dsh-dock-drawer-top 下发（脚本算「游戏浮标正上方」并
+  // 保证不压住底部输入区）。写成 !important 的样式表值：宿主/客户端各自写的内联
+  // style.top 都压不过它，两套定位不会互相打架。放不下时挂 dsh-dock-drawer-off 整只
+  // 隐藏——会话入口已由底部 Tab 栏承担。
+  '  .dsh-mobile-drawer-btn{top:var(--dsh-dock-drawer-top,38vh)!important;bottom:auto!important}',
+  '  .dsh-dock-drawer-off .dsh-mobile-drawer-btn{display:none!important}',
   '  .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}',
   // ---- 仿 ZCode 手机端：底部 Tab 栏 + 输入区吸附底部 ----
   // Tab 栏 z 序 65：低于遮罩 75 / 抽屉 80 / overlayLayer 90 / 功能坞面板 200，
@@ -171,11 +177,34 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}',
   '  .dsh-mobile-tab.on svg{color:#4d9fff}',
   '  .dsh-mobile-tab:active{transform:scale(.94)}',
+  // 「任务」页签角标：进行中=蓝（数量），等待确认=红（数量 + 脉冲）——接力场景里
+  // 等待确认是最需要人介入的状态，一眼可见；数据来自 runstate 宿主路由的低频轮询。
+  '  .dsh-mobile-tab{position:relative}',
+  '  .dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}',
+  '  .dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}',
+  '  @keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}',
+  '  @media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}',
   // 输入区吸附到 Tab 栏上方：宿主把欢迎内容 justify-content:center 垂直居中，
-  // 手机视口下输入卡片悬在中部、下方留出大片空白。改为 flex-end 贴底，并给
-  // 滚动体留出 Tab 栏高度的内边距，避免内容被 Tab 栏遮挡。
-  '  [class*="scrollBody"]{justify-content:flex-end!important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))!important}',
-  '  [class*="scrollBody"]>[class*="composerSeat"]{padding-bottom:6px}',
+  // 手机视口下输入卡片悬在中部、下方留出大片空白。改用「输入区 margin-top:auto」
+  // 贴底，并给滚动体留出 Tab 栏高度的内边距，避免内容被 Tab 栏遮挡。
+  //
+  // ⚠️ 绝不能再给滚动体加 justify-content:flex-end/center 来贴底：那会把内容挤到
+  // 滚动体起点之外，而 Chrome 不把起点方向的溢出算进 scrollHeight（手机视口实测
+  // scrollHeight==clientHeight、maxScroll==0），结果是会话记录完全滚不动、首条消息
+  // 永远停在视口上方 2000px 处。auto 外边距只在有剩余空间时生效、不产生起点溢出，
+  // 欢迎页照样贴底——见 scripts/test-mobile-relay-host.mjs 的回归断言。
+  //
+  // 软键盘弹出（visualViewport 判定，行为脚本挂 html.dsh-dock-kbd）：Tab 栏/把手
+  // 整体让位（打字时它们只会挤占键盘上方的一线空间），滚动体留白收窄。
+  '  html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))!important}',
+  '  html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px!important}',
+  '  html.dsh-dock-kbd .dsh-mobile-tabbar{display:none!important}',
+  '  html.dsh-dock-kbd .dsh-mobile-drawer-btn{display:none!important}',
+  '  [class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}',
+  // 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
+  // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
+  // 底部「功能坞」里看（用量/余额页信息更全）；桌面端不动。
+  '  .dockchip-row{display:none}',
   // 收起的侧栏轨道（collapsed rail）在窄屏只剩 1px 占位，但轨道里的按钮
   // 仍会溢出贴在左边缘（功能坞/进化/设置三枚露出半边的圆钮）。隐藏整列，
   // 这些入口已由底部 Tab 栏接管；展开抽屉（z 80）不受影响。
@@ -211,10 +240,24 @@ const MOBILE_BEHAVIOR_JS = [
   'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
   'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
   'function closeDetails(){var d=document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');if(!d)return;var c=d.querySelector(\'[data-sidebar-right-toggle]\');if(c)c.click()}',
-  'var fab=null,scrim=null,tabbar=null;',
+  'var fab=null,scrim=null,tabbar=null,badge=null,runstateGone=false;',
+  // 打开功能坞（可再点进指定页面）：宿主版没有客户端的 openPanel 总线，先点侧栏
+  // 轨道上的功能坞按钮开面板，再在面板里找文字匹配的导航按钮点进去（找不到就停在
+  // 面板首页——宿主版「任务」页签的降级导航路径）。
+  'function openDockPage(page){',
+  '  var b=document.querySelector("button.docke2-rail,button[class*=\'docke2-btn\'][class*=\'docke2-rail\']");',
+  '  if(b){var col=b.closest(\'[class*="sidebarCol"]\');if(col)col.style.visibility="";b.click();if(col)setTimeout(function(){col.style.visibility=""},0)}',
+  '  if(!page)return;',
+  '  setTimeout(function(){',
+  '    var panel=document.querySelector(".dockm-backdrop");if(!panel)return;',
+  '    var bs=panel.querySelectorAll("button");',
+  '    for(var i=0;i<bs.length;i++){var tx=bs[i].textContent||"";if(tx.indexOf(page)>=0&&bs[i].offsetParent){bs[i].click();return}}',
+  '  },120);',
+  '}',
   'var TAB_DEFS=[',
   '  {id:"sessions",label:"会话",icon:\'<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>\',act:function(){expand()}},',
-  '  {id:"dock",label:"功能坞",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){var b=document.querySelector("button.docke2-rail,button[class*=\'docke2-btn\'][class*=\'docke2-rail\']");if(b){var col=b.closest(\'[class*="sidebarCol"]\');if(col)col.style.visibility="";b.click();if(col)setTimeout(function(){col.style.visibility=""},0)}}},',
+  '  {id:"tasks",label:"任务",icon:\'<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>\',act:function(){openDockPage("运行状态")}},',
+  '  {id:"dock",label:"功能坞",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){openDockPage(null)}},',
   '  {id:"settings",label:"设置",icon:\'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>\',act:function(){var bs=document.querySelectorAll("button");for(var i=0;i<bs.length;i++){if(bs[i].getAttribute("aria-label")==="设置"){bs[i].click();return}}}}',
   '];',
   'function syncTabs(){',
@@ -239,30 +282,74 @@ const MOBILE_BEHAVIOR_JS = [
   '        var b=document.createElement("button");b.type="button";b.className="dsh-mobile-tab";b.dataset.tab=def.id;',
   '        b.innerHTML=def.icon+"<span>"+def.label+"</span>";',
   '        b.addEventListener("click",function(){def.act()});',
+  '        if(def.id==="tasks"){badge=document.createElement("span");badge.className="dsh-mobile-tab-badge";badge.style.display="none";b.appendChild(badge)}',
   '        tabbar.appendChild(b);',
   '      })(TAB_DEFS[i]);',
   '    }',
   '    document.body.appendChild(tabbar);',
   '  }',
   '}',
+  // 「任务」角标轮询（低频、页面可见且窄屏才发）：进行中=蓝、等待确认=红+脉冲。
+  // runstate 路由不存在（功能未启用/宿主旧版）时静默停轮询。
+  'function pollTasks(){',
+  '  if(runstateGone||!badge||!narrow()||document.visibilityState==="hidden"||!tabbar||!tabbar.isConnected)return;',
+  '  fetch("/dsh-dock/runstate/status",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(function(r){',
+  '    if(r.status===404||r.status===405){runstateGone=true;badge.style.display="none";return null}',
+  '    return r.json()',
+  '  }).then(function(body){',
+  '    if(!body||!badge)return;',
+  '    var active=(body.data&&body.data.active)||[],wait=0;',
+  '    for(var i=0;i<active.length;i++){var ap=active[i].approvals;if(ap&&ap.length)wait++}',
+  '    if(wait>0){badge.textContent=String(wait);badge.className="dsh-mobile-tab-badge wait";badge.style.display=""}',
+  '    else if(active.length>0){badge.textContent=String(active.length);badge.className="dsh-mobile-tab-badge";badge.style.display=""}',
+  '    else{badge.style.display="none"}',
+  '  }).catch(function(){})',
+  '}',
+  // 软键盘判定：visualViewport 与布局视口高度差超阈值视为键盘弹出（挂 html.dsh-dock-kbd，
+  // 样式表隐藏 Tab 栏/把手并收窄滚动体留白）。
+  'var vv=window.visualViewport||null;',
+  'function kbdSync(){',
+  '  var kbd=false;',
+  '  if(vv&&vv.height>0)kbd=(window.innerHeight-vv.height)>120;',
+  '  var de=document.documentElement;',
+  '  if(de.classList.toggle)de.classList.toggle("dsh-dock-kbd",kbd);',
+  '  else if(kbd)de.classList.add("dsh-dock-kbd");else de.classList.remove("dsh-dock-kbd");',
+  '}',
   // 把手定位：贴着趣味游戏浮标（.dgfab，可拖拽）正上方；浮标太靠上时改放它下面
   // （避开顶栏标题），被拖走/隐藏/不存在时兜底左侧中部（38% 视高）。
+  // 顶部天花板是底部输入区（composerSeat）的顶边：把手压在输入卡上会盖掉左下角
+  // 的 + 按钮（用户实测），所以先算好位置再往上收；实在放不下（输入区太高、
+  // 软键盘顶起来）就挂 dsh-dock-drawer-off 整只隐藏，会话入口交给底部 Tab 栏。
+  // 位置经 --dsh-dock-drawer-top 下发（样式表 !important 生效），不写内联 top。
   'function place(){',
   '  if(!fab)return;',
-  '  var vh=window.innerHeight,top=null;',
+  '  var vh=window.innerHeight,h=fab.offsetHeight||48,top=null;',
   '  var g=document.querySelector(".dgfab");',
   '  if(g&&!g.classList.contains("dgfab-hide")&&g.getBoundingClientRect){',
   '    var r=g.getBoundingClientRect();',
   '    if(r&&r.height>0&&r.top>0){',
-  '      top=r.top-fab.offsetHeight-8;',
+  '      top=r.top-h-8;',
   '      if(top<64)top=r.bottom+8;',
-  '      if(top+fab.offsetHeight>vh-16)top=null;',
   '    }',
   '  }',
   '  if(top==null)top=Math.round(vh*.38);',
+  // 天花板 = 最靠下的那个输入区（贴底那条）的顶边；取不到就退回视口底部上面一点。
+  // 别用 top>64 之类的条件筛掉输入区：它高到顶边越过 64 时正是必须让位的时候。
+  '  var ceiling=vh-16,dockedBottom=-1,seats=document.querySelectorAll(\'[class*="composerSeat"]\');',
+  '  for(var i=0;i<seats.length;i++){',
+  '    var sr=seats[i].getBoundingClientRect?seats[i].getBoundingClientRect():null;',
+  '    if(!sr||sr.height<=0||sr.bottom>vh+1||sr.bottom<=dockedBottom)continue;',
+  '    dockedBottom=sr.bottom;ceiling=sr.top-8;',
+  '  }',
+  '  if(top+h>ceiling)top=ceiling-h;',
+  '  var off=document.documentElement.classList;',
+  '  if(top<64){off.add("dsh-dock-drawer-off");return}',
+  '  off.remove("dsh-dock-drawer-off");',
+  '  document.documentElement.style.setProperty("--dsh-dock-drawer-top",top+"px");',
   '  fab.style.top=top+"px";',
   '}',
   'function syncChrome(){',
+  '  kbdSync();',
   '  if(!fab||!scrim)return;',
   '  var on=narrow()&&!!frameEl()&&!dialogOpen();',
   '  var col=sidebarCollapsed();',
@@ -283,9 +370,11 @@ const MOBILE_BEHAVIOR_JS = [
   '  ensureChrome();syncChrome();',
   '  if(typeof MutationObserver!=="undefined"){new MutationObserver(function(){syncChrome()}).observe(document.documentElement,{attributes:true,attributeFilter:["data-sidebar-collapsed"],subtree:true})}',
   '  setInterval(syncChrome,1500);',
+  '  setInterval(pollTasks,3000);pollTasks();',
   '  var onMq=function(){syncChrome()};',
   '  if(mq.addEventListener)mq.addEventListener("change",onMq);else if(mq.addListener)mq.addListener(onMq);',
-  '  window.addEventListener("resize",place);',
+  '  if(vv&&vv.addEventListener)vv.addEventListener("resize",kbdSync);',
+  '  window.addEventListener("resize",function(){place();kbdSync()});',
   '}',
   'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();',
   'document.addEventListener("click",function(e){',
@@ -484,6 +573,8 @@ export const feature = {
         gatewayEnabled: Boolean(saved && saved.enabled),
         mainPort: webServer.port,
         addresses: lanAddresses(),
+        /** 经网关登录的会话数（手机/平板各占一条；面板据此显示在线设备数）。 */
+        devices: gateway && typeof gateway.sessionCount === 'function' ? gateway.sessionCount() : 0,
         patchApplied: applied,
         webserverActive,
         accountSet: Boolean(auth),
