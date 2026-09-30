@@ -129,6 +129,9 @@ assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
   assert.match(once1, /dsh-mobile-tab-badge/, '缺「插件」页签任务角标样式/元素')
   assert.match(once1, /\/dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
   assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
+  // 侧栏入口（插件/自动化任务/设置…）弹出的面板 z 序低于展开的抽屉——点击后必须
+  // 探测面板并收起抽屉，否则面板被盖住等于「点了没反应」（用户实测截图）。
+  assert.match(once1, /setTimeout\(function\(\)\{if\(document\.querySelector\('\[role="dialog"\]'\)\)collapse\(\)\},260\)/, '侧栏入口点击后没有「面板弹出即收起抽屉」的探测')
   assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]/, '滚动体留白没有区分键盘弹出态')
   assert.match(once1, /html\.dsh-dock-kbd \[class\*="scrollBody"\]/, '缺键盘弹出态的收窄留白规则')
 }
