@@ -30,9 +30,14 @@ const MAX_LOGIN_ATTEMPTS = 10
 // 构造 memory 镜像、永不读档，设置/模型页全部显示 unavailable）。而服务端信任栏
 // 只看 Host/Origin——经本网关（登录后）的请求早已映射为回环信任，特权接口实际
 // 全部放行。唯一拦住手机用户的只剩客户端这一处自我判定，所以对本 bundle 做定点
-// 改写（判定恒真）。上游升级改了片段则原样透传（退化为官方行为，不影响其他功能）。
+// 改写（判定恒真）。候选片段按代际排列（dsh ≥0.1.7 在判定前面加了 ownsHost 短路，
+// 旧片段在新产物里不再出现——0.1.7 上线时手机设置/模型页因此再次 unavailable）；
+// 全部匹配不上则原样透传（退化为官方行为，不影响其他功能）。
 const CONNECTION_BUNDLE_PREFIX = '/plugins/@deepseek-ai/dsh-client-connection/client.js'
-const CONNECTION_ISLOOPBACK_SNIPPET = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)'
+const CONNECTION_ISLOOPBACK_SNIPPETS = [
+  'isLoopback: transport?.ownsHost === true || pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)',
+  'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)',
+]
 const CONNECTION_ISLOOPBACK_PATCHED = 'isLoopback: !0 /* dsh-dock remote gateway */'
 const MAX_ASSET_BYTES = 4 * 1024 * 1024
 const PATCH_CACHE_LIMIT = 16
@@ -462,9 +467,10 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
             let body = Buffer.concat(chunks)
             if (isConnectionBundle) {
               const text = body.toString('utf8')
-              const at = text.indexOf(CONNECTION_ISLOOPBACK_SNIPPET)
-              if (at >= 0) {
-                body = Buffer.from(text.slice(0, at) + CONNECTION_ISLOOPBACK_PATCHED + text.slice(at + CONNECTION_ISLOOPBACK_SNIPPET.length), 'utf8')
+              // 按代际找片段：新版先试（新版文本里不含旧片段，顺序无歧义）
+              const hit = CONNECTION_ISLOOPBACK_SNIPPETS.map((snippet) => ({ snippet, at: text.indexOf(snippet) })).find((c) => c.at >= 0)
+              if (hit) {
+                body = Buffer.from(text.slice(0, hit.at) + CONNECTION_ISLOOPBACK_PATCHED + text.slice(hit.at + hit.snippet.length), 'utf8')
                 if (patchedBundles.size >= PATCH_CACHE_LIMIT) patchedBundles.clear()
                 patchedBundles.set(req.url, body)
               }

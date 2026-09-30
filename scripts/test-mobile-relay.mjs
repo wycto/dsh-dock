@@ -29,11 +29,14 @@ const upstream = createServer((req, res) => {
   }
   if (req.url && req.url.startsWith('/plugins/@deepseek-ai/dsh-client-connection/client.js')) {
     // ?plain=1 模拟上游升级后片段消失：应原样透传，不做改写。
-    // 不带 content-length（chunked），贴近 DSH 真实形态——改写后必须重设长度并
-    // 去掉 transfer-encoding，否则两种长度语义并存是协议错误。
+    // ?rev=v017 模拟 dsh ≥0.1.7 的新片段（ownsHost 短路进判定，旧片段文本不再出现）。
+    // 默认（旧 rev）模拟 ≤0.1.6 的旧片段。不带 content-length（chunked），贴近 DSH
+    // 真实形态——改写后必须重设长度并去掉 transfer-encoding，否则两种长度语义并存是协议错误。
     const body = req.url.includes('plain=1')
       ? `var keep=1;isLoopbackHostname(pageLocation.hostname);`
-      : `var x=1;${CONNECTION_SNIPPET};var y=2`
+      : req.url.includes('rev=v017')
+        ? 'var x=1;isLoopback: transport?.ownsHost === true || pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname);var y=2'
+        : `var x=1;${CONNECTION_SNIPPET};var y=2`
     res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' })
     res.end(body)
     return
@@ -172,6 +175,14 @@ try {
   // 缓存命中：再次请求改写版内容一致。
   const againBundle = await (await fetch(base + '/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=abc', { headers: { cookie: good.cookie } })).text()
   assert.equal(againBundle, patched)
+
+  // dsh ≥0.1.7 的新片段（ownsHost 短路进判定）：同样必须改写为恒真——0.1.7 上线时
+  // 旧片段不再出现，网关没跟上曾让手机设置/模型页再次 unavailable（用户实测截图）。
+  const bundleNew = await fetch(base + '/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=v017', { headers: { cookie: good.cookie } })
+  const patchedNew = await bundleNew.text()
+  assert.match(patchedNew, /isLoopback: !0 \/\* dsh-dock remote gateway \*\//)
+  assert.doesNotMatch(patchedNew, /ownsHost === true/)
+  assert.equal(bundleNew.headers.get('content-length'), String(Buffer.byteLength(patchedNew)))
 
   // 登录后：页面带远程标记与兼容脚本注入；Host/Origin 已改写为回环；Cookie 透传。
   const page = await fetch(base + '/app', { headers: { cookie: good.cookie } })
