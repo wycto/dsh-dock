@@ -92,14 +92,17 @@ const dispose = feature.setup(mockCtx)
 let healDispose = () => {}
 let autoDispose = () => {}
 
-// 手机端适配注入（tapIndex）：必须含抽屉按钮/遮罩与 UUID 兜底，且幂等。
+// 手机端适配注入（tapIndex）：必须含遮罩与 UUID 兜底，不得再出现抽屉把手，且幂等。
 assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
 {
   const sample = '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>'
   const once1 = indexTransforms.reduce((html, fn) => fn(html), sample)
   assert.match(once1, /data-dsh-lan-compat/)
   assert.match(once1, /data-dsh-mobile-layout/)
-  assert.match(once1, /dsh-mobile-drawer-btn/)
+  // 左缘浮动「抽屉把手」已移除（用户实测截图：与底部 Tab 栏「会话」页签功能重复，
+  // 还悬浮在内容上压过输入区）——注入页不得再出现把手元素/样式。
+  assert.doesNotMatch(once1, /dsh-mobile-drawer-btn/)
+  assert.doesNotMatch(once1, /dsh-dock-drawer-top|dsh-dock-drawer-off/)
   assert.match(once1, /dsh-mobile-scrim/)
   assert.match(once1, /data-dsh-mobile-behave/)
   assert.match(once1, /打开侧边栏/)
@@ -119,11 +122,6 @@ assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
   assert.match(once1, /\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/, '输入区贴底必须走 margin-top:auto')
   // 输入区工具行的 chip 窄屏收起（28cqw 上限把它们挤成「余..」，读不出数值）
   assert.match(once1, /\.dockchip-row\{display:none\}/)
-  // 抽屉把手：位置经 CSS 变量下发（压得住宿主/客户端的内联 top），且顶部天花板是
-  // 输入区顶边——否则把手会盖住输入卡左下角的 + 按钮；放不下时整只隐藏。
-  assert.match(once1, /--dsh-dock-drawer-top/)
-  assert.match(once1, /dsh-dock-drawer-off/)
-  assert.match(once1, /querySelectorAll\('\[class\*="composerSeat"\]'\)/, '把手定位必须避开输入区')
   // 「任务」页签 + 等待确认角标 + 软键盘让位（与客户端半部同款契约，两半部必须一起改）。
   assert.match(once1, /\{id:"tasks",label:"任务"/, 'Tab 栏缺「任务」页签')
   assert.match(once1, /dsh-mobile-tab-badge/, '缺「任务」角标样式/元素')
