@@ -43,6 +43,12 @@
 
 ### 修复
 
+- **手机端设置/模型页再次报 "settings are unavailable in this browser"（dsh 0.1.7）**：
+  网关对连接客户端 bundle 的「回环自判」定点改写依赖精确文本，dsh 0.1.7 在该判定前面
+  加了 `transport?.ownsHost === true ||` 短路——旧片段在新产物里不再出现，网关匹配
+  不上就原样放行，手机端设置镜像又退回 memory 模式（实测本机 0.1.7 产物确认）。
+  现按代际维护候选片段（新版优先 + 旧版兜底），两代产物都能改写为恒真；测试补
+  0.1.7 片段用例。网关半部改动，重启 `dsh web` 生效。
 - **`scripts/dev-link-deps.mjs` 在全新检出上崩溃**：清理旧链接时 `lstatSync(link)` 裸调用对不存在的
   路径抛 ENOENT（`existsSync` 对悬空链接也返回 false，短路不了），全新树第一次跑必挂；改为整体
   try/catch 取 lstat 结果。源码安装 / 新机初始化因此才能一次跑通。

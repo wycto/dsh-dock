@@ -1464,4 +1464,47 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
 
 - 客户端半部已重建，手机硬刷新即得三页签；宿主注入版需重启 dsh web 后一致。
 
+## 十八、续作会话（2026-09-30）· dsh 0.1.7 手机设置/模型页再次 unavailable
+
+### 现象
+
+用户手机截图：设置 → 模型 报「加载提供商目录失败： settings are unavailable in this browser」。
+这是 v0.10.x 修过的老问题复发：DSH 客户端按页面主机名是否回环决定设置镜像
+（`isLoopback ? "host" : "memory"`，memory 镜像永不读档 → 设置/模型全不可用）。
+网关对 connection bundle 的定点改写（判定恒真）失效了。
+
+### 根因（实测本机安装产物确认，不靠猜）
+
+dsh 0.1.7 构建产物里判定前面加了短路，旧片段文本不再出现，网关 `indexOf` 匹配不上
+→ 按设计「改不动则原样透传」→ 手机端退回官方行为：
+
+- 旧片段（≤0.1.6）：`isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)`
+- 新片段（≥0.1.7）：`isLoopback: transport?.ownsHost === true || pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)`
+  （来源：`~/.dsh/profiles/node_modules/@deepseek-ai/dsh-web-app/node_modules/@deepseek-ai/dsh-client-connection/lib/client.js`；
+  源码对应 `packages/client/connection/src/client/index.ts:248`）
+
+报错文案的消费方在 `dsh-client-ui-settings-models`：`mirrored.view === void 0` →
+"settings are unavailable in this browser"，镜像模式判定仍只读 `connection.isLoopback`
+一处——补丁机制不变，只需更新匹配文本。
+
+### 改法
+
+- `gateway.js`：单一 `CONNECTION_ISLOOPBACK_SNIPPET` 改为按代际的候选数组
+  `CONNECTION_ISLOOPBACK_SNIPPETS`（新版优先 + 旧版兜底；新文本不含旧片段，顺序无歧义），
+  改写命中任一代即可。
+- `test-mobile-relay.mjs`：上游 mock 增 `?rev=v017` 用例（0.1.7 真实片段文本），
+  断言改写后 `ownsHost === true` 不在、恒真补丁在、content-length 重算正确；
+  旧片段与 `plain=1` 透传用例保留。
+
+### 验证
+
+- `test-mobile-relay.mjs` 全绿（两代片段 + 透传）；`test:host` 五套全绿。
+- 服务端信任栏复核（`api-request-trust.ts` 的 `isTrustedApiRequest` 是宿主侧函数，
+  网关改写 Host/Origin 为回环即过）——客户端 bundle 里只有 mirror 这一道闸，无需额外补丁。
+
+### 部署提醒
+
+- 网关半部改动：**重启 dsh web** 后手机设置/模型页恢复；客户端半部零改动。
+
+
 
