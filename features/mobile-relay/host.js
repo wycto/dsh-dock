@@ -129,9 +129,10 @@ const LAN_COMPAT_MARKER = 'data-dsh-lan-compat'
 // 1) 设置弹窗官方只有"左导航+右内容"两栏，窄屏内容栏被压到不足百像素（一字一行）；
 //    改纵向堆叠：导航横排在上、内容占满。
 // 2) 侧边栏展开是 grid 栅格挤占会话区（窄屏会话区只剩 ~110px）；改为浮层覆盖。
-// 3) 侧栏栅格归零后，原生「打开侧边栏」按钮随窄轨一起被裁掉——补贴左边缘的抽屉把手
-//    （.dsh-mobile-drawer-btn，行为脚本创建，点击转发原生 toggle，位置在趣味游戏
-//    浮标正上方、兜底左侧中部）与抽屉遮罩（.dsh-mobile-scrim，点击即收起，阻断滚动穿透）。
+// 3) 侧栏栅格归零后，原生「打开侧边栏」按钮随窄轨一起被裁掉——会话入口由底部 Tab 栏
+//    「会话」页签承担（点击转发原生 toggle）；再补抽屉遮罩（.dsh-mobile-scrim，点击即
+//    收起，阻断滚动穿透）。左缘浮动「抽屉把手」已移除：与 Tab 栏功能重复，还悬浮在
+//    内容上压过输入区（用户实测截图）。
 // 类名用语义后缀匹配（哈希前缀随 DSH 版本会变，后缀稳定）；DSH 升级改了结构时
 // 选择器自然失效，不影响其他功能。
 const MOBILE_LAYOUT_CSS = [
@@ -155,18 +156,8 @@ const MOBILE_LAYOUT_CSS = [
   '  [class*="rightbarCol"]{min-width:0}',
   '  [data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]{z-index:88!important;pointer-events:auto!important;background:var(--dsw-alias-bg-layer-2,rgb(22,24,28))!important}',
   '  [class*="overlayLayer"]{z-index:90!important}',
-  // 抽屉把手：贴左边缘（同趣味游戏浮标的边缘吸附语言），top 由 place() 动态设定
-  // （趣味游戏浮标正上方，兜底左侧中部）；z 序 70 < 遮罩 75 < 侧栏 80 < overlayLayer 90，
-  // 面板/弹窗打开时自然被盖，无需额外隐藏逻辑。
-  '  .dsh-mobile-drawer-btn{position:fixed;left:0;top:38vh;z-index:70;box-sizing:border-box;width:30px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.35));border-left:none;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);box-shadow:4px 0 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}',
-  '  .dsh-mobile-drawer-btn:active{transform:scale(.94)}',
-  '  .dsh-mobile-drawer-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
-  // 把手纵向位置由行为脚本经 --dsh-dock-drawer-top 下发（脚本算「游戏浮标正上方」并
-  // 保证不压住底部输入区）。写成 !important 的样式表值：宿主/客户端各自写的内联
-  // style.top 都压不过它，两套定位不会互相打架。放不下时挂 dsh-dock-drawer-off 整只
-  // 隐藏——会话入口已由底部 Tab 栏承担。
-  '  .dsh-mobile-drawer-btn{top:var(--dsh-dock-drawer-top,38vh)!important;bottom:auto!important}',
-  '  .dsh-dock-drawer-off .dsh-mobile-drawer-btn{display:none!important}',
+  // 抽屉遮罩：侧栏浮层展开时盖住页面。左缘浮动「抽屉把手」已移除——与底部 Tab 栏
+  // 「会话」页签功能重复，还悬浮在内容上压过输入区（用户实测截图）。
   '  .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}',
   // ---- 仿 ZCode 手机端：底部 Tab 栏 + 输入区吸附底部 ----
   // Tab 栏 z 序 65：低于遮罩 75 / 抽屉 80 / overlayLayer 90 / 功能坞面板 200，
@@ -194,12 +185,11 @@ const MOBILE_LAYOUT_CSS = [
   // 永远停在视口上方 2000px 处。auto 外边距只在有剩余空间时生效、不产生起点溢出，
   // 欢迎页照样贴底——见 scripts/test-mobile-relay-host.mjs 的回归断言。
   //
-  // 软键盘弹出（visualViewport 判定，行为脚本挂 html.dsh-dock-kbd）：Tab 栏/把手
-  // 整体让位（打字时它们只会挤占键盘上方的一线空间），滚动体留白收窄。
+  // 软键盘弹出（visualViewport 判定，行为脚本挂 html.dsh-dock-kbd）：Tab 栏
+  // 整体让位（打字时它只会挤占键盘上方的一线空间），滚动体留白收窄。
   '  html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))!important}',
   '  html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px!important}',
   '  html.dsh-dock-kbd .dsh-mobile-tabbar{display:none!important}',
-  '  html.dsh-dock-kbd .dsh-mobile-drawer-btn{display:none!important}',
   '  [class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}',
   // 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
   // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
@@ -220,9 +210,9 @@ const MOBILE_LAYOUT_MARKER = 'data-dsh-mobile-layout'
 // 窄屏行为补丁：侧边栏浮层化后，原生的"保持展开"会一直挡住半屏——
 // 点会话行/新会话后自动收起；点侧栏外的页面区域也收起（浮层语义）。
 // 侧栏内的其他点击（工作区折叠、搜索、功能坞入口）保持原生行为不收。
-// 另创建抽屉按钮（窄屏 + 侧栏收起时才显示，点击转发原生「打开侧边栏」toggle；
-// 侧栏展开或设置弹窗打开时自动隐藏）与抽屉遮罩（点击经全局捕获 handler 收起，
-// 单一路径防止同一事件两次 toggle）。注入点在 <head> 后，body 尚未解析，
+// 会话入口在底部 Tab 栏「会话」页签（点击转发原生「打开侧边栏」toggle）；另建抽屉
+// 遮罩（点击经全局捕获 handler 收起，单一路径防止同一事件两次 toggle）。左缘浮动
+// 「抽屉把手」已移除（与 Tab 栏功能重复）。注入点在 <head> 后，body 尚未解析，
 // DOM 创建一律推迟到 DOMContentLoaded；显隐同步走 MutationObserver（属性翻转即时）
 // + 低速轮询（覆盖路由重渲等一切边角）。
 const MOBILE_BEHAVIOR_JS = [
@@ -240,7 +230,7 @@ const MOBILE_BEHAVIOR_JS = [
   'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
   'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
   'function closeDetails(){var d=document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');if(!d)return;var c=d.querySelector(\'[data-sidebar-right-toggle]\');if(c)c.click()}',
-  'var fab=null,scrim=null,tabbar=null,badge=null,runstateGone=false;',
+  'var scrim=null,tabbar=null,badge=null,runstateGone=false;',
   // 打开功能坞（可再点进指定页面）：宿主版没有客户端的 openPanel 总线，先点侧栏
   // 轨道上的功能坞按钮开面板，再在面板里找文字匹配的导航按钮点进去（找不到就停在
   // 面板首页——宿主版「任务」页签的降级导航路径）。
@@ -273,7 +263,6 @@ const MOBILE_BEHAVIOR_JS = [
   '  }',
   '}',
   'function ensureChrome(){',
-  '  if(!fab){fab=document.createElement("button");fab.type="button";fab.className="dsh-mobile-drawer-btn";fab.setAttribute("aria-label","打开会话列表");fab.innerHTML=\'<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>\';fab.addEventListener("click",function(){expand()});document.body.appendChild(fab)}',
   '  if(!scrim){scrim=document.createElement("div");scrim.className="dsh-mobile-scrim";document.body.appendChild(scrim)}',
   '  if(!tabbar){',
   '    tabbar=document.createElement("nav");tabbar.className="dsh-mobile-tabbar";tabbar.setAttribute("aria-label","底部导航");',
@@ -306,7 +295,7 @@ const MOBILE_BEHAVIOR_JS = [
   '  }).catch(function(){})',
   '}',
   // 软键盘判定：visualViewport 与布局视口高度差超阈值视为键盘弹出（挂 html.dsh-dock-kbd，
-  // 样式表隐藏 Tab 栏/把手并收窄滚动体留白）。
+  // 样式表隐藏 Tab 栏并收窄滚动体留白）。
   'var vv=window.visualViewport||null;',
   'function kbdSync(){',
   '  var kbd=false;',
@@ -315,51 +304,15 @@ const MOBILE_BEHAVIOR_JS = [
   '  if(de.classList.toggle)de.classList.toggle("dsh-dock-kbd",kbd);',
   '  else if(kbd)de.classList.add("dsh-dock-kbd");else de.classList.remove("dsh-dock-kbd");',
   '}',
-  // 把手定位：贴着趣味游戏浮标（.dgfab，可拖拽）正上方；浮标太靠上时改放它下面
-  // （避开顶栏标题），被拖走/隐藏/不存在时兜底左侧中部（38% 视高）。
-  // 顶部天花板是底部输入区（composerSeat）的顶边：把手压在输入卡上会盖掉左下角
-  // 的 + 按钮（用户实测），所以先算好位置再往上收；实在放不下（输入区太高、
-  // 软键盘顶起来）就挂 dsh-dock-drawer-off 整只隐藏，会话入口交给底部 Tab 栏。
-  // 位置经 --dsh-dock-drawer-top 下发（样式表 !important 生效），不写内联 top。
-  'function place(){',
-  '  if(!fab)return;',
-  '  var vh=window.innerHeight,h=fab.offsetHeight||48,top=null;',
-  '  var g=document.querySelector(".dgfab");',
-  '  if(g&&!g.classList.contains("dgfab-hide")&&g.getBoundingClientRect){',
-  '    var r=g.getBoundingClientRect();',
-  '    if(r&&r.height>0&&r.top>0){',
-  '      top=r.top-h-8;',
-  '      if(top<64)top=r.bottom+8;',
-  '    }',
-  '  }',
-  '  if(top==null)top=Math.round(vh*.38);',
-  // 天花板 = 最靠下的那个输入区（贴底那条）的顶边；取不到就退回视口底部上面一点。
-  // 别用 top>64 之类的条件筛掉输入区：它高到顶边越过 64 时正是必须让位的时候。
-  '  var ceiling=vh-16,dockedBottom=-1,seats=document.querySelectorAll(\'[class*="composerSeat"]\');',
-  '  for(var i=0;i<seats.length;i++){',
-  '    var sr=seats[i].getBoundingClientRect?seats[i].getBoundingClientRect():null;',
-  '    if(!sr||sr.height<=0||sr.bottom>vh+1||sr.bottom<=dockedBottom)continue;',
-  '    dockedBottom=sr.bottom;ceiling=sr.top-8;',
-  '  }',
-  '  if(top+h>ceiling)top=ceiling-h;',
-  '  var off=document.documentElement.classList;',
-  '  if(top<64){off.add("dsh-dock-drawer-off");return}',
-  '  off.remove("dsh-dock-drawer-off");',
-  '  document.documentElement.style.setProperty("--dsh-dock-drawer-top",top+"px");',
-  '  fab.style.top=top+"px";',
-  '}',
   'function syncChrome(){',
   '  kbdSync();',
-  '  if(!fab||!scrim)return;',
+  '  if(!scrim)return;',
   '  var on=narrow()&&!!frameEl()&&!dialogOpen();',
   '  var col=sidebarCollapsed();',
   '  var dockOpen=!!document.querySelector(".dockm-backdrop");',
-  // 右侧详情面板在窄屏是原生全屏（z 40），而把手 70 / Tab 栏 65 都比它高会压边——
+  // 右侧详情面板在窄屏是原生全屏（z 40），而 Tab 栏 65 比它高会压边——
   // 面板打开时整体让位，收起（面板自带的折叠按钮）后再回来。
   '  var rightOpen=!!document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');',
-  '  var showFab=on&&col&&!dockOpen&&!rightOpen;',
-  '  fab.style.display=showFab?"":"none";',
-  '  if(showFab)place();',
   '  scrim.style.display=on&&!col?"":"none";',
   // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板/右侧详情面板打开时隐藏（它们
   // 或是全屏模态、或是原生全屏面板，Tab 栏 z 序更高会盖住内容边缘）；宿主设置弹窗 z 序更高，自然盖住。
@@ -374,14 +327,14 @@ const MOBILE_BEHAVIOR_JS = [
   '  var onMq=function(){syncChrome()};',
   '  if(mq.addEventListener)mq.addEventListener("change",onMq);else if(mq.addListener)mq.addListener(onMq);',
   '  if(vv&&vv.addEventListener)vv.addEventListener("resize",kbdSync);',
-  '  window.addEventListener("resize",function(){place();kbdSync()});',
+  '  window.addEventListener("resize",kbdSync);',
   '}',
   'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();',
   'document.addEventListener("click",function(e){',
   '  if(!narrow())return;',
   '  var t=e.target;',
   '  if(!t||!t.closest)return;',
-  '  if(t.closest(".dsh-mobile-drawer-btn")||t.closest(".dsh-mobile-tabbar"))return;',
+  '  if(t.closest(".dsh-mobile-tabbar"))return;',
   '  var expanded=!!document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');',
   '  var col=document.querySelector(\'[class*="sidebarCol"]\');',
   '  var inSidebar=col&&col.contains(t);',

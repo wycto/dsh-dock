@@ -1392,4 +1392,44 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
   退出登录可用、面板设备数；
 - 重启前手机端可见的改善：滚动修复 + chip 收起（客户端 CSS 高优先级规则压过旧宿主注入）。
 
+## 十六、续作会话（2026-09-30）· 移除左缘浮动抽屉把手
+
+### 现象 / 需求
+
+用户手机预览截图（红框圈出左缘浮块 + 箭头）：「左侧的浮动会话去掉，因为底部左下角已经有了」——
+即抽屉把手（`.dsh-mobile-drawer-btn`）与底部 Tab 栏「会话」页签功能重复，还悬浮在会话内容上。
+
+### 改法
+
+两半部（宿主注入版 `host.js` + 客户端自建版 `view.jsx`）同步移除：
+
+- 不再创建把手元素；定位算法 `place()`（游戏浮标正上方 + composerSeat 天花板 +
+  `--dsh-dock-drawer-top` 变量 + `dsh-dock-drawer-off` 隐藏开关）整段删除——这些复杂度
+  全部是为「让浮动块不压内容」服务的，把手没了就不需要了。
+- 样式表删除 `.dsh-mobile-drawer-btn` 全部规则与 kbd 态隐藏规则；遮罩 `.dsh-mobile-scrim`
+  保留（侧栏浮层展开时盖住页面，点击收起）。
+- `syncChrome`/`sync` 只剩 scrim 显隐 + Tab 栏显隐 + 角标/键盘同步；点击排除列表去掉把手。
+- 会话抽屉唯一入口 = 底部 Tab 栏「会话」页签（`expand()` 转发原生 toggle，链路不变）。
+
+### 测试契约更新
+
+- `test-mobile-relay-host`：注入页断言反转——不得出现 `dsh-mobile-drawer-btn` /
+  `dsh-dock-drawer-top` / `dsh-dock-drawer-off`；删除「把手定位必须避开输入区」断言。
+- `test-client-views` 用例 10 改名「…无浮动把手的样式契约」：bundle 断言把手类名与定位
+  变量必须不存在；用例 11 的「接管宿主旧 Tab 栏」表述改为「兜底摘除残留 Tab 栏」
+  （让位模型下客户端只在宿主未注入时自建，不存在接管）。
+
+### 验证
+
+- `npm run build:client` → `test:client` 全绿；`npm run test:host`（五套）+
+  `test-mobile-relay-host` + `test-mobile-relay` 全绿。
+- README / CHANGELOG（未发布段）同步；z 序注释相应收敛（遮罩 75 < 侧栏 80 < 右面板 88 <
+  overlayLayer 90 < 功能坞面板 200，Tab 栏 65）。
+
+### 部署提醒
+
+- 客户端半部已重建：手机**硬刷新**即见效（宿主接管模式下同理——旧宿主注入版里若还带
+  把手脚本，需**重启 dsh web** 才彻底消失）。
+- 十五节的部署提醒不变：任务页签/角标、PWA、断线提示、设备数仍需重启 dsh web。
+
 
