@@ -109,6 +109,28 @@ assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
   assert.equal(countOf(twice, 'data-dsh-mobile-layout'), 1, 'injection must be idempotent')
   assert.equal(countOf(twice, 'data-dsh-mobile-behave'), 1)
   assert.equal(countOf(twice, 'data-dsh-lan-compat'), 1)
+
+  // 手机端「会话记录滑不动」回归钉（用户实测缺陷）。为了让欢迎页的输入卡贴底，早期
+  // 给滚动体加了 justify-content:flex-end——内容因此从滚动体起点溢出，而 Chrome 不把
+  // 起点方向的溢出算进 scrollHeight（手机视口实测 scrollHeight==clientHeight、
+  // maxScroll==0），会话记录彻底滑不动、首条消息永远停在视口外。贴底只能用输入区
+  // 自己的 margin-top:auto：有剩余空间才生效，不制造起点溢出。
+  assert.doesNotMatch(once1, /\[class\*="scrollBody"\][^{}]*\{[^}]*justify-content:\s*(?:flex-end|center)/, '滚动体不得设 flex-end/center（会让会话记录滚不动）')
+  assert.match(once1, /\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/, '输入区贴底必须走 margin-top:auto')
+  // 输入区工具行的 chip 窄屏收起（28cqw 上限把它们挤成「余..」，读不出数值）
+  assert.match(once1, /\.dockchip-row\{display:none\}/)
+  // 抽屉把手：位置经 CSS 变量下发（压得住宿主/客户端的内联 top），且顶部天花板是
+  // 输入区顶边——否则把手会盖住输入卡左下角的 + 按钮；放不下时整只隐藏。
+  assert.match(once1, /--dsh-dock-drawer-top/)
+  assert.match(once1, /dsh-dock-drawer-off/)
+  assert.match(once1, /querySelectorAll\('\[class\*="composerSeat"\]'\)/, '把手定位必须避开输入区')
+  // 「任务」页签 + 等待确认角标 + 软键盘让位（与客户端半部同款契约，两半部必须一起改）。
+  assert.match(once1, /\{id:"tasks",label:"任务"/, 'Tab 栏缺「任务」页签')
+  assert.match(once1, /dsh-mobile-tab-badge/, '缺「任务」角标样式/元素')
+  assert.match(once1, /\/dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
+  assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
+  assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]/, '滚动体留白没有区分键盘弹出态')
+  assert.match(once1, /html\.dsh-dock-kbd \[class\*="scrollBody"\]/, '缺键盘弹出态的收窄留白规则')
 }
 function countOf(text, needle) { return text.split(needle).length - 1 }
 
