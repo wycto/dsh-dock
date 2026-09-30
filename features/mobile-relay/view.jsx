@@ -206,7 +206,10 @@ export function MobileRelayOverlay() {
     scrim.className = 'dsh-mobile-scrim'
     document.body.appendChild(scrim)
 
-    // ---- 仿 ZCode 手机端底部 Tab 栏：会话 / 任务 / 功能坞 / 设置 ----
+    // ---- 仿 ZCode 手机端底部 Tab 栏：会话 / 插件 / 设置 ----
+    // 「任务」「功能坞」合并为一个「插件」页签（用户反馈两个入口冗余）：插件面板里
+    // 本来就有运行状态页，任务状态以角标显示在「插件」上——进行中蓝色数量、等待确认
+    // 红色脉冲；有任务在跑时点「插件」直接落到运行状态页，否则进面板首页。
     // 挂 body（避开 overlayLayer 堆叠上下文），z 序 65：
     // 低于遮罩 75 / 侧栏抽屉 80 / 功能坞面板 200，这些打开时自然盖住 Tab 栏。
     // 走到这里说明宿主旗标不存在（宿主版未注入）——宿主版自建的 Tab 栏不会出现；
@@ -215,6 +218,9 @@ export function MobileRelayOverlay() {
     const tabbar = document.createElement('nav')
     tabbar.className = 'dsh-mobile-tabbar'
     tabbar.setAttribute('aria-label', '底部导航')
+    // 最近一次角标轮询看到的任务数（驱动「插件」页签的直达目标与角标显隐）。
+    let tasksActive = 0
+    let tasksWaiting = 0
     const tabDefs = [
       {
         id: 'sessions', label: '会话',
@@ -222,16 +228,12 @@ export function MobileRelayOverlay() {
         act: () => expand(),
       },
       {
-        // 接力核心入口：公司电脑上跑着的任务，手机点这一下就能看到进度；
-        // 等待确认（任务停住等批准）时角标变红脉冲，这才是需要人插手的时刻。
-        id: 'tasks', label: '任务',
-        icon: '<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>',
-        act: () => openPanel('runstate'),
-      },
-      {
-        id: 'dock', label: '功能坞',
+        id: 'dock', label: '插件',
         icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
-        act: () => { if (panelNav.open) setPanelOpen(false); else openPanel('home') },
+        act: () => {
+          if (panelNav.open) setPanelOpen(false)
+          else openPanel((tasksActive > 0 || tasksWaiting > 0) ? 'runstate' : 'home')
+        },
       },
       {
         id: 'settings', label: '设置',
@@ -247,7 +249,7 @@ export function MobileRelayOverlay() {
       b.dataset.tab = def.id
       b.innerHTML = def.icon + '<span>' + def.label + '</span>'
       b.addEventListener('click', () => def.act())
-      if (def.id === 'tasks') {
+      if (def.id === 'dock') {
         tasksBadge = document.createElement('span')
         tasksBadge.className = 'dsh-mobile-tab-badge'
         tasksBadge.style.display = 'none'
@@ -263,8 +265,7 @@ export function MobileRelayOverlay() {
       for (const b of tabButtons) {
         const id = b.dataset.tab
         const on = (id === 'sessions' && expanded)
-          || (id === 'tasks' && panelNav.open && panelNav.active === 'runstate')
-          || (id === 'dock' && panelNav.open && panelNav.active !== 'runstate')
+          || (id === 'dock' && panelNav.open)
           || (id === 'settings' && settingsOpen)
         b.classList.toggle('on', on)
       }
@@ -280,11 +281,13 @@ export function MobileRelayOverlay() {
       fetch('/dsh-dock/runstate/status', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
       }).then(async (res) => {
-        if (res.status === 404 || res.status === 405) { runstateGone = true; tasksBadge.style.display = 'none'; return null }
+        if (res.status === 404 || res.status === 405) { runstateGone = true; tasksActive = 0; tasksWaiting = 0; tasksBadge.style.display = 'none'; return null }
         const body = await res.json().catch(() => null)
         if (!body) return null
         const active = (body.data && body.data.active) || []
         const waiting = active.filter((t) => t.approvals && t.approvals.length).length
+        tasksActive = active.length
+        tasksWaiting = waiting
         if (waiting > 0) {
           tasksBadge.textContent = String(waiting)
           tasksBadge.className = 'dsh-mobile-tab-badge wait'
