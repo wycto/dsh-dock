@@ -11387,9 +11387,10 @@ function MobileRelayOverlay() {
       if (!expanded && !inSidebar) return;
       if (inSidebar) {
         const row = t.closest('[role="treeitem"]');
-        const leaf = row && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]');
+        const rowKey = row && row.getAttribute("data-row-key") || "";
+        const sessionRow = rowKey && rowKey.startsWith("session:") || row && !rowKey && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]');
         const fresh = t.closest('[class*="newSession"]');
-        if (leaf || fresh) setTimeout(() => {
+        if (sessionRow || fresh) setTimeout(() => {
           collapse();
           closeDetails();
         }, 300);

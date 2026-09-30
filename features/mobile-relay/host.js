@@ -346,10 +346,15 @@ const MOBILE_BEHAVIOR_JS = [
   '  var inSidebar=col&&col.contains(t);',
   '  if(!expanded&&!inSidebar)return;',
   '  if(inSidebar){',
+  // 只有点「会话」才收抽屉：会话行 data-row-key 以 session: 开头（0.1.7 结构，ui-workspace
+  // Rows.tsx）；工作区文件夹行是 workspace: 开头——点它只是展开/收拢分组，不能收抽屉
+  // （旧「无子 treeitem 即叶子」判定会误伤折叠状态的文件夹：折叠时子节点不在 DOM 里）。
+  // 搜索结果行无 data-row-key，回退按无子叶判定。
   '    var row=t.closest(\'[role="treeitem"]\');',
-  '    var leaf=row&&!row.querySelector(\'[role="treeitem"]\')&&row.closest(\'[role="tree"]\');',
+  '    var rowKey=(row&&row.getAttribute("data-row-key"))||"";',
+  '    var sessionRow=(rowKey&&rowKey.indexOf("session:")===0)||(row&&!rowKey&&!row.querySelector(\'[role="treeitem"]\')&&row.closest(\'[role="tree"]\'));',
   '    var fresh=t.closest(\'[class*="newSession"]\');',
-  '    if(leaf||fresh){setTimeout(function(){collapse();closeDetails()},300);return}',
+  '    if(sessionRow||fresh){setTimeout(function(){collapse();closeDetails()},300);return}',
   // 侧栏入口（插件/自动化任务/设置/记忆/自动进化…）点击后会弹出面板，而面板 z 序
   // 常低于展开的抽屉——被盖住等于「点了没反应」（用户实测截图）。稍候探测：有面板
   // 弹出就收起抽屉让它露出来；目录折叠/搜索等不弹面板的点击不受影响。

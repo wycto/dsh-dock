@@ -134,6 +134,11 @@ assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
   // 侧栏入口（插件/自动化任务/设置…）弹出的面板 z 序低于展开的抽屉——点击后必须
   // 探测面板并收起抽屉，否则面板被盖住等于「点了没反应」（用户实测截图）。
   assert.match(once1, /setTimeout\(function\(\)\{if\(document\.querySelector\('\[role="dialog"\]'\)\)collapse\(\)\},260\)/, '侧栏入口点击后没有「面板弹出即收起抽屉」的探测')
+  // 点工作区文件夹不能收抽屉（只展开/收拢分组）：会话行以 data-row-key="session:" 开头，
+  // 文件夹行是 workspace: 开头——旧的「无子 treeitem 即叶子」判定会误伤折叠状态的文件夹
+  // （折叠时子节点不在 DOM 里），用户实测「点文件夹抽屉被收起」。
+  assert.match(once1, /rowKey\.indexOf\("session:"\)===0/, '会话行识别没有按 data-row-key 的 session: 前缀（点文件夹会被误收抽屉）')
+  assert.doesNotMatch(once1, /var leaf=row&&!row\.querySelector/, '残留旧的「无子 treeitem 即叶子」判定')
   assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]/, '滚动体留白没有区分键盘弹出态')
   assert.match(once1, /html\.dsh-dock-kbd \[class\*="scrollBody"\]/, '缺键盘弹出态的收窄留白规则')
 }
