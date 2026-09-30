@@ -11267,8 +11267,7 @@ function MobileRelayOverlay() {
         label: "\u63D2\u4EF6",
         icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
         act: () => {
-          if (panelNav.open) setPanelOpen(false);
-          else openPanel(tasksActive > 0 || tasksWaiting > 0 ? "runstate" : "home");
+          openPanel(tasksActive > 0 || tasksWaiting > 0 ? "runstate" : "home");
         }
       },
       {
@@ -11489,7 +11488,10 @@ var feature10 = {
  * \u5B83\u53EA\u4F1A\u6324\u5360\u952E\u76D8\u4E0A\u65B9\u7684\u4E00\u7EBF\u7A7A\u95F4\uFF09\uFF0C\u6EDA\u52A8\u4F53\u7559\u767D\u6536\u7A84\u3002\u9009\u62E9\u5668\u7279\u5F02\u6027\u9AD8\u4E8E\u4E0A\u9762\u7684 72px
  * \u7559\u767D\u89C4\u5219\uFF0C\u80FD\u538B\u8FC7\u53BB\u3002\u5BBF\u4E3B\u63A5\u7BA1\u671F\u95F4\u7531\u5BBF\u4E3B\u811A\u672C\u540C\u6B65\u7F6E/\u6458\u8FD9\u4E2A\u7C7B\u3002 */
 html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}
-html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}}`,
+html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}
+/* \u529F\u80FD\u575E\u9762\u677F\u5728\u624B\u673A\u7AEF\u62AC\u5230\u539F\u751F\u5F39\u5C42\u4E4B\u4E0A\uFF1A\u4ECE\u4FA7\u680F\u8FDB\u7684\u5B98\u65B9\u63D2\u4EF6\u7BA1\u7406\u9875\u7B49\u539F\u751F\u5F39\u5C42 z \u5E8F\u9AD8\u4E8E
+ * \u9762\u677F\u9ED8\u8BA4\u7684 200\uFF0C\u529F\u80FD\u575E\u5F00\u5728\u4E0B\u9762\u4F1A\u88AB\u76D6\u4F4F\u2014\u2014\u300C\u63D2\u4EF6\u300D\u9875\u7B7E\u70B9\u4E86\u50CF\u6CA1\u53CD\u5E94/\u9732\u51FA\u539F\u9875\u9762\u3002 */
+[class*="dockm-backdrop"]{z-index:2000 !important}}`,
   View: MobileRelayView,
   HomeStat: MobileRelayHomeStat,
   Overlay: MobileRelayOverlay
