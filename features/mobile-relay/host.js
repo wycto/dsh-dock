@@ -204,6 +204,9 @@ const MOBILE_LAYOUT_CSS = [
   // visibility 可被后代覆盖，弹层关闭态会整体卸载（DOM 里没有 [role=dialog]），所以强制
   // 显示只在弹层真正打开时命中，是安全的；列本身继续隐藏，轨道按钮照旧被藏住。
   '  [class*="sidebarCol"]:has([class*="collapsed"]) [role="dialog"]{visibility:visible}',
+  // 功能坞面板在手机端抬到原生弹层之上：从侧栏进的官方插件管理页等原生弹层 z 序高于
+  // 面板默认的 200，功能坞开在下面会被盖住——底部「插件」页签点了像没反应/露出原页面。
+  '  [class*="dockm-backdrop"]{z-index:2000!important}',
   '}',
 ].join('\n')
 const MOBILE_LAYOUT_MARKER = 'data-dsh-mobile-layout'
