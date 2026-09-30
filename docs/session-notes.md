@@ -1569,6 +1569,44 @@ dsh 0.1.7 构建产物里判定前面加了短路，旧片段文本不再出现�
 
 - 客户端半部已重建，手机硬刷新即得；z 序规则两半部都有，重启 dsh web 后宿主版一致。
 
+## 二十一、续作会话（2026-09-30）· 点工作区文件夹不收抽屉
+
+### 现象 / 需求
+
+用户手机截图：「点击工作区文件夹的时候，不要隐藏左侧抽屉，点击会话才隐藏」——
+点文件夹只是想展开/收拢分组，抽屉却被收掉了。
+
+### 根因
+
+旧的会话叶子判定：`row && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]')`。
+工作组树的折叠节点其**子节点不在 DOM 里**——折叠状态的文件夹无子 treeitem，被误判为会话叶子。
+（0.1.7 源码 `packages/client/ui-workspace/src/client/rows/Rows.tsx` 证实。）点文件夹因此走了
+「点会话 → 收抽屉」分支。
+
+### 改法（两半部同步）
+
+按行标识精确识别，不看子节点：
+
+- 会话行：`data-row-key="session:<id>"`（源码 Rows.tsx:589）
+- 文件夹行：`data-row-key="workspace:<key>"`（:245）
+- 搜索结果行无 data-row-key（`SearchResultItem`），保留「无子叶」回退判定
+
+`data-row-key.startsWith('session:')`（宿主版 `indexOf("session:")===0`）才收起抽屉；
+文件夹行永不收；侧栏入口的面板探测分支不受影响。
+
+### 测试 / 验证
+
+- `test-mobile-relay-host`：断言注入脚本含 `rowKey.indexOf("session:")===0`，且**不得**
+  残留旧 `var leaf=row&&!row.querySelector` 判定。
+- `test-client-views` 用例 11：断言 bundle 含 `startsWith("session:")`（esbuild 会规范化
+  引号，正则需兼容单双引号——第一版写死单引号被产物抓出）。
+- `build:client` + `test:client` 全绿；`test:host` 五套 + 两套网关用例全绿。
+
+### 部署提醒
+
+- 客户端半部已重建（手机硬刷新即得）；宿主注入版随下次重启 dsh web 生效。
+
+
 
 
 
