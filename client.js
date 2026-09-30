@@ -36,18 +36,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// node_modules/qrcode/lib/can-promise.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/utils.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  "node_modules/qrcode/lib/core/utils.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -124,9 +124,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-level.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -169,9 +169,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-buffer.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -204,9 +204,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-matrix.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -233,9 +233,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alignment-pattern.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -268,9 +268,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/finder-pattern.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -287,9 +287,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mask-pattern.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -429,9 +429,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-code.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -790,9 +790,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/galois-field.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -823,9 +823,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/polynomial.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -859,9 +859,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -891,18 +891,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version-check.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  "node_modules/qrcode/lib/core/version-check.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/regex.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  "node_modules/qrcode/lib/core/regex.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -928,9 +928,9 @@ var require_regex = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mode.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  "node_modules/qrcode/lib/core/mode.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1009,9 +1009,9 @@ var require_mode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  "node_modules/qrcode/lib/core/version.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1104,9 +1104,9 @@ var require_version = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/format-info.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  "node_modules/qrcode/lib/core/format-info.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1122,9 +1122,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/numeric-data.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1157,9 +1157,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alphanumeric-data.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1236,9 +1236,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/byte-data.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1266,9 +1266,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/kanji-data.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1305,9 +1305,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// node_modules/dijkstrajs/dijkstra.js
+// .devdeps/node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  ".devdeps/node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1406,9 +1406,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/segments.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  "node_modules/qrcode/lib/core/segments.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1592,9 +1592,9 @@ var require_segments = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/qrcode.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1853,9 +1853,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/utils.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1933,9 +1933,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/canvas.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1986,9 +1986,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/svg-tag.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2044,9 +2044,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/browser.js
+// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  "node_modules/qrcode/lib/browser.js"(exports) {
+  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -11177,6 +11177,11 @@ function RemoteCard() {
             busy === "stop" ? "\u6B63\u5728\u5173\u95ED\u2026" : "\u5173\u95ED\u8FDC\u7A0B\u8BBF\u95EE"
           ] })
         ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("small", { children: [
+          "\u5DF2\u767B\u5F55\u8BBE\u5907\uFF1A",
+          typeof lan.devices === "number" ? lan.devices : 0,
+          " \u53F0\uFF08\u6539\u5BC6\u6216\u5173\u95ED\u5165\u53E3\u5373\u5168\u90E8\u4E0B\u7EBF\uFF09"
+        ] }),
         /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\uFF08\u7ED3\u6784\u4E0A\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u76F4\u8FDE\uFF09\uFF1B\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\u3002\u82E5\u5F00\u542F\u524D\u5DF2\u6709\u65E7\u670D\u52A1\u5668\u6A21\u5F0F\uFF080.0.0.0\uFF09\u914D\u7F6E\uFF0C\u4F1A\u4E00\u5E76\u79FB\u9664\u5E76\u63D0\u793A\u91CD\u542F\u3002" })
       ] })
     ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("button", { type: "button", className: "dmr-primary", onClick: enable, disabled: busy === "start", children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u2026" : /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
@@ -11251,6 +11256,7 @@ function MobileRelayOverlay() {
     scrim.className = "dsh-mobile-scrim";
     document.body.appendChild(fab);
     document.body.appendChild(scrim);
+    document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
     const tabbar = document.createElement("nav");
     tabbar.className = "dsh-mobile-tabbar";
     tabbar.setAttribute("aria-label", "\u5E95\u90E8\u5BFC\u822A");
@@ -11260,6 +11266,14 @@ function MobileRelayOverlay() {
         label: "\u4F1A\u8BDD",
         icon: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>',
         act: () => expand()
+      },
+      {
+        // 接力核心入口：公司电脑上跑着的任务，手机点这一下就能看到进度；
+        // 等待确认（任务停住等批准）时角标变红脉冲，这才是需要人插手的时刻。
+        id: "tasks",
+        label: "\u4EFB\u52A1",
+        icon: '<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>',
+        act: () => openPanel("runstate")
       },
       {
         id: "dock",
@@ -11280,6 +11294,7 @@ function MobileRelayOverlay() {
         }
       }
     ];
+    let tasksBadge = null;
     const tabButtons = tabDefs.map((def) => {
       const b = document.createElement("button");
       b.type = "button";
@@ -11287,6 +11302,12 @@ function MobileRelayOverlay() {
       b.dataset.tab = def.id;
       b.innerHTML = def.icon + "<span>" + def.label + "</span>";
       b.addEventListener("click", () => def.act());
+      if (def.id === "tasks") {
+        tasksBadge = document.createElement("span");
+        tasksBadge.className = "dsh-mobile-tab-badge";
+        tasksBadge.style.display = "none";
+        b.appendChild(tasksBadge);
+      }
       tabbar.appendChild(b);
       return b;
     });
@@ -11296,48 +11317,116 @@ function MobileRelayOverlay() {
       const settingsOpen = dialogOpen();
       for (const b of tabButtons) {
         const id = b.dataset.tab;
-        const on = id === "sessions" && expanded || id === "dock" && panelNav.open || id === "settings" && settingsOpen;
+        const on = id === "sessions" && expanded || id === "tasks" && panelNav.open && panelNav.active === "runstate" || id === "dock" && panelNav.open && panelNav.active !== "runstate" || id === "settings" && settingsOpen;
         b.classList.toggle("on", on);
       }
     };
     const unsubPanel = subscribePanel(syncTabs);
+    let runstateGone = false;
+    const pollTasks = () => {
+      if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === "hidden" || !tabbar.isConnected) return;
+      fetch("/dsh-dock/runstate/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      }).then(async (res) => {
+        if (res.status === 404 || res.status === 405) {
+          runstateGone = true;
+          tasksBadge.style.display = "none";
+          return null;
+        }
+        const body = await res.json().catch(() => null);
+        if (!body) return null;
+        const active = body.data && body.data.active || [];
+        const waiting = active.filter((t) => t.approvals && t.approvals.length).length;
+        if (waiting > 0) {
+          tasksBadge.textContent = String(waiting);
+          tasksBadge.className = "dsh-mobile-tab-badge wait";
+          tasksBadge.style.display = "";
+        } else if (active.length > 0) {
+          tasksBadge.textContent = String(active.length);
+          tasksBadge.className = "dsh-mobile-tab-badge";
+          tasksBadge.style.display = "";
+        } else {
+          tasksBadge.style.display = "none";
+        }
+      }).catch(() => {
+      });
+    };
+    const tasksTimer = setInterval(pollTasks, 3e3);
+    const vv = window.visualViewport || null;
+    const kbdSync = () => {
+      if (!vv) return;
+      const kbd = vv.height > 0 && window.innerHeight - vv.height > 120;
+      document.documentElement.classList.toggle("dsh-dock-kbd", kbd);
+    };
+    const handleEl = () => fab || document.querySelector(".dsh-mobile-drawer-btn");
     const place = () => {
-      if (!fab) return;
+      const el = handleEl();
+      if (!el) return;
+      const h = el.offsetHeight || 48;
       const vh = window.innerHeight;
       let top = null;
       const g = document.querySelector(".dgfab");
       if (g && !g.classList.contains("dgfab-hide") && g.getBoundingClientRect) {
         const r = g.getBoundingClientRect();
         if (r && r.height > 0 && r.top > 0) {
-          top = r.top - fab.offsetHeight - 8;
+          top = r.top - h - 8;
           if (top < 64) top = r.bottom + 8;
-          if (top + fab.offsetHeight > vh - 16) top = null;
         }
       }
       if (top == null) top = Math.round(vh * 0.38);
+      let ceiling = vh - 16;
+      const seats = document.querySelectorAll('[class*="composerSeat"]');
+      let dockedBottom = -1;
+      for (const s of seats) {
+        const r = s.getBoundingClientRect ? s.getBoundingClientRect() : null;
+        if (!r || r.height <= 0 || r.bottom > vh + 1 || r.bottom <= dockedBottom) continue;
+        dockedBottom = r.bottom;
+        ceiling = r.top - 8;
+      }
+      if (top + h > ceiling) top = ceiling - h;
+      const off = document.documentElement.classList;
+      if (top < 64) {
+        off.add("dsh-dock-drawer-off");
+        return;
+      }
+      off.remove("dsh-dock-drawer-off");
       fab.style.top = top + "px";
     };
     const sync = () => {
+      kbdSync();
+      document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => {
+        if (el !== tabbar) el.remove();
+      });
       const on = narrow() && !!frameEl() && !dialogOpen();
       const collapsed = sidebarCollapsed();
       const right = rightOpen();
-      if (fab) {
-        const showFab = on && collapsed && !panelNav.open && !right;
-        fab.style.display = showFab ? "" : "none";
-        if (showFab) place();
-      }
+      const showFab = on && collapsed && !panelNav.open && !right;
+      fab.style.display = showFab ? "" : "none";
+      if (showFab) place();
       if (scrim) scrim.style.display = on && !collapsed ? "" : "none";
       tabbar.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? "" : "none";
       syncTabs();
     };
     sync();
+    pollTasks();
     const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(sync) : null;
     if (observer) observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed"], subtree: true });
     const timer = setInterval(sync, 1500);
     const onMq = () => sync();
     if (mq.addEventListener) mq.addEventListener("change", onMq);
     else if (mq.addListener) mq.addListener(onMq);
-    window.addEventListener("resize", place);
+    const onResize = () => {
+      place();
+      kbdSync();
+    };
+    window.addEventListener("resize", onResize);
+    if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") pollTasks();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     const onClick = (e) => {
       if (!narrow()) return;
       const t = e.target;
@@ -11365,10 +11454,16 @@ function MobileRelayOverlay() {
       document.removeEventListener("click", onClick, true);
       if (observer) observer.disconnect();
       clearInterval(timer);
+      clearInterval(tasksTimer);
       unsubPanel();
       if (mq.removeEventListener) mq.removeEventListener("change", onMq);
       else if (mq.removeListener) mq.removeListener(onMq);
-      window.removeEventListener("resize", place);
+      window.removeEventListener("resize", onResize);
+      if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
+      document.removeEventListener("visibilitychange", onVisible);
+      document.documentElement.classList.remove("dsh-dock-drawer-off");
+      document.documentElement.classList.remove("dsh-dock-kbd");
+      document.documentElement.style.removeProperty("--dsh-dock-drawer-top");
       if (fab) fab.remove();
       if (scrim) scrim.remove();
       tabbar.remove();
@@ -11380,10 +11475,16 @@ function MobileRelayOverlay() {
 function MobileRelayHomeStat() {
   const [summary, setSummary] = (0, import_react21.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
   (0, import_react21.useEffect)(() => {
-    rpc("lan").then((data) => {
-      setSummary(data.gatewayActive ? "\u5165\u53E3\u8FD0\u884C\u4E2D \xB7 \u7AEF\u53E3 " + data.gatewayPort : data.accountSet ? "\u8D26\u53F7\u5DF2\u8BBE\u7F6E\uFF0C\u5165\u53E3\u672A\u5F00\u542F" : "\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
-    }).catch(() => {
-    });
+    const refresh = () => {
+      rpc("lan").then((data) => {
+        const devices = typeof data.devices === "number" && data.devices > 0 ? " \xB7 " + data.devices + " \u53F0\u8BBE\u5907\u5728\u7EBF" : "";
+        setSummary(data.gatewayActive ? "\u5165\u53E3\u8FD0\u884C\u4E2D \xB7 \u7AEF\u53E3 " + data.gatewayPort + devices : data.accountSet ? "\u8D26\u53F7\u5DF2\u8BBE\u7F6E\uFF0C\u5165\u53E3\u672A\u5F00\u542F" : "\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
+      }).catch(() => {
+      });
+    };
+    refresh();
+    const timer = setInterval(refresh, 1e4);
+    return () => clearInterval(timer);
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: summary });
 }
@@ -11406,17 +11507,43 @@ var feature10 = {
 .dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}
 .dsh-mobile-tab.on svg{color:var(--dk-accent,#4d9fff)}
 .dsh-mobile-tab:active{transform:scale(.94)}
+/* \u300C\u4EFB\u52A1\u300D\u9875\u7B7E\u89D2\u6807\uFF1A\u8FDB\u884C\u4E2D=\u84DD\uFF08\u6570\u91CF\uFF09\uFF0C\u7B49\u5F85\u786E\u8BA4=\u7EA2\uFF08\u6570\u91CF+\u8109\u51B2\uFF09\u2014\u2014\u63A5\u529B\u573A\u666F\u91CC
+ * \u7B49\u5F85\u786E\u8BA4\u662F\u6700\u9700\u8981\u4EBA\u4ECB\u5165\u7684\u72B6\u6001\uFF0C\u4E00\u773C\u53EF\u89C1\uFF1B\u6570\u636E\u6765\u81EA runstate \u5BBF\u4E3B\u8DEF\u7531\u4F4E\u9891\u8F6E\u8BE2\u3002 */
+.dsh-mobile-tab{position:relative}
+.dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}
+.dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}
+@keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}
 /* \u8F93\u5165\u533A\u5438\u9644\u5230 Tab \u680F\u4E0A\u65B9\uFF1A\u5BBF\u4E3B\u628A\u6B22\u8FCE\u5185\u5BB9 justify-content:center \u5782\u76F4\u5C45\u4E2D\uFF0C
- * \u624B\u673A\u89C6\u53E3\u4E0B\u8F93\u5165\u5361\u7247\u60AC\u5728\u4E2D\u90E8\u3001\u4E0B\u65B9\u7559\u51FA\u5927\u7247\u7A7A\u767D\u3002\u6539\u4E3A flex-end \u8D34\u5E95\uFF0C\u5E76\u7ED9
- * \u6EDA\u52A8\u4F53\u7559\u51FA Tab \u680F\u9AD8\u5EA6\u7684\u5185\u8FB9\u8DDD\uFF0C\u907F\u514D\u5185\u5BB9\u88AB Tab \u680F\u906E\u6321\u3002 */
-[class*="scrollBody"]{justify-content:flex-end !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
-[class*="scrollBody"]>[class*="composerSeat"]{padding-bottom:6px}
+ * \u624B\u673A\u89C6\u53E3\u4E0B\u8F93\u5165\u5361\u7247\u60AC\u5728\u4E2D\u90E8\u3001\u4E0B\u65B9\u7559\u51FA\u5927\u7247\u7A7A\u767D\u3002\u6539\u7528\u300C\u8F93\u5165\u533A margin-top:auto\u300D
+ * \u8D34\u5E95\uFF0C\u5E76\u7ED9\u6EDA\u52A8\u4F53\u7559\u51FA Tab \u680F\u9AD8\u5EA6\u7684\u5185\u8FB9\u8DDD\uFF0C\u907F\u514D\u5185\u5BB9\u88AB Tab \u680F\u906E\u6321\u3002
+ * \u26A0\uFE0F \u7EDD\u4E0D\u80FD\u7ED9\u6EDA\u52A8\u4F53\u52A0 justify-content:flex-end/center \u8D34\u5E95\uFF1A\u5185\u5BB9\u4F1A\u88AB\u6324\u5230\u6EDA\u52A8\u4F53
+ * \u8D77\u70B9\u4E4B\u5916\uFF0CChrome \u4E0D\u628A\u8D77\u70B9\u65B9\u5411\u6EA2\u51FA\u7B97\u8FDB scrollHeight\uFF08\u624B\u673A\u89C6\u53E3\u5B9E\u6D4B
+ * scrollHeight==clientHeight\u3001maxScroll==0\uFF09\uFF0C\u4F1A\u8BDD\u8BB0\u5F55\u5F7B\u5E95\u6EDA\u4E0D\u52A8\u3001\u9996\u6761\u6D88\u606F\u6C38\u8FDC
+ * \u770B\u4E0D\u5230\u3002\u5BBF\u4E3B\u534A\u90E8\u65E7\u7248\u6CE8\u5165\u91CC\u8FD8\u7559\u7740\u90A3\u6761 flex-end\uFF08\u8981\u91CD\u542F dsh web \u624D\u6D88\u5931\uFF09\uFF0C\u8FD9\u91CC
+ * \u7528\u66F4\u9AD8\u4F18\u5148\u7EA7\u7684\u9009\u62E9\u5668\u663E\u5F0F\u590D\u4F4D\uFF1A\u5237\u65B0\u9875\u9762\u5373\u4FEE\u597D\uFF0C\u4E0D\u5FC5\u7B49\u91CD\u542F\u3002 */
+[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
+[class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
+[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}
+/* \u8F93\u5165\u533A\u5DE5\u5177\u884C\u4E0A\u7684 dsh-dock chip\uFF08\u7528\u91CF/\u4F59\u989D\uFF09\uFF1A\u7A84\u5C4F\u4E0B 28cqw \u7684\u5BBD\u5EA6\u4E0A\u9650\u628A\u5B83\u4EEC\u6324\u6210
+ * \u300C\u2026\u300D\u300C\u4F59..\u300D\uFF08\u624B\u673A\u5B9E\u6D4B\uFF09\uFF0C\u65E2\u8BFB\u4E0D\u51FA\u6570\u503C\u53C8\u767D\u5360\u8F93\u5165\u884C\u7A7A\u95F4\u3002\u624B\u673A\u7AEF\u6574\u7EC4\u6536\u8D77\uFF0C\u6570\u503C\u5728
+ * \u5E95\u90E8\u300C\u529F\u80FD\u575E\u300D\u91CC\u770B\uFF08\u7528\u91CF/\u4F59\u989D\u9875\u4FE1\u606F\u66F4\u5168\uFF09\uFF1B\u684C\u9762\u7AEF\u4E0D\u52A8\u3002 */
+.dockchip-row{display:none}
 /* \u6536\u8D77\u7684\u4FA7\u680F\u8F68\u9053\uFF08collapsed rail\uFF09\u5728\u7A84\u5C4F\u53EA\u5269 1px \u5360\u4F4D\uFF0C\u4F46\u8F68\u9053\u91CC\u7684\u6309\u94AE
  * \u4ECD\u4F1A\u6EA2\u51FA\u8D34\u5728\u5DE6\u8FB9\u7F18\uFF08\u529F\u80FD\u575E/\u8FDB\u5316/\u8BBE\u7F6E\u4E09\u679A\u9732\u51FA\u534A\u8FB9\u7684\u5706\u94AE\uFF09\u3002\u9690\u85CF\u6574\u5217\uFF0C
  * \u8FD9\u4E9B\u5165\u53E3\u5DF2\u7531\u5E95\u90E8 Tab \u680F\u63A5\u7BA1\uFF1B\u5C55\u5F00\u62BD\u5C49\uFF08z 80\uFF09\u4E0D\u53D7\u5F71\u54CD\u3002 */
 [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}
-/* \u628A\u624B\u4F4D\u7F6E\u7EDF\u4E00\u4EA4\u7ED9 place()\uFF08\u4E0E\u5BBF\u4E3B\u7248\u540C\u4E00\u5957\uFF1A\u6E38\u620F\u6D6E\u6807\u6B63\u4E0A\u65B9\uFF0C\u515C\u5E95\u5DE6\u4FA7\u4E2D\u90E8\uFF09\u3002
- * \u8FD9\u91CC\u4E0D\u518D\u7528 bottom \u8986\u76D6\u2014\u2014\u4E24\u7248\u6837\u5F0F\u6253\u67B6\u4F1A\u628A\u624B\u538B\u5230\u8F93\u5165\u533A\u5DE5\u5177\u884C\u4E0A\uFF08\u89C1\u6587\u4EF6\u5934\u6CE8\u91CA\uFF09\u3002 */}`,
+/* \u628A\u624B\u7EB5\u5411\u4F4D\u7F6E\uFF1A\u4E24\u7248 place() \u5404\u81EA\u628A\u7B97\u597D\u7684\u4F4D\u7F6E\u5199\u8FDB\u5185\u8054 top\uFF08\u81EA\u5EFA\u7248\u5F52\u672C\u7EC4\u4EF6\u3001\u5BBF\u4E3B\u7248
+ * \u5F52\u5BBF\u4E3B\u811A\u672C\uFF09\uFF0C\u6837\u5F0F\u8868\u4E0D\u518D\u7528 bottom/var \u8986\u76D6\u2014\u2014\u4E24\u7248\u6837\u5F0F\u6253\u67B6\u4F1A\u628A\u624B\u538B\u5230\u8F93\u5165\u533A\u5DE5\u5177\u884C\u4E0A
+ * \uFF08\u89C1\u6587\u4EF6\u5934\u6CE8\u91CA\uFF09\u3002\u653E\u4E0D\u4E0B\u65F6\uFF08\u8F93\u5165\u533A\u592A\u9AD8\u3001\u8F6F\u952E\u76D8\u9876\u8D77\uFF09place() \u6302 dsh-dock-drawer-off
+ * \u6574\u53EA\u9690\u85CF\uFF0C\u4F1A\u8BDD\u5165\u53E3\u4EA4\u7ED9\u5E95\u90E8 Tab \u680F\u3002 */
+.dsh-dock-drawer-off .dsh-mobile-drawer-btn{display:none !important}
+/* \u8F6F\u952E\u76D8\u5F39\u51FA\uFF08visualViewport \u5224\u5B9A\uFF0C\u6302 html.dsh-dock-kbd\uFF09\uFF1ATab \u680F/\u628A\u624B\u6574\u4F53\u8BA9\u4F4D
+ * \uFF08\u6253\u5B57\u65F6\u5B83\u4EEC\u53EA\u4F1A\u6324\u5360\u952E\u76D8\u4E0A\u65B9\u7684\u4E00\u7EBF\u7A7A\u95F4\uFF09\uFF0C\u6EDA\u52A8\u4F53\u7559\u767D\u6536\u7A84\u3002\u9009\u62E9\u5668\u7279\u5F02\u6027\u9AD8\u4E8E\u4E0A\u9762\u7684
+ * 72px \u7559\u767D\u89C4\u5219\uFF0C\u80FD\u538B\u8FC7\u53BB\u3002\u5BBF\u4E3B\u63A5\u7BA1\u671F\u95F4\u7531\u5BBF\u4E3B\u811A\u672C\u540C\u6B65\u7F6E/\u6458\u8FD9\u4E2A\u7C7B\u3002 */
+html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}
+html.dsh-dock-kbd .dsh-mobile-drawer-btn{display:none !important}
+html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}}`,
   View: MobileRelayView,
   HomeStat: MobileRelayHomeStat,
   Overlay: MobileRelayOverlay
