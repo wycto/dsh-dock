@@ -773,15 +773,16 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 手机端样式契约：滚动体不设 justify-content、贴底走 margin-top:auto、chip 窄屏收起、无浮动抽屉把手");
 }
 
-// ---------- 用例 11：手机端「任务」页签与软键盘适配（接力体验契约） ----------
-// 远程访问的手机端要有「一眼看到公司电脑上任务」的入口：底部 Tab 栏第 2 页签「任务」
-// 直达运行状态页，等待确认（任务停住等批准）时角标红色脉冲；软键盘弹出时 Tab 栏让位。
-// 兜底摘除历史残留的旧 Tab 栏（全程只留一份）。
+// ---------- 用例 11：手机端「插件」页签、任务角标与软键盘适配（接力体验契约） ----------
+// 远程访问的手机端要有「一眼看到公司电脑上任务」的入口：「任务」「功能坞」合并为一个
+// 「插件」页签——任务状态以角标显示在「插件」上（进行中蓝数量、等待确认红+脉冲），
+// 有任务时点「插件」直达运行状态页；软键盘弹出时 Tab 栏让位；兜底摘除残留旧 Tab 栏。
 {
 	const issues = [];
-	if (!/id: "tasks",\s*label: "(任务|\\u4EFB\\u52A1)"/.test(bundle)) issues.push("Tab 栏没有「任务」页签定义");
-	if (!/act: \(\) => openPanel\("runstate"\)/.test(bundle)) issues.push("「任务」页签没有直达运行状态页（openPanel）");
-	if (!/\/dsh-dock\/runstate\/status/.test(bundle)) issues.push("「任务」角标没有轮询 runstate 路由");
+	if (/id: "tasks"/.test(bundle)) issues.push("残留独立的「任务」页签（应并入「插件」）");
+	if (!/id: "dock",\s*label: "(插件|\\u63D2\\u4EF6)"/.test(bundle)) issues.push("Tab 栏没有「插件」页签定义");
+	if (!/openPanel\(\(tasksActive > 0 \|\| tasksWaiting > 0\) \? 'runstate' : 'home'\)/.test(bundle) && !/tasksActive > 0 \|\| tasksWaiting > 0/.test(bundle)) issues.push("「插件」页签没有按任务状态直达运行状态页");
+	if (!/\/dsh-dock\/runstate\/status/.test(bundle)) issues.push("「插件」页签角标没有轮询 runstate 路由");
 	if (!/dsh-mobile-tab-badge/.test(bundle)) issues.push("缺少页签角标元素/样式");
 	if (!/dsh-mobile-tab-badge wait/.test(bundle)) issues.push("角标缺少等待确认（红色脉冲）态");
 	if (!/querySelectorAll\("\.dsh-mobile-tabbar"\)/.test(bundle)) issues.push("Overlay 没有兜底摘除残留旧 Tab 栏");
@@ -791,7 +792,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		console.log(`✗ 手机端任务页签契约：${issues.join("；")}`);
 		process.exit(1);
 	}
-	console.log("✓ 手机端任务页签契约：任务直达运行状态、等待确认角标红色脉冲、兜底摘除残留 Tab 栏、软键盘让位");
+	console.log("✓ 手机端任务页签契约：任务/功能坞并入「插件」、等待确认角标红色脉冲、兜底摘除残留 Tab 栏、软键盘让位");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

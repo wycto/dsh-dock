@@ -11253,6 +11253,8 @@ function MobileRelayOverlay() {
     const tabbar = document.createElement("nav");
     tabbar.className = "dsh-mobile-tabbar";
     tabbar.setAttribute("aria-label", "\u5E95\u90E8\u5BFC\u822A");
+    let tasksActive = 0;
+    let tasksWaiting = 0;
     const tabDefs = [
       {
         id: "sessions",
@@ -11261,20 +11263,12 @@ function MobileRelayOverlay() {
         act: () => expand()
       },
       {
-        // 接力核心入口：公司电脑上跑着的任务，手机点这一下就能看到进度；
-        // 等待确认（任务停住等批准）时角标变红脉冲，这才是需要人插手的时刻。
-        id: "tasks",
-        label: "\u4EFB\u52A1",
-        icon: '<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>',
-        act: () => openPanel("runstate")
-      },
-      {
         id: "dock",
-        label: "\u529F\u80FD\u575E",
+        label: "\u63D2\u4EF6",
         icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
         act: () => {
           if (panelNav.open) setPanelOpen(false);
-          else openPanel("home");
+          else openPanel(tasksActive > 0 || tasksWaiting > 0 ? "runstate" : "home");
         }
       },
       {
@@ -11295,7 +11289,7 @@ function MobileRelayOverlay() {
       b.dataset.tab = def.id;
       b.innerHTML = def.icon + "<span>" + def.label + "</span>";
       b.addEventListener("click", () => def.act());
-      if (def.id === "tasks") {
+      if (def.id === "dock") {
         tasksBadge = document.createElement("span");
         tasksBadge.className = "dsh-mobile-tab-badge";
         tasksBadge.style.display = "none";
@@ -11310,7 +11304,7 @@ function MobileRelayOverlay() {
       const settingsOpen = dialogOpen();
       for (const b of tabButtons) {
         const id = b.dataset.tab;
-        const on = id === "sessions" && expanded || id === "tasks" && panelNav.open && panelNav.active === "runstate" || id === "dock" && panelNav.open && panelNav.active !== "runstate" || id === "settings" && settingsOpen;
+        const on = id === "sessions" && expanded || id === "dock" && panelNav.open || id === "settings" && settingsOpen;
         b.classList.toggle("on", on);
       }
     };
@@ -11325,6 +11319,8 @@ function MobileRelayOverlay() {
       }).then(async (res) => {
         if (res.status === 404 || res.status === 405) {
           runstateGone = true;
+          tasksActive = 0;
+          tasksWaiting = 0;
           tasksBadge.style.display = "none";
           return null;
         }
@@ -11332,6 +11328,8 @@ function MobileRelayOverlay() {
         if (!body) return null;
         const active = body.data && body.data.active || [];
         const waiting = active.filter((t) => t.approvals && t.approvals.length).length;
+        tasksActive = active.length;
+        tasksWaiting = waiting;
         if (waiting > 0) {
           tasksBadge.textContent = String(waiting);
           tasksBadge.className = "dsh-mobile-tab-badge wait";

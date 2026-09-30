@@ -1432,4 +1432,36 @@ junction 断链——已改回 `F:/workspace/gitea/wycto/dsh-dock`。
   把手脚本，需**重启 dsh web** 才彻底消失）。
 - 十五节的部署提醒不变：任务页签/角标、PWA、断线提示、设备数仍需重启 dsh web。
 
+## 十七、续作会话（2026-09-30）· 底部 Tab「任务」「功能坞」合并为「插件」
+
+### 需求
+
+用户手机截图（红框圈出「任务」「功能坞」两枚页签）：「底部的【任务】【功能坞】更换成【插件】」——
+两个入口指向同一个功能坞面板，冗余。
+
+### 改法（两半部同步）
+
+- Tab 栏变 三页签：会话 / **插件** / 设置。「插件」即原功能坞页签（label 改名，id 仍 `dock`，
+  面板本体不改名）。
+- 任务状态不丢：原「任务」页签的角标挪到「插件」上（进行中=蓝数量、等待确认=红+脉冲，
+  轮询逻辑原样）。轮询额外维护 `tasksActive`/`tasksWaiting` 两个变量，驱动点击目标：
+  有任务在跑或等确认 → `openPanel('runstate')` 直达运行状态页；否则 `openPanel('home')`。
+  宿主版同款（`openDockSmart()`：有任务时 `openDockPage("运行状态")`，否则只开面板）。
+- `syncTabs` 高亮规则简化：`dock` 在面板打开时高亮（不再区分面板内页签）。
+
+### 测试契约
+
+- `test-client-views` 用例 11：断言**不得存在** `id: "tasks"` 独立页签；`id: "dock"` 的
+  label 必须是「插件」；保留角标/轮询/软键盘/摘残留 Tab 栏断言。
+- `test-mobile-relay-host`：注入页同样断言无 `{id:"tasks"`、有 `{id:"dock",label:"插件"`。
+
+### 验证
+
+- `build:client` + `test:client` 全绿；`test:host` 五套 + `test-mobile-relay(-host)` 全绿。
+- README（手机端接力体验段）/ CHANGELOG（未发布段）同步。
+
+### 部署提醒
+
+- 客户端半部已重建，手机硬刷新即得三页签；宿主注入版需重启 dsh web 后一致。
+
 
