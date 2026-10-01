@@ -15,7 +15,8 @@
 //   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效配置持久化（参照 @wycto/dsh-task-pulse）
 //   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
 //   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
-//   - mobile-relay 手机接力（未发布）：扫码反向代理接力 + 局域网电脑直连（0.0.0.0）
+//   - mobile      手机适配：窄屏排版/Tab 栏/抽屉/遮罩/键盘（宿主经 tapIndex 注入 index.html）
+//   - mobile-relay 远程访问：账号密码登录的远程入口（网关 + 账号 + 浏览模式目录选择器）
 import { DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
@@ -25,6 +26,7 @@ import { feature as fAnimation } from './features/animation/host.js'
 import { feature as fNotify } from './features/notify/host.js'
 import { feature as fRunState } from './features/runstate/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
+import { feature as fMobile } from './features/mobile/host.js'
 
 export const name = 'dsh-dock'
 
@@ -66,6 +68,7 @@ export function apply(ctx, config) {
     fNotify,
     fRunState,
     fMobileRelay,
+    fMobile,
   ]
 
   // 绑定 Config 镜像（替代已移除的 settings.get）；volatile 字段热更时重绑。

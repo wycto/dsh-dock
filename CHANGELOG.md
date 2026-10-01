@@ -2,6 +2,46 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## 0.14.0 — 2026-10-01
+
+### 修复
+
+- **手机端「哪都滑不动」**（用户实测：会话/侧边栏/设置……所有地方都滑不动）。两条独立根因：
+  1. **设置/弹层被内容撑高后裁死**：窄屏排版把 `[role="dialog"][class*="panel"]` 改成
+     `flex-direction:column + height:100vh` 后，内容列（`[class*="content"]`）是默认
+     `min-height:auto` 的 flex item，会被内容撑高（无头 390×844 实测列高 1216px 塞在
+     844px 视口里），再被 `.panel` 的 `overflow:hidden` 裁掉——列内滚动容器
+     （`[class*="options"]`）因此 `scrollHeight == clientHeight`，手指怎么滑都不动。
+     修复：内容列补 `min-height:0`（实测补上后 scrollTop 0 → 425）。
+  2. **滚动兜底**：所有纵向滚动体（会话滚动体 / 侧栏列表 / 设置 options / 功能坞内容）
+     显式声明 `touch-action:pan-y` + `-webkit-overflow-scrolling:touch` + `overscroll-behavior-y:contain`，
+     避免祖先合成层/触控声明把触摸滚动吃掉。
+  另：抽屉遮罩是全屏 `touch-action:none` 浮层，现已钉死「只在抽屉真的展开时显示」，
+  收起态必须 `display:none`——残留一份会让整页滑不动（放大因素之一，一并修掉）。
+- **点工作区文件夹误收侧边栏**：侧栏树的点击路由现在按 `data-row-key` 前缀分流——
+  `session:` 行才收抽屉；`workspace:` 行早退（只展开/收拢分组，既不收抽屉也不做
+  「面板弹出即收起」探测）；仅侧栏入口（插件/设置…）保留「面板弹出即收起」探测。
+
+### 变更
+
+- **手机端适配从【远程访问】迁到【手机适配】**（用户要求：远程访问就单纯的远程访问）。
+  - 【手机适配】新增宿主半部 `features/mobile/host.js`：窄屏排版样式 + 行为脚本经
+    `webServer.tapIndex` 注入 index.html（重启 dsh web 后生效），含底部 Tab 栏
+    （会话/插件/设置，等待确认角标红色脉冲）、侧栏抽屉遮罩、软键盘让位、设置弹层纵排。
+  - 【手机适配】客户端 Overlay 升级为「自建同款 chrome」：宿主脚本未就位时（旧版无注入
+    或刷新早于重启）自建整套，两者仍用 `window.__dshDockMobileDrawer` 先到先得互斥。
+    没开远程访问的本机窄屏同样生效；停用【手机适配】即全部还原。
+  - 【远程访问】回归纯粹：只保留网关（账号密码登录、二维码、令牌兑换、浏览模式目录
+    选择器、LAN 非安全上下文 crypto.randomUUID 兜底、远程「预览版说明」自动确认）。
+    不再注入任何窄屏排版/Tab 栏/遮罩。
+- **浮动侧栏按钮（44px FAB）移除**（用户要求）：会话入口统一走底部 Tab 栏「会话」页签，
+  FAB 与其重复且悬浮在内容上；`dsh-dock/mobile/v1` 偏好与面板开关一并移除。
+- **测试契约更新**：新增 `scripts/test-mobile-host.mjs`（手机适配宿主注入契约：
+  窄屏 chrome + 滚动兜底 + 点击路由 + 与远程访问解耦）；`test-mobile-relay-host.mjs`
+  反转为「远程访问注入页只含 LAN crypto 兜底，不得含任何手机端 chrome」；
+  `test-client-views.mjs` 的手机端样式/页签契约跟随新归口。`package.json` 的
+  `test:host` 序列补进 `test-mobile-host.mjs`。
+
 ## 0.13.0 — 2026-10-01
 
 ### 新增
