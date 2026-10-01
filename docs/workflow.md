@@ -124,8 +124,15 @@ features/<id>/
 一次性设置：
 
 ```bash
-# 1) 开发期依赖（esbuild 构建 + qrcode/js-yaml 运行）装到 .devdeps/（仓库内，git 忽略）
-cd .devdeps && pnpm install && cd ..
+# 1) 开发期依赖（esbuild 构建 + qrcode/js-yaml 运行）装到 .devdeps/（仓库内，git 忽略）。
+#    .devdeps 不随仓库走，首次要自建 manifest——目录名以点开头、不是合法包名，
+#    不能用 npm init -y，得手写 package.json：
+mkdir -p .devdeps
+printf '{"name":"dsh-dock-devdeps","private":true}\n' > .devdeps/package.json
+npm install --prefix .devdeps js-yaml@^4.1.0 qrcode@^1.5.4 esbuild
+#    js-yaml 必须锁 v4：v5 起不再提供 default 导出，宿主半部 import yaml from 'js-yaml' 会直接抛。
+#    用 pnpm 的话：cd .devdeps && pnpm add js-yaml@^4.1.0 qrcode@^1.5.4 esbuild && pnpm approve-builds
+#    （pnpm 默认拦住 esbuild 的构建脚本，不 approve 则 esbuild 二进制不可用、npm run build:client 会挂。）
 
 # 2) 生成 <repo>/node_modules 链接：
 #    - @deepseek-ai/* → DSH 安装闭包（与宿主同一模块实例，避免 cordis 类身份分叉）

@@ -29,11 +29,14 @@ const upstream = createServer((req, res) => {
   }
   if (req.url && req.url.startsWith('/plugins/@deepseek-ai/dsh-client-connection/client.js')) {
     // ?plain=1 模拟上游升级后片段消失：应原样透传，不做改写。
-    // 不带 content-length（chunked），贴近 DSH 真实形态——改写后必须重设长度并
-    // 去掉 transfer-encoding，否则两种长度语义并存是协议错误。
+    // ?rev=v017 模拟 dsh ≥0.1.7 的新片段（ownsHost 短路进判定，旧片段文本不再出现）。
+    // 默认（旧 rev）模拟 ≤0.1.6 的旧片段。不带 content-length（chunked），贴近 DSH
+    // 真实形态——改写后必须重设长度并去掉 transfer-encoding，否则两种长度语义并存是协议错误。
     const body = req.url.includes('plain=1')
       ? `var keep=1;isLoopbackHostname(pageLocation.hostname);`
-      : `var x=1;${CONNECTION_SNIPPET};var y=2`
+      : req.url.includes('rev=v017')
+        ? 'var x=1;isLoopback: transport?.ownsHost === true || pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname);var y=2'
+        : `var x=1;${CONNECTION_SNIPPET};var y=2`
     res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' })
     res.end(body)
     return
@@ -108,6 +111,29 @@ try {
   const loginHtml = await loginPage.text()
   assert.match(loginHtml, /账号/)
   assert.match(loginHtml, /__dsh_auth\/login/)
+  // 登录页带 PWA head 标签（未登录也能「添加到主屏幕」）与密码明文切换。
+  assert.match(loginHtml, /rel="manifest"/)
+  assert.match(loginHtml, /apple-mobile-web-app-capable/)
+  assert.match(loginHtml, /theme-color/)
+  assert.match(loginHtml, /peek/)
+
+  // PWA 资源在登录前即可取（manifest + 零依赖 PNG 图标）。
+  const manifestRes = await fetch(base + '/__dsh_auth/manifest.webmanifest')
+  assert.equal(manifestRes.status, 200)
+  assert.match(manifestRes.headers.get('content-type') || '', /manifest\+json/)
+  const manifest = await manifestRes.json()
+  assert.equal(manifest.display, 'standalone')
+  assert.equal(manifest.start_url, '/')
+  assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 3, 'manifest 需要 192/512/maskable 图标')
+  const iconRes = await fetch(base + '/__dsh_auth/icon-192.png')
+  assert.equal(iconRes.status, 200)
+  assert.equal(iconRes.headers.get('content-type'), 'image/png')
+  const iconBytes = Buffer.from(await iconRes.arrayBuffer())
+  assert.equal(iconBytes.subarray(0, 4).toString('hex'), '89504e47', '图标必须是合法 PNG')
+  assert.ok(iconBytes.length > 1000, '图标不应是空壳')
+  const maskableRes = await fetch(base + '/__dsh_auth/icon-maskable-512.png')
+  assert.equal(maskableRes.status, 200)
+  assert.ok(Buffer.from(await maskableRes.arrayBuffer()).length > 1000)
 
   // 错误凭据 → 401；正确凭据 → 会话 Cookie。
   const bad = await login(ACCOUNT.username, 'wrong')
@@ -150,11 +176,26 @@ try {
   const againBundle = await (await fetch(base + '/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=abc', { headers: { cookie: good.cookie } })).text()
   assert.equal(againBundle, patched)
 
+  // dsh ≥0.1.7 的新片段（ownsHost 短路进判定）：同样必须改写为恒真——0.1.7 上线时
+  // 旧片段不再出现，网关没跟上曾让手机设置/模型页再次 unavailable（用户实测截图）。
+  const bundleNew = await fetch(base + '/plugins/@deepseek-ai/dsh-client-connection/client.js?rev=v017', { headers: { cookie: good.cookie } })
+  const patchedNew = await bundleNew.text()
+  assert.match(patchedNew, /isLoopback: !0 \/\* dsh-dock remote gateway \*\//)
+  assert.doesNotMatch(patchedNew, /ownsHost === true/)
+  assert.equal(bundleNew.headers.get('content-length'), String(Buffer.byteLength(patchedNew)))
+
   // 登录后：页面带远程标记与兼容脚本注入；Host/Origin 已改写为回环；Cookie 透传。
   const page = await fetch(base + '/app', { headers: { cookie: good.cookie } })
   assert.equal(page.status, 200)
   const html = await page.text()
-  assert.match(html, /<head><script data-dsh-mobile-compat src="\/__dsh_mobile\/compat\.js"><\/script><script>/)
+  assert.match(html, /<head><script data-dsh-mobile-compat src="\/__dsh_mobile\/compat\.js"><\/script><meta name="theme-color"/)
+  // PWA head 标签注入进 DSH 页面（主页面里「添加到主屏幕」才有清单可用）。
+  assert.match(html, /rel="manifest"/)
+  assert.match(html, /apple-mobile-web-app-capable/)
+  // 远程标记 + 断线监视在 compat.js 文件内（退出登录按钮的依赖 + 断线顶部胶囊）。
+  const compat = await (await fetch(base + '/__dsh_mobile/compat.js', { headers: { cookie: good.cookie } })).text()
+  assert.match(compat, /__DSH_REMOTE__/)
+  assert.match(compat, /连接已断开/)
   const probe = await (await fetch(base + '/probe', {
     headers: { cookie: good.cookie, origin: `http://127.0.0.1:${gateway.port}` },
   })).json()

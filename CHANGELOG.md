@@ -2,6 +2,160 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## 0.13.0 — 2026-10-01
+
+### 新增
+
+- **手机适配（features/mobile，纯 Client）**：手机/窄屏排版与触控兜底。视口 ≤820px 或主指针为
+  粗触无悬停时在 body 打 `data-dk-mobile="1"`，全局兜底样式全部挂在该属性下——功能停用即
+  一秒还原。生效项：输入类控件字号拉到 16px（iOS Safari 聚焦 <16px 输入框会强制缩放整页，
+  实测聊天输入框 14px 每点一次缩一次）、纯图标按钮（唯一子元素为 svg）触控面积兜底 ≥36px
+  （实测一批 28×28 工具钮手机上点不中）、`touch-action: manipulation` + 去点按高亮、代码块
+  横向滚动与行内代码换行、viewport meta 补 `viewport-fit=cover`（standalone 下 safe-area 才有值）。
+  附 44px 浮动侧栏开关（左下角，调用 dsh 官方 `ctx.layout.toggleSidebar` 驱动窄屏抽屉，
+  localStorage `dsh-dock/mobile/v1` 可隐藏）。与【远程访问】的手机 chrome 互斥协调：
+  见 `window.__dshDockMobileDrawer` 旗标（远程访问的抽屉把手/底部 Tab 在场时浮动按钮自动让位），
+  其 30px 贴边把手也被排除在按钮面积兜底之外。选择器依据来自 390×844 真实视口实测
+  （390px 下 dsh 原生窄屏抽屉可用，缺的是输入字号/触控面积/代码块滚动这层兜底）。
+
+### 修复
+
+- **远程访问时「预览版说明」每次刷新都重弹**：dsh 0.2.0 的欢迎确认对远程（非回环）浏览器
+  走 memory 模式——确认只存页面进程内存，刷新即丢（`welcome-store.ts` 文件头注释明示的
+  设计），profile patch 里钉 `welcomeNoticeVersion` 也无效（memory 分支不读持久值）。
+  远程访问功能现在在非回环地址访问时自动替用户确认一次（每次页面加载最多点一次，
+  回环地址不介入，保留 dsh 原生的一次性持久确认）。
+
+### 新增
+
+- **手机端底部 Tab 栏新增「任务」页签 + 等待确认角标（接力核心入口）**：
+  公司电脑上跑着的任务，手机点「任务」直达功能坞「运行状态」页。有任务进行中时页签角标显示
+  蓝色数量；**等待确认（任务停住等你批准工具调用）时角标变红并脉冲**——这是远程接力里最需要
+  人介入的时刻，不用翻面板一眼可见。宿主注入版与客户端自建版各自实现（互斥模型见「修复」）：
+  客户端让位期间由宿主版承担（低频轮询 runstate 路由，该功能未启用时静默停轮询）；宿主版
+  「任务」页签没有 openPanel 总线，降级为「开功能坞 → 找运行状态导航」。
+- **手机「添加到主屏幕」PWA 支持**：网关向所有经代理的 HTML（登录页 + DSH 页面）注入 PWA
+  head 标签与 manifest（standalone 全屏打开，无浏览器地址栏），图标为**零依赖光栅化生成的
+  PNG**（192 / 512 / maskable，品牌渐变圆角块 + 白色对话气泡，zlib + CRC32 手写 PNG 编码，
+  不新增依赖）。manifest 与图标在登录前即可取——未登录也能先装好，打开后未登录自然进登录页。
+- **断线重连提示**：手机换网（WiFi↔蜂窝）、锁屏久置后连接可能已死而页面毫无提示。网关向远程
+  页面下发断线监视脚本（随 compat.js），经健康端点低频探测，**连续 2 次失败才提示**
+  （防瞬时抖动闪现）；断线时页面顶部出现「连接已断开，正在重连…」胶囊，恢复后自动消失；
+  系统 offline/online 事件立即响应。
+- **软键盘让位**：visualViewport 与布局视口高度差超阈值判定键盘弹出（挂 `html.dsh-dock-kbd`），
+  底部 Tab 栏与抽屉把手整体隐藏、滚动体留白 72px→12px——打字时它们只会挤占键盘上方的一线
+  空间；没有 visualViewport 的老内核自动跳过。
+- **面板显示在线设备数**：网关下发当前有效登录会话数（`sessionCount` → `lanStatus.devices`），
+  「远程访问」页与首页总揽卡片显示「N 台设备在线」；改密或关闭入口即全部下线。
+- **登录页密码明文切换**：手机键盘小、输错成本高，密码框增加「显示/隐藏」切换；提交后按钮
+  立即禁用防重复提交。
+
+### 文档
+
+- **README 补「从源码安装」方式**：原有「安装」只写了 `dsh plugin --profile web add dsh-dock` 和一句
+  本地路径安装，没提 `link:` 不装依赖这一步——照做会 MODULE_NOT_FOUND。现在拆成「npm 安装」与
+  「从源码安装（本地检出 + link:）」两条，后者给出 克隆 → 源码树装运行期依赖（`js-yaml`/`qrcode`）
+  → `dsh plugin --profile web add "link:$PWD"` → 重启生效 的完整步骤，并说明源码安装后的更新/重建约定
+  （宿主半部改动重启 `dsh web`、客户端源码改动 `npm run build:client`），开发机 HMR 流程指向
+  `docs/workflow.md` §4b。
+- **`docs/workflow.md` §4b 补 `.devdeps` 首次自建步骤**：此前写作 `cd .devdeps && pnpm install`，
+  但 `.devdeps` 被 git 忽略、全新检出并不存在，且目录名不是合法包名（`npm init -y` 会报
+  `Invalid name: ".devdeps"`）。现在给出写 manifest + `npm install --prefix .devdeps` 的可用命令，
+  并注明 `js-yaml` 必须锁 v4（v5 起无 default 导出）与 pnpm 需 `approve-builds`。
+
+### 修复
+
+- **手机端设置/模型页再次报 "settings are unavailable in this browser"（dsh 0.1.7）**：
+  网关对连接客户端 bundle 的「回环自判」定点改写依赖精确文本，dsh 0.1.7 在该判定前面
+  加了 `transport?.ownsHost === true ||` 短路——旧片段在新产物里不再出现，网关匹配
+  不上就原样放行，手机端设置镜像又退回 memory 模式（实测本机 0.1.7 产物确认）。
+  现按代际维护候选片段（新版优先 + 旧版兜底），两代产物都能改写为恒真；测试补
+  0.1.7 片段用例。网关半部改动，重启 `dsh web` 生效。
+- **`scripts/dev-link-deps.mjs` 在全新检出上崩溃**：清理旧链接时 `lstatSync(link)` 裸调用对不存在的
+  路径抛 ENOENT（`existsSync` 对悬空链接也返回 false，短路不了），全新树第一次跑必挂；改为整体
+  try/catch 取 lstat 结果。源码安装 / 新机初始化因此才能一次跑通。
+- **远程访问账号丢失、网关开不起来**：dsh 升级把 `~/.dsh/settings.yaml` 改名
+  `settings.yaml.imported` 后，官方导入 `dsh-dock` 段失败（当时插件还没导出 Config），
+  `remoteAuth`/通知/动画/视觉模型配置全部滞留其中，只剩 features 被补迁——表现为
+  `accountSet:false`、网关无法开启。新增 `migrateImportedSections` 启动时一次性全量恢复：
+  features 逐键补缺（现网已有键不回退）、现网仍等于 schema 缺省的段整段恢复、现网有用户
+  改动的段一律不覆盖（如单价表）、imported 旧字段按 schema 白名单过滤（animation 段的旧通知
+  字段不再拖垮写入，完整配置由 notify 段承接）、逐段隔离失败不互相拖累、
+  `importedRestored` 标记幂等（第二次执行零写入）。
+- **重启 dsh web 后远程访问不再自动拉起**：网关只由面板手动「开启」启动。新增
+  `remoteGateway.enabled/port` 持久化（`lan/start` 落盘 true、`lan/stop` 落盘 false），
+  插件加载时若曾开启且账号仍在，自动按上次端口把网关重新监听（仍需登录才可进入）。
+- **手机端出现两套底部 Tab 栏、抽屉把手压住输入工具行**：宿主 `<head>` 注入版与客户端
+  Overlay 版各建一套 chrome（诊断 `tabbars:2, tabs:6`），且客户端 CSS 用 `bottom:96px !important`
+  覆盖宿主 `place()` 定位，把手掉到 y=700 挨着输入框。客户端 Overlay 见到宿主旗标
+  `__dshDockMobileDrawer==='host'` 后整体让位（零副作用退出），并删除该 bottom 覆盖——
+  把手位置统一由宿主 `place()` 决定。
+- **手机端点「设置」打开的是空气弹层**：设置/插件管理弹层挂在侧栏列内部
+  （footArea → settingsArea → overlay → panel），而窄屏隐藏塌陷轨道的
+  `visibility:hidden` 规则把它连坐隐藏（390×844、属性齐全但不绘制）。补后代例外
+  `[role=dialog]{visibility:visible}`；关闭态弹层整体卸载，例外只在真正打开时命中。
+- **移除左缘浮动「抽屉把手」**：与底部 Tab 栏「会话」页签功能完全重复，还悬浮在
+  会话内容上、曾压住输入卡（用户实测截图圈出）。两半部（宿主注入版 + 客户端自建版）
+  都不再创建，相关定位算法（游戏浮标正上方 / 输入区天花板）与样式一并删除——
+  会话抽屉的唯一入口是底部 Tab 栏「会话」页签。
+- **抽屉展开时点侧栏入口（插件/自动化任务/设置/记忆/自动进化…）像「没反应」**：
+  这些入口弹出的面板 z 序常低于展开的抽屉，被盖住看不见（用户实测截图）。两半部的
+  侧栏点击处理补「面板探测」：点击后稍候检查，有面板（`[role="dialog"]`）弹出就自动
+  收起抽屉让它露出来——不写死条目名，目录折叠/搜索等不弹面板的点击不受影响。
+- **点工作区文件夹把抽屉收掉了**：旧的「无子 treeitem 即会话叶子」判定误伤折叠状态的
+  文件夹（折叠时其子节点不在 DOM 里）；用户实测点文件夹只是想展开/收拢分组，抽屉却收了。
+  改为按行标识精确识别：DSH 0.1.7 会话行 `data-row-key="session:<id>"`、文件夹行
+  `workspace:<key>`（来源 `ui-workspace/src/client/rows/Rows.tsx`）——只有 `session:`
+  前缀（及无标识的搜索结果行）才收抽屉，文件夹行永不收。
+- **底部 Tab 栏「任务」「功能坞」合并为「插件」**：两个入口指向同一个功能坞面板，
+  冗余（用户反馈）。任务状态角标挪到「插件」页签上（进行中蓝色数量、等待确认红色
+  脉冲不变）；有任务在跑或等确认时点「插件」直达「运行状态」页，否则进面板首页。
+  Tab 栏变为 会话 / 插件 / 设置 三页签。
+- **点「插件」页签露出的是官方插件管理页而不是功能坞**：页签原本是开关式——功能坞
+  处于打开态（哪怕被原生全屏页盖住）时再点一下会把它关掉，露出的反而是从侧栏进来的
+  官方插件管理页；且这类原生弹层 z 序高于功能坞面板默认的 200，功能坞开在下面也会被
+  盖住。改为「插件」页签**始终打开功能坞**（关闭走面板自己的 ✕），手机端把功能坞
+  面板 z 序抬到原生弹层之上（`dockm-backdrop` → 2000，仅窄屏媒体查询内）。
+- **手机端右侧详情面板双重曝光、点击穿透**：dsh 0.1.7 窄屏原生全屏态
+  （`data-sidebar-right-panel="fullscreen"`）背景透明——会话页从缝隙整屏透出；面板与
+  panelBody 还是 `pointer-events:none`，空隙点击穿到下层。补不透明背景 + 拦穿透 + z 88，
+  行为脚本与客户端在面板打开时隐藏底部 Tab 与抽屉把手；同时适配 `detailsCol` →
+  `rightbarCol` 改名与 `data-sidebar-right-*` 新结构（旧选择器已全部失效，收起详情
+  改走面板内 `[data-sidebar-right-toggle]`）。
+- **手机端「退出登录」按钮点了没反应**：网关注释声称注入 `window.__DSH_REMOTE__`，实际从未
+  注入——远程面板靠健康探针检测到网关就显示退出按钮，但点击读不到注销地址、静默无动作。
+  现在该标记随 compat.js 一并下发（与断线监视脚本同文件），按钮真正可用了。
+- **手机端会话记录完全滑不动（远程访问 / 窄屏）**：
+  为让欢迎页的输入卡贴底，手机端样式给会话滚动体加了 `justify-content: flex-end`。
+  内容因此从滚动体起点溢出，而 Chrome 不把起点方向的溢出算进 `scrollHeight`——无头 Chrome
+  390×844 实测 `scrollHeight == clientHeight`、`maxScroll == 0`，整段会话定格在视口外，
+  首条消息永远停在视口上方 2000px 处（「对话」「轨迹」同一个滚动体，一起坏）。
+  改为**输入区自己的 `margin-top: auto`** 贴底：有剩余空间才生效、不制造起点溢出，欢迎页照样贴底。
+  客户端 bundle 另加一条更高优先级的复位规则（`[class*="scrollBody"][data-conversation-scroll]`
+  → `justify-content: flex-start`），压过已启动进程里残留的旧宿主注入——**刷新页面即修好，不必等重启**。
+- **抽屉把手压住输入卡左下角的 + 按钮**：
+  把手贴趣味游戏浮标定位，浮标被拖到输入区一带时，把手正好盖在输入卡上（用户截图可见）。
+  两版 `place()` 的**天花板都取最靠下的输入区（`composerSeat`）顶边**，放不下（输入区很高、
+  软键盘顶起）挂 `dsh-dock-drawer-off` 整只隐藏——会话入口由底部 Tab 栏承担。
+- **手机端输入区 chip 被挤成「余..」「…」**：
+  `min(216px, 28cqw)` 的宽度上限在手机上把「用量 / 余额」两个 chip 截成读不出数值的省略号，
+  还占着本就拥挤的工具行。窄屏整组收起，数值在底部「功能坞」的用量/余额页看（桌面端不受影响）。
+
+### 测试
+
+- `npm run test:host` 扩容：并入 `scripts/test-legacy-import.mjs`（imported 恢复语义五条断言）
+  与 `scripts/test-mobile-relay-host.mjs` / `test-mobile-relay.mjs`（远程访问网关全链路）；
+  远程访问宿主用例补网关持久化断言（start 落盘 true / stop 落盘 false）与「重启自动拉起」
+  用例（跨 setup 实例复用 settings 桩验证自动监听同端口）。`test-mobile-relay-host` 的
+  settings 桩补 `ctx.get('settings')`（0.1.7 起宿主半部就绪检查走该路径，旧桩必 500）。
+- 注入 HTML 增加断言：设置弹层的 `visibility:visible` 例外必须存在（防回归连坐隐藏）。
+- `test-client-views` 新增用例 10「手机端样式契约」：滚动体不得设 `flex-end/center`、必须显式复位成
+  `flex-start`、贴底走 `margin-top:auto`、窄屏收起 chip；用例 11「手机端任务页签契约」：
+  「任务」直达运行状态、等待确认角标红色脉冲、软键盘让位。
+- `test-mobile-relay-host` 加同款断言 + 「把手定位必须避开输入区」+ 任务页签/角标/软键盘契约。
+- `test-mobile-relay` 补 PWA 断言：manifest（standalone/start_url/3 图标）与 PNG 图标路由在登录前
+  可取且字节流合法；登录页与 DSH 页面均注入 PWA head 标签；compat.js 内含远程标记与断线监视。
+
 ## v0.12.0 — 2026-09-23
 
 ### 新增
