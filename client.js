@@ -11693,6 +11693,13 @@ var css6 = [
   ".dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}",
   "@keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}",
   "@media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}",
+  // ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
+  // 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
+  // （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden
+  // 裁掉——列内滚动容器（[class*=options]）因此 scrollHeight==clientHeight，手指怎么滑
+  // 都不动。补 min-height:0 后 scrollTop 0 → 425。宿主半部 MOBILE_LAYOUT_CSS 同款；
+  // 两处都写是因为宿主注入要重启 dsh web 才更新，而客户端样式刷新即生效，覆盖窗口期。
+  '[role="dialog"][class*="panel"]>[class*="content"]{min-height:0!important}',
   // 输入区吸附到 Tab 栏上方 + 滚动体留白（与宿主半部同款）。
   // ⚠️ 绝不能给滚动体加 justify-content:flex-end/center 贴底：内容会被挤到滚动体
   // 起点之外，Chrome 不把起点方向溢出算进 scrollHeight（手机视口实测
