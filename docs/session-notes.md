@@ -1611,3 +1611,51 @@ dsh 0.1.7 构建产物里判定前面加了短路，旧片段文本不再出现�
 
 
 
+
+## 十五、续作会话（2026-10-01）· 手机适配功能化 + 预览版说明远程重弹修复
+
+### 背景
+
+用户在 `~/.dsh-web-company`（dsh 0.2.0-rc.2 源码 checkout，`dsh web` 绑 `0.0.0.0:12080`，
+EasyTier 组网从外网访问）提出：手机端排版/交互要适配，且远程访问时「预览版说明」每次刷新
+都重弹。两项都落在本插件。
+
+### 现象 / 根因
+
+1. **手机排版**：390×844 真实视口实测——dsh 原生窄屏抽屉（`SIDEBAR_AUTO_COLLAPSE=1024`）
+   可用，缺口是：composer/输入类控件 14px（iOS 聚焦 <16px 输入框强制缩放整页，即上节
+   「遗留/知识点」预告的问题）、一批 28×28 纯图标按钮点不中、代码块撑破版面、viewport meta
+   无 `viewport-fit=cover`。
+2. **预览版说明重弹**：dsh 0.2.0 `ui-settings-models/src/client/welcome-store.ts`（头注释
+   明示）：回环浏览器确认走宿主持久化（一次永久）；**远程（非回环）浏览器 scope 为
+   memory 模式，确认只存页面进程内存，刷新即丢**——profile patch 钉 `welcomeNoticeVersion`
+   无效（memory 分支不读持久值）。属官方安全设计，非 bug。
+
+### 改法
+
+- 新增 `features/mobile/view.js`（纯 Client，默认启用）：视口 ≤820px 或 粗触无悬停 →
+  body 打 `data-dk-mobile="1"`，兜底样式全挂该属性（css 字段无条件并入全局 <style>，
+  此协议保证停用即还原）。生效项：输入 16px、纯图标按钮 ≥36px（排除 `dsh-mobile-drawer-btn`
+  30px 贴边把手）、touch-action/去点按高亮、代码块滚动、viewport-fit=cover；
+  44px 浮动侧栏开关（`ctx.layout.toggleSidebar()`，偏好存 `dsh-dock/mobile/v1`）。
+  与远程访问手机 chrome 协调：`__dshDockMobileDrawer` 旗标 + 700px 带判断，带内让位、
+  带外（700–820px 盲区）回归。
+- `features/mobile-relay/view.jsx`：Overlay 加独立 effect——非回环地址访问时 MutationObserver
+  监视「预览版说明/Preview Notice」对话框并自动点一次「继续」（每页加载最多一次；回环不介入）。
+- `src/client.jsx` 注册 + DOCK_VERSION 0.13.0；`package.json` 0.13.0；`test-client-views.mjs`
+  FEATURES 补 mobile 断言；README 功能表 + CHANGELOG。
+
+### 验证
+
+- `npm run build:client`（DSH_DOCK_ESBUILD 指 harness 树内 esbuild JS 入口的 CLI 包装器）
+  + `test:client` 11/11 + `test:host` 全绿。
+- 一次性探针实例（独立 DSH_HOME + profile `package.json` 声明 `link:` + patch 用
+  `insert:` 语法插入 dsh-dock 行——裸 id+name 是改已有行，会报 entry not found）浏览器实测：
+  390px body 属性 ✓ / composer 16px ✓ / 把手保持 30px ✓ / FAB 让位 ✓；
+  760px FAB 出现可见 ✓；无横向溢出。
+
+### 部署
+
+- 构建产物已同步 `~/.dsh-web-company/profiles/web/node_modules/dsh-dock/`（拷贝安装）；
+  **需重启该 `dsh web`**（旧进程仍在跑 0.12.0 客户端模块）。
+- `~/.dsh` 的 symlink 安装自动跟随仓库，无需同步。

@@ -175,6 +175,46 @@ export function MobileRelayView() {
  * 已翻转而自然空转。
  */
 export function MobileRelayOverlay() {
+  // —— 预览版说明自动确认（独立 effect，与下方抽屉 chrome 的宿主互斥无关）——
+  // 根因（dsh 0.2.0-rc.2 ui-settings-models/src/client/welcome-store.ts，文件头注释原文）：
+  // 回环浏览器的确认走宿主持久化，一次确认永久生效；**远程（非回环）浏览器的设置 scope
+  // 是 memory 模式，确认只存页面进程内存，刷新即丢**——所以从局域网/组网 IP 打开时
+  // 「预览版说明」每次刷新都重弹，profile patch 里钉 welcomeNoticeVersion 也救不了
+  // （memory 分支根本不读持久值）。这里在远程访问场景下替用户点一次「继续」：
+  // 每次页面加载最多点一次，回环地址不介入（让 dsh 原生的一次性持久确认自然工作）。
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined
+    const host = (window.location && window.location.hostname) || ''
+    const loopback = host === '127.0.0.1' || host === 'localhost' || host === '::1' || host.endsWith('.localhost')
+    if (loopback) return undefined
+    if (typeof MutationObserver === 'undefined') return undefined
+    let done = false
+    const tryDismiss = () => {
+      if (done) return
+      const dialogs = document.querySelectorAll('[role="dialog"]')
+      for (const dialog of dialogs) {
+        const text = (dialog.textContent || '')
+        if (!/预览版说明|Preview Notice/.test(text)) continue
+        const btn = [...dialog.querySelectorAll('button')].find((b) => {
+          const t = (b.textContent || '').trim()
+          return t === '继续' || t === 'Continue'
+        })
+        if (btn) {
+          done = true
+          btn.click()
+          observer.disconnect()
+        }
+        break
+      }
+    }
+    const observer = new MutationObserver(tryDismiss)
+    observer.observe(document.body, { childList: true, subtree: true })
+    tryDismiss()
+    // 兜底停止：说明若 60 秒内没出现（未来版本改版/被官方移除），观察器自动退场
+    const stopTimer = setTimeout(() => observer.disconnect(), 60000)
+    return () => { clearTimeout(stopTimer); observer.disconnect() }
+  }, [])
+
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined
     const mq = window.matchMedia ? window.matchMedia('(max-width:700px)') : null
