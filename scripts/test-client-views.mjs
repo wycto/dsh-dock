@@ -361,6 +361,7 @@ const FEATURES = [
 	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
 	{ id: "mobile-relay", name: "远程访问", marker: "远程", deep: true },
+	{ id: "mobile", name: "手机适配", marker: "手机模式", deep: true },
 ];
 
 let failed = 0;

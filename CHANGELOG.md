@@ -2,7 +2,29 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## 未发布（下一版）— 开发中
+## 0.13.0 — 2026-10-01
+
+### 新增
+
+- **手机适配（features/mobile，纯 Client）**：手机/窄屏排版与触控兜底。视口 ≤820px 或主指针为
+  粗触无悬停时在 body 打 `data-dk-mobile="1"`，全局兜底样式全部挂在该属性下——功能停用即
+  一秒还原。生效项：输入类控件字号拉到 16px（iOS Safari 聚焦 <16px 输入框会强制缩放整页，
+  实测聊天输入框 14px 每点一次缩一次）、纯图标按钮（唯一子元素为 svg）触控面积兜底 ≥36px
+  （实测一批 28×28 工具钮手机上点不中）、`touch-action: manipulation` + 去点按高亮、代码块
+  横向滚动与行内代码换行、viewport meta 补 `viewport-fit=cover`（standalone 下 safe-area 才有值）。
+  附 44px 浮动侧栏开关（左下角，调用 dsh 官方 `ctx.layout.toggleSidebar` 驱动窄屏抽屉，
+  localStorage `dsh-dock/mobile/v1` 可隐藏）。与【远程访问】的手机 chrome 互斥协调：
+  见 `window.__dshDockMobileDrawer` 旗标（远程访问的抽屉把手/底部 Tab 在场时浮动按钮自动让位），
+  其 30px 贴边把手也被排除在按钮面积兜底之外。选择器依据来自 390×844 真实视口实测
+  （390px 下 dsh 原生窄屏抽屉可用，缺的是输入字号/触控面积/代码块滚动这层兜底）。
+
+### 修复
+
+- **远程访问时「预览版说明」每次刷新都重弹**：dsh 0.2.0 的欢迎确认对远程（非回环）浏览器
+  走 memory 模式——确认只存页面进程内存，刷新即丢（`welcome-store.ts` 文件头注释明示的
+  设计），profile patch 里钉 `welcomeNoticeVersion` 也无效（memory 分支不读持久值）。
+  远程访问功能现在在非回环地址访问时自动替用户确认一次（每次页面加载最多点一次，
+  回环地址不介入，保留 dsh 原生的一次性持久确认）。
 
 ### 新增
 
