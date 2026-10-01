@@ -6,17 +6,20 @@
 // 主实例：绑定回环时把 Host/Origin 改写为回环（回环恒被信任），已绑 0.0.0.0 时
 // 透传以走局域网信任派生。宿主可注入 mintUpstreamCookie：服务端兑换 dsh web 的
 // 启动令牌会话并在代理时自动附带（含 WebSocket 升级），远程浏览器只需账号密码。
-// HTML 响应注入远程标记（window.__DSH_REMOTE__，供面板显示退出按钮）与
-// crypto.randomUUID 兜底脚本引用。
+// HTML 响应注入远程标记（window.__DSH_REMOTE__，供面板显示退出按钮）、
+// crypto.randomUUID 兜底脚本引用、PWA 元信息（manifest/图标，手机「添加到主屏幕」
+// 后全屏打开）与断线监视脚本（网关健康探测，断线时页面顶部出提示胶囊）。
 import { createServer, request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
+import { deflateSync } from 'node:zlib'
 
 const COOKIE_NAME = 'dsh_remote_session'
 const LOGIN_PATH = '/__dsh_auth/login'
 const LOGOUT_PATH = '/__dsh_auth/logout'
 const HEALTH_PATH = '/__dsh_auth/health'
 const COMPAT_PATH = '/__dsh_mobile/compat.js'
+const MANIFEST_PATH = '/__dsh_auth/manifest.webmanifest'
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_LOGIN_BODY = 1024
 const MAX_HTML_BYTES = 2 * 1024 * 1024
@@ -27,9 +30,14 @@ const MAX_LOGIN_ATTEMPTS = 10
 // 构造 memory 镜像、永不读档，设置/模型页全部显示 unavailable）。而服务端信任栏
 // 只看 Host/Origin——经本网关（登录后）的请求早已映射为回环信任，特权接口实际
 // 全部放行。唯一拦住手机用户的只剩客户端这一处自我判定，所以对本 bundle 做定点
-// 改写（判定恒真）。上游升级改了片段则原样透传（退化为官方行为，不影响其他功能）。
+// 改写（判定恒真）。候选片段按代际排列（dsh ≥0.1.7 在判定前面加了 ownsHost 短路，
+// 旧片段在新产物里不再出现——0.1.7 上线时手机设置/模型页因此再次 unavailable）；
+// 全部匹配不上则原样透传（退化为官方行为，不影响其他功能）。
 const CONNECTION_BUNDLE_PREFIX = '/plugins/@deepseek-ai/dsh-client-connection/client.js'
-const CONNECTION_ISLOOPBACK_SNIPPET = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)'
+const CONNECTION_ISLOOPBACK_SNIPPETS = [
+  'isLoopback: transport?.ownsHost === true || pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)',
+  'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)',
+]
 const CONNECTION_ISLOOPBACK_PATCHED = 'isLoopback: !0 /* dsh-dock remote gateway */'
 const MAX_ASSET_BYTES = 4 * 1024 * 1024
 const PATCH_CACHE_LIMIT = 16
@@ -40,6 +48,149 @@ const PATCH_CACHE_LIMIT = 16
 // fallback: defines randomUUID (and a getRandomValues last resort) as both an own
 // property and on Crypto.prototype. Injected before every DSH bootstrap script.
 const MOBILE_COMPAT_JS = `(function(){var g=typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:(typeof self!=='undefined'?self:undefined));if(!g)return;if(!g.crypto){try{g.crypto={}}catch(e){return}}var c=g.crypto;var nativeRng=typeof c.getRandomValues==='function'?c.getRandomValues.bind(c):null;function rng(bytes){if(nativeRng){nativeRng(bytes);return bytes}for(var i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256)&255;return bytes}function uuid(){var b=rng(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h=[];for(var i=0;i<16;i++)h.push((b[i]+256).toString(16).slice(1));return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('')}function fill(array){rng(array);return array}function define(obj,name,value){if(!obj||typeof obj[name]==='function')return;try{Object.defineProperty(obj,name,{value:value,configurable:true})}catch(e){try{obj[name]=value}catch(e2){}}}define(c,'randomUUID',uuid);if(!nativeRng)define(c,'getRandomValues',fill);define(g.Crypto&&g.Crypto.prototype||null,'randomUUID',uuid);if(!nativeRng)define(g.Crypto&&g.Crypto.prototype||null,'getRandomValues',fill);if(typeof c.randomUUID!=='function'){var fresh={getRandomValues:fill,randomUUID:uuid};if(c.subtle)fresh.subtle=c.subtle;var keyOrigin=Object.create(null);for(var k in c){try{keyOrigin[k]=c[k]}catch(e3){}}for(var k2 in keyOrigin){if(typeof fresh[k2]==='undefined')fresh[k2]=keyOrigin[k2]}try{Object.defineProperty(g,'crypto',{value:fresh,configurable:true})}catch(e4){try{g.crypto=fresh}catch(e5){}}}})()`
+
+// ---- PWA：手机「添加到主屏幕」后全屏打开（无浏览器地址栏，像 App 一样使用）----
+// head 标签注入进所有经网关的 HTML（登录页 + DSH 页面）；manifest 与图标由网关
+// 自行服务（登录前也要可取，否则添加主屏会拿不到清单）。
+const PWA_HEAD_TAGS = [
+  '<meta name="theme-color" content="#0f1115"/>',
+  '<meta name="mobile-web-app-capable" content="yes"/>',
+  '<meta name="apple-mobile-web-app-capable" content="yes"/>',
+  '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>',
+  '<meta name="apple-mobile-web-app-title" content="DSH"/>',
+  '<link rel="manifest" href="' + MANIFEST_PATH + '"/>',
+  '<link rel="apple-touch-icon" href="/__dsh_auth/icon-192.png"/>',
+  '<link rel="icon" type="image/png" href="/__dsh_auth/icon-192.png"/>',
+].join('')
+// 远程标记并入监视脚本开头：面板的「退出登录」按钮靠它拿到注销地址（桌面本机访问
+// 时没有这段脚本，按钮不显示——没有它手机上点了退出没反应）。
+// 断线监视：手机换网（WiFi↔蜂窝）/锁屏久置后连接可能已死，页面本身不会提示——
+// 顶部出「连接已断开，正在重连…」胶囊，恢复后自动消失。经网关健康端点探测
+// （连续 2 次失败才提示，避免瞬时抖动闪现）；离线/恢复事件立即响应。ES5，自含样式。
+const REMOTE_WATCH_JS = "window.__DSH_REMOTE__={gateway:true,logout:'/__dsh_auth/logout'};(function(){var HEALTH='/__dsh_auth/health',pill=null,checking=false,fails=0;function css(){var s=document.createElement('style');s.setAttribute('data-dsh-remote-watch','');s.textContent='.dsh-remote-net{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);z-index:2147483000;display:none;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;font:600 12px/1.4 system-ui,-apple-system,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.35);pointer-events:none;white-space:nowrap}.dsh-remote-net .dot{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.95;animation:dsh-remote-blink 1.1s ease-in-out infinite}@keyframes dsh-remote-blink{0%,100%{opacity:.95}50%{opacity:.25}}@media (prefers-reduced-motion:reduce){.dsh-remote-net .dot{animation:none}}';(document.head||document.documentElement).appendChild(s)}function ensure(){if(pill)return;css();pill=document.createElement('div');pill.className='dsh-remote-net';pill.setAttribute('role','status');pill.innerHTML='<span class=\"dot\"></span><span>连接已断开，正在重连…</span>';if(document.body)document.body.appendChild(pill);else{var t=setInterval(function(){if(document.body){clearInterval(t);document.body.appendChild(pill)}},200)}}function show(){ensure();pill.style.display='flex'}function hide(){if(pill)pill.style.display='none'}function finish(ok){checking=false;if(ok){fails=0;hide()}else if(++fails>=2){show()}}function ping(){if(checking||document.visibilityState==='hidden')return;checking=true;var done=false,t=setTimeout(function(){if(!done){done=true;finish(false)}},5000);fetch(HEALTH,{method:'POST',cache:'no-store'}).then(function(r){if(!done){done=true;clearTimeout(t);finish(r.ok||r.status===401||r.status===302)}}).catch(function(){if(!done){done=true;clearTimeout(t);finish(false)}})}window.addEventListener('offline',function(){show()});window.addEventListener('online',function(){fails=1;ping()});document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')ping()});setInterval(ping,10000);ping()})()"
+
+// ---- 零依赖 PNG 图标：远程访问 PWA 图标（品牌渐变圆角块 + 白色对话气泡）----
+// 不引第三方图像依赖：像素逐点光栅化（SDF 抗锯齿），PNG 只需 IHDR/IDAT/IEND
+// 三块（zlib deflate + CRC32）。maskable 变体用满幅方形（无圆角），系统裁切成
+// 各种形状时内容都在安全区内。
+const crcTable = (() => {
+  const table = new Int32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1)
+    table[n] = c
+  }
+  return table
+})()
+function crc32(buf) {
+  let c = -1
+  for (let i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 0xFF] ^ (c >>> 8)
+  return (c ^ -1) >>> 0
+}
+function pngChunk(type, data) {
+  const out = Buffer.alloc(8 + data.length + 4)
+  out.writeUInt32BE(data.length, 0)
+  out.write(type, 4, 'ascii')
+  data.copy(out, 8)
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length)
+  return out
+}
+function segmentDist(px, py, ax, ay, bx, by) {
+  const abx = bx - ax, aby = by - ay
+  const t = Math.min(1, Math.max(0, ((px - ax) * abx + (py - ay) * aby) / (abx * abx + aby * aby)))
+  return Math.hypot(px - (ax + abx * t), py - (ay + aby * t))
+}
+function triangleSdf(px, py, tri) {
+  const ax = tri[0], ay = tri[1], bx = tri[2], by = tri[3], cx = tri[4], cy = tri[5]
+  const d = Math.min(
+    segmentDist(px, py, ax, ay, bx, by),
+    segmentDist(px, py, bx, by, cx, cy),
+    segmentDist(px, py, cx, cy, ax, ay),
+  )
+  const s1 = (bx - ax) * (py - ay) - (by - ay) * (px - ax)
+  const s2 = (cx - bx) * (py - by) - (cy - by) * (px - bx)
+  const s3 = (ax - cx) * (py - cy) - (ay - cy) * (px - cx)
+  const inside = (s1 >= 0 && s2 >= 0 && s3 >= 0) || (s1 <= 0 && s2 <= 0 && s3 <= 0)
+  return inside ? -d : d
+}
+function roundedRectSdf(x, y, x0, y0, x1, y1, r) {
+  const cx = Math.min(Math.max(x, x0 + r), x1 - r)
+  const cy = Math.min(Math.max(y, y0 + r), y1 - r)
+  return Math.hypot(x - cx, y - cy) - r
+}
+function renderIconPng(size, maskable) {
+  const rgba = Buffer.alloc(size * size * 4)
+  const c1 = [0x38, 0xbd, 0xf8] // #38bdf8（登录页品牌渐变起点）
+  const c2 = [0x63, 0x66, 0xf1] // #6366f1（终点）
+  const inset = maskable ? 0 : size * 0.04
+  const corner = maskable ? 0 : size * 0.22
+  const s = size
+  const bubble = [s * 0.26, s * 0.24, s * 0.74, s * 0.58, s * 0.07]
+  const tail = [s * 0.305, s * 0.565, s * 0.305, s * 0.72, s * 0.455, s * 0.565]
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const at = (y * size + x) * 4
+      const px = x + 0.5, py = y + 0.5
+      const tile = roundedRectSdf(px, py, inset, inset, s - inset, s - inset, corner)
+      const tileA = Math.min(Math.max(0.5 - tile, 0), 1)
+      if (tileA <= 0) { rgba[at + 3] = 0; continue }
+      const t = (px + py) / (2 * s)
+      let r = c1[0] + (c2[0] - c1[0]) * t
+      let g = c1[1] + (c2[1] - c1[1]) * t
+      let b = c1[2] + (c2[2] - c1[2]) * t
+      const glyph = Math.min(
+        roundedRectSdf(px, py, bubble[0], bubble[1], bubble[2], bubble[3], bubble[4]),
+        triangleSdf(px, py, tail),
+      )
+      const glyphA = Math.min(Math.max(0.5 - glyph, 0), 1)
+      r += (255 - r) * glyphA
+      g += (255 - g) * glyphA
+      b += (255 - b) * glyphA
+      rgba[at] = Math.round(r)
+      rgba[at + 1] = Math.round(g)
+      rgba[at + 2] = Math.round(b)
+      rgba[at + 3] = Math.round(tileA * 255)
+    }
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(size, 0)
+  ihdr.writeUInt32BE(size, 4)
+  ihdr[8] = 8; ihdr[9] = 6
+  const raw = Buffer.alloc((size * 4 + 1) * size)
+  for (let y = 0; y < size; y++) {
+    raw[y * (size * 4 + 1)] = 0
+    rgba.copy(raw, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4)
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(raw, { level: 9 })),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ])
+}
+const iconCache = new Map()
+function iconPng(size, maskable) {
+  const key = (maskable ? 'm' : 'a') + size
+  if (!iconCache.has(key)) iconCache.set(key, renderIconPng(size, maskable))
+  return iconCache.get(key)
+}
+function manifestJson() {
+  return JSON.stringify({
+    name: 'DSH 远程访问',
+    short_name: 'DSH',
+    description: '登录后使用与本机完全一致的 DSH：会话、任务进度实时一致',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    background_color: '#0f1115',
+    theme_color: '#0f1115',
+    icons: [
+      { src: '/__dsh_auth/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/__dsh_auth/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/__dsh_auth/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  })
+}
 
 function secret() { return randomBytes(32).toString('base64url') }
 function now() { return Date.now() }
@@ -107,7 +258,9 @@ function loginPageHtml(withError) {
   const errorRow = withError
     ? `<div class="error" role="alert">账号或密码不正确，请重试。</div>`
     : `<div class="noerror"></div>`
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light"><title>DSH 远程访问</title><style>${PAGE_STYLE}</style></head><body><main class="card"><form method="POST" action="/__dsh_auth/login"><div class="brand">${PAGE_ICON}<div><h1>DSH 远程访问</h1><small>登录后可使用完整功能</small></div></div>${errorRow}<label>账号<input name="username" autocomplete="username" autofocus required></label><label>密码<input type="password" name="password" autocomplete="current-password" required></label><button type="submit">登 录</button><p class="hint">仅限授权设备登录 · 会话 7 天内免重复登录</p></form></main></body></html>`
+  // 「显示密码」：手机上输错密码的成本高（键盘小、自动更正捣乱），明文切换是刚需。
+  // 提交后禁用按钮防重复提交（失败走 303 重载，不存在卡死）。
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light">${PWA_HEAD_TAGS}<title>DSH 远程访问</title><style>${PAGE_STYLE}.pw{position:relative}.pw input{padding-right:64px}.pw .peek{position:absolute;right:8px;top:22px;width:auto;margin:0;padding:6px 10px;border:0;background:transparent;color:#8b93a3;font-size:12px;font-weight:600;cursor:pointer}</style></head><body><main class="card"><form method="POST" action="${LOGIN_PATH}" onsubmit="var b=this.querySelector('button[type=submit]');if(b)b.disabled=true"><div class="brand">${PAGE_ICON}<div><h1>DSH 远程访问</h1><small>登录后可使用完整功能</small></div></div>${errorRow}<label>账号<input name="username" autocomplete="username" autofocus required></label><label for="dsh-pw">密码</label><div class="pw"><input id="dsh-pw" type="password" name="password" autocomplete="current-password" required><button type="button" class="peek" onclick="var i=document.getElementById('dsh-pw');var s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'隐藏':'显示'">显示</button></div><button type="submit">登 录</button><p class="hint">仅限授权设备登录 · 会话 7 天内免重复登录</p></form></main></body></html>`
 }
 
 function logoutPageHtml() {
@@ -138,8 +291,10 @@ function htmlInjectionHeaders(headers) {
 }
 function injectMobileCompat(html) {
   if (html.includes('data-dsh-mobile-compat')) return html
-  const match = /<head(?:\s[^>]*)?>/i.exec(html)
-  const script = `<script data-dsh-mobile-compat src="${COMPAT_PATH}"></script>`
+  const match = html.match(/<head(?:\s[^>]*)?>/i)
+  // DSH 页面 head 前置：crypto 兜底脚本引用 + PWA head 标签（PWA_HEAD_TAGS 为常量；
+  // 远程标记与断线监视在 compat.js 文件内，见 COMPAT_PATH 路由）。
+  const script = `<script data-dsh-mobile-compat src="${COMPAT_PATH}"></script>${PWA_HEAD_TAGS}`
   if (!match) return script + html
   const at = match.index + match[0].length
   return html.slice(0, at) + script + html.slice(at)
@@ -312,9 +467,10 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
             let body = Buffer.concat(chunks)
             if (isConnectionBundle) {
               const text = body.toString('utf8')
-              const at = text.indexOf(CONNECTION_ISLOOPBACK_SNIPPET)
-              if (at >= 0) {
-                body = Buffer.from(text.slice(0, at) + CONNECTION_ISLOOPBACK_PATCHED + text.slice(at + CONNECTION_ISLOOPBACK_SNIPPET.length), 'utf8')
+              // 按代际找片段：新版先试（新版文本里不含旧片段，顺序无歧义）
+              const hit = CONNECTION_ISLOOPBACK_SNIPPETS.map((snippet) => ({ snippet, at: text.indexOf(snippet) })).find((c) => c.at >= 0)
+              if (hit) {
+                body = Buffer.from(text.slice(0, hit.at) + CONNECTION_ISLOOPBACK_PATCHED + text.slice(hit.at + hit.snippet.length), 'utf8')
                 if (patchedBundles.size >= PATCH_CACHE_LIMIT) patchedBundles.clear()
                 patchedBundles.set(req.url, body)
               }
@@ -343,6 +499,22 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
       const ip = (req.socket && req.socket.remoteAddress) || 'unknown'
 
       if (url.pathname === HEALTH_PATH) return sendJson(res, 200, { ok: true })
+
+      // PWA 资源放行在登录之前：登录页也引用 manifest/图标，「添加到主屏幕」在
+      // 未登录时就能装好（装完后打开 / 未登录自然进登录页）。
+      if (url.pathname === MANIFEST_PATH && req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'no-store' })
+        return res.end(manifestJson())
+      }
+      {
+        const icon = url.pathname.match(/^\/__dsh_auth\/icon-(192|512|maskable-512)\.png$/)
+        if (icon && req.method === 'GET') {
+          const maskable = icon[1] === 'maskable-512'
+          const size = maskable ? 512 : Number(icon[1])
+          res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' })
+          return res.end(iconPng(size, maskable))
+        }
+      }
 
       if (url.pathname === LOGIN_PATH && req.method === 'GET') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
@@ -402,7 +574,9 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
           'cache-control': 'no-store',
           'x-content-type-options': 'nosniff',
         })
-        return res.end(MOBILE_COMPAT_JS)
+        // 兜底脚本之后接远程标记 + 断线监视：同一个外部脚本文件，页面加载早期执行
+        // （远程标记供面板「退出登录」用；监视脚本在断线时出顶部胶囊）。
+        return res.end(MOBILE_COMPAT_JS + '\n' + REMOTE_WATCH_JS)
       }
       return proxyHttp(req, res)
     })
@@ -448,6 +622,8 @@ export function startProtectedLanGateway({ port, upstreamHost = '127.0.0.1', ups
       resolve({
         port: listenedPort,
         addresses: lanAddresses(),
+        /** 当前有效的登录会话数（面板显示「已登录设备 N 台」）。 */
+        sessionCount() { return sessions.size },
         revokeAllSessions() {
           sessions.clear()
           for (const [socket, value] of upgradedSockets) {
