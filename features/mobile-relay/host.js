@@ -129,9 +129,10 @@ const LAN_COMPAT_MARKER = 'data-dsh-lan-compat'
 // 1) 设置弹窗官方只有"左导航+右内容"两栏，窄屏内容栏被压到不足百像素（一字一行）；
 //    改纵向堆叠：导航横排在上、内容占满。
 // 2) 侧边栏展开是 grid 栅格挤占会话区（窄屏会话区只剩 ~110px）；改为浮层覆盖。
-// 3) 侧栏栅格归零后，原生「打开侧边栏」按钮随窄轨一起被裁掉——补贴左边缘的抽屉把手
-//    （.dsh-mobile-drawer-btn，行为脚本创建，点击转发原生 toggle，位置在趣味游戏
-//    浮标正上方、兜底左侧中部）与抽屉遮罩（.dsh-mobile-scrim，点击即收起，阻断滚动穿透）。
+// 3) 侧栏栅格归零后，原生「打开侧边栏」按钮随窄轨一起被裁掉——会话入口由底部 Tab 栏
+//    「会话」页签承担（点击转发原生 toggle）；再补抽屉遮罩（.dsh-mobile-scrim，点击即
+//    收起，阻断滚动穿透）。左缘浮动「抽屉把手」已移除：与 Tab 栏功能重复，还悬浮在
+//    内容上压过输入区（用户实测截图）。
 // 类名用语义后缀匹配（哈希前缀随 DSH 版本会变，后缀稳定）；DSH 升级改了结构时
 // 选择器自然失效，不影响其他功能。
 const MOBILE_LAYOUT_CSS = [
@@ -145,14 +146,18 @@ const MOBILE_LAYOUT_CSS = [
   '  [class$="frame"]{grid-template-columns:0px minmax(0,1fr) 0px!important}',
   '  [class$="_handle"]{display:none!important}',
   '  [class$="frame"]:not([data-sidebar-collapsed]) [class*="sidebarCol"]{position:fixed!important;top:0!important;bottom:0!important;left:0!important;width:min(85vw,320px)!important;z-index:80!important;box-shadow:0 12px 48px rgba(0,0,0,.45)}',
-  '  [class$="frame"]:not([data-details-collapsed="true"]) [class*="detailsCol"]{position:fixed!important;top:0!important;bottom:0!important;right:0!important;left:auto!important;width:min(85vw,320px)!important;z-index:85!important;box-shadow:-12px 0 48px rgba(0,0,0,.45)}',
+  // 右侧详情列：dsh 0.1.7 起 detailsCol 改名 rightbarCol（data-rightbar-col），且窄屏
+  // （<768px）原生就把面板切成全屏（data-sidebar-right-panel="fullscreen"，自身 100vw
+  // 盖满视口），不再需要旧版「固定到右缘抽屉」的兜底规则。
+  // ⚠️ 实测原生全屏态两个缺陷（手机上双重曝光）：① 面板背景透明——会话页 Hero 从缝隙里
+  // 整屏透出来，两层内容叠花；② 面板/panelBody 是 pointer-events:none，空隙处的点击
+  // 穿透到下层（能误点到 Hero 卡片和底部 Tab）。这里补不透明背景 + 拦截穿透；z 88 把
+  // 底部 Tab(65)/抽屉把手(70) 压在面板下，配合行为脚本 rightOpen 时主动隐藏（双保险）。
+  '  [class*="rightbarCol"]{min-width:0}',
+  '  [data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]{z-index:88!important;pointer-events:auto!important;background:var(--dsw-alias-bg-layer-2,rgb(22,24,28))!important}',
   '  [class*="overlayLayer"]{z-index:90!important}',
-  // 抽屉把手：贴左边缘（同趣味游戏浮标的边缘吸附语言），top 由 place() 动态设定
-  // （趣味游戏浮标正上方，兜底左侧中部）；z 序 70 < 遮罩 75 < 侧栏 80 < overlayLayer 90，
-  // 面板/弹窗打开时自然被盖，无需额外隐藏逻辑。
-  '  .dsh-mobile-drawer-btn{position:fixed;left:0;top:38vh;z-index:70;box-sizing:border-box;width:30px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.35));border-left:none;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);box-shadow:4px 0 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}',
-  '  .dsh-mobile-drawer-btn:active{transform:scale(.94)}',
-  '  .dsh-mobile-drawer-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}',
+  // 抽屉遮罩：侧栏浮层展开时盖住页面。左缘浮动「抽屉把手」已移除——与底部 Tab 栏
+  // 「会话」页签功能重复，还悬浮在内容上压过输入区（用户实测截图）。
   '  .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}',
   // ---- 仿 ZCode 手机端：底部 Tab 栏 + 输入区吸附底部 ----
   // Tab 栏 z 序 65：低于遮罩 75 / 抽屉 80 / overlayLayer 90 / 功能坞面板 200，
@@ -163,24 +168,54 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}',
   '  .dsh-mobile-tab.on svg{color:#4d9fff}',
   '  .dsh-mobile-tab:active{transform:scale(.94)}',
+  // 「任务」页签角标：进行中=蓝（数量），等待确认=红（数量 + 脉冲）——接力场景里
+  // 等待确认是最需要人介入的状态，一眼可见；数据来自 runstate 宿主路由的低频轮询。
+  '  .dsh-mobile-tab{position:relative}',
+  '  .dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}',
+  '  .dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}',
+  '  @keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}',
+  '  @media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}',
   // 输入区吸附到 Tab 栏上方：宿主把欢迎内容 justify-content:center 垂直居中，
-  // 手机视口下输入卡片悬在中部、下方留出大片空白。改为 flex-end 贴底，并给
-  // 滚动体留出 Tab 栏高度的内边距，避免内容被 Tab 栏遮挡。
-  '  [class*="scrollBody"]{justify-content:flex-end!important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))!important}',
-  '  [class*="scrollBody"]>[class*="composerSeat"]{padding-bottom:6px}',
+  // 手机视口下输入卡片悬在中部、下方留出大片空白。改用「输入区 margin-top:auto」
+  // 贴底，并给滚动体留出 Tab 栏高度的内边距，避免内容被 Tab 栏遮挡。
+  //
+  // ⚠️ 绝不能再给滚动体加 justify-content:flex-end/center 来贴底：那会把内容挤到
+  // 滚动体起点之外，而 Chrome 不把起点方向的溢出算进 scrollHeight（手机视口实测
+  // scrollHeight==clientHeight、maxScroll==0），结果是会话记录完全滚不动、首条消息
+  // 永远停在视口上方 2000px 处。auto 外边距只在有剩余空间时生效、不产生起点溢出，
+  // 欢迎页照样贴底——见 scripts/test-mobile-relay-host.mjs 的回归断言。
+  //
+  // 软键盘弹出（visualViewport 判定，行为脚本挂 html.dsh-dock-kbd）：Tab 栏
+  // 整体让位（打字时它只会挤占键盘上方的一线空间），滚动体留白收窄。
+  '  html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))!important}',
+  '  html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px!important}',
+  '  html.dsh-dock-kbd .dsh-mobile-tabbar{display:none!important}',
+  '  [class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}',
+  // 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
+  // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
+  // 底部「功能坞」里看（用量/余额页信息更全）；桌面端不动。
+  '  .dockchip-row{display:none}',
   // 收起的侧栏轨道（collapsed rail）在窄屏只剩 1px 占位，但轨道里的按钮
   // 仍会溢出贴在左边缘（功能坞/进化/设置三枚露出半边的圆钮）。隐藏整列，
   // 这些入口已由底部 Tab 栏接管；展开抽屉（z 80）不受影响。
   '  [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
+  // ⚠️ 设置/插件管理弹层挂在侧栏列内部（footArea → settingsArea → overlay → panel），
+  // 上面隐藏整列会把它连坐隐藏——点「设置」得到一个 390×844 的空气弹层（属性齐全但不绘制）。
+  // visibility 可被后代覆盖，弹层关闭态会整体卸载（DOM 里没有 [role=dialog]），所以强制
+  // 显示只在弹层真正打开时命中，是安全的；列本身继续隐藏，轨道按钮照旧被藏住。
+  '  [class*="sidebarCol"]:has([class*="collapsed"]) [role="dialog"]{visibility:visible}',
+  // 功能坞面板在手机端抬到原生弹层之上：从侧栏进的官方插件管理页等原生弹层 z 序高于
+  // 面板默认的 200，功能坞开在下面会被盖住——底部「插件」页签点了像没反应/露出原页面。
+  '  [class*="dockm-backdrop"]{z-index:2000!important}',
   '}',
 ].join('\n')
 const MOBILE_LAYOUT_MARKER = 'data-dsh-mobile-layout'
 // 窄屏行为补丁：侧边栏浮层化后，原生的"保持展开"会一直挡住半屏——
 // 点会话行/新会话后自动收起；点侧栏外的页面区域也收起（浮层语义）。
 // 侧栏内的其他点击（工作区折叠、搜索、功能坞入口）保持原生行为不收。
-// 另创建抽屉按钮（窄屏 + 侧栏收起时才显示，点击转发原生「打开侧边栏」toggle；
-// 侧栏展开或设置弹窗打开时自动隐藏）与抽屉遮罩（点击经全局捕获 handler 收起，
-// 单一路径防止同一事件两次 toggle）。注入点在 <head> 后，body 尚未解析，
+// 会话入口在底部 Tab 栏「会话」页签（点击转发原生「打开侧边栏」toggle）；另建抽屉
+// 遮罩（点击经全局捕获 handler 收起，单一路径防止同一事件两次 toggle）。左缘浮动
+// 「抽屉把手」已移除（与 Tab 栏功能重复）。注入点在 <head> 后，body 尚未解析，
 // DOM 创建一律推迟到 DOMContentLoaded；显隐同步走 MutationObserver（属性翻转即时）
 // + 低速轮询（覆盖路由重渲等一切边角）。
 const MOBILE_BEHAVIOR_JS = [
@@ -197,11 +232,27 @@ const MOBILE_BEHAVIOR_JS = [
   'function dialogOpen(){return !!document.querySelector(\'[role="dialog"][class*="panel"]\')}',
   'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
   'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
-  'function closeDetails(){var d=document.querySelector(\'[class*="detailsCol"]\');if(!d||!d.getBoundingClientRect().width)return;var c=d.querySelector(\'button[aria-label="关闭详情"]\');if(c)c.click()}',
-  'var fab=null,scrim=null,tabbar=null;',
+  'function closeDetails(){var d=document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');if(!d)return;var c=d.querySelector(\'[data-sidebar-right-toggle]\');if(c)c.click()}',
+  'var scrim=null,tabbar=null,badge=null,runstateGone=false,tasksActive=0,tasksWaiting=0;',
+  // 打开功能坞（可再点进指定页面）：宿主版没有客户端的 openPanel 总线，先点侧栏
+  // 轨道上的功能坞按钮开面板，再在面板里找文字匹配的导航按钮点进去（找不到就停在
+  // 面板首页——宿主版「插件」页签的降级导航路径）。
+  'function openDockPage(page){',
+  '  var b=document.querySelector("button.docke2-rail,button[class*=\'docke2-btn\'][class*=\'docke2-rail\']");',
+  '  if(b){var col=b.closest(\'[class*="sidebarCol"]\');if(col)col.style.visibility="";b.click();if(col)setTimeout(function(){col.style.visibility=""},0)}',
+  '  if(!page)return;',
+  '  setTimeout(function(){',
+  '    var panel=document.querySelector(".dockm-backdrop");if(!panel)return;',
+  '    var bs=panel.querySelectorAll("button");',
+  '    for(var i=0;i<bs.length;i++){var tx=bs[i].textContent||"";if(tx.indexOf(page)>=0&&bs[i].offsetParent){bs[i].click();return}}',
+  '  },120);',
+  '}',
+  // 「任务」「功能坞」合并为「插件」页签（与客户端自建版同款）：有任务在跑/等确认时
+  // 直接落到运行状态页，否则进面板首页。
+  'function openDockSmart(){openDockPage((tasksActive>0||tasksWaiting>0)?"运行状态":null)}',
   'var TAB_DEFS=[',
   '  {id:"sessions",label:"会话",icon:\'<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>\',act:function(){expand()}},',
-  '  {id:"dock",label:"功能坞",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){var b=document.querySelector("button.docke2-rail,button[class*=\'docke2-btn\'][class*=\'docke2-rail\']");if(b){var col=b.closest(\'[class*="sidebarCol"]\');if(col)col.style.visibility="";b.click();if(col)setTimeout(function(){col.style.visibility=""},0)}}},',
+  '  {id:"dock",label:"插件",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){openDockSmart()}},',
   '  {id:"settings",label:"设置",icon:\'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>\',act:function(){var bs=document.querySelectorAll("button");for(var i=0;i<bs.length;i++){if(bs[i].getAttribute("aria-label")==="设置"){bs[i].click();return}}}}',
   '];',
   'function syncTabs(){',
@@ -217,7 +268,6 @@ const MOBILE_BEHAVIOR_JS = [
   '  }',
   '}',
   'function ensureChrome(){',
-  '  if(!fab){fab=document.createElement("button");fab.type="button";fab.className="dsh-mobile-drawer-btn";fab.setAttribute("aria-label","打开会话列表");fab.innerHTML=\'<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>\';fab.addEventListener("click",function(){expand()});document.body.appendChild(fab)}',
   '  if(!scrim){scrim=document.createElement("div");scrim.className="dsh-mobile-scrim";document.body.appendChild(scrim)}',
   '  if(!tabbar){',
   '    tabbar=document.createElement("nav");tabbar.className="dsh-mobile-tabbar";tabbar.setAttribute("aria-label","底部导航");',
@@ -226,69 +276,92 @@ const MOBILE_BEHAVIOR_JS = [
   '        var b=document.createElement("button");b.type="button";b.className="dsh-mobile-tab";b.dataset.tab=def.id;',
   '        b.innerHTML=def.icon+"<span>"+def.label+"</span>";',
   '        b.addEventListener("click",function(){def.act()});',
+  '        if(def.id==="dock"){badge=document.createElement("span");badge.className="dsh-mobile-tab-badge";badge.style.display="none";b.appendChild(badge)}',
   '        tabbar.appendChild(b);',
   '      })(TAB_DEFS[i]);',
   '    }',
   '    document.body.appendChild(tabbar);',
   '  }',
   '}',
-  // 把手定位：贴着趣味游戏浮标（.dgfab，可拖拽）正上方；浮标太靠上时改放它下面
-  // （避开顶栏标题），被拖走/隐藏/不存在时兜底左侧中部（38% 视高）。
-  'function place(){',
-  '  if(!fab)return;',
-  '  var vh=window.innerHeight,top=null;',
-  '  var g=document.querySelector(".dgfab");',
-  '  if(g&&!g.classList.contains("dgfab-hide")&&g.getBoundingClientRect){',
-  '    var r=g.getBoundingClientRect();',
-  '    if(r&&r.height>0&&r.top>0){',
-  '      top=r.top-fab.offsetHeight-8;',
-  '      if(top<64)top=r.bottom+8;',
-  '      if(top+fab.offsetHeight>vh-16)top=null;',
-  '    }',
-  '  }',
-  '  if(top==null)top=Math.round(vh*.38);',
-  '  fab.style.top=top+"px";',
+  // 「插件」页签上的任务角标轮询（低频、页面可见且窄屏才发）：进行中=蓝、等待确认=红+脉冲。
+  // runstate 路由不存在（功能未启用/宿主旧版）时静默停轮询。
+  'function pollTasks(){',
+  '  if(runstateGone||!badge||!narrow()||document.visibilityState==="hidden"||!tabbar||!tabbar.isConnected)return;',
+  '  fetch("/dsh-dock/runstate/status",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(function(r){',
+  '    if(r.status===404||r.status===405){runstateGone=true;tasksActive=0;tasksWaiting=0;badge.style.display="none";return null}',
+  '    return r.json()',
+  '  }).then(function(body){',
+  '    if(!body||!badge)return;',
+  '    var active=(body.data&&body.data.active)||[],wait=0;',
+  '    for(var i=0;i<active.length;i++){var ap=active[i].approvals;if(ap&&ap.length)wait++}',
+  '    tasksActive=active.length;tasksWaiting=wait;',
+  '    if(wait>0){badge.textContent=String(wait);badge.className="dsh-mobile-tab-badge wait";badge.style.display=""}',
+  '    else if(active.length>0){badge.textContent=String(active.length);badge.className="dsh-mobile-tab-badge";badge.style.display=""}',
+  '    else{badge.style.display="none"}',
+  '  }).catch(function(){})',
+  '}',
+  // 软键盘判定：visualViewport 与布局视口高度差超阈值视为键盘弹出（挂 html.dsh-dock-kbd，
+  // 样式表隐藏 Tab 栏并收窄滚动体留白）。
+  'var vv=window.visualViewport||null;',
+  'function kbdSync(){',
+  '  var kbd=false;',
+  '  if(vv&&vv.height>0)kbd=(window.innerHeight-vv.height)>120;',
+  '  var de=document.documentElement;',
+  '  if(de.classList.toggle)de.classList.toggle("dsh-dock-kbd",kbd);',
+  '  else if(kbd)de.classList.add("dsh-dock-kbd");else de.classList.remove("dsh-dock-kbd");',
   '}',
   'function syncChrome(){',
-  '  if(!fab||!scrim)return;',
+  '  kbdSync();',
+  '  if(!scrim)return;',
   '  var on=narrow()&&!!frameEl()&&!dialogOpen();',
   '  var col=sidebarCollapsed();',
   '  var dockOpen=!!document.querySelector(".dockm-backdrop");',
-  '  var showFab=on&&col&&!dockOpen;',
-  '  fab.style.display=showFab?"":"none";',
-  '  if(showFab)place();',
+  // 右侧详情面板在窄屏是原生全屏（z 40），而 Tab 栏 65 比它高会压边——
+  // 面板打开时整体让位，收起（面板自带的折叠按钮）后再回来。
+  '  var rightOpen=!!document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');',
   '  scrim.style.display=on&&!col?"":"none";',
-  // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板打开时整体隐藏（面板全屏
-  // 模态，Tab 栏 z 序低于它仍可能从边缘露出）；宿主设置弹窗 z 序更高，自然盖住。
-  '  if(tabbar)tabbar.style.display=narrow()&&!!frameEl()&&!dockOpen?"":"none";',
+  // Tab 栏：窄屏且页面骨架就绪后常驻；功能坞面板/右侧详情面板打开时隐藏（它们
+  // 或是全屏模态、或是原生全屏面板，Tab 栏 z 序更高会盖住内容边缘）；宿主设置弹窗 z 序更高，自然盖住。
+  '  if(tabbar)tabbar.style.display=narrow()&&!!frameEl()&&!dockOpen&&!rightOpen?"":"none";',
   '  syncTabs();',
   '}',
   'function boot(){',
   '  ensureChrome();syncChrome();',
   '  if(typeof MutationObserver!=="undefined"){new MutationObserver(function(){syncChrome()}).observe(document.documentElement,{attributes:true,attributeFilter:["data-sidebar-collapsed"],subtree:true})}',
   '  setInterval(syncChrome,1500);',
+  '  setInterval(pollTasks,3000);pollTasks();',
   '  var onMq=function(){syncChrome()};',
   '  if(mq.addEventListener)mq.addEventListener("change",onMq);else if(mq.addListener)mq.addListener(onMq);',
-  '  window.addEventListener("resize",place);',
+  '  if(vv&&vv.addEventListener)vv.addEventListener("resize",kbdSync);',
+  '  window.addEventListener("resize",kbdSync);',
   '}',
   'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();',
   'document.addEventListener("click",function(e){',
   '  if(!narrow())return;',
   '  var t=e.target;',
   '  if(!t||!t.closest)return;',
-  '  if(t.closest(".dsh-mobile-drawer-btn")||t.closest(".dsh-mobile-tabbar"))return;',
+  '  if(t.closest(".dsh-mobile-tabbar"))return;',
   '  var expanded=!!document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');',
   '  var col=document.querySelector(\'[class*="sidebarCol"]\');',
   '  var inSidebar=col&&col.contains(t);',
   '  if(!expanded&&!inSidebar)return;',
   '  if(inSidebar){',
+  // 只有点「会话」才收抽屉：会话行 data-row-key 以 session: 开头（0.1.7 结构，ui-workspace
+  // Rows.tsx）；工作区文件夹行是 workspace: 开头——点它只是展开/收拢分组，不能收抽屉
+  // （旧「无子 treeitem 即叶子」判定会误伤折叠状态的文件夹：折叠时子节点不在 DOM 里）。
+  // 搜索结果行无 data-row-key，回退按无子叶判定。
   '    var row=t.closest(\'[role="treeitem"]\');',
-  '    var leaf=row&&!row.querySelector(\'[role="treeitem"]\')&&row.closest(\'[role="tree"]\');',
+  '    var rowKey=(row&&row.getAttribute("data-row-key"))||"";',
+  '    var sessionRow=(rowKey&&rowKey.indexOf("session:")===0)||(row&&!rowKey&&!row.querySelector(\'[role="treeitem"]\')&&row.closest(\'[role="tree"]\'));',
   '    var fresh=t.closest(\'[class*="newSession"]\');',
-  '    if(leaf||fresh)setTimeout(function(){collapse();closeDetails()},300);',
+  '    if(sessionRow||fresh){setTimeout(function(){collapse();closeDetails()},300);return}',
+  // 侧栏入口（插件/自动化任务/设置/记忆/自动进化…）点击后会弹出面板，而面板 z 序
+  // 常低于展开的抽屉——被盖住等于「点了没反应」（用户实测截图）。稍候探测：有面板
+  // 弹出就收起抽屉让它露出来；目录折叠/搜索等不弹面板的点击不受影响。
+  '    setTimeout(function(){if(document.querySelector(\'[role="dialog"]\'))collapse()},260);',
   '    return',
   '  }',
-  '  if(t.closest(\'[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[class*="detailsCol"]\'))return;',
+  '  if(t.closest(\'[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]\'))return;',
   '  collapse()',
   '},true)',
   '})();',
@@ -457,16 +530,36 @@ export const feature = {
         webserverActive = legacyWebserverRowPresent(list)
       } catch { applied = false }
       const auth = getAuth()
+      let saved = null
+      try {
+        const root = readDockRoot(ctx)
+        saved = root && root.remoteGateway ? root.remoteGateway : null
+      } catch { saved = null }
       return {
         gatewayActive: Boolean(gateway),
         gatewayPort: gateway ? gateway.port : null,
+        gatewayEnabled: Boolean(saved && saved.enabled),
         mainPort: webServer.port,
         addresses: lanAddresses(),
+        /** 经网关登录的会话数（手机/平板各占一条；面板据此显示在线设备数）。 */
+        devices: gateway && typeof gateway.sessionCount === 'function' ? gateway.sessionCount() : 0,
         patchApplied: applied,
         webserverActive,
         accountSet: Boolean(auth),
         username: auth ? auth.username : '',
         patchPath: file,
+      }
+    }
+
+    /** 持久化网关开关（remoteGateway 段）：dsh web 重启后据此自动拉起。 */
+    async function persistGatewayState(enabled, port) {
+      try {
+        await mutateDockSection(ctx, ['remoteGateway'], {
+          enabled: Boolean(enabled),
+          port: Number.isInteger(port) && port > 0 ? port : 0,
+        })
+      } catch (error) {
+        console.warn('[dsh-dock] 远程访问开关状态保存失败:', (error && error.message) || String(error))
       }
     }
 
@@ -586,13 +679,17 @@ export const feature = {
               const list = readPatchList(file) || []
               const changed = !serverPatchApplied(list) || legacyWebserverRowPresent(list)
               writePatchList(file, upsertRemotePatches(list))
-              await ensureGateway(wsCtx.webServer, payload && payload.port, () => mintUpstreamSession(wsCtx.webServer.port))
+              const started = await ensureGateway(wsCtx.webServer, payload && payload.port, () => mintUpstreamSession(wsCtx.webServer.port))
+              // 记住「开过」：重启 dsh web 后凭此自动拉起（账号存在才拉）。
+              await persistGatewayState(true, started.port)
               return sendJson(res, 200, { ok: true, data: { ...lanStatus(wsCtx.webServer), needsRestart: changed } })
             }
             if (method === 'lan/stop') {
               const file = serverPatchFile()
               const list = readPatchList(file)
+              const wasPort = gateway ? gateway.port : 0
               await stopGateway()
+              await persistGatewayState(false, wasPort)
               if (list === null) {
                 return sendJson(res, 200, { ok: true, data: { ...lanStatus(wsCtx.webServer), needsRestart: false } })
               }
@@ -608,6 +705,34 @@ export const feature = {
           }
         },
       }), 'dsh-dock mobile relay: /dsh-dock/mobile-relay HTTP route')
+
+      // ── 网关自动拉起 ──
+      // 面板开过远程访问（remoteGateway.enabled=true）就持久记住：dsh web 重启后
+      // 只要账号还在，直接把网关重新监听起来，局域网设备不用等进面板再点一次。
+      // 门禁语义不变：未登录一律 302 到登录页；账号被清掉则只日志提醒不拉起。
+      void (async () => {
+        try {
+          const root = readDockRoot(ctx)
+          const saved = root && root.remoteGateway
+          if (!saved || !saved.enabled) return
+          if (!getAuth()) {
+            console.warn('[dsh-dock] 远程访问曾开启但账号不存在，网关未自动拉起（请在面板重新设置账号）')
+            return
+          }
+          // 目录选择器浏览模式补丁若被清掉则补回（幂等；重启生效，网关本身不受影响）。
+          try {
+            const file = serverPatchFile()
+            const list = readPatchList(file) || []
+            if (!serverPatchApplied(list) || legacyWebserverRowPresent(list)) {
+              writePatchList(file, upsertRemotePatches(list))
+            }
+          } catch { /* 补丁层异常不阻断网关 */ }
+          const started = await ensureGateway(wsCtx.webServer, saved.port || undefined, () => mintUpstreamSession(wsCtx.webServer.port))
+          console.log(`[dsh-dock] 远程访问网关已自动拉起: http://<本机IP>:${started.port}`)
+        } catch (error) {
+          console.warn('[dsh-dock] 远程访问网关自动拉起失败:', (error && error.message) || String(error))
+        }
+      })()
     }))
 
     return () => {

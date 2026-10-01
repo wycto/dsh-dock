@@ -361,6 +361,7 @@ const FEATURES = [
 	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
 	{ id: "mobile-relay", name: "远程访问", marker: "远程", deep: true },
+	{ id: "mobile", name: "手机适配", marker: "手机模式", deep: true },
 ];
 
 let failed = 0;
@@ -747,6 +748,55 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 样式 data-plugin 归属：style 带 data-plugin=dsh-dock，不被其它插件 claim 后误删");
+}
+
+// ---------- 用例 10：手机端滚动体/贴底/无浮动把手的样式契约 ----------
+// 真实事故（用户实测）：远程访问手机端「会话记录不能上下滑动看」。根因是为让欢迎页
+// 输入卡贴底，给会话滚动体加了 justify-content:flex-end——内容于是从滚动体起点溢出，
+// 而 Chrome 不把起点方向的溢出算进 scrollHeight（无头 Chrome 390×844 实测
+// scrollHeight==clientHeight、maxScroll==0），整段会话定格在视口外，首条消息永远看不到。
+// 贴底只能用输入区自己的 margin-top:auto（有剩余空间才生效，不制造起点溢出）。
+// 同时锁死：窄屏收起输入区 chip（否则被 28cqw 上限挤成「余..」）；左缘浮动「抽屉把手」
+// 必须保持移除（用户实测：与底部 Tab 栏「会话」页签功能重复，还悬浮在内容上）。
+// 宿主半部同款契约在 scripts/test-mobile-relay-host.mjs 里，两半部必须一起改。
+{
+	const issues = [];
+	if (/\[class\*="scrollBody"\][^{}]*\{[^}]*justify-content:\s*(?:flex-end|center)/.test(bundle)) issues.push("滚动体被设置成 flex-end/center（会让会话记录滚不动）");
+	if (!/\[class\*="scrollBody"\]\[data-conversation-scroll\]\{justify-content:flex-start !important/.test(bundle)) issues.push("会话滚动体没有显式复位成 flex-start（压不过宿主旧注入，手机刷新后仍滚不动）");
+	if (!/\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/.test(bundle)) issues.push("输入区贴底没有走 margin-top:auto");
+	if (!/\.dockchip-row\{display:none\}/.test(bundle)) issues.push("窄屏没有收起输入区 chip");
+	if (/dsh-mobile-drawer-btn/.test(bundle)) issues.push("客户端不应再有左缘浮动抽屉把手（会话入口在底部 Tab 栏「会话」）");
+	if (/dsh-dock-drawer-top|dsh-dock-drawer-off/.test(bundle)) issues.push("残留了把手定位的 CSS 变量/隐藏开关");
+	if (issues.length) {
+		console.log(`✗ 手机端样式契约：${issues.join("；")}`);
+		process.exit(1);
+	}
+	console.log("✓ 手机端样式契约：滚动体不设 justify-content、贴底走 margin-top:auto、chip 窄屏收起、无浮动抽屉把手");
+}
+
+// ---------- 用例 11：手机端「插件」页签、任务角标与软键盘适配（接力体验契约） ----------
+// 远程访问的手机端要有「一眼看到公司电脑上任务」的入口：「任务」「功能坞」合并为一个
+// 「插件」页签——任务状态以角标显示在「插件」上（进行中蓝数量、等待确认红+脉冲），
+// 有任务时点「插件」直达运行状态页；软键盘弹出时 Tab 栏让位；兜底摘除残留旧 Tab 栏。
+{
+	const issues = [];
+	if (/id: "tasks"/.test(bundle)) issues.push("残留独立的「任务」页签（应并入「插件」）");
+	if (!/id: "dock",\s*label: "(插件|\\u63D2\\u4EF6)"/.test(bundle)) issues.push("Tab 栏没有「插件」页签定义");
+	if (!/act: \(\) => \{\s*openPanel\(tasksActive > 0 \|\| tasksWaiting > 0 \? "runstate" : "home"\);?\s*\}/.test(bundle)) issues.push("「插件」页签不是无条件打开功能坞（开关式会在面板被原生页盖住时把功能坞关掉，露出原页面）");
+	if (!/\[class\*="dockm-backdrop"\]\{z-index:2000 !important\}/.test(bundle)) issues.push("手机端没有把功能坞面板抬到原生弹层之上（z 2000）");
+	if (!/\/dsh-dock\/runstate\/status/.test(bundle)) issues.push("「插件」页签角标没有轮询 runstate 路由");
+	if (!/dsh-mobile-tab-badge/.test(bundle)) issues.push("缺少页签角标元素/样式");
+	if (!/dsh-mobile-tab-badge wait/.test(bundle)) issues.push("角标缺少等待确认（红色脉冲）态");
+	if (!/querySelectorAll\("\.dsh-mobile-tabbar"\)/.test(bundle)) issues.push("Overlay 没有兜底摘除残留旧 Tab 栏");
+	if (!/dsh-dock-kbd/.test(bundle)) issues.push("缺少软键盘让位（dsh-dock-kbd）");
+	if (!/visualViewport/.test(bundle)) issues.push("软键盘判定没有用 visualViewport");
+	if (!/querySelector\('\[role="dialog"\]'\)\)\s*collapse\(\)/.test(bundle)) issues.push("侧栏入口点击后没有「面板弹出即收起抽屉」的探测（面板被抽屉盖住等于点了没反应）");
+	if (!/startsWith\(["']session:["']\)/.test(bundle)) issues.push("会话行识别没有按 data-row-key 的 session: 前缀（点工作区文件夹会被误收抽屉）");
+	if (issues.length) {
+		console.log(`✗ 手机端任务页签契约：${issues.join("；")}`);
+		process.exit(1);
+	}
+	console.log("✓ 手机端任务页签契约：任务/功能坞并入「插件」、等待确认角标红色脉冲、兜底摘除残留 Tab 栏、软键盘让位");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

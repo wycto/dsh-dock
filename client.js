@@ -12,7 +12,11 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  try {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  } catch (e) {
+    throw mod = 0, e;
+  }
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -36,18 +40,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js
+// node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js
+// node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js"(exports) {
+  "node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -124,9 +128,9 @@ var require_utils = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js
+// node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -169,9 +173,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js
+// node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -204,9 +208,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js
+// node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -233,9 +237,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js
+// node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -268,9 +272,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js
+// node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -287,9 +291,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js
+// node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -429,9 +433,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js
+// node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -790,9 +794,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js
+// node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -823,9 +827,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js
+// node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -859,9 +863,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -891,18 +895,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js
+// node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js"(exports) {
+  "node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js
+// node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js"(exports) {
+  "node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -928,9 +932,9 @@ var require_regex = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js
+// node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js"(exports) {
+  "node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1009,9 +1013,9 @@ var require_mode = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js
+// node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js"(exports) {
+  "node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1104,9 +1108,9 @@ var require_version = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js
+// node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js"(exports) {
+  "node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1122,9 +1126,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js
+// node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1157,9 +1161,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js
+// node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1236,9 +1240,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js
+// node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1266,9 +1270,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js
+// node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1305,9 +1309,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js
+// node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  ".devdeps/node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1406,9 +1410,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js
+// node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js"(exports) {
+  "node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1592,9 +1596,9 @@ var require_segments = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js
+// node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1853,9 +1857,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js
+// node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1933,9 +1937,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js
+// node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1986,9 +1990,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js
+// node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2044,9 +2048,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js
+// node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js"(exports) {
+  "node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -2122,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react22 = __toESM(require("react"), 1);
+var import_react24 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -11177,6 +11181,11 @@ function RemoteCard() {
             busy === "stop" ? "\u6B63\u5728\u5173\u95ED\u2026" : "\u5173\u95ED\u8FDC\u7A0B\u8BBF\u95EE"
           ] })
         ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("small", { children: [
+          "\u5DF2\u767B\u5F55\u8BBE\u5907\uFF1A",
+          typeof lan.devices === "number" ? lan.devices : 0,
+          " \u53F0\uFF08\u6539\u5BC6\u6216\u5173\u95ED\u5165\u53E3\u5373\u5168\u90E8\u4E0B\u7EBF\uFF09"
+        ] }),
         /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("small", { children: "\u4E3B\u5B9E\u4F8B\u4FDD\u6301\u4EC5\u672C\u673A\uFF08\u7ED3\u6784\u4E0A\u4E0D\u5B58\u5728\u514D\u767B\u5F55\u76F4\u8FDE\uFF09\uFF1B\u8D26\u53F7\u5BC6\u7801\u53EA\u53D1\u7ED9\u81EA\u5DF1\u3002\u82E5\u5F00\u542F\u524D\u5DF2\u6709\u65E7\u670D\u52A1\u5668\u6A21\u5F0F\uFF080.0.0.0\uFF09\u914D\u7F6E\uFF0C\u4F1A\u4E00\u5E76\u79FB\u9664\u5E76\u63D0\u793A\u91CD\u542F\u3002" })
       ] })
     ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("button", { type: "button", className: "dmr-primary", onClick: enable, disabled: busy === "start", children: busy === "start" ? "\u6B63\u5728\u5F00\u542F\u2026" : /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
@@ -11215,10 +11224,44 @@ function MobileRelayView() {
 function MobileRelayOverlay() {
   (0, import_react21.useEffect)(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return void 0;
-    const hostPresent = !!(window.__dshDockMobileDrawer && document.querySelector(".dsh-mobile-drawer-btn"));
+    const host = window.location && window.location.hostname || "";
+    const loopback = host === "127.0.0.1" || host === "localhost" || host === "::1" || host.endsWith(".localhost");
+    if (loopback) return void 0;
+    if (typeof MutationObserver === "undefined") return void 0;
+    let done = false;
+    const tryDismiss = () => {
+      if (done) return;
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      for (const dialog of dialogs) {
+        const text = dialog.textContent || "";
+        if (!/预览版说明|Preview Notice/.test(text)) continue;
+        const btn = [...dialog.querySelectorAll("button")].find((b) => {
+          const t = (b.textContent || "").trim();
+          return t === "\u7EE7\u7EED" || t === "Continue";
+        });
+        if (btn) {
+          done = true;
+          btn.click();
+          observer.disconnect();
+        }
+        break;
+      }
+    };
+    const observer = new MutationObserver(tryDismiss);
+    observer.observe(document.body, { childList: true, subtree: true });
+    tryDismiss();
+    const stopTimer = setTimeout(() => observer.disconnect(), 6e4);
+    return () => {
+      clearTimeout(stopTimer);
+      observer.disconnect();
+    };
+  }, []);
+  (0, import_react21.useEffect)(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return void 0;
     const mq = window.matchMedia ? window.matchMedia("(max-width:700px)") : null;
     if (!mq) return void 0;
-    if (!hostPresent) window.__dshDockMobileDrawer = "client";
+    if (window.__dshDockMobileDrawer === "host") return void 0;
+    window.__dshDockMobileDrawer = "client";
     const narrow = () => mq.matches;
     const frameEl = () => document.querySelector('[class$="frame"]');
     const sidebarCollapsed = () => {
@@ -11226,6 +11269,7 @@ function MobileRelayOverlay() {
       return !!f && f.hasAttribute("data-sidebar-collapsed");
     };
     const dialogOpen = () => !!document.querySelector('[role="dialog"][class*="panel"]');
+    const rightOpen = () => !!document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
     const collapse = () => {
       const b = document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
       if (b) b.click();
@@ -11235,28 +11279,20 @@ function MobileRelayOverlay() {
       if (b) b.click();
     };
     const closeDetails = () => {
-      const d = document.querySelector('[class*="detailsCol"]');
-      if (!d || !d.getBoundingClientRect().width) return;
-      const c = d.querySelector('button[aria-label="\u5173\u95ED\u8BE6\u60C5"]');
-      if (c) c.click();
+      const panel = document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
+      if (!panel) return;
+      const toggle = panel.querySelector("[data-sidebar-right-toggle]");
+      if (toggle) toggle.click();
     };
-    let fab = null;
-    let scrim = null;
-    if (!hostPresent) {
-      fab = document.createElement("button");
-      fab.type = "button";
-      fab.className = "dsh-mobile-drawer-btn";
-      fab.setAttribute("aria-label", "\u6253\u5F00\u4F1A\u8BDD\u5217\u8868");
-      fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>';
-      fab.addEventListener("click", expand);
-      scrim = document.createElement("div");
-      scrim.className = "dsh-mobile-scrim";
-      document.body.appendChild(fab);
-      document.body.appendChild(scrim);
-    }
+    const scrim = document.createElement("div");
+    scrim.className = "dsh-mobile-scrim";
+    document.body.appendChild(scrim);
+    document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
     const tabbar = document.createElement("nav");
     tabbar.className = "dsh-mobile-tabbar";
     tabbar.setAttribute("aria-label", "\u5E95\u90E8\u5BFC\u822A");
+    let tasksActive = 0;
+    let tasksWaiting = 0;
     const tabDefs = [
       {
         id: "sessions",
@@ -11266,11 +11302,10 @@ function MobileRelayOverlay() {
       },
       {
         id: "dock",
-        label: "\u529F\u80FD\u575E",
+        label: "\u63D2\u4EF6",
         icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
         act: () => {
-          if (panelNav.open) setPanelOpen(false);
-          else openPanel("home");
+          openPanel(tasksActive > 0 || tasksWaiting > 0 ? "runstate" : "home");
         }
       },
       {
@@ -11283,6 +11318,7 @@ function MobileRelayOverlay() {
         }
       }
     ];
+    let tasksBadge = null;
     const tabButtons = tabDefs.map((def) => {
       const b = document.createElement("button");
       b.type = "button";
@@ -11290,6 +11326,12 @@ function MobileRelayOverlay() {
       b.dataset.tab = def.id;
       b.innerHTML = def.icon + "<span>" + def.label + "</span>";
       b.addEventListener("click", () => def.act());
+      if (def.id === "dock") {
+        tasksBadge = document.createElement("span");
+        tasksBadge.className = "dsh-mobile-tab-badge";
+        tasksBadge.style.display = "none";
+        b.appendChild(tasksBadge);
+      }
       tabbar.appendChild(b);
       return b;
     });
@@ -11304,74 +11346,115 @@ function MobileRelayOverlay() {
       }
     };
     const unsubPanel = subscribePanel(syncTabs);
-    const place = () => {
-      if (!fab) return;
-      const vh = window.innerHeight;
-      let top = null;
-      const g = document.querySelector(".dgfab");
-      if (g && !g.classList.contains("dgfab-hide") && g.getBoundingClientRect) {
-        const r = g.getBoundingClientRect();
-        if (r && r.height > 0 && r.top > 0) {
-          top = r.top - fab.offsetHeight - 8;
-          if (top < 64) top = r.bottom + 8;
-          if (top + fab.offsetHeight > vh - 16) top = null;
+    let runstateGone = false;
+    const pollTasks = () => {
+      if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === "hidden" || !tabbar.isConnected) return;
+      fetch("/dsh-dock/runstate/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      }).then(async (res) => {
+        if (res.status === 404 || res.status === 405) {
+          runstateGone = true;
+          tasksActive = 0;
+          tasksWaiting = 0;
+          tasksBadge.style.display = "none";
+          return null;
         }
-      }
-      if (top == null) top = Math.round(vh * 0.38);
-      fab.style.top = top + "px";
+        const body = await res.json().catch(() => null);
+        if (!body) return null;
+        const active = body.data && body.data.active || [];
+        const waiting = active.filter((t) => t.approvals && t.approvals.length).length;
+        tasksActive = active.length;
+        tasksWaiting = waiting;
+        if (waiting > 0) {
+          tasksBadge.textContent = String(waiting);
+          tasksBadge.className = "dsh-mobile-tab-badge wait";
+          tasksBadge.style.display = "";
+        } else if (active.length > 0) {
+          tasksBadge.textContent = String(active.length);
+          tasksBadge.className = "dsh-mobile-tab-badge";
+          tasksBadge.style.display = "";
+        } else {
+          tasksBadge.style.display = "none";
+        }
+      }).catch(() => {
+      });
+    };
+    const tasksTimer = setInterval(pollTasks, 3e3);
+    const vv = window.visualViewport || null;
+    const kbdSync = () => {
+      if (!vv) return;
+      const kbd = vv.height > 0 && window.innerHeight - vv.height > 120;
+      document.documentElement.classList.toggle("dsh-dock-kbd", kbd);
     };
     const sync = () => {
+      kbdSync();
+      document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => {
+        if (el !== tabbar) el.remove();
+      });
       const on = narrow() && !!frameEl() && !dialogOpen();
       const collapsed = sidebarCollapsed();
-      if (fab) {
-        const showFab = on && collapsed && !panelNav.open;
-        fab.style.display = showFab ? "" : "none";
-        if (showFab) place();
-      }
+      const right = rightOpen();
       if (scrim) scrim.style.display = on && !collapsed ? "" : "none";
-      tabbar.style.display = narrow() && !!frameEl() && !panelNav.open ? "" : "none";
+      tabbar.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? "" : "none";
       syncTabs();
     };
     sync();
+    pollTasks();
     const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(sync) : null;
     if (observer) observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed"], subtree: true });
     const timer = setInterval(sync, 1500);
     const onMq = () => sync();
     if (mq.addEventListener) mq.addEventListener("change", onMq);
     else if (mq.addListener) mq.addListener(onMq);
-    window.addEventListener("resize", place);
+    window.addEventListener("resize", kbdSync);
+    if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") pollTasks();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     const onClick = (e) => {
       if (!narrow()) return;
       const t = e.target;
       if (!t || !t.closest) return;
-      if (t.closest(".dsh-mobile-drawer-btn") || t.closest(".dsh-mobile-tabbar")) return;
+      if (t.closest(".dsh-mobile-tabbar")) return;
       const expanded = !!document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
       const col = document.querySelector('[class*="sidebarCol"]');
       const inSidebar = col && col.contains(t);
       if (!expanded && !inSidebar) return;
       if (inSidebar) {
         const row = t.closest('[role="treeitem"]');
-        const leaf = row && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]');
+        const rowKey = row && row.getAttribute("data-row-key") || "";
+        const sessionRow = rowKey && rowKey.startsWith("session:") || row && !rowKey && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]');
         const fresh = t.closest('[class*="newSession"]');
-        if (leaf || fresh) setTimeout(() => {
+        if (sessionRow || fresh) setTimeout(() => {
           collapse();
           closeDetails();
         }, 300);
+        else {
+          setTimeout(() => {
+            if (document.querySelector('[role="dialog"]')) collapse();
+          }, 260);
+        }
         return;
       }
-      if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[class*="detailsCol"]')) return;
+      if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]')) return;
       collapse();
     };
-    if (!hostPresent) document.addEventListener("click", onClick, true);
+    document.addEventListener("click", onClick, true);
     return () => {
-      if (!hostPresent) document.removeEventListener("click", onClick, true);
+      document.removeEventListener("click", onClick, true);
       if (observer) observer.disconnect();
       clearInterval(timer);
+      clearInterval(tasksTimer);
       unsubPanel();
       if (mq.removeEventListener) mq.removeEventListener("change", onMq);
       else if (mq.removeListener) mq.removeListener(onMq);
-      window.removeEventListener("resize", place);
-      if (fab) fab.remove();
+      window.removeEventListener("resize", kbdSync);
+      if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
+      document.removeEventListener("visibilitychange", onVisible);
+      document.documentElement.classList.remove("dsh-dock-kbd");
       if (scrim) scrim.remove();
       tabbar.remove();
       if (window.__dshDockMobileDrawer === "client") delete window.__dshDockMobileDrawer;
@@ -11382,10 +11465,16 @@ function MobileRelayOverlay() {
 function MobileRelayHomeStat() {
   const [summary, setSummary] = (0, import_react21.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
   (0, import_react21.useEffect)(() => {
-    rpc("lan").then((data) => {
-      setSummary(data.gatewayActive ? "\u5165\u53E3\u8FD0\u884C\u4E2D \xB7 \u7AEF\u53E3 " + data.gatewayPort : data.accountSet ? "\u8D26\u53F7\u5DF2\u8BBE\u7F6E\uFF0C\u5165\u53E3\u672A\u5F00\u542F" : "\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
-    }).catch(() => {
-    });
+    const refresh = () => {
+      rpc("lan").then((data) => {
+        const devices = typeof data.devices === "number" && data.devices > 0 ? " \xB7 " + data.devices + " \u53F0\u8BBE\u5907\u5728\u7EBF" : "";
+        setSummary(data.gatewayActive ? "\u5165\u53E3\u8FD0\u884C\u4E2D \xB7 \u7AEF\u53E3 " + data.gatewayPort + devices : data.accountSet ? "\u8D26\u53F7\u5DF2\u8BBE\u7F6E\uFF0C\u5165\u53E3\u672A\u5F00\u542F" : "\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
+      }).catch(() => {
+      });
+    };
+    refresh();
+    const timer = setInterval(refresh, 1e4);
+    return () => clearInterval(timer);
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: summary });
 }
@@ -11398,9 +11487,9 @@ var feature10 = {
   defaultEnabled: false,
   css: `
 .dmr{--dmr-accent:var(--dk-accent,#2f6fed);--dmr-accent-soft:color-mix(in srgb,var(--dmr-accent) 13%,transparent);display:flex;flex-direction:column;gap:16px;max-width:720px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dmr h3,.dmr h4,.dmr p{margin:0}.dmr h3{font-size:17px;line-height:1.25;letter-spacing:-.01em}.dmr h4{font-size:13px}.dmr-hero,.dmr-status-head{display:flex;align-items:flex-start;gap:12px}.dmr-hero>div,.dmr-status-head>div{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-hero-icon{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:14px;background:var(--dmr-accent-soft);color:var(--dmr-accent);border:1px solid color-mix(in srgb,var(--dmr-accent) 35%,var(--dsw-alias-border-l1))}.dmr-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}.dmr-steps li{display:flex;gap:9px;padding:11px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:12px}.dmr-steps li>span{width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;font-size:11px;font-weight:700;color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-steps div{display:flex;flex-direction:column;gap:3px;min-width:0}.dmr-steps strong{font-size:12px}.dmr-steps small{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}.dmr-field{display:flex;flex-direction:column;gap:6px;font-weight:600}.dmr-field input,.dmr-field select,.dmr-note textarea{box-sizing:border-box;width:100%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:10px 12px;min-height:44px;font:inherit;outline:none;transition:border-color .18s ease,box-shadow .18s ease}.dmr-field input:focus,.dmr-field select:focus,.dmr-note textarea:focus{border-color:var(--dmr-accent);box-shadow:0 0 0 3px var(--dmr-accent-soft)}.dmr-field small{font-weight:400}.dmr-network-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(150px,.6fr);gap:12px}.dmr-security{padding:12px 13px;border:1px solid color-mix(in srgb,var(--dk-warn) 48%,var(--dsw-alias-border-l1));border-radius:12px;background:color-mix(in srgb,var(--dk-warn) 9%,transparent)}.dmr-security strong{display:block;margin-bottom:4px;color:var(--dk-warn);font-size:12px}.dmr-security p{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.55}.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button{font:inherit;touch-action:manipulation;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease,opacity .18s ease}.dmr-primary,.dmr-secondary{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:9px 13px;font-weight:600}.dmr-primary{align-self:flex-start;border:1px solid var(--dmr-accent);background:var(--dmr-accent);color:#fff}.dmr-primary:hover{filter:brightness(1.05)}.dmr-secondary{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}.dmr-secondary:hover{border-color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-primary:active,.dmr-secondary:active,.dmr-icon-button:active{transform:scale(.98)}.dmr-primary:disabled,.dmr-secondary:disabled,.dmr-text-button:disabled,.dmr-icon-button:disabled{cursor:not-allowed;opacity:.5}.dmr-message{display:flex;align-items:flex-start;gap:7px;padding:10px 12px;border-radius:10px;font-size:12px}.dmr-message.success{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent)}.dmr-message.error{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}.dmr-status-head{justify-content:space-between}.dmr-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--dmr-accent)}.dmr-eyebrow i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px var(--dmr-accent-soft)}.dmr-icon-button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-secondary)}.dmr-icon-button:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor}.dmr-share{display:flex;flex-direction:column;gap:9px;padding:13px;border:1px solid color-mix(in srgb,var(--dmr-accent) 32%,var(--dsw-alias-border-l1));border-radius:13px;background:var(--dmr-accent-soft)}.dmr-share-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:center}.dmr-qr-card{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border-radius:12px;background:#fff;color:#111827;text-align:center}.dmr-qr-card img{display:block;width:176px;height:176px;max-width:100%;object-fit:contain}.dmr-qr-card strong{font-size:12px}.dmr-qr-card small{color:#4b5563;font-size:10px}.dmr-qr-loading{display:grid;place-items:center;width:176px;height:176px;color:#64748b;font-size:12px}.dmr-share-detail{min-width:0;display:flex;flex-direction:column;gap:10px}.dmr-share-detail>div:first-child{display:flex;flex-direction:column;gap:4px}.dmr-link{padding:10px 11px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:var(--dsw-alias-label-secondary)}.dmr-share-actions{display:flex;gap:8px;flex-wrap:wrap}.dmr-share-actions .dmr-primary{align-self:auto}.dmr-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dmr-overview-card{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dmr-overview-card>span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-overview-card strong{font-size:16px;letter-spacing:-.01em}.dmr-section{display:flex;flex-direction:column;gap:9px}.dmr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.dmr-section-head small{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-text-button{border:0;background:transparent;color:var(--dmr-accent);padding:8px;min-height:36px;font-weight:600}.dmr-task-list{display:flex;flex-direction:column;gap:8px}.dmr-task{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dmr-task>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.dmr-task strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dmr-phase{flex:none;border-radius:999px;padding:3px 8px;font-size:11px;background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-phase.write{color:var(--dsw-alias-state-success-primary)}.dmr-phase.code{color:var(--dk-warn)}.dmr-phase.search{color:#0d9488}.dmr-empty{padding:18px 12px;text-align:center;border:1px dashed var(--dsw-alias-border-l2);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}.dmr-note{display:flex;flex-direction:column;gap:9px;padding-top:2px}.dmr-note blockquote{margin:0;padding:10px 12px;border-left:3px solid var(--dmr-accent);border-radius:0 9px 9px 0;background:var(--dmr-accent-soft);white-space:pre-wrap;font-size:12px}.dmr-note textarea{min-height:88px;resize:vertical;line-height:1.5}.dmr-note .dmr-secondary{align-self:flex-start}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media (max-width:680px){.dmr{gap:14px;font-size:14px}.dmr h3{font-size:18px}.dmr-steps{grid-template-columns:1fr;gap:8px}.dmr-steps li{padding:10px}.dmr-steps small,.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{font-size:12px}.dmr-network-grid{grid-template-columns:1fr;gap:10px}.dmr-field input,.dmr-field select{font-size:16px}.dmr-primary,.dmr-secondary{width:100%;font-size:14px}.dmr-share-layout{grid-template-columns:1fr;gap:12px}.dmr-qr-card{width:min(240px,100%);margin:0 auto}.dmr-qr-card img,.dmr-qr-loading{width:210px;height:210px}.dmr-share-actions{flex-direction:column}.dmr-share-actions .dmr-primary{width:100%}.dmr-overview{gap:8px}.dmr-overview-card{padding:11px}.dmr-status-head{gap:8px}.dmr-link{font-size:11px}.dmr-note textarea{font-size:16px;min-height:104px}.dmr-note .dmr-secondary{align-self:stretch}.dmr-compact .dmr-hero-icon{width:40px;height:40px;border-radius:13px}}@media (prefers-reduced-motion:reduce){.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button,.dmr-field input,.dmr-field select,.dmr-note textarea{transition:none}}.dmr-lan{flex:none;margin-top:6px;padding-top:16px;border-top:1px solid var(--dsw-alias-border-l1)}.dmr-lan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.dmr-lan-title{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-lan-title p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-lan-badge{flex:none;display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}.dmr-lan-badge.on{border-color:color-mix(in srgb,var(--dmr-accent) 45%,transparent);background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-lan-active,.dmr-lan-idle{display:flex;flex-direction:column;gap:12px}.dmr-lan-active .dmr-share-detail small strong{color:var(--dsw-alias-state-error-primary)}.dmr-danger{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,var(--dsw-alias-border-l2));color:var(--dsw-alias-state-error-primary)}.dmr-danger:hover{border-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}
-/* \u62BD\u5C49\u628A\u624B\uFF1A\u8D34\u5DE6\u8FB9\u7F18\uFF08\u540C\u8DA3\u5473\u6E38\u620F\u6D6E\u6807\u7684\u8FB9\u7F18\u5438\u9644\u8BED\u8A00\uFF09\uFF0Ctop \u7531 place() \u52A8\u6001\u8BBE\u5B9A\uFF1B
- * z \u5E8F 70 < \u906E\u7F69 75 < \u4FA7\u680F 80 < overlayLayer 90\uFF0C\u9762\u677F/\u5F39\u7A97\u6253\u5F00\u65F6\u81EA\u7136\u88AB\u76D6\u3002 */
-@media (max-width:700px){.dsh-mobile-drawer-btn{position:fixed;left:0;top:38vh;z-index:70;box-sizing:border-box;width:30px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.35));border-left:none;border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);box-shadow:4px 0 18px rgba(0,0,0,.28);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.dsh-mobile-drawer-btn:active{transform:scale(.94)}.dsh-mobile-drawer-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}
+/* \u62BD\u5C49\u906E\u7F69\uFF1A\u4FA7\u680F\u6D6E\u5C42\u5C55\u5F00\u65F6\u76D6\u4F4F\u9875\u9762\u3002\u5DE6\u7F18\u6D6E\u52A8\u300C\u62BD\u5C49\u628A\u624B\u300D\u5DF2\u79FB\u9664\u2014\u2014\u4F1A\u8BDD\u5165\u53E3
+ * \u7EDF\u4E00\u8D70\u5E95\u90E8 Tab \u680F\u300C\u4F1A\u8BDD\u300D\u9875\u7B7E\uFF0C\u628A\u624B\u60AC\u6D6E\u5728\u5185\u5BB9\u4E0A\u8FD8\u538B\u8FC7\u8F93\u5165\u533A\uFF08\u7528\u6237\u5B9E\u6D4B\uFF09\u3002 */
+@media (max-width:700px){.dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}
 /* ---- \u4EFF ZCode \u624B\u673A\u7AEF\uFF1A\u5E95\u90E8 Tab \u680F + \u8F93\u5165\u533A\u5438\u9644\u5E95\u90E8 ---- */
 .dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:65;display:flex;align-items:stretch;justify-content:space-around;padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));touch-action:manipulation}
 .dsh-mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;padding:4px 0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary,#8b95ab);font:600 11px/1.2 inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;border-radius:10px}
@@ -11408,25 +11497,335 @@ var feature10 = {
 .dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}
 .dsh-mobile-tab.on svg{color:var(--dk-accent,#4d9fff)}
 .dsh-mobile-tab:active{transform:scale(.94)}
+/* \u300C\u4EFB\u52A1\u300D\u9875\u7B7E\u89D2\u6807\uFF1A\u8FDB\u884C\u4E2D=\u84DD\uFF08\u6570\u91CF\uFF09\uFF0C\u7B49\u5F85\u786E\u8BA4=\u7EA2\uFF08\u6570\u91CF+\u8109\u51B2\uFF09\u2014\u2014\u63A5\u529B\u573A\u666F\u91CC
+ * \u7B49\u5F85\u786E\u8BA4\u662F\u6700\u9700\u8981\u4EBA\u4ECB\u5165\u7684\u72B6\u6001\uFF0C\u4E00\u773C\u53EF\u89C1\uFF1B\u6570\u636E\u6765\u81EA runstate \u5BBF\u4E3B\u8DEF\u7531\u4F4E\u9891\u8F6E\u8BE2\u3002 */
+.dsh-mobile-tab{position:relative}
+.dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}
+.dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}
+@keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}
 /* \u8F93\u5165\u533A\u5438\u9644\u5230 Tab \u680F\u4E0A\u65B9\uFF1A\u5BBF\u4E3B\u628A\u6B22\u8FCE\u5185\u5BB9 justify-content:center \u5782\u76F4\u5C45\u4E2D\uFF0C
- * \u624B\u673A\u89C6\u53E3\u4E0B\u8F93\u5165\u5361\u7247\u60AC\u5728\u4E2D\u90E8\u3001\u4E0B\u65B9\u7559\u51FA\u5927\u7247\u7A7A\u767D\u3002\u6539\u4E3A flex-end \u8D34\u5E95\uFF0C\u5E76\u7ED9
- * \u6EDA\u52A8\u4F53\u7559\u51FA Tab \u680F\u9AD8\u5EA6\u7684\u5185\u8FB9\u8DDD\uFF0C\u907F\u514D\u5185\u5BB9\u88AB Tab \u680F\u906E\u6321\u3002 */
-[class*="scrollBody"]{justify-content:flex-end !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
-[class*="scrollBody"]>[class*="composerSeat"]{padding-bottom:6px}
+ * \u624B\u673A\u89C6\u53E3\u4E0B\u8F93\u5165\u5361\u7247\u60AC\u5728\u4E2D\u90E8\u3001\u4E0B\u65B9\u7559\u51FA\u5927\u7247\u7A7A\u767D\u3002\u6539\u7528\u300C\u8F93\u5165\u533A margin-top:auto\u300D
+ * \u8D34\u5E95\uFF0C\u5E76\u7ED9\u6EDA\u52A8\u4F53\u7559\u51FA Tab \u680F\u9AD8\u5EA6\u7684\u5185\u8FB9\u8DDD\uFF0C\u907F\u514D\u5185\u5BB9\u88AB Tab \u680F\u906E\u6321\u3002
+ * \u26A0\uFE0F \u7EDD\u4E0D\u80FD\u7ED9\u6EDA\u52A8\u4F53\u52A0 justify-content:flex-end/center \u8D34\u5E95\uFF1A\u5185\u5BB9\u4F1A\u88AB\u6324\u5230\u6EDA\u52A8\u4F53
+ * \u8D77\u70B9\u4E4B\u5916\uFF0CChrome \u4E0D\u628A\u8D77\u70B9\u65B9\u5411\u6EA2\u51FA\u7B97\u8FDB scrollHeight\uFF08\u624B\u673A\u89C6\u53E3\u5B9E\u6D4B
+ * scrollHeight==clientHeight\u3001maxScroll==0\uFF09\uFF0C\u4F1A\u8BDD\u8BB0\u5F55\u5F7B\u5E95\u6EDA\u4E0D\u52A8\u3001\u9996\u6761\u6D88\u606F\u6C38\u8FDC
+ * \u770B\u4E0D\u5230\u3002\u5BBF\u4E3B\u534A\u90E8\u65E7\u7248\u6CE8\u5165\u91CC\u8FD8\u7559\u7740\u90A3\u6761 flex-end\uFF08\u8981\u91CD\u542F dsh web \u624D\u6D88\u5931\uFF09\uFF0C\u8FD9\u91CC
+ * \u7528\u66F4\u9AD8\u4F18\u5148\u7EA7\u7684\u9009\u62E9\u5668\u663E\u5F0F\u590D\u4F4D\uFF1A\u5237\u65B0\u9875\u9762\u5373\u4FEE\u597D\uFF0C\u4E0D\u5FC5\u7B49\u91CD\u542F\u3002 */
+[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
+[class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
+[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}
+/* \u8F93\u5165\u533A\u5DE5\u5177\u884C\u4E0A\u7684 dsh-dock chip\uFF08\u7528\u91CF/\u4F59\u989D\uFF09\uFF1A\u7A84\u5C4F\u4E0B 28cqw \u7684\u5BBD\u5EA6\u4E0A\u9650\u628A\u5B83\u4EEC\u6324\u6210
+ * \u300C\u2026\u300D\u300C\u4F59..\u300D\uFF08\u624B\u673A\u5B9E\u6D4B\uFF09\uFF0C\u65E2\u8BFB\u4E0D\u51FA\u6570\u503C\u53C8\u767D\u5360\u8F93\u5165\u884C\u7A7A\u95F4\u3002\u624B\u673A\u7AEF\u6574\u7EC4\u6536\u8D77\uFF0C\u6570\u503C\u5728
+ * \u5E95\u90E8\u300C\u529F\u80FD\u575E\u300D\u91CC\u770B\uFF08\u7528\u91CF/\u4F59\u989D\u9875\u4FE1\u606F\u66F4\u5168\uFF09\uFF1B\u684C\u9762\u7AEF\u4E0D\u52A8\u3002 */
+.dockchip-row{display:none}
 /* \u6536\u8D77\u7684\u4FA7\u680F\u8F68\u9053\uFF08collapsed rail\uFF09\u5728\u7A84\u5C4F\u53EA\u5269 1px \u5360\u4F4D\uFF0C\u4F46\u8F68\u9053\u91CC\u7684\u6309\u94AE
  * \u4ECD\u4F1A\u6EA2\u51FA\u8D34\u5728\u5DE6\u8FB9\u7F18\uFF08\u529F\u80FD\u575E/\u8FDB\u5316/\u8BBE\u7F6E\u4E09\u679A\u9732\u51FA\u534A\u8FB9\u7684\u5706\u94AE\uFF09\u3002\u9690\u85CF\u6574\u5217\uFF0C
  * \u8FD9\u4E9B\u5165\u53E3\u5DF2\u7531\u5E95\u90E8 Tab \u680F\u63A5\u7BA1\uFF1B\u5C55\u5F00\u62BD\u5C49\uFF08z 80\uFF09\u4E0D\u53D7\u5F71\u54CD\u3002 */
 [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}
-/* \u62BD\u5C49\u628A\u624B\u4ECE\u5C4F\u5E55\u4E2D\u90E8\u632A\u5230 Tab \u680F\u4E0A\u65B9\u4E00\u70B9\uFF0C\u514D\u5F97\u5B64\u96F6\u96F6\u60AC\u5728\u534A\u7A7A */
-.dsh-mobile-drawer-btn{top:auto !important;bottom:calc(96px + env(safe-area-inset-bottom,0px))}}`,
+/* \u8F6F\u952E\u76D8\u5F39\u51FA\uFF08visualViewport \u5224\u5B9A\uFF0C\u6302 html.dsh-dock-kbd\uFF09\uFF1ATab \u680F\u6574\u4F53\u8BA9\u4F4D\uFF08\u6253\u5B57\u65F6
+ * \u5B83\u53EA\u4F1A\u6324\u5360\u952E\u76D8\u4E0A\u65B9\u7684\u4E00\u7EBF\u7A7A\u95F4\uFF09\uFF0C\u6EDA\u52A8\u4F53\u7559\u767D\u6536\u7A84\u3002\u9009\u62E9\u5668\u7279\u5F02\u6027\u9AD8\u4E8E\u4E0A\u9762\u7684 72px
+ * \u7559\u767D\u89C4\u5219\uFF0C\u80FD\u538B\u8FC7\u53BB\u3002\u5BBF\u4E3B\u63A5\u7BA1\u671F\u95F4\u7531\u5BBF\u4E3B\u811A\u672C\u540C\u6B65\u7F6E/\u6458\u8FD9\u4E2A\u7C7B\u3002 */
+html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}
+html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}
+/* \u529F\u80FD\u575E\u9762\u677F\u5728\u624B\u673A\u7AEF\u62AC\u5230\u539F\u751F\u5F39\u5C42\u4E4B\u4E0A\uFF1A\u4ECE\u4FA7\u680F\u8FDB\u7684\u5B98\u65B9\u63D2\u4EF6\u7BA1\u7406\u9875\u7B49\u539F\u751F\u5F39\u5C42 z \u5E8F\u9AD8\u4E8E
+ * \u9762\u677F\u9ED8\u8BA4\u7684 200\uFF0C\u529F\u80FD\u575E\u5F00\u5728\u4E0B\u9762\u4F1A\u88AB\u76D6\u4F4F\u2014\u2014\u300C\u63D2\u4EF6\u300D\u9875\u7B7E\u70B9\u4E86\u50CF\u6CA1\u53CD\u5E94/\u9732\u51FA\u539F\u9875\u9762\u3002 */
+[class*="dockm-backdrop"]{z-index:2000 !important}}`,
   View: MobileRelayView,
   HomeStat: MobileRelayHomeStat,
   Overlay: MobileRelayOverlay
 };
 
+// features/mobile/view.js
+var import_react22 = __toESM(require("react"), 1);
+var import_react23 = require("react");
+var MOBILE_QUERY_NARROW = "(max-width: 820px)";
+var MOBILE_QUERY_COARSE = "(pointer: coarse) and (hover: none)";
+var MOBILE_STORE_KEY = "dsh-dock/mobile/v1";
+var mobilePref = { floating: true };
+try {
+  if (typeof localStorage !== "undefined") {
+    const raw = localStorage.getItem(MOBILE_STORE_KEY);
+    const obj = raw ? JSON.parse(raw) : null;
+    if (obj && typeof obj === "object" && typeof obj.floating === "boolean") mobilePref.floating = obj.floating;
+  }
+} catch {
+}
+var prefListeners = /* @__PURE__ */ new Set();
+function notifyPref() {
+  for (const fn of prefListeners) {
+    try {
+      fn();
+    } catch {
+    }
+  }
+}
+function floatingShown() {
+  return mobilePref.floating !== false;
+}
+function setFloatingShown(value) {
+  mobilePref.floating = value !== false;
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(MOBILE_STORE_KEY, JSON.stringify(mobilePref));
+  } catch {
+  }
+  notifyPref();
+}
+function subscribePref(fn) {
+  prefListeners.add(fn);
+  return () => {
+    prefListeners.delete(fn);
+  };
+}
+function mobileActive() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  try {
+    return window.matchMedia(MOBILE_QUERY_NARROW).matches || window.matchMedia(MOBILE_QUERY_COARSE).matches;
+  } catch {
+    return false;
+  }
+}
+function MobileOverlay(props) {
+  const ctx = props && props.ctx;
+  const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
+  const [floating, setFloating] = (0, import_react23.useState)(() => floatingShown());
+  (0, import_react23.useEffect)(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
+    let mqs = [];
+    try {
+      mqs = [window.matchMedia(MOBILE_QUERY_NARROW), window.matchMedia(MOBILE_QUERY_COARSE)];
+    } catch {
+      return void 0;
+    }
+    const update = () => setActive(mqs.some((mq) => mq.matches));
+    update();
+    for (const mq of mqs) {
+      if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
+      else if (typeof mq.addListener === "function") mq.addListener(update);
+    }
+    return () => {
+      for (const mq of mqs) {
+        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
+        else if (typeof mq.removeListener === "function") mq.removeListener(update);
+      }
+    };
+  }, []);
+  (0, import_react23.useEffect)(() => {
+    if (typeof document === "undefined") return void 0;
+    if (active) {
+      document.body.setAttribute("data-dk-mobile", "1");
+      try {
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta && !/(^|,)\s*viewport-fit\s*=/.test(meta.content || "")) {
+          meta.setAttribute("content", (meta.content || "width=device-width, initial-scale=1") + ", viewport-fit=cover");
+        }
+      } catch {
+      }
+    } else {
+      document.body.removeAttribute("data-dk-mobile");
+    }
+    return () => {
+      document.body.removeAttribute("data-dk-mobile");
+    };
+  }, [active]);
+  (0, import_react23.useEffect)(() => subscribePref(() => setFloating(floatingShown())), []);
+  const [relayBand, setRelayBand] = (0, import_react23.useState)(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    try {
+      return window.matchMedia("(max-width: 700px)").matches;
+    } catch {
+      return false;
+    }
+  });
+  (0, import_react23.useEffect)(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
+    let mq = null;
+    try {
+      mq = window.matchMedia("(max-width: 700px)");
+    } catch {
+      return void 0;
+    }
+    const update = () => setRelayBand(mq.matches);
+    update();
+    if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
+    else if (typeof mq.addListener === "function") mq.addListener(update);
+    return () => {
+      if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
+      else if (typeof mq.removeListener === "function") mq.removeListener(update);
+    };
+  }, []);
+  if (!active || !floating) return null;
+  const relayChromeActive = typeof window !== "undefined" && window.__dshDockMobileDrawer != null && relayBand;
+  if (relayChromeActive) return null;
+  const onToggle = () => {
+    try {
+      const layout = ctx && ctx.get ? ctx.get("layout") : null;
+      if (layout && typeof layout.toggleSidebar === "function") layout.toggleSidebar();
+      else console.warn("[dsh-dock] \u624B\u673A\u9002\u914D\uFF1Actx.layout.toggleSidebar \u4E0D\u53EF\u7528\uFF08dsh \u7248\u672C\u8FC7\u65E7\uFF1F\uFF09");
+    } catch (err) {
+      console.error("[dsh-dock] \u624B\u673A\u9002\u914D\uFF1A\u5207\u6362\u4FA7\u680F\u5931\u8D25\uFF1A", err);
+    }
+  };
+  return import_react22.default.createElement("button", {
+    type: "button",
+    className: "dkmob-fab",
+    "aria-label": "\u5F00\u5173\u4FA7\u680F",
+    title: "\u5F00\u5173\u4FA7\u680F",
+    onClick: onToggle
+  }, import_react22.default.createElement(
+    "svg",
+    { width: 20, height: 20, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+    import_react22.default.createElement("rect", { x: 1.5, y: 2.5, width: 13, height: 11, rx: 2 }),
+    import_react22.default.createElement("line", { x1: 6, y1: 2.5, x2: 6, y2: 13.5 })
+  ));
+}
+function useViewportSize() {
+  const [size, setSize] = (0, import_react23.useState)(() => typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight });
+  (0, import_react23.useEffect)(() => {
+    if (typeof window === "undefined") return void 0;
+    const update = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return size;
+}
+function MobileView() {
+  const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
+  const [floating, setFloating] = (0, import_react23.useState)(() => floatingShown());
+  const size = useViewportSize();
+  (0, import_react23.useEffect)(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
+    let mqs = [];
+    try {
+      mqs = [window.matchMedia(MOBILE_QUERY_NARROW), window.matchMedia(MOBILE_QUERY_COARSE)];
+    } catch {
+      return void 0;
+    }
+    const update = () => setActive(mqs.some((mq) => mq.matches));
+    update();
+    for (const mq of mqs) {
+      if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
+      else if (typeof mq.addListener === "function") mq.addListener(update);
+    }
+    return () => {
+      for (const mq of mqs) {
+        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
+        else if (typeof mq.removeListener === "function") mq.removeListener(update);
+      }
+    };
+  }, []);
+  return import_react22.default.createElement(
+    "div",
+    { className: "dkmob-root" },
+    import_react22.default.createElement(
+      "div",
+      { className: "dkmob-row" },
+      import_react22.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
+      import_react22.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
+      import_react22.default.createElement(
+        "span",
+        { className: "dkmob-dim" },
+        size ? size.w + "\xD7" + size.h + "px" : "",
+        "\uFF08\u2264820px \u5BBD\uFF0C\u6216\u4E3B\u6307\u9488\u4E3A\u89E6\u5C4F\u65E0\u60AC\u505C\u65F6\u547D\u4E2D\uFF1B\u684C\u9762\u628A\u7A97\u53E3\u62D6\u7A84\u4E5F\u4F1A\u547D\u4E2D\uFF0C\u65B9\u4FBF\u8C03\u8BD5\uFF09"
+      )
+    ),
+    import_react22.default.createElement(
+      "div",
+      { className: "dkmob-row" },
+      import_react22.default.createElement("span", { className: "dkmob-label" }, "\u6D6E\u52A8\u4FA7\u680F\u6309\u94AE"),
+      import_react22.default.createElement("button", {
+        type: "button",
+        className: "dock-sw" + (floating ? " on" : ""),
+        role: "switch",
+        "aria-checked": floating,
+        "aria-label": (floating ? "\u9690\u85CF" : "\u663E\u793A") + "\u6D6E\u52A8\u4FA7\u680F\u6309\u94AE",
+        title: floating ? "\u9690\u85CF\u5DE6\u4E0B\u89D2\u7684\u6D6E\u52A8\u4FA7\u680F\u5F00\u5173" : "\u663E\u793A\u5DE6\u4E0B\u89D2\u7684\u6D6E\u52A8\u4FA7\u680F\u5F00\u5173",
+        onClick: () => setFloatingShown(!floating)
+      }),
+      import_react22.default.createElement("span", { className: "dkmob-dim" }, "44px \u5706\u94AE\u56FA\u5B9A\u5728\u5DE6\u4E0B\u89D2\uFF0C\u8C03\u7528 dsh \u5B98\u65B9 toggleSidebar \u5F00\u5408\u7A84\u5C4F\u62BD\u5C49\uFF1B\u4E0D\u9700\u8981\u65F6\u53EF\u5728\u6B64\u5173\u95ED\u3002")
+    ),
+    import_react22.default.createElement(
+      "div",
+      { className: "dkmob-note" },
+      "\u751F\u6548\u4E2D\u7684\u4F18\u5316\uFF1A\u8F93\u5165\u7C7B\u63A7\u4EF6\u5B57\u53F7\u62C9\u5230 16px\uFF08\u907F\u514D iOS \u805A\u7126\u7F29\u653E\u6574\u9875\uFF09\xB7 \u7EAF\u56FE\u6807\u6309\u94AE\u9762\u79EF\u515C\u5E95 \u226536px \xB7 ",
+      "\u53BB\u6389\u70B9\u6309\u9AD8\u4EAE\u4E0E\u53CC\u51FB\u7F29\u653E\u5224\u5B9A \xB7 \u4EE3\u7801\u5757\u6A2A\u5411\u6EDA\u52A8\u3001\u884C\u5185\u4EE3\u7801\u81EA\u52A8\u6362\u884C \xB7 viewport meta \u8865 viewport-fit=cover",
+      "\uFF08standalone \u5168\u5C4F\u65F6\u7ED9\u5706\u89D2/\u5218\u6D77\u7559\u5B89\u5168\u533A\uFF09\u3002\u505C\u7528\u672C\u529F\u80FD\u5373\u5168\u90E8\u8FD8\u539F\u3002"
+    )
+  );
+}
+function MobileStat() {
+  const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
+  const [floating, setFloating] = (0, import_react23.useState)(() => floatingShown());
+  (0, import_react23.useEffect)(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
+    let mqs = [];
+    try {
+      mqs = [window.matchMedia(MOBILE_QUERY_NARROW), window.matchMedia(MOBILE_QUERY_COARSE)];
+    } catch {
+      return void 0;
+    }
+    const update = () => setActive(mqs.some((mq) => mq.matches));
+    update();
+    for (const mq of mqs) {
+      if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
+      else if (typeof mq.addListener === "function") mq.addListener(update);
+    }
+    return () => {
+      for (const mq of mqs) {
+        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
+        else if (typeof mq.removeListener === "function") mq.removeListener(update);
+      }
+    };
+  }, []);
+  (0, import_react23.useEffect)(() => subscribePref(() => setFloating(floatingShown())), []);
+  if (!active) return import_react22.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
+  return import_react22.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 \u6D6E\u52A8\u4FA7\u680F\u6309\u94AE" + (floating ? "\u663E\u793A" : "\u5DF2\u9690\u85CF"));
+}
+var css6 = [
+  // 浮动侧栏按钮：44px 触控面积（Apple HIG 最低建议），token 取主题变量自动适配亮暗色；
+  // z-index 190 压在功能坞弹层（dockm-backdrop，200）之下，弹层打开时被遮罩盖住不误触。
+  ".dkmob-fab{position:fixed;left:calc(env(safe-area-inset-left,0px) + 62px);bottom:calc(env(safe-area-inset-bottom,0px) + 74px);z-index:190;width:44px;height:44px;border-radius:50%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);display:inline-flex;align-items:center;justify-content:center;padding:0;box-shadow:0 4px 14px rgb(0 0 0 / .22);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s var(--ds-ease-in-out),background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
+  ".dkmob-fab:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  ".dkmob-fab:active{transform:scale(.94);}",
+  // 输入类控件 16px：防 iOS 聚焦自动放大（<16px 的输入框聚焦时 Safari 强制缩放页面）
+  'body[data-dk-mobile="1"] :is(textarea, input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="password"], input[type="number"], input[type="email"], [contenteditable="true"]){font-size:16px !important;}',
+  // 触控基础：去点按高亮、消双击缩放判定
+  'body[data-dk-mobile="1"] :is(button, [role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
+  // 纯图标按钮面积兜底：实测窄屏下一批 28×28 的工具钮很难点中；36px 是不引起行高剧变的上限。
+  // 只收「唯一子元素是 svg」的按钮，避免撑坏带文字的行内控件；排除远程访问的抽屉把手
+  // （.dsh-mobile-drawer-btn 贴边设计 30px 宽，被撑到 36 会破坏边缘吸附观感）与本模块 FAB。
+  'body[data-dk-mobile="1"] button:has(> svg:only-child):not(.dsh-mobile-drawer-btn):not(.dkmob-fab){min-width:36px;min-height:36px;}',
+  // 代码块横向滚动、行内代码换行：窄屏不撑破版面
+  'body[data-dk-mobile="1"] pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}',
+  'body[data-dk-mobile="1"] code{overflow-wrap:anywhere;}',
+  'body[data-dk-mobile="1"] pre code{overflow-wrap:normal;}',
+  // iOS 横竖屏切换时的字号自动膨胀关掉（:has 挂到 html 上；dsh 自身样式已依赖 :has，基线足够）
+  'html:has(body[data-dk-mobile="1"]){-webkit-text-size-adjust:100%;text-size-adjust:100%;}',
+  // 功能页自身
+  ".dkmob-root{display:flex;flex-direction:column;gap:10px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;}",
+  ".dkmob-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+  ".dkmob-label{font-weight:600;flex:none;}",
+  ".dkmob-state{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 10px;font-size:11px;}",
+  ".dkmob-state.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
+  ".dkmob-dim{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+  ".dkmob-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}"
+].join("\n");
+var feature11 = {
+  id: "mobile",
+  name: "\u624B\u673A\u9002\u914D",
+  order: 170,
+  accent: "#34d399",
+  description: "\u624B\u673A/\u7A84\u5C4F\u6392\u7248\u4E0E\u89E6\u63A7\u515C\u5E95\uFF1A16px \u8F93\u5165\u9632 iOS \u7F29\u653E\u3001\u56FE\u6807\u6309\u94AE\u89E6\u63A7\u9762\u79EF\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u6D6E\u52A8\u4FA7\u680F\u5F00\u5173",
+  defaultEnabled: true,
+  css: css6,
+  Overlay: MobileOverlay,
+  View: MobileView,
+  HomeStat: MobileStat
+};
+
 // src/client.jsx
-var DOCK_VERSION = "0.12.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
+var DOCK_VERSION = "0.13.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -11633,8 +12032,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react22.default.useReducer((n) => n + 1, 0);
-  import_react22.default.useEffect(() => {
+  const [, bump] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -11644,44 +12043,44 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react22.default.createElement(
+  return import_react24.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react22.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react22.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react22.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react22.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react24.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react22.default.useState(panelNav.open);
-  import_react22.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react22.default.createElement("button", {
+  const [open, setOpen] = import_react24.default.useState(panelNav.open);
+  import_react24.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react24.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
     title: "\u529F\u80FD\u575E",
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react22.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react22.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react24.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react24.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react22.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react22.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react22.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react22.default.useRef(null);
-  const contentRef = import_react22.default.useRef(null);
-  import_react22.default.useEffect(() => {
+  const [win, setWin] = import_react24.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react24.default.useRef(null);
+  const contentRef = import_react24.default.useRef(null);
+  import_react24.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react22.default.useEffect(() => {
+  import_react24.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -11719,13 +12118,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react22.default.createElement(
+  const viewNode = mod && View ? import_react24.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react22.default.createElement(
+    import_react24.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react22.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react24.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -11739,10 +12138,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react22.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react22.default.createElement(
+    import_react24.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -11750,41 +12149,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react22.default.createElement(
+      import_react24.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react22.default.createElement(DockIcon, null),
-        import_react22.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react22.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react22.default.createElement(
+        import_react24.default.createElement(DockIcon, null),
+        import_react24.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react24.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react24.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react22.default.createElement("button", {
+          import_react24.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react22.default.createElement("button", {
+          import_react24.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react22.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react24.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react22.default.createElement(
+      import_react24.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react22.default.createElement(
+        import_react24.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react22.default.createElement(
+          import_react24.default.createElement(
             "button",
             {
               type: "button",
@@ -11792,10 +12191,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react22.default.createElement("span", { className: "dockm-navhome" }, import_react22.default.createElement(DockIcon, null)),
-            import_react22.default.createElement("span", null, "\u9996\u9875")
+            import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)),
+            import_react24.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react22.default.createElement(
+          MODULES.map((m) => import_react24.default.createElement(
             "button",
             {
               type: "button",
@@ -11803,42 +12202,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react22.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react22.default.createElement("span", null, m.name),
-            m.planned ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react24.default.createElement("span", null, m.name),
+            m.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react22.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react22.default.createElement(
+          import_react24.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react22.default.createElement(
+            import_react24.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react22.default.createElement("span", { className: "dockm-navhome" }, import_react22.default.createElement(DockIcon, null)) : import_react22.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)) : import_react24.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react22.default.createElement(
+            import_react24.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react22.default.createElement("div", { className: "dockm-view" }, import_react22.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react22.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react22.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react22.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react22.default.createElement(
+          isHome ? import_react24.default.createElement("div", { className: "dockm-view" }, import_react24.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react24.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react24.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react24.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react24.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react22.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react22.default.createElement(
+            import_react24.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react24.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react22.default.createElement("button", {
+              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react24.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -11851,11 +12250,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react22.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react24.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react22.default.createElement("button", {
+              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react24.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -11871,30 +12270,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react22.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react24.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react22.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react22.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react22.default.createElement(
+      const statNode = m.planned ? import_react24.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react24.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react22.default.createElement(Stat, { ctx })
-      ) : import_react22.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react22.default.createElement(
+        import_react24.default.createElement(Stat, { ctx })
+      ) : import_react24.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react24.default.createElement(
         "div",
         {
           key: m.id,
@@ -11909,21 +12308,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react22.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react22.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react22.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react22.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react24.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react24.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react22.default.createElement(
+          import_react24.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react22.default.createElement("span", { className: "dockh-sdot" }),
-            import_react22.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react24.default.createElement("span", { className: "dockh-sdot" }),
+            import_react24.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react22.default.createElement("button", {
+          m.planned ? null : import_react24.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -11938,12 +12337,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react22.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react22.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react22.default.createElement(
+        import_react24.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react24.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react24.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react22.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react24.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -11951,16 +12350,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react22.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react22.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -11969,25 +12368,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react22.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react24.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react22.default.createElement(
+        import_react24.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react22.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react24.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react22.default.createElement(
+      return import_react24.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react22.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react22.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react22.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react22.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react22.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react22.default.createElement("button", {
+          import_react24.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react24.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react24.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react24.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react24.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -11996,11 +12395,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react22.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react24.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react22.default.createElement("button", {
+            import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react24.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -12014,22 +12413,22 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react22.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react22.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react24.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react24.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
-  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react22.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react22.default.createElement(f.Chip, {
+      import_react24.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -12039,23 +12438,23 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react22.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react24.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react22.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react22.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react24.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react22.default.createElement(import_react22.default.Fragment, null, items);
+  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -12066,23 +12465,23 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react22.default.createElement(DockEntry, props)
+    (props) => import_react24.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react22.default.createElement(DockModal, null)
+    () => import_react24.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react22.default.createElement(FeatureOverlays, null)
+    () => import_react24.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react22.default.createElement(DockPanel, props)
+    (props) => import_react24.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react22.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react24.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
 }
 var inject = ["timer"];
