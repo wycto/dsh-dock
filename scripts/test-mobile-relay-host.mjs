@@ -92,55 +92,25 @@ const dispose = feature.setup(mockCtx)
 let healDispose = () => {}
 let autoDispose = () => {}
 
-// 手机端适配注入（tapIndex）：必须含遮罩与 UUID 兜底，不得再出现抽屉把手，且幂等。
+// 远程访问注入（tapIndex）：只保留 LAN 非安全上下文的 crypto.randomUUID 兜底——
+// 手机端排版/行为自 v0.14.0 起归【手机适配】（features/mobile/host.js），
+// 远程访问就单纯的远程访问。因此注入页必须不含任何手机端 chrome（遮罩/Tab 栏/布局）。
+// 手机端 chrome 的同款契约见 scripts/test-mobile-host.mjs。
 assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
 {
   const sample = '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>'
   const once1 = indexTransforms.reduce((html, fn) => fn(html), sample)
-  assert.match(once1, /data-dsh-lan-compat/)
-  assert.match(once1, /data-dsh-mobile-layout/)
-  // 左缘浮动「抽屉把手」已移除（用户实测截图：与底部 Tab 栏「会话」页签功能重复，
-  // 还悬浮在内容上压过输入区）——注入页不得再出现把手元素/样式。
+  assert.match(once1, /data-dsh-lan-compat/, '缺 LAN crypto.randomUUID 兜底（远程 http 非安全上下文必需）')
+  assert.match(once1, /randomUUID/, 'crypto 兜底没有补 randomUUID')
+  const twice = indexTransforms.reduce((html, fn) => fn(html), once1)
+  assert.equal(countOf(twice, 'data-dsh-lan-compat'), 1, 'injection must be idempotent')
+  // 不得再出现手机端 chrome：已全部迁到【手机适配】（scripts/test-mobile-host.mjs 钉它的契约）
+  assert.doesNotMatch(once1, /data-dsh-mobile-layout/, '远程访问不应再注入窄屏排版样式（已迁手机适配）')
+  assert.doesNotMatch(once1, /data-dsh-mobile-behave/, '远程访问不应再注入窄屏行为脚本（已迁手机适配）')
+  assert.doesNotMatch(once1, /dsh-mobile-scrim/, '远程访问不应再有抽屉遮罩（已迁手机适配）')
+  assert.doesNotMatch(once1, /dsh-mobile-tabbar/, '远程访问不应再有底部 Tab 栏（已迁手机适配）')
   assert.doesNotMatch(once1, /dsh-mobile-drawer-btn/)
   assert.doesNotMatch(once1, /dsh-dock-drawer-top|dsh-dock-drawer-off/)
-  assert.match(once1, /dsh-mobile-scrim/)
-  assert.match(once1, /data-dsh-mobile-behave/)
-  assert.match(once1, /打开侧边栏/)
-  // 设置弹层挂在侧栏列内部：列隐藏不能连坐弹层（否则点设置是空气弹层）
-  assert.match(once1, /\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\) \[role="dialog"\]\{visibility:visible\}/)
-  const twice = indexTransforms.reduce((html, fn) => fn(html), once1)
-  assert.equal(countOf(twice, 'data-dsh-mobile-layout'), 1, 'injection must be idempotent')
-  assert.equal(countOf(twice, 'data-dsh-mobile-behave'), 1)
-  assert.equal(countOf(twice, 'data-dsh-lan-compat'), 1)
-
-  // 手机端「会话记录滑不动」回归钉（用户实测缺陷）。为了让欢迎页的输入卡贴底，早期
-  // 给滚动体加了 justify-content:flex-end——内容因此从滚动体起点溢出，而 Chrome 不把
-  // 起点方向的溢出算进 scrollHeight（手机视口实测 scrollHeight==clientHeight、
-  // maxScroll==0），会话记录彻底滑不动、首条消息永远停在视口外。贴底只能用输入区
-  // 自己的 margin-top:auto：有剩余空间才生效，不制造起点溢出。
-  assert.doesNotMatch(once1, /\[class\*="scrollBody"\][^{}]*\{[^}]*justify-content:\s*(?:flex-end|center)/, '滚动体不得设 flex-end/center（会让会话记录滚不动）')
-  assert.match(once1, /\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/, '输入区贴底必须走 margin-top:auto')
-  // 输入区工具行的 chip 窄屏收起（28cqw 上限把它们挤成「余..」，读不出数值）
-  assert.match(once1, /\.dockchip-row\{display:none\}/)
-  // 「插件」页签（任务/功能坞并入）+ 等待确认角标 + 软键盘让位（与客户端半部同款契约，
-  // 两半部必须一起改）。
-  assert.doesNotMatch(once1, /\{id:"tasks"/, '不应再有独立「任务」页签（应并入「插件」）')
-  assert.match(once1, /\{id:"dock",label:"插件"/, 'Tab 栏缺「插件」页签')
-  // 功能坞面板必须抬到原生弹层之上（官方插件管理页等 z 高于面板默认 200，会盖住功能坞）
-  assert.match(once1, /\[class\*="dockm-backdrop"\]\{z-index:2000!important\}/, '手机端没有把功能坞面板抬到原生弹层之上')
-  assert.match(once1, /dsh-mobile-tab-badge/, '缺「插件」页签任务角标样式/元素')
-  assert.match(once1, /\/dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
-  assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
-  // 侧栏入口（插件/自动化任务/设置…）弹出的面板 z 序低于展开的抽屉——点击后必须
-  // 探测面板并收起抽屉，否则面板被盖住等于「点了没反应」（用户实测截图）。
-  assert.match(once1, /setTimeout\(function\(\)\{if\(document\.querySelector\('\[role="dialog"\]'\)\)collapse\(\)\},260\)/, '侧栏入口点击后没有「面板弹出即收起抽屉」的探测')
-  // 点工作区文件夹不能收抽屉（只展开/收拢分组）：会话行以 data-row-key="session:" 开头，
-  // 文件夹行是 workspace: 开头——旧的「无子 treeitem 即叶子」判定会误伤折叠状态的文件夹
-  // （折叠时子节点不在 DOM 里），用户实测「点文件夹抽屉被收起」。
-  assert.match(once1, /rowKey\.indexOf\("session:"\)===0/, '会话行识别没有按 data-row-key 的 session: 前缀（点文件夹会被误收抽屉）')
-  assert.doesNotMatch(once1, /var leaf=row&&!row\.querySelector/, '残留旧的「无子 treeitem 即叶子」判定')
-  assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]/, '滚动体留白没有区分键盘弹出态')
-  assert.match(once1, /html\.dsh-dock-kbd \[class\*="scrollBody"\]/, '缺键盘弹出态的收窄留白规则')
 }
 function countOf(text, needle) { return text.split(needle).length - 1 }
 
