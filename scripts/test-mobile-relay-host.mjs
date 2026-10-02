@@ -93,7 +93,7 @@ let healDispose = () => {}
 let autoDispose = () => {}
 
 // 远程访问注入（tapIndex）：只保留 LAN 非安全上下文的 crypto.randomUUID 兜底——
-// 手机端排版/行为自 v0.14.0 起归【手机适配】（features/mobile/host.js），
+// 手机端排版/行为归【手机适配】（features/mobile/host.js），
 // 远程访问就单纯的远程访问。因此注入页必须不含任何手机端 chrome（遮罩/Tab 栏/布局）。
 // 手机端 chrome 的同款契约见 scripts/test-mobile-host.mjs。
 assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
