@@ -18,6 +18,7 @@
 //   - mobile      手机适配：窄屏排版/Tab 栏/抽屉/遮罩/键盘（宿主经 tapIndex 注入 index.html）
 //   - mobile-relay 远程访问：账号密码登录的远程入口（网关 + 账号 + 浏览模式目录选择器）
 import { DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
+import { injectWelcomeAck } from './src/welcome-ack.js'
 import { feature as fModels } from './features/modelconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
@@ -172,6 +173,16 @@ export function apply(ctx, config) {
         }
       })
   })
+
+  // 插件级兼容注入（不随功能开关启停）：远程（非回环）浏览器的「预览版说明」自动确认。
+  // 根因与归属见 src/welcome-ack.js 文件头——关掉远程访问、主实例直接绑 0.0.0.0 的
+  // 直连形态同样每次重弹，所以不能挂在【远程访问】名下；回环地址脚本自我短路。
+  {
+    const webServer = ctx.get('webServer')
+    if (webServer && typeof webServer.tapIndex === 'function') {
+      ctx.effect(() => webServer.tapIndex(injectWelcomeAck), 'dsh-dock: welcome-ack index tap')
+    }
+  }
 
   // 功能开关管理路由（无条件注册）：GET 查询各功能宿主侧状态；POST 同步开关——
   // 浏览器面板 toggle 经此写入 settings（跨浏览器/重启保持）并即时 setup/dispose 宿主半部。

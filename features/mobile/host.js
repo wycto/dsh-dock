@@ -93,10 +93,22 @@ const MOBILE_LAYOUT_CSS = [
   // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
   // 底部「插件」里看（用量/余额页信息更全）；桌面端不动。
   '  .dockchip-row{display:none}',
-  // 收起的侧栏轨道（collapsed rail）在窄屏只剩 1px 占位，但轨道里的按钮
-  // 仍会溢出贴在左边缘（功能坞/进化/设置三枚露出半边的圆钮）。隐藏整列，
-  // 这些入口已由底部 Tab 栏接管；展开抽屉（z 80）不受影响。
+  // 收起的侧栏轨道（collapsed rail）在窄屏只剩 1px 占位，但轨道里的按钮仍会溢出贴在
+  // 左边缘（添加工作区/搜索/功能坞/设置等露出半边）。这些入口已由底部 Tab 栈接管；
+  // 展开抽屉（z 80）不受影响。
   '  [class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
+  // ⚠️ 列级 visibility:hidden 在 dsh 0.2.0 上挡不住：工作区浏览器为了展开/收拢动画给自己的
+  // headerActions/sectionLabel 显式声明 visibility:visible（ui-workspace WorkspaceBrowser.module.css），
+  // visibility 可被后代覆盖，轨道里的「添加工作区」等按钮就从隐藏列里「透」出来（实测手机
+  // 截图左缘游离按钮）。display:none 不可被后代翻转——但只能打在**轨道根节点**上，绝不能
+  // 打在列上：frame 是「侧栏轨 0px + 中列 1fr + 右轨 0px」的网格，列 display:none 会从网格
+  // 流里摘掉，自动放置把中列顶进 0px 轨（实测中列宽 0、整页空屏）。轨道根（类名同时含
+  // root 与 collapsed 两个语义后缀）隐藏后列还在流里占着 0px 轨，中列照常 1fr。
+  // 弹层打开时豁免（:not(:has([role="dialog"]))）：设置/插件管理弹层挂在列内部
+  // （footArea → settingsArea → overlay → panel），display:none 会把它连坐成空气弹层；
+  // 此时退回上面的 visibility 机制（由下面那条 [role=dialog] 强制可见），窄屏弹层本身
+  // 100vw×100dvh 全屏，透出的轨道也在它下面。
+  '  [class*="sidebarCol"]:has([class*="collapsed"]):not(:has([role="dialog"])) [class*="root"][class*="collapsed"]{display:none!important}',
   // ⚠️ 设置/插件管理弹层挂在侧栏列内部（footArea → settingsArea → overlay → panel），
   // 上面隐藏整列会把它连坐隐藏——点「设置」得到一个 390×844 的空气弹层（属性齐全但不绘制）。
   // visibility 可被后代覆盖，弹层关闭态会整体卸载（DOM 里没有 [role=dialog]），所以强制
@@ -149,7 +161,7 @@ const MOBILE_BEHAVIOR_JS = [
   'var TAB_DEFS=[',
   '  {id:"sessions",label:"会话",icon:\'<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>\',act:function(){expand()}},',
   '  {id:"dock",label:"插件",icon:\'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>\',act:function(){openDockSmart()}},',
-  '  {id:"settings",label:"设置",icon:\'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>\',act:function(){var bs=document.querySelectorAll("button");for(var i=0;i<bs.length;i++){if(bs[i].getAttribute("aria-label")==="设置"){bs[i].click();return}}}}',
+  '  {id:"settings",label:"设置",icon:\'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>\',act:function(){var bs=document.querySelectorAll("button");for(var i=0;i<bs.length;i++){var a=bs[i].getAttribute("aria-label")||"";if(a==="设置"||a==="Settings"){bs[i].click();return}}}}',
   '];',
   'function syncTabs(){',
   '  if(!tabbar)return;',

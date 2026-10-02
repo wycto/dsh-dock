@@ -82,6 +82,13 @@ try {
   // —— 设置弹层挂在侧栏列内部：列隐藏不能连坐弹层（否则点设置是空气弹层）——
   assert.match(once1, /\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\) \[role="dialog"\]\{visibility:visible\}/)
 
+  // —— 收起轨道必须 display:none 主隐藏（dsh 0.2.0 的 WorkspaceBrowser 给自己的
+  //    headerActions/sectionLabel 显式 visibility:visible，会从列级 hidden 里「透」出来，
+  //    手机实测左缘游离按钮）；display 不可被后代翻转。但只能打在轨道根节点上——
+  //    frame 是 0px+1fr+0px 三轨网格，列 display:none 会从网格流里摘掉、中列顶进 0px 轨
+  //    （实测整页空屏）。弹层打开时豁免（保空气弹层修复）。——
+  assert.match(once1, /\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\):not\(:has\(\[role="dialog"\]\)\) \[class\*="root"\]\[class\*="collapsed"\]\{display:none!important\}/)
+
   // —— 功能坞面板必须抬到原生弹层之上 ——
   assert.match(once1, /\[class\*="dockm-backdrop"\]\{z-index:2000!important\}/, '手机端没有把功能坞面板抬到原生弹层之上')
 
