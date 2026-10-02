@@ -189,7 +189,15 @@ function mobileChrome() {
 		{
 			id: "settings", label: "设置",
 			icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>',
-			act: () => { const b = [...document.querySelectorAll("button")].find((x) => (x.getAttribute("aria-label") || "") === "设置" || (x.textContent || "").trim() === "设置"); if (b) b.click() },
+			act: () => {
+				// 中英文双匹配：aria-label 随 dsh 客户端语言本地化（英文环境是 "Settings"），
+				// 只认「设置」会让英文环境的页签点不动（测试实例 en 环境实测）。
+				const b = [...document.querySelectorAll("button")].find((x) => {
+					const a = x.getAttribute("aria-label") || "";
+					return a === "设置" || a === "Settings" || (x.textContent || "").trim() === "设置";
+				});
+				if (b) b.click()
+			},
 		},
 	];
 	let tasksBadge = null;
@@ -486,6 +494,15 @@ const css = [
 	// 底部「插件」里看（用量/余额页信息更全）；桌面端不动。
 	'.dockchip-row{display:none}',
 	'[class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
+	// ⚠️ 列级 visibility:hidden 在 dsh 0.2.0 上挡不住：工作区浏览器给自己的
+	// headerActions/sectionLabel 显式声明 visibility:visible（展开/收拢动画用），visibility
+	// 可被后代覆盖，轨道按钮会从隐藏列里「透」出来（实测手机截图左缘游离按钮）。
+	// display:none 不可被后代翻转——但只能打在**轨道根节点**上（类名同时含 root 与
+	// collapsed 两个语义后缀），绝不能打在列上：frame 是「侧栏 0px + 中列 1fr + 右轨 0px」
+	// 的网格，列 display:none 会从网格流里摘掉，中列被自动放置顶进 0px 轨（实测整页空屏）。
+	// 弹层打开时豁免（设置弹层挂在列内部，display:none 会连坐成空气弹层），此时列退回
+	// visibility 机制（由下一条 [role=dialog] 强制可见），窄屏弹层全屏铺满盖住透出的轨道。
+	'[class*="sidebarCol"]:has([class*="collapsed"]):not(:has([role="dialog"])) [class*="root"][class*="collapsed"]{display:none !important}',
 	// 设置/插件管理弹层挂在侧栏列内部：上面隐藏整列会把它连坐隐藏（空气弹层）。
 	// visibility 可被后代覆盖，弹层关闭态整体卸载，所以只在真正打开时命中。
 	'[class*="sidebarCol"]:has([class*="collapsed"]) [role="dialog"]{visibility:visible}',
