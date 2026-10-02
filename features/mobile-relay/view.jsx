@@ -158,7 +158,7 @@ export function MobileRelayView() {
 /**
  * 【远程访问】的 Overlay：只做一件事——远程（非回环）浏览器的「预览版说明」自动确认。
  *
- * 手机端 chrome（底部 Tab 栏 / 抽屉遮罩 / 面板互斥）自 v0.14.0 起整体归【手机适配】
+ * 手机端 chrome（底部 Tab 栏 / 抽屉遮罩 / 面板互斥）整体归【手机适配】
  * （features/mobile/view.js + features/mobile/host.js）——远程访问只负责「远程入口」本身，
  * 本机窄屏不做远程访问也一样有手机端排版。两边不再共享 __dshDockMobileDrawer 旗标：
  * 那是手机适配内部（宿主注入版 ↔ 客户端自建版）的归属协商，见 features/mobile/view.js。
