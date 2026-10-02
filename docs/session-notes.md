@@ -1659,3 +1659,61 @@ EasyTier 组网从外网访问）提出：手机端排版/交互要适配，且�
 - 构建产物已同步 `~/.dsh-web-company/profiles/web/node_modules/dsh-dock/`（拷贝安装）；
   **需重启该 `dsh web`**（旧进程仍在跑 0.12.0 客户端模块）。
 - `~/.dsh` 的 symlink 安装自动跟随仓库，无需同步。
+
+## 二十二、续作会话（2026-10-02）· 预览版说明归插件级 + 手机端游离按钮/空屏修复
+
+### 现象（用户实测，公司部署 `~/.dsh-web-company`，dsh 0.2.0-rc.2 + dsh-dock 0.13.0）
+
+1. 手机打开 `http://172.18.98.20:12080/?token=…`（**直连主实例**，patch 层把 webserver 绑
+   `0.0.0.0:12080`；dsh-dock `features.mobile-relay: false`），「预览版说明」每次都弹。
+2. 手机端排版散架：左上「添加工作区」按钮、左缘半截圆钮、左下角浮动侧栏按钮悬在页面
+   边缘，没有底部 Tab 栏（用户要求：远程访问就单纯的远程访问，手机端适配交给【手机适配】）。
+
+### 根因
+
+1. **预览版说明**：非回环浏览器的设置 scope 是 memory 模式（welcome-store 设计），确认不
+   持久化 → 每次刷新重弹。0.13.0 的自动确认挂在【远程访问】Overlay 里——该功能停用后
+   Overlay 不挂载，直连形态彻底没人管。「关掉远程访问」与「非回环访问」是两回事：
+   patch 层绑 0.0.0.0 的直连不需要任何功能开关参与。
+2. **游离按钮**：dsh 0.2.0 的工作区浏览器（`WorkspaceBrowser.module.css`）为展开/收拢
+   动画给自己的 `headerActions`/`sectionLabel` 显式 `visibility: visible`——visibility
+   可被后代覆盖，穿透了收起侧栏列的列级 `visibility: hidden`。左下胶囊是 0.13.0 的 FAB
+   （开发态已移除）；没有 Tab 栏是因为手机端 chrome 归属在 0.13.0 还是【远程访问】。
+3. **修复过程中踩到的网格陷阱（差点引入新 bug，实测抓住）**：frame 是
+   `侧栏 0px + 中列 1fr + 右轨 0px` 三轨网格，把 `display:none` 打在**列**上会把它从
+   网格流里摘掉，自动放置把中列顶进 0px 轨——实测中列宽 0、整页空屏。必须打在**轨道
+   根节点**（类名同时含 `root` 与 `collapsed` 语义后缀）上，列保持 visibility:hidden
+   占位。另：dsh 0.1.7 的「设置/插件管理弹层挂在列内部」结构在 0.2.0 依旧成立，
+   `:not(:has([role="dialog"]))` 豁免 + `[role=dialog]{visibility:visible}` 机制实测无回归。
+4. **顺带发现**：「设置」页签的动作只匹配 aria-label `设置`，dsh 英文环境是 `Settings`
+   ——英文环境页签点不动（测试实例 en 环境实测）。
+
+### 改法
+
+- 新增 `src/welcome-ack.js`（插件级兼容注入）：index.js 无条件注册
+  `webServer.tapIndex(injectWelcomeAck)`，不随任何功能开关启停；ES5、回环地址自我短路、
+  每页加载最多点一次「继续/Continue」、60 秒兜底退场、`__dshDockWelcomeAck` 先到先得旗标。
+  `features/mobile-relay/view.jsx` 删除 Overlay 版自动确认（远程访问回归纯入口）。
+- `features/mobile/host.js` + `features/mobile/view.js` 两份窄屏 CSS 同步：收起轨道根
+  `[class*="root"][class*="collapsed"]` display:none 主隐藏（弹层打开豁免）；「设置」
+  页签动作改「设置/Settings」双匹配。
+- `package.json` test:host 补 `scripts/test-welcome-ack.mjs`（幂等注入 / 回环自愈门 /
+  中英文案 / 入口注册 / 远程访问不再挂 Overlay）；`test-mobile-host.mjs` 与
+  `test-client-views.mjs` 补轨道隐藏契约。
+
+### 验证
+
+- `npm run build:client` + `test:client` 23 ✓ + `test:host` 全绿（含新契约）。
+- 测试实例：克隆 `~/.dsh-web-company` 到 /tmp、`node_modules/dsh-dock` 换 link 指向开发树、
+  patch 端口改 13080（同样 0.0.0.0 + mobile-relay:false），harness 检出 tsx 启动。
+  390×844 实测：LAN 地址打开弹窗 0.8s 内已被自动确认点掉（`__dshDockWelcomeAck==='host'`）；
+  底部 Tab 栏（会话/插件/设置）正常；输入区贴底；左缘游离按钮消失；「设置」页签弹层
+  全屏纵排可滚（空气弹层无回归）；「插件」页签开功能坞面板；「会话」页签抽屉 280px +
+  遮罩 + 点外收起；回环访问脚本自愈门命中（不介入）。
+- 测试实例与克隆已清理；用户在跑的公司实例（12080/0.13.0）未动。
+
+### 部署
+
+- 宿主半部改动：升级 dsh-dock 后**重启 dsh web**；纯客户端改动刷新即生效。
+- 公司部署（`~/.dsh-web-company`，npm 拷贝安装）需把新版 dsh-dock 装进去再重启；
+  开发机 `~/.dsh` link 安装自动跟随仓库。

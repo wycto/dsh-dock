@@ -767,6 +767,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/\.dockchip-row\{display:none\}/.test(bundle)) issues.push("窄屏没有收起输入区 chip");
 	if (/dsh-mobile-drawer-btn/.test(bundle)) issues.push("客户端不应再有左缘浮动抽屉把手（会话入口在底部 Tab 栏「会话」）");
 	if (/dsh-dock-drawer-top|dsh-dock-drawer-off/.test(bundle)) issues.push("残留了把手定位的 CSS 变量/隐藏开关");
+	if (!/\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\):not\(:has\(\[role="dialog"\]\)\) \[class\*="root"\]\[class\*="collapsed"\]\{display:none !important\}/.test(bundle)) issues.push("收起轨道没有 display:none 主隐藏（dsh 0.2.0 的 WorkspaceBrowser 自带 visibility:visible，会从列级 hidden 里透出游离按钮）");
 	if (issues.length) {
 		console.log(`✗ 手机端样式契约：${issues.join("；")}`);
 		process.exit(1);

@@ -6,6 +6,28 @@
 
 ### 修复
 
+- **「预览版说明」在非回环浏览器上每次刷新都重弹，且关掉【远程访问】后彻底没人管**
+  （用户实测：公司部署把主实例经 patch 层绑 `0.0.0.0:12080` 直连、远程访问停用，
+  手机打开 `http://<局域网IP>:12080/?token=…` 每次都弹）。根因不变（dsh welcome-store
+  对非回环浏览器的确认只存页面进程内存），但修复一直挂在【远程访问】的 Overlay 里——
+  功能一停用自动确认就消失，而「关掉远程访问、直连主实例」的形态同样是非回环访问。
+  现在自动确认迁到**插件级**（新增 `src/welcome-ack.js`，index.js 无条件注册
+  `webServer.tapIndex`，不随任何功能开关启停；回环地址脚本自我短路，保留 dsh 原生的
+  一次性持久确认）。【远程访问】不再挂 Overlay，回归单纯的远程入口。宿主半部改动，
+  重启 `dsh web` 生效。
+- **手机端左缘游离按钮**（用户实测截图：左上「添加工作区」、左缘半截圆钮悬在页面边缘）。
+  dsh 0.2.0 的工作区浏览器为了展开/收拢动画给自己的 `headerActions`/`sectionLabel`
+  **显式声明 `visibility: visible`**（ui-workspace `WorkspaceBrowser.module.css`），
+  穿透了收起侧栏列的列级 `visibility: hidden`——visibility 可被后代覆盖。修复：
+  对收起轨道根节点（类名同时含 `root` 与 `collapsed` 语义后缀）改用 `display:none`
+  （display 不可被后代翻转），弹层打开时 `:not(:has([role="dialog"]))` 豁免（设置/
+  插件管理弹层挂在列内部，否则连坐成空气弹层），此时退回 visibility 机制。
+  ⚠️ `display:none` **绝不能打在列上**：frame 是「侧栏 0px + 中列 1fr + 右轨 0px」的
+  网格，列 `display:none` 会从网格流里摘掉，自动放置把中列顶进 0px 轨——实测中列宽 0、
+  整页空屏。宿主/客户端两份样式同改，测试契约同步。
+- **手机端「设置」页签在英文环境点不动**：dsh 的设置按钮 aria-label 随客户端语言本地化
+  （英文是 `Settings`），页签动作只匹配了 `设置`。宿主/客户端两份动作都改为
+  「设置/Settings」双匹配（测试实例 en 环境实测点开设置弹层正常）。
 - **手机端「哪都滑不动」**（用户实测：会话/侧边栏/设置……所有地方都滑不动）。两条独立根因：
   1. **设置/弹层被内容撑高后裁死**：窄屏排版把 `[role="dialog"][class*="panel"]` 改成
      `flex-direction:column + height:100vh` 后，内容列（`[class*="content"]`）是默认
@@ -32,15 +54,16 @@
     或刷新早于重启）自建整套，两者仍用 `window.__dshDockMobileDrawer` 先到先得互斥。
     没开远程访问的本机窄屏同样生效；停用【手机适配】即全部还原。
   - 【远程访问】回归纯粹：只保留网关（账号密码登录、二维码、令牌兑换、浏览模式目录
-    选择器、LAN 非安全上下文 crypto.randomUUID 兜底、远程「预览版说明」自动确认）。
-    不再注入任何窄屏排版/Tab 栏/遮罩。
+    选择器、LAN 非安全上下文 crypto.randomUUID 兜底）。不再注入任何窄屏排版/Tab 栏/遮罩
+    （「预览版说明」自动确认随后也迁出——见修复节首条）。
 - **浮动侧栏按钮（44px FAB）移除**（用户要求）：会话入口统一走底部 Tab 栏「会话」页签，
   FAB 与其重复且悬浮在内容上；`dsh-dock/mobile/v1` 偏好与面板开关一并移除。
 - **测试契约更新**：新增 `scripts/test-mobile-host.mjs`（手机适配宿主注入契约：
   窄屏 chrome + 滚动兜底 + 点击路由 + 与远程访问解耦）；`test-mobile-relay-host.mjs`
   反转为「远程访问注入页只含 LAN crypto 兜底，不得含任何手机端 chrome」；
   `test-client-views.mjs` 的手机端样式/页签契约跟随新归口。`package.json` 的
-  `test:host` 序列补进 `test-mobile-host.mjs`。
+  `test:host` 序列补进 `test-mobile-host.mjs` 与 `test-welcome-ack.mjs`
+  （插件级自动确认：幂等注入、回环自愈门、中英文案、入口注册、远程访问不再挂 Overlay）。
 
 ## 0.13.0 — 2026-10-01
 
