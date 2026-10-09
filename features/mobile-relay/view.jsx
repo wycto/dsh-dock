@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 
 function rpc(method, payload) {
-  return fetch('/dsh-dock/mobile-relay/' + method, {
+  return fetch('dsh-dock/mobile-relay/' + method, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload || {}),
   }).then(async (res) => {
     const body = await res.json().catch(() => ({}))

@@ -8,13 +8,13 @@
 //  - 挂载即扫描历史+按暂存条件查询；挂载期间每 5s 静默自动刷新
 //  - 查询等待动画：点「查询」后按钮转圈扫光 + 数据区顶部「记账小队清点」banner（轮换俏皮文案，
 //    等久了换语气），旧数据压暗禁点；结果到位时闪一次「✓ 数据已更新」并让 KPI 卡回弹
-// Host 通信：fetch('/dsh-dock/tokenlog/<method>')（见 features/tokenlog/host.js）。
+// Host 通信：fetch('dsh-dock/tokenlog/<method>')（见 features/tokenlog/host.js）。
 import react, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { openPanel } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
-	return fetch("/dsh-dock/tokenlog/" + method, {
+	return fetch("dsh-dock/tokenlog/" + method, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify(args === undefined ? {} : args),

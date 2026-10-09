@@ -237,7 +237,7 @@ function mobileChrome() {
 	let runstateGone = false;
 	const pollTasks = () => {
 		if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === "hidden" || !tabbar.isConnected) return;
-		fetch("/dsh-dock/runstate/status", {
+		fetch("dsh-dock/runstate/status", {
 			method: "POST", headers: { "content-type": "application/json" }, body: "{}",
 		}).then(async (res) => {
 			if (res.status === 404 || res.status === 405) { runstateGone = true; tasksActive = 0; tasksWaiting = 0; tasksBadge.style.display = "none"; return null }
