@@ -52,7 +52,7 @@ try {
   assert.match(once1, /\{id:"dock",label:"插件"/, 'Tab 栏缺「插件」页签')
   assert.doesNotMatch(once1, /\{id:"tasks"/, '不应再有独立「任务」页签（应并入「插件」）')
   assert.match(once1, /dsh-mobile-tab-badge/, '缺「插件」页签任务角标样式/元素')
-  assert.match(once1, /\/dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
+  assert.match(once1, /\/?dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
   assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
 
   // —— 「哪都滑不动」回归钉（本轮核心修复）——
