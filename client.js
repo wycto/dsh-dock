@@ -2187,7 +2187,7 @@ function initFeatureState(defs) {
 }
 function syncFeatureStateFromHost(defs) {
   if (typeof fetch !== "function") return;
-  fetch("/dsh-dock/features").then(async (res) => {
+  fetch("dsh-dock/features").then(async (res) => {
     if (!res.ok) return;
     const data = await res.json().catch(() => null);
     const persisted = data && data.ok && data.data && data.data.persisted;
@@ -2214,7 +2214,7 @@ function syncFeatureStateFromHost(defs) {
 }
 function pushFeatureEnabledToHost(id, enabled) {
   if (typeof fetch !== "function") return;
-  fetch("/dsh-dock/features", {
+  fetch("dsh-dock/features", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id, enabled })
@@ -2300,7 +2300,7 @@ function subscribePanel(fn) {
 var import_react2 = __toESM(require("react"), 1);
 var import_jsx_runtime = require("react/jsx-runtime");
 function rpcCall(method, args) {
-  return fetch("/dsh-dock/tokenlog/" + method, {
+  return fetch("dsh-dock/tokenlog/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -3748,35 +3748,190 @@ var DKM_TAGS = [["video", "\u89C6\u9891"], ["audio", "\u97F3\u9891"], ["document
 var DKM_PI_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 var DKM_DS_LEVELS = ["off", "low", "high", "max"];
 var DKM_EFFORT_NAMES = { off: "\u5173\u95ED", minimal: "\u6781\u4F4E", low: "\u4F4E", medium: "\u4E2D", high: "\u9AD8", xhigh: "\u8D85\u9AD8", max: "\u6700\u9AD8" };
+var DKM_APIS = [
+  ["openai-completions", "OpenAI \u517C\u5BB9\uFF08chat/completions\uFF09"],
+  ["openai-responses", "OpenAI Responses"],
+  ["anthropic-messages", "Anthropic Messages"]
+];
+var DKM_ROUTE_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+function dkmEnvFromRoute(route) {
+  const s = String(route || "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!s) return "";
+  return (/^[0-9]/.test(s) ? "KEY_" + s : s) + "_API_KEY";
+}
+var DKM_ALL_INPUT = DKM_MODALITIES.map((x) => x[0]);
+var DKM_ALL_TAGS = DKM_TAGS.map((x) => x[0]);
+function dkmToggleIn(list, v) {
+  return list.indexOf(v) >= 0 ? list.filter((x) => x !== v) : list.concat([v]);
+}
+function dkmAllInputs(on) {
+  return { input: on ? DKM_ALL_INPUT.slice() : [], tags: on ? DKM_ALL_TAGS.slice() : [] };
+}
+function dkmAllLevels(on) {
+  const lv = {};
+  for (const k of DKM_PI_LEVELS) lv[k] = !!on;
+  return { effortsMode: "custom", effortLevels: lv };
+}
+function draftFromModel(m) {
+  const levels = {};
+  if (m.efforts === "custom" && m.effortMap && typeof m.effortMap === "object") {
+    for (const lv of DKM_PI_LEVELS) levels[lv] = m.effortMap[lv] !== void 0;
+  }
+  return {
+    id: m.id || "",
+    name: m.name || "",
+    contextWindow: m.contextWindow != null ? String(m.contextWindow) : "",
+    maxTokens: m.maxTokens != null ? String(m.maxTokens) : "",
+    input: m.input && m.input.length ? m.input.slice() : ["text"],
+    tags: (m.tags || []).slice(),
+    effortsMode: m.efforts === "custom" ? "custom" : m.efforts === "off" ? "off" : "inherit",
+    effortLevels: levels,
+    raw: m.raw && typeof m.raw === "object" ? m.raw : null
+  };
+}
+function emptyModelDraft() {
+  return { id: "", name: "", contextWindow: "", maxTokens: "", input: ["text"], tags: [], effortsMode: "inherit", effortLevels: {}, raw: null };
+}
+function emptyProviderForm() {
+  return {
+    route: "",
+    displayName: "",
+    api: "openai-completions",
+    baseURL: "",
+    apiKeyEnv: "",
+    apiKey: "",
+    defaultInput: ["text"],
+    models: [],
+    extra: {}
+  };
+}
+function providerFormFromProvider(p) {
+  const raw = p.rawProfile && typeof p.rawProfile === "object" && !Array.isArray(p.rawProfile) ? p.rawProfile : {};
+  const extra = Object.assign({}, raw);
+  delete extra.displayName;
+  delete extra.api;
+  delete extra.baseURL;
+  delete extra.apiKeyEnv;
+  delete extra.defaultInput;
+  delete extra.models;
+  const models = draftFromProvider(p).models;
+  return {
+    route: p.route || p.id || "",
+    displayName: typeof raw.displayName === "string" ? raw.displayName : p.displayName || "",
+    api: typeof raw.api === "string" && raw.api ? raw.api : p.api || "openai-completions",
+    baseURL: typeof raw.baseURL === "string" ? raw.baseURL : p.baseURL || "",
+    apiKeyEnv: typeof raw.apiKeyEnv === "string" ? raw.apiKeyEnv : p.apiKeyEnv || "",
+    apiKey: "",
+    defaultInput: Array.isArray(raw.defaultInput) && raw.defaultInput.length ? raw.defaultInput.slice() : Array.isArray(p.defaultInput) && p.defaultInput.length ? p.defaultInput.slice() : ["text"],
+    models: models.length ? models : [emptyModelDraft()],
+    extra
+  };
+}
 function draftFromProvider(p) {
   return {
     id: p.id,
     kind: p.kind,
     thinking: p.thinking === "disabled" ? "disabled" : "enabled",
     defaultEffort: DKM_DS_LEVELS.indexOf(p.defaultEffort) >= 0 ? p.defaultEffort : "high",
-    models: (p.models || []).map((m) => {
-      const levels = {};
-      if (m.efforts === "custom" && m.effortMap && typeof m.effortMap === "object") {
-        for (const lv of DKM_PI_LEVELS) levels[lv] = m.effortMap[lv] !== void 0;
-      }
-      return {
-        id: m.id || "",
-        name: m.name || "",
-        contextWindow: m.contextWindow != null ? String(m.contextWindow) : "",
-        maxTokens: m.maxTokens != null ? String(m.maxTokens) : "",
-        input: m.input && m.input.length ? m.input.slice() : ["text"],
-        tags: (m.tags || []).slice(),
-        effortsMode: m.efforts === "custom" ? "custom" : m.efforts === "off" ? "off" : "inherit",
-        effortLevels: levels,
-        raw: m.raw && typeof m.raw === "object" ? m.raw : null
-      };
-    })
+    models: (p.models || []).map(draftFromModel)
   };
 }
-function ModelsView() {
+function ModelRow(props) {
+  const m = props.m, i = props.i, kind = props.kind, onPatch = props.onPatch, onDel = props.onDel;
+  return import_react3.default.createElement(
+    "div",
+    { key: i, className: "dkm-model" },
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-model-head" },
+      import_react3.default.createElement("span", { className: "dkm-model-idx" }, "#" + (i + 1)),
+      import_react3.default.createElement("button", { type: "button", className: "dkm-del", onClick: () => onDel(i) }, "\u5220\u9664")
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-grid" },
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF0C\u5982 deepseek-v4-pro\uFF09", value: m.id, onChange: (e) => onPatch(i, { id: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => onPatch(i, { name: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => onPatch(i, { contextWindow: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => onPatch(i, { maxTokens: e.target.value }) })
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-checks" },
+      import_react3.default.createElement("span", { className: "dkm-label" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
+      DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
+        "label",
+        {
+          key: v,
+          className: "dkm-check",
+          title: v === "image" ? "\u7531\u4F60\u58F0\u660E\u8BE5\u7AEF\u70B9\u652F\u6301\u56FE\u7247\uFF1A\u4FDD\u5B58\u540E\u539F\u56FE\u76F4\u53D1\uFF0C\u5E76\u53EF\u4F5C\u4E3A\u89C6\u89C9\u6A21\u578B\u5019\u9009\u3002\u7CFB\u7EDF\u4E0D\u4F1A\u66FF\u4F60\u731C\u6D4B\uFF1B\u7AEF\u70B9\u5B9E\u9645\u4E0D\u652F\u6301\u65F6\u53D6\u6D88\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406" : null
+        },
+        import_react3.default.createElement("input", {
+          type: "checkbox",
+          checked: m.input.indexOf(v) >= 0,
+          onChange: () => {
+            const next = dkmToggleIn(m.input, v);
+            onPatch(i, { input: next.length > 0 ? next : ["text"] });
+          }
+        }),
+        label
+      )),
+      import_react3.default.createElement("span", { className: "dkm-label dkm-tag", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
+      DKM_TAGS.map(([v, label]) => import_react3.default.createElement(
+        "label",
+        { key: v, className: "dkm-check dkm-tag" },
+        import_react3.default.createElement("input", { type: "checkbox", checked: m.tags.indexOf(v) >= 0, onChange: () => onPatch(i, { tags: dkmToggleIn(m.tags, v) }) }),
+        label
+      )),
+      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => onPatch(i, dkmAllInputs(true)) }, "\u5168\u9009"),
+      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009\uFF08\u8F93\u5165\u7559\u7A7A = \u7EE7\u627F\u76EE\u5F55\u9ED8\u8BA4\uFF09", onClick: () => onPatch(i, dkmAllInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-efforts" },
+      import_react3.default.createElement("span", { className: "dkm-label" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
+      kind === "deepseek" ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u968F Provider \u8BBE\u7F6E\uFF08Off/Low/High/Max\uFF0C\u5168\u6A21\u578B\u5171\u4EAB\uFF09") : import_react3.default.createElement(
+        "span",
+        null,
+        import_react3.default.createElement(
+          "select",
+          {
+            className: "dkm-select",
+            value: m.effortsMode,
+            onChange: (e) => onPatch(i, {
+              effortsMode: e.target.value,
+              effortLevels: e.target.value === "custom" && m.effortsMode !== "custom" ? { off: true, low: true, high: true } : m.effortLevels
+            })
+          },
+          import_react3.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
+          import_react3.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
+          import_react3.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
+        ),
+        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react3.default.createElement(
+          "label",
+          { key: lv, className: "dkm-check" },
+          import_react3.default.createElement("input", {
+            type: "checkbox",
+            checked: !!m.effortLevels[lv],
+            onChange: () => {
+              const nl = Object.assign({}, m.effortLevels);
+              nl[lv] = !nl[lv];
+              onPatch(i, { effortLevels: nl });
+            }
+          }),
+          DKM_EFFORT_NAMES[lv] || lv
+        )) : null,
+        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => onPatch(i, dkmAllLevels(true)) }, "\u5168\u9009"),
+        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => onPatch(i, dkmAllLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
+      )
+    )
+  );
+}
+function ModelsView(props) {
   const snap = useModels();
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
+  const params = props && props.params;
   const [selId, setSelId] = import_react3.default.useState(null);
   const [draft, setDraft] = import_react3.default.useState(null);
   const [builtKey, setBuiltKey] = import_react3.default.useState(null);
@@ -3789,6 +3944,15 @@ function ModelsView() {
   const [vpSaving, setVpSaving] = import_react3.default.useState(false);
   const [vpMsg, setVpMsg] = import_react3.default.useState(null);
   const [vpDirectExpanded, setVpDirectExpanded] = import_react3.default.useState(false);
+  const [pfMode, setPfMode] = import_react3.default.useState(null);
+  const [pfDraft, setPfDraft] = import_react3.default.useState(null);
+  const [pfDirty, setPfDirty] = import_react3.default.useState(false);
+  const [pfSaving, setPfSaving] = import_react3.default.useState(false);
+  const [pfMsg, setPfMsg] = import_react3.default.useState(null);
+  const [pfDelArm, setPfDelArm] = import_react3.default.useState(null);
+  const [pfFetching, setPfFetching] = import_react3.default.useState(false);
+  const [pfFetched, setPfFetched] = import_react3.default.useState(null);
+  const [pfFetchedList, setPfFetchedList] = import_react3.default.useState(null);
   import_react3.default.useEffect(() => {
     modelsStore.load();
   }, []);
@@ -3851,6 +4015,205 @@ function ModelsView() {
     setSelId(id);
     setMsg(null);
   };
+  const piProviders = providers.filter((p) => p.kind === "pi-ai");
+  const openPfCreate = () => {
+    setPfMode("create");
+    setPfDraft(emptyProviderForm());
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetched(null);
+    setPfFetchedList(null);
+  };
+  const openPfEdit = (p) => {
+    setPfMode("edit");
+    setPfDraft(providerFormFromProvider(p));
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetched(null);
+    setPfFetchedList(null);
+  };
+  const closePf = () => {
+    setPfMode(null);
+    setPfDraft(null);
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetched(null);
+    setPfFetchedList(null);
+  };
+  const patchPf = (patch) => {
+    setPfDraft(Object.assign({}, pfDraft, patch));
+    setPfDirty(true);
+    setPfMsg(null);
+  };
+  const patchPfModel = (i, patch) => {
+    const models = pfDraft.models.slice();
+    models[i] = Object.assign({}, models[i], patch);
+    patchPf({ models });
+  };
+  const delPfModel = (i) => patchPf({ models: pfDraft.models.filter((_, j) => j !== i) });
+  const addPfModel = () => patchPf({ models: pfDraft.models.concat([emptyModelDraft()]) });
+  const togglePfModel = (id, name, on) => {
+    const base = pfDraft.models.filter((m) => String(m.id || "").trim());
+    if (on) {
+      if (base.some((m) => String(m.id).trim() === id)) return;
+      base.push(Object.assign(emptyModelDraft(), { id, name: name || "", input: pfDraft.defaultInput.slice() }));
+    } else {
+      const i = base.findIndex((m) => String(m.id).trim() === id);
+      if (i >= 0) base.splice(i, 1);
+    }
+    patchPf({ models: base });
+  };
+  const setAllPfModels = (on) => {
+    const base = [];
+    if (on && pfFetchedList) {
+      for (const mm of pfFetchedList) {
+        const id = String(mm && mm.id || "").trim();
+        if (!id) continue;
+        base.push(Object.assign(emptyModelDraft(), { id, name: mm && mm.name || "", input: pfDraft.defaultInput.slice() }));
+      }
+    }
+    patchPf({ models: base });
+  };
+  const pfSelectedCount = () => pfDraft ? pfDraft.models.filter((m) => String(m.id || "").trim()).length : 0;
+  const pfModelsPayload = () => pfDraft.models.map((m) => ({
+    id: String(m.id || "").trim(),
+    name: String(m.name || "").trim(),
+    contextWindow: m.contextWindow === "" || m.contextWindow == null ? void 0 : Number(m.contextWindow),
+    maxTokens: m.maxTokens === "" || m.maxTokens == null ? void 0 : Number(m.maxTokens),
+    input: m.input,
+    tags: m.tags,
+    effortsMode: m.effortsMode,
+    effortLevels: m.effortLevels,
+    raw: m.raw
+  }));
+  const fetchPfModels = () => {
+    if (!pfDraft || pfFetching) return;
+    setPfFetching(true);
+    setPfMsg(null);
+    setPfFetched(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "listModels",
+        baseURL: pfDraft.baseURL,
+        api: pfDraft.api,
+        apiKeyEnv: pfDraft.apiKeyEnv,
+        apiKey: pfDraft.apiKey
+      }),
+      signal: AbortSignal.timeout(3e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        const list = Array.isArray(r.body.models) ? r.body.models : [];
+        setPfFetchedList(list);
+        setPfFetched({ count: list.length });
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfFetching(false));
+  };
+  const savePf = () => {
+    if (!pfDraft || pfSaving) return;
+    const route = pfDraft.route.trim();
+    const baseURL = pfDraft.baseURL.trim();
+    const apiKey = pfDraft.apiKey.trim();
+    let apiKeyEnv = pfDraft.apiKeyEnv.trim();
+    if (apiKey && !apiKeyEnv) {
+      apiKeyEnv = dkmEnvFromRoute(route);
+      setPfDraft(Object.assign({}, pfDraft, { apiKeyEnv }));
+    }
+    const models = pfModelsPayload();
+    if (!route) {
+      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u4E0D\u80FD\u4E3A\u7A7A\uFF08\u5982 modelscope\uFF09" });
+      return;
+    }
+    if (!DKM_ROUTE_KEY_RE.test(route)) {
+      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u975E\u6CD5\uFF1A\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u4E0E . _ -\uFF0C\u4E14\u4EE5\u5B57\u6BCD/\u6570\u5B57\u5F00\u5934" });
+      return;
+    }
+    if (!/^https?:\/\//i.test(baseURL)) {
+      setPfMsg({ ok: false, text: "baseURL \u987B\u4EE5 http:// \u6216 https:// \u5F00\u5934" });
+      return;
+    }
+    const ids = models.map((m) => m.id);
+    if (ids.length === 0 || ids.some((x) => !x)) {
+      setPfMsg({ ok: false, text: "\u6BCF\u4E2A\u6A21\u578B\u90FD\u8981\u6709 id\uFF08\u53EF\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u81EA\u52A8\u62C9\u53D6\uFF09" });
+      return;
+    }
+    if (new Set(ids).size !== ids.length) {
+      setPfMsg({ ok: false, text: "\u6A21\u578B id \u6709\u91CD\u590D" });
+      return;
+    }
+    const profile = Object.assign({}, pfDraft.extra || {});
+    const dn = pfDraft.displayName.trim();
+    if (dn) profile.displayName = dn;
+    else delete profile.displayName;
+    profile.api = pfDraft.api;
+    profile.baseURL = baseURL;
+    if (apiKeyEnv) profile.apiKeyEnv = apiKeyEnv;
+    else delete profile.apiKeyEnv;
+    profile.defaultInput = pfDraft.defaultInput;
+    profile.models = models;
+    const payload = {
+      action: pfMode === "create" ? "create" : "update",
+      route,
+      profile,
+      revisions: data && data.revisions || {}
+    };
+    if (apiKey) payload.apiKey = apiKey;
+    setPfSaving(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(3e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2" + (pfMode === "create" ? "\u65B0\u589E" : "\u66F4\u65B0") + "\uFF1B\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009" });
+        setPfMode(null);
+        setPfDraft(null);
+        setPfDirty(false);
+        modelsStore.load();
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
+  };
+  const deletePf = (p) => {
+    const route = p.route || p.id;
+    if (pfDelArm !== route) {
+      setPfDelArm(route);
+      setPfMsg(null);
+      return;
+    }
+    setPfDelArm(null);
+    setPfSaving(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "delete", route, revisions: data && data.revisions || {} }),
+      signal: AbortSignal.timeout(2e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2\u5220\u9664" });
+        if (pfMode === "edit" && pfDraft && pfDraft.route === route) {
+          setPfMode(null);
+          setPfDraft(null);
+        }
+        modelsStore.load();
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
+  };
+  import_react3.default.useEffect(() => {
+    if (params && params.openProviderForm) openPfCreate();
+  }, []);
   const save = () => {
     if (!draft || !cur || !dirty || saving) return;
     const models = draft.models.map((m) => ({
@@ -3884,98 +4247,13 @@ function ModelsView() {
       }
     }).catch((e) => setMsg({ ok: false, text: e && e.message || String(e) })).then(() => setSaving(false));
   };
-  const modelRow = (m, i) => import_react3.default.createElement(
-    "div",
-    { key: i, className: "dkm-model" },
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-model-head" },
-      import_react3.default.createElement("span", { className: "dkm-model-idx" }, "#" + (i + 1)),
-      import_react3.default.createElement("button", {
-        type: "button",
-        className: "dkm-del",
-        onClick: () => patchDraft({ models: draft.models.filter((_, j) => j !== i) })
-      }, "\u5220\u9664")
-    ),
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-grid" },
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF0C\u5982 deepseek-v4-pro\uFF09", value: m.id, onChange: (e) => patchModel(i, { id: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => patchModel(i, { name: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => patchModel(i, { contextWindow: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => patchModel(i, { maxTokens: e.target.value }) })
-    ),
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-checks" },
-      import_react3.default.createElement("span", { className: "dkm-label" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
-      DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
-        "label",
-        {
-          key: v,
-          className: "dkm-check",
-          title: v === "image" ? "\u7531\u4F60\u58F0\u660E\u8BE5\u7AEF\u70B9\u652F\u6301\u56FE\u7247\uFF1A\u4FDD\u5B58\u540E\u539F\u56FE\u76F4\u53D1\uFF0C\u5E76\u53EF\u4F5C\u4E3A\u89C6\u89C9\u6A21\u578B\u5019\u9009\u3002\u7CFB\u7EDF\u4E0D\u4F1A\u66FF\u4F60\u731C\u6D4B\uFF1B\u7AEF\u70B9\u5B9E\u9645\u4E0D\u652F\u6301\u65F6\u53D6\u6D88\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406" : null
-        },
-        import_react3.default.createElement("input", {
-          type: "checkbox",
-          checked: m.input.indexOf(v) >= 0,
-          onChange: () => {
-            const next = toggleIn(m.input, v);
-            patchModel(i, { input: next.length > 0 ? next : ["text"] });
-          }
-        }),
-        label
-      )),
-      import_react3.default.createElement("span", { className: "dkm-label dkm-tag", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
-      DKM_TAGS.map(([v, label]) => import_react3.default.createElement(
-        "label",
-        { key: v, className: "dkm-check dkm-tag" },
-        import_react3.default.createElement("input", { type: "checkbox", checked: m.tags.indexOf(v) >= 0, onChange: () => patchModel(i, { tags: toggleIn(m.tags, v) }) }),
-        label
-      )),
-      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => patchModel(i, allInputs(true)) }, "\u5168\u9009"),
-      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009\uFF08\u8F93\u5165\u7559\u7A7A = \u7EE7\u627F\u76EE\u5F55\u9ED8\u8BA4\uFF09", onClick: () => patchModel(i, allInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
-    ),
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-efforts" },
-      import_react3.default.createElement("span", { className: "dkm-label" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
-      cur.kind === "deepseek" ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u968F Provider \u8BBE\u7F6E\uFF08Off/Low/High/Max\uFF0C\u5168\u6A21\u578B\u5171\u4EAB\uFF09") : import_react3.default.createElement(
-        "span",
-        null,
-        import_react3.default.createElement(
-          "select",
-          {
-            className: "dkm-select",
-            value: m.effortsMode,
-            onChange: (e) => patchModel(i, {
-              effortsMode: e.target.value,
-              effortLevels: e.target.value === "custom" && m.effortsMode !== "custom" ? { off: true, low: true, high: true } : m.effortLevels
-            })
-          },
-          import_react3.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
-          import_react3.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
-          import_react3.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
-        ),
-        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react3.default.createElement(
-          "label",
-          { key: lv, className: "dkm-check" },
-          import_react3.default.createElement("input", {
-            type: "checkbox",
-            checked: !!m.effortLevels[lv],
-            onChange: () => {
-              const nl = Object.assign({}, m.effortLevels);
-              nl[lv] = !nl[lv];
-              patchModel(i, { effortLevels: nl });
-            }
-          }),
-          DKM_EFFORT_NAMES[lv] || lv
-        )) : null,
-        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => patchModel(i, allLevels(true)) }, "\u5168\u9009"),
-        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => patchModel(i, allLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
-      )
-    )
-  );
+  const modelRow = (m, i) => ModelRow({
+    m,
+    i,
+    kind: cur.kind,
+    onPatch: (j, patch) => patchModel(j, patch),
+    onDel: (j) => patchDraft({ models: draft.models.filter((_, k) => k !== j) })
+  });
   const body = [];
   if (data) {
     body.push(import_react3.default.createElement(
@@ -4115,6 +4393,145 @@ function ModelsView() {
       )
     ));
   }
+  if (data) {
+    body.push(import_react3.default.createElement(
+      "div",
+      { key: "pf-mgmt", className: "dkm-prov" },
+      import_react3.default.createElement(
+        "div",
+        { className: "dkm-prov-head" },
+        import_react3.default.createElement("span", { className: "dkm-name" }, "Provider \u7BA1\u7406"),
+        import_react3.default.createElement("span", { className: "dkm-badge" }, piProviders.length + " \u4E2A\u81EA\u5B9A\u4E49\u8DEF\u7531"),
+        import_react3.default.createElement("button", {
+          type: "button",
+          className: "dkm-save",
+          style: { marginLeft: "auto" },
+          onClick: openPfCreate
+        }, "\uFF0B \u65B0\u589E Provider")
+      ),
+      import_react3.default.createElement(
+        "div",
+        { className: "dkm-sub" },
+        "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u6B64\u53EA\u8BFB\uFF0C\u8BF7\u5728\u4E0B\u65B9\u7F16\u8F91\u5176\u6A21\u578B\u3002"
+      ),
+      pfMsg ? import_react3.default.createElement("div", { className: "dkm-msg " + (pfMsg.ok ? "ok" : "err") }, pfMsg.text) : null,
+      piProviders.length === 0 ? import_react3.default.createElement("div", { className: "dkm-note" }, "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49 Provider\u2014\u2014\u70B9\u53F3\u4E0A\u300C\uFF0B \u65B0\u589E Provider\u300D\u6DFB\u52A0\u3002") : import_react3.default.createElement(
+        "div",
+        { className: "dkm-pflist" },
+        piProviders.map((p) => import_react3.default.createElement(
+          "div",
+          { key: p.id, className: "dkm-pfrow" },
+          import_react3.default.createElement(
+            "div",
+            { className: "dkm-pfrow-main" },
+            import_react3.default.createElement("span", { className: "dkm-name" }, p.displayName || p.id),
+            import_react3.default.createElement("span", { className: "dkm-badge" }, p.route || p.id),
+            import_react3.default.createElement("span", { className: "dkm-badge" }, (p.models ? p.models.length : 0) + " \u6A21\u578B"),
+            import_react3.default.createElement(
+              "span",
+              { className: "dkm-badge " + (p.apiKeyConfigured ? "dkm-ok" : "dkm-warn") },
+              p.apiKeyEnv ? p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv"
+            ),
+            import_react3.default.createElement("span", { className: "dkm-sub" }, [p.api, p.baseURL].filter(Boolean).join(" \xB7 "))
+          ),
+          import_react3.default.createElement(
+            "div",
+            { className: "dkm-pfrow-actions" },
+            import_react3.default.createElement("button", { type: "button", className: "dkm-mini", onClick: () => openPfEdit(p) }, "\u7F16\u8F91"),
+            import_react3.default.createElement("button", {
+              type: "button",
+              className: "dkm-mini dkm-del" + (pfDelArm === (p.route || p.id) ? " arm" : ""),
+              title: pfDelArm === (p.route || p.id) ? "\u518D\u70B9\u4E00\u6B21\u786E\u8BA4\u5220\u9664" : "\u5220\u9664\u8BE5 Provider",
+              onClick: () => deletePf(p)
+            }, pfDelArm === (p.route || p.id) ? "\u786E\u8BA4\u5220\u9664\uFF1F" : "\u5220\u9664")
+          )
+        ))
+      ),
+      pfMode && pfDraft ? import_react3.default.createElement(
+        "div",
+        { className: "dkm-pfform" },
+        import_react3.default.createElement(
+          "div",
+          { className: "dkm-prov-head" },
+          import_react3.default.createElement("span", { className: "dkm-name" }, pfMode === "create" ? "\u65B0\u589E Provider" : "\u7F16\u8F91 Provider\uFF1A" + pfDraft.route),
+          import_react3.default.createElement("button", { type: "button", className: "dkm-mini", style: { marginLeft: "auto" }, onClick: closePf }, "\u53D6\u6D88")
+        ),
+        import_react3.default.createElement(
+          "div",
+          { className: "dkm-grid dkm-pfgrid" },
+          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u8DEF\u7531 key\uFF08\u5FC5\u586B\uFF0C\u5982 modelscope\uFF1B\u4FDD\u5B58\u540E\u4E0D\u5EFA\u8BAE\u6539\uFF09", value: pfDraft.route, disabled: pfMode === "edit", onChange: (e) => patchPf({ route: e.target.value }) }),
+          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u5982 \u9B54\u642D ModelScope\uFF09", value: pfDraft.displayName, onChange: (e) => patchPf({ displayName: e.target.value }) }),
+          import_react3.default.createElement(
+            "select",
+            { className: "dkm-input", value: pfDraft.api, onChange: (e) => patchPf({ api: e.target.value }) },
+            DKM_APIS.map(([v, label]) => import_react3.default.createElement("option", { key: v, value: v }, label))
+          ),
+          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "baseURL\uFF08\u5982 https://api-inference.modelscope.cn/v1\uFF09", value: pfDraft.baseURL, onChange: (e) => patchPf({ baseURL: e.target.value }) }),
+          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "apiKeyEnv\uFF08\u7559\u7A7A = \u4FDD\u5B58\u65F6\u6309\u8DEF\u7531 key \u81EA\u52A8\u751F\u6210\uFF09", value: pfDraft.apiKeyEnv, onChange: (e) => patchPf({ apiKeyEnv: e.target.value }) }),
+          import_react3.default.createElement("input", { className: "dkm-input", type: "password", placeholder: "API Key \u660E\u6587\uFF08\u4EC5\u672C\u6B21\u5199\u5165\u51ED\u636E\u5E93\uFF0C\u4E0D\u56DE\u663E\uFF1B\u7559\u7A7A = \u4E0D\u6539\uFF09", value: pfDraft.apiKey, onChange: (e) => patchPf({ apiKey: e.target.value }) })
+        ),
+        import_react3.default.createElement(
+          "div",
+          { className: "dkm-checks" },
+          import_react3.default.createElement("span", { className: "dkm-label" }, "\u9ED8\u8BA4\u8F93\u5165\u7C7B\u578B\uFF1A"),
+          DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
+            "label",
+            { key: v, className: "dkm-check" },
+            import_react3.default.createElement("input", {
+              type: "checkbox",
+              checked: pfDraft.defaultInput.indexOf(v) >= 0,
+              onChange: () => {
+                const next = dkmToggleIn(pfDraft.defaultInput, v);
+                patchPf({ defaultInput: next.length > 0 ? next : ["text"] });
+              }
+            }),
+            label
+          )),
+          import_react3.default.createElement("button", {
+            type: "button",
+            className: "dkm-mini",
+            disabled: pfFetching || !pfDraft.baseURL,
+            title: "\u8C03\u7528 baseURL/models \u62C9\u53D6\u8BE5\u7AEF\u70B9\u53EF\u7528\u6A21\u578B\uFF0C\u52FE\u9009\u540E\u52A0\u5165\u4E0B\u65B9\u5217\u8868",
+            onClick: fetchPfModels
+          }, pfFetching ? "\u62C9\u53D6\u4E2D\u2026" : "\u83B7\u53D6\u6A21\u578B\u5217\u8868"),
+          pfFetchedList ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u5DF2\u9009 " + pfSelectedCount() + " / \u4E0A\u6E38\u5171 " + pfFetchedList.length + " \u4E2A") : null,
+          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u52FE\u9009\u4E0A\u6E38\u8FD4\u56DE\u7684\u5168\u90E8\u6A21\u578B", onClick: () => setAllPfModels(true) }, "\u5168\u9009") : null,
+          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u6E05\u7A7A\u5DF2\u52FE\u9009\u7684\u6A21\u578B", onClick: () => setAllPfModels(false) }, "\u6E05\u7A7A") : null
+        ),
+        pfFetchedList ? import_react3.default.createElement(
+          "div",
+          { className: "dkm-pfpick" },
+          pfFetchedList.length === 0 ? import_react3.default.createElement("div", { className: "dkm-sub" }, "\u4E0A\u6E38\u6CA1\u6709\u8FD4\u56DE\u4EFB\u4F55\u6A21\u578B") : pfFetchedList.map((mm) => {
+            const id = String(mm && mm.id || "").trim();
+            if (!id) return null;
+            const checked = pfDraft.models.some((m) => String(m.id || "").trim() === id);
+            return import_react3.default.createElement(
+              "label",
+              { key: id },
+              import_react3.default.createElement("input", {
+                type: "checkbox",
+                checked,
+                onChange: () => togglePfModel(id, mm && mm.name || "", !checked)
+              }),
+              import_react3.default.createElement("span", null, id + (mm && mm.name ? " \xB7 " + mm.name : ""))
+            );
+          })
+        ) : null,
+        import_react3.default.createElement(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: "8px" } },
+          pfDraft.models.map((m, i) => ModelRow({ m, i, kind: "pi-ai", onPatch: patchPfModel, onDel: delPfModel })),
+          import_react3.default.createElement("button", { type: "button", className: "dkm-add", onClick: addPfModel }, "+ \u6DFB\u52A0\u6A21\u578B")
+        ),
+        import_react3.default.createElement(
+          "div",
+          { className: "dkm-savebar" },
+          import_react3.default.createElement("span", { className: "dkm-msg" }, pfDirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : ""),
+          import_react3.default.createElement("button", { type: "button", className: "dkm-save", disabled: pfSaving, onClick: savePf }, pfSaving ? "\u4FDD\u5B58\u4E2D\u2026" : pfMode === "create" ? "\u65B0\u589E Provider" : "\u4FDD\u5B58\u4FEE\u6539")
+        )
+      ) : null
+    ));
+  }
   if (data && providers.length === 0) {
     body.push(import_react3.default.createElement("div", { key: "empty", className: "dkm-note" }, "\u6CA1\u6709\u53EF\u7F16\u8F91\u7684\u6A21\u578B Provider\uFF08Host \u4FA7\u5C1A\u672A\u914D\u7F6E\uFF09"));
   }
@@ -4250,7 +4667,22 @@ var feature2 = {
     ".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
     ".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
     ".dkm-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--dsw-alias-border-l1);padding-top:8px;}",
-    ".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}"
+    ".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}",
+    ".dkm-pflist{display:flex;flex-direction:column;gap:6px;}",
+    ".dkm-pfrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;}",
+    ".dkm-pfrow-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 auto;min-width:0;}",
+    ".dkm-pfrow-main .dkm-sub{max-width:300px;}",
+    ".dkm-pfrow-actions{display:flex;align-items:center;gap:6px;flex:none;}",
+    ".dkm-pfrow-actions .dkm-del{margin-left:0;}",
+    ".dkm-pfform{border-top:1px dashed var(--dsw-alias-border-l1);padding-top:10px;display:flex;flex-direction:column;gap:8px;}",
+    ".dkm-pfgrid{grid-template-columns:1fr 1fr;gap:6px;}",
+    ".dkm-pfgrid .dkm-input{width:100%;box-sizing:border-box;}",
+    ".dkm-pfgrid select.dkm-input{appearance:auto;}",
+    ".dkm-pfpick{max-height:220px;overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;}",
+    ".dkm-pfpick label{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
+    ".dkm-pfpick label:hover{background:var(--dsw-alias-fill-l2,rgba(128,128,128,.12));}",
+    ".dkm-ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+    ".dkm-del.arm{color:var(--dsw-alias-state-error-primary);border-color:currentColor;background:transparent;}"
   ].join("\n"),
   View: ModelsView,
   HomeStat: ModelsStat
@@ -4402,7 +4834,7 @@ var balanceStore = {
   load() {
     if (this.snap.loading) return;
     this.set({ loading: true });
-    fetch("/dsh-dock/balance", { signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u4F59\u989D\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+    fetch("dsh-dock/balance", { signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u4F59\u989D\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
   }
 };
 function useBalance(ctx) {
@@ -4725,7 +5157,7 @@ var feature5 = {
 var import_react8 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 function rpcCall2(method, args) {
-  return fetch("/dsh-dock/animation/" + method, {
+  return fetch("dsh-dock/animation/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -6402,7 +6834,7 @@ var feature6 = {
 var import_react9 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 function rpcCall3(method, args) {
-  return fetch("/dsh-dock/notify/" + method, {
+  return fetch("dsh-dock/notify/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -7166,7 +7598,7 @@ var feature7 = {
 var import_react10 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 function rpcCall4(method, args) {
-  return fetch("/dsh-dock/runstate/" + method, {
+  return fetch("dsh-dock/runstate/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -10149,7 +10581,7 @@ function initialDash() {
 }
 function useTaskPulse() {
   const [status, setStatus] = (0, import_react20.useState)({ loading: true, active: [], error: false });
-  const refresh = (0, import_react20.useCallback)(() => fetch("/dsh-dock/animation/status", {
+  const refresh = (0, import_react20.useCallback)(() => fetch("dsh-dock/animation/status", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}"
@@ -10922,7 +11354,7 @@ var import_react21 = require("react");
 var import_qrcode = __toESM(require_browser(), 1);
 var import_jsx_runtime14 = require("react/jsx-runtime");
 function rpc(method, payload) {
-  return fetch("/dsh-dock/mobile-relay/" + method, {
+  return fetch("dsh-dock/mobile-relay/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload || {})
@@ -11424,7 +11856,7 @@ function mobileChrome() {
   let runstateGone = false;
   const pollTasks = () => {
     if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === "hidden" || !tabbar.isConnected) return;
-    fetch("/dsh-dock/runstate/status", {
+    fetch("dsh-dock/runstate/status", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}"
