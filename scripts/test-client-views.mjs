@@ -176,6 +176,11 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 			posts.push({ url: String(url), body: JSON.parse(init.body || "{}") });
 			return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, data: {} }) });
 		}
+		// 模型目录：视图直接用 json() 结果作目录（不包 ok/data），须与真实宿主一致
+		//（视图用相对 URL "dsh-dock/models"，此处不要求前导斜杠以兼容）
+		if (String(url).includes("dsh-dock/models")) {
+			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
+		}
 		let data = {};
 		// 用量记录 query 的正常响应。此前该分支缺失 → TokenLogView 渲染时读 data.counts 抛错、
 		// 被错误边界降级为一行提示，而断言用的 marker「用量」恰好能在卡片描述里命中，于是
@@ -270,6 +275,8 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 		console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
 		fetch: makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
+		// 视图的 fetch 用 AbortSignal.timeout 设超时；沙箱补一个最小替身（stub 忽略 signal）
+		AbortSignal: { timeout: () => ({}) },
 		localStorage: {
 			getItem: (k) => (k in store ? store[k] : null),
 			setItem: (k, v) => { store[k] = String(v); },
@@ -347,6 +354,43 @@ const RUNSTATE_STATUS = {
 	recent: ANIMATION_STATUS.recent,
 };
 
+// 模型设置 /dsh-dock/models：视图把 json() 结果直接当目录用（不包 ok/data），
+// 与真实宿主 sendJson(res, 200, payload) 一致。给一个含 pi-ai 路由的目录，
+// 覆盖 Provider 管理列表 + 新增表单 + 选中 Provider 编辑器三条渲染分支。
+const MODELCONFIG_DIR = {
+	generatedAt: 1_700_000_000_000,
+	default: { provider: "modelscope", model: "Qwen/Qwen3.8-27B", reasoningEffort: "high" },
+	revisions: { "llm-pi-ai": 1, "llm-deepseek": 0, "dsh-dock": 3 },
+	visionProxy: { enabled: false, provider: "", model: "" },
+	providers: [
+		{
+			id: "deepseek-official", kind: "deepseek", displayName: "DeepSeek", api: "deepseek",
+			baseURL: "https://api.deepseek.com", apiKeyEnv: "DEEPSEEK_API_KEY",
+			thinking: "enabled", defaultEffort: "high", effortLevels: ["off", "low", "high", "max"],
+			models: [{ id: "deepseek-flash", name: "DeepSeek Flash", contextWindow: 64000, maxTokens: 8192, input: ["text"], efforts: "inherit", effortMap: null, tags: [], raw: { id: "deepseek-flash" } }],
+		},
+		{
+			id: "modelscope", route: "modelscope", kind: "pi-ai", displayName: "魔搭 ModelScope",
+			api: "openai-completions", baseURL: "https://api-inference.modelscope.cn/v1",
+			apiKeyEnv: "MODELSCOPE_API_KEY", apiKeyConfigured: true,
+			apis: ["openai-completions", "openai-responses", "anthropic-messages"],
+			defaultInput: ["text", "image"],
+			rawProfile: {
+				displayName: "魔搭 ModelScope", api: "openai-completions",
+				baseURL: "https://api-inference.modelscope.cn/v1", apiKeyEnv: "MODELSCOPE_API_KEY",
+				defaultInput: ["text", "image"],
+				models: [{ id: "Qwen/Qwen3.8-27B", name: "Qwen3.8 27B", reasoningEfforts: { off: null, low: "low", medium: "medium", high: "high" } }],
+			},
+			models: [{
+				id: "Qwen/Qwen3.8-27B", name: "Qwen3.8 27B", contextWindow: 262144, maxTokens: 32768,
+				input: ["text", "image"], efforts: "custom",
+				effortMap: { off: null, low: "low", medium: "medium", high: "high" }, tags: ["video"],
+				raw: { id: "Qwen/Qwen3.8-27B", reasoningEfforts: { off: null, low: "low", medium: "medium", high: "high" }, compat: { supportsDeveloperRole: false } },
+			}],
+		},
+	],
+};
+
 // ---------- 用例：每个内置功能单独启用后，设置页面板必须渲染出内容且不抛错 ----------
 const FEATURES = [
 	{ id: "animation", name: "任务动画", marker: "运行动画", deep: true },
@@ -400,6 +444,38 @@ for (const f of FEATURES) {
 			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
 		}
 	}
+	// 模型设置：断言 Provider 管理列表（目录含 pi-ai 路由时）
+	if (f.id === "modelconfig" && !error) {
+		for (const needle of ["Provider 管理", "新增 Provider", "魔搭 ModelScope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置 Provider 管理列表缺少「${needle}」（列表可能未真正渲染）`); }
+		}
+	}
+}
+
+// ---------- 用例 1.4：模型设置「新增 Provider」表单（params.openProviderForm 直达）----------
+// 列表在上方主循环断言；这里独立渲染表单分支（新增 Provider 的路由/api/baseURL/key/模型行），
+// 用全新 runtime 避免与列表渲染共享组件实例状态。
+{
+	const enabled = {};
+	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
+		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+		if (!reg) detail = "没有注册 settings.section";
+		else {
+			const formHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { openProviderForm: true } }));
+			// 沙箱只序列化文本节点（不含 input 的 placeholder 属性），故用表单特有的文本断言：
+			// api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
+			for (const needle of ["新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
+				if (!formHtml.includes(needle)) { detail = "新增 Provider 表单缺少「" + needle + "」"; break; }
+			}
+		}
+	} catch (e) {
+		detail = "Provider 表单渲染抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { failed++; console.log("✗ " + detail); }
+	else console.log("✓ 模型设置 Provider 表单：params.openProviderForm 直达「新增 Provider」表单（路由/api/baseURL/key/模型行）");
 }
 
 	if (failed) {
