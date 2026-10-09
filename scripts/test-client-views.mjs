@@ -172,7 +172,7 @@ function resolveStatus(s) { return typeof s === "function" ? s() : s; }
 function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus) {
 	return (url, init) => {
 		// 只拦截功能开关的同步 POST；功能自己的 RPC 也是 POST，不能一起吃掉
-		if (init && init.method === "POST" && String(url).includes("/dsh-dock/features")) {
+		if (init && init.method === "POST" && String(url).includes("dsh-dock/features")) {
 			posts.push({ url: String(url), body: JSON.parse(init.body || "{}") });
 			return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, data: {} }) });
 		}
@@ -180,7 +180,7 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		// 用量记录 query 的正常响应。此前该分支缺失 → TokenLogView 渲染时读 data.counts 抛错、
 		// 被错误边界降级为一行提示，而断言用的 marker「用量」恰好能在卡片描述里命中，于是
 		// 「渲染正常」是假的。补上真实响应后，下面用「调用明细」「单价设置」等内容做断言。
-		if (url.includes("/dsh-dock/tokenlog/query")) {
+		if (url.includes("dsh-dock/tokenlog/query")) {
 			data = {
 				records: [{
 					id: "s1:1", time: 1_700_000_000_000, sessionId: "sess-1", provider: "deepseek", model: "deepseek-v4-flash",
@@ -200,7 +200,7 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 				summary: [],
 			};
 		}
-		if (url.includes("/dsh-dock/tokenlog/pricing")) {
+		if (url.includes("dsh-dock/tokenlog/pricing")) {
 			data = {
 				usdCnyRate: 7.2, fetchOfficial: true, pricingFetchIntervalHours: 24,
 				// 多段分时价（覆盖时段增删/跨零点/日期类型展示分支）
@@ -217,10 +217,10 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 				models: ["deepseek-v4-flash", "glm-4"], sourcesByModel: { "deepseek-v4-flash": "自定义", "glm-4": "兜底" },
 			};
 		}
-		if (url.includes("/dsh-dock/animation/status")) data = resolveStatus(animationStatus);
-		else if (url.includes("/dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
-		else if (url.includes("/dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
-		else if (url.includes("/dsh-dock/features")) data = { persisted: persisted || {} };
+		if (url.includes("dsh-dock/animation/status")) data = resolveStatus(animationStatus);
+		else if (url.includes("dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
+		else if (url.includes("dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
+		else if (url.includes("dsh-dock/features")) data = { persisted: persisted || {} };
 		return Promise.resolve({
 			ok: true,
 			status: 200,
@@ -603,7 +603,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		try {
 			const { posts } = loadDock(c.local, ANIMATION_STATUS, NOTIFY_STATUS, c.persisted);
 			await new Promise((resolve) => setTimeout(resolve, 30)); // 等 syncFeatureStateFromHost 的 fetch 回来
-			const pushes = posts.filter((p) => p.url.includes("/dsh-dock/features")).map((p) => p.body);
+			const pushes = posts.filter((p) => p.url.includes("dsh-dock/features")).map((p) => p.body);
 			const got = pushes.find((b) => b.id === "notify") || null;
 			if (c.expect === null && got) { detail = `${c.name}：不该补推，却推了 ${JSON.stringify(got)}`; break; }
 			if (c.expect && (!got || got.enabled !== c.expect.enabled)) {
@@ -785,7 +785,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/id: "dock",\s*label: "(插件|\\u63D2\\u4EF6)"/.test(bundle)) issues.push("Tab 栏没有「插件」页签定义");
 	if (!/act: \(\) => \{\s*openPanel\(tasksActive > 0 \|\| tasksWaiting > 0 \? "runstate" : "home"\);?\s*\}/.test(bundle)) issues.push("「插件」页签不是无条件打开功能坞（开关式会在面板被原生页盖住时把功能坞关掉，露出原页面）");
 	if (!/\[class\*="dockm-backdrop"\]\{z-index:2000 !important\}/.test(bundle)) issues.push("手机端没有把功能坞面板抬到原生弹层之上（z 2000）");
-	if (!/\/dsh-dock\/runstate\/status/.test(bundle)) issues.push("「插件」页签角标没有轮询 runstate 路由");
+	if (!/\/?dsh-dock\/runstate\/status/.test(bundle)) issues.push("「插件」页签角标没有轮询 runstate 路由");
 	if (!/dsh-mobile-tab-badge/.test(bundle)) issues.push("缺少页签角标元素/样式");
 	if (!/dsh-mobile-tab-badge wait/.test(bundle)) issues.push("角标缺少等待确认（红色脉冲）态");
 	if (!/querySelectorAll\("\.dsh-mobile-tabbar"\)/.test(bundle)) issues.push("Overlay 没有兜底摘除残留旧 Tab 栏");

@@ -195,7 +195,7 @@ const MOBILE_BEHAVIOR_JS = [
   // runstate 路由不存在（功能未启用/宿主旧版）时静默停轮询。
   'function pollTasks(){',
   '  if(runstateGone||!badge||!narrow()||document.visibilityState==="hidden"||!tabbar||!tabbar.isConnected)return;',
-  '  fetch("/dsh-dock/runstate/status",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(function(r){',
+  '  fetch("dsh-dock/runstate/status",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(function(r){',
   '    if(r.status===404||r.status===405){runstateGone=true;tasksActive=0;tasksWaiting=0;badge.style.display="none";return null}',
   '    return r.json()',
   '  }).then(function(body){',
