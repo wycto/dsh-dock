@@ -8,12 +8,12 @@
 // 共用同一份实例），本模块不写任何配置——动效在 features/animation/、结束与确认提醒在
 // features/notify/。没有全局浮层，因此只在面板打开时轮询，关闭面板即零开销。
 //
-// Host 通信：fetch('/dsh-dock/runstate/status')（见 features/runstate/host.js）。
+// Host 通信：fetch('dsh-dock/runstate/status')（见 features/runstate/host.js）。
 import { useState, useEffect } from "react";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
-	return fetch("/dsh-dock/runstate/" + method, {
+	return fetch("dsh-dock/runstate/" + method, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify(args === undefined ? {} : args),

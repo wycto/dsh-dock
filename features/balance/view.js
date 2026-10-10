@@ -58,7 +58,7 @@ const balanceStore = {
 	load() {
 		if (this.snap.loading) return;
 		this.set({ loading: true });
-		fetch("/dsh-dock/balance", { signal: AbortSignal.timeout(20000) })
+		fetch("dsh-dock/balance", { signal: AbortSignal.timeout(20000) })
 			.then((res) => (res.ok ? res.json() : Promise.reject(new Error("余额接口 HTTP " + res.status))))
 			.then((data) => this.set({ data: data, loading: false, error: null }))
 			.catch((e) => this.set({ loading: false, error: (e && e.message) || String(e) }));
