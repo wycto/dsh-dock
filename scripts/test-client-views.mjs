@@ -444,17 +444,18 @@ for (const f of FEATURES) {
 			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
 		}
 	}
-	// 模型设置：断言 Provider 管理列表（目录含 pi-ai 路由时）
+	// 模型设置：主页只剩「模型提供商」入口卡——提供商列表/表单已搬进独立子页面（见用例 1.4b）。
+	// 这里断言入口卡真的渲染（含自定义路由计数与「管理」按钮），防止子页面入口被误删成死路。
 	if (f.id === "modelconfig" && !error) {
-		for (const needle of ["Provider 管理", "新增 Provider", "魔搭 ModelScope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除"]) {
-			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置 Provider 管理列表缺少「${needle}」（列表可能未真正渲染）`); }
+		for (const needle of ["模型提供商", "个自定义路由", "管理"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置主页缺少「${needle}」（提供商子页面入口卡未渲染）`); }
 		}
 	}
 }
 
-// ---------- 用例 1.4：模型设置「新增 Provider」表单（params.openProviderForm 直达）----------
-// 列表在上方主循环断言；这里独立渲染表单分支（新增 Provider 的路由/api/baseURL/key/模型行），
-// 用全新 runtime 避免与列表渲染共享组件实例状态。
+// ---------- 用例 1.4：模型设置「新增 Provider」表单（params.openProviderForm 直达子页面并展开表单）----------
+// 提供商管理已从主页搬进独立子页面；openProviderForm 深链既要落到子页面，又要直接展开新增表单。
+// 用全新 runtime 避免与主页渲染共享组件实例状态。
 {
 	const enabled = {};
 	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
@@ -466,8 +467,8 @@ for (const f of FEATURES) {
 		else {
 			const formHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { openProviderForm: true } }));
 			// 沙箱只序列化文本节点（不含 input 的 placeholder 属性），故用表单特有的文本断言：
-			// api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
-			for (const needle of ["新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
+			// 子页面标题 + api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
+			for (const needle of ["模型提供商", "新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
 				if (!formHtml.includes(needle)) { detail = "新增 Provider 表单缺少「" + needle + "」"; break; }
 			}
 		}
@@ -475,7 +476,34 @@ for (const f of FEATURES) {
 		detail = "Provider 表单渲染抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { failed++; console.log("✗ " + detail); }
-	else console.log("✓ 模型设置 Provider 表单：params.openProviderForm 直达「新增 Provider」表单（路由/api/baseURL/key/模型行）");
+	else console.log("✓ 模型设置 Provider 表单：params.openProviderForm 直达子页面「新增 Provider」表单（路由/api/baseURL/key/模型行）");
+}
+
+// ---------- 用例 1.4b：模型设置「模型提供商」子页面（params.page 直达）----------
+// 用户反馈：提供商管理挤在模型设置主页里又长又丑。现在它是独立子页面，按官方「模型」设置页排版：
+// 返回入口 + 标题/说明 + 行卡片（名称/路由/模型数/密钥状态 + 编辑/删除）+ 底部虚线新增。
+// 这条断言锁住「子页面自己就能渲染出整张列表」，避免入口卡指向一个空页面。
+{
+	const enabled = {};
+	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
+		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+		if (!reg) detail = "没有注册 settings.section";
+		else {
+			const pageHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { page: "providers" } }));
+			for (const needle of ["← 模型设置", "模型提供商", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
+				if (!pageHtml.includes(needle)) { detail = "模型提供商子页面缺少「" + needle + "」"; break; }
+			}
+			// 主业内容（图片理解代理 / 模型目录编辑器）不该跟着出现在子页面里
+			if (!detail && pageHtml.includes("图片理解代理")) detail = "模型提供商子页面串进了主页内容（图片理解代理）";
+		}
+	} catch (e) {
+		detail = "模型提供商子页面渲染抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { failed++; console.log("✗ " + detail); }
+	else console.log("✓ 模型设置「模型提供商」子页面：params.page=\"providers\" 直达行卡片列表（密钥状态/模型数/编辑/删除/新增）");
 }
 
 	if (failed) {
@@ -874,6 +902,20 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 手机端任务页签契约：任务/功能坞并入「插件」、等待确认角标红色脉冲、兜底摘除残留 Tab 栏、软键盘让位");
+}
+
+// ---------- 用例 12：客户端 fetch 一律用文档相对路径（反代子路径挂载契约） ----------
+// 真实事故（用户实测）：【模型设置】切页报「模型目录拉取失败：Unexpected token '<', "<!doctype "…」。
+// 反代/网关把 dsh 挂在子路径（如 /ui/）时，绝对路径 fetch("/dsh-dock/models") 会跳出应用前缀，
+// 命中站点 HTML，res.json() 便炸在 doctype 上。约定：客户端只写 "dsh-dock/xxx"（相对当前文档，
+// 浏览器自动补全前缀）；宿主 webServer.register 仍是绝对路径 —— 两半部不要混写。
+// 注：/__dsh_auth/health 是网关自己的根路径端点，属有意为之，不在本契约内。
+{
+	if (/fetch\(\s*["'`]\/dsh-dock/.test(bundle)) {
+		console.log('✗ 客户端 fetch 路径契约：仍有绝对路径 fetch("/dsh-dock…")（子路径反代挂载下会返回 HTML，JSON 解析崩溃）');
+		process.exit(1);
+	}
+	console.log("✓ 客户端 fetch 路径契约：全部为文档相对路径（兼容反代子路径挂载）");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。
