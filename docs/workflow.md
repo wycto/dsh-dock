@@ -15,15 +15,18 @@
 | 远端 | 地址 | 用途 |
 |---|---|---|
 | `origin` | `ssh://git@172.18.99.124:9022/wycto/dsh-dock.git`（自建 Gitea） | **开发库**：日常提交只推这里 |
-| `github` | `git@github.com:wycto/dsh-dock.git` | **发版库**：只在发版时同步（每次一条发版提交）+ 打 tag，npm 也以它为主页 |
 
-- 开发阶段**绝不推 `github`**；它只反映已发布的版本。
-- **github 不收分批的开发提交**：每次发版把自上次发版以来的代码**压成一条**「发版」提交
+- GitHub（`git@github.com:wycto/dsh-dock.git`）是**发版库**，但**不在本仓库配远端**——
+  它有自己独立的本地仓库 `/Users/weiyi/develop/github/wycto/dsh-dock`（该仓库的 `origin`
+  才指向 GitHub，推送由它负责）。发版脚本直接快进同步到那个本地仓库（见第 3 节第 8 步）。
+- 开发阶段**绝不推 GitHub**；它只反映已发布的版本。
+- **GitHub 不收分批的开发提交**：每次发版把自上次发版以来的代码**压成一条**「发版」提交
   （主标题写发版，正文汇总本版功能内容）推上去（见第 3 节第 8 步）；**既有历史原样保留，
   不重写不删**——历史记录必须一直可见。
-- 本地 `release` 分支跟踪 `github/main`，只随发版脚本前移，**不要推 `origin`**。
-- 发版后两个远端的**代码内容**一致（树相同），提交历史不同：origin 是完整开发史；
-  github 在新规起点（v0.10.0）之前的完整历史保留，之后每次发版只多一条发版提交。
+- 本地 `release` 分支就是这条发版线（一条提交 = 一次发版），只随发版脚本前移，
+  **不要推 `origin`**。
+- 发版后两个仓库的**代码内容**一致（树相同），提交历史不同：origin 是完整开发史；
+  GitHub 在新规起点（v0.10.0）之前的完整历史保留，之后每次发版只多一条发版提交。
 
 ## 2. 开发阶段（默认状态）
 
@@ -80,16 +83,21 @@ Invoke-WebRequest http://127.0.0.1:3080/dsh-dock/<feature>/status -Method POST `
 7. **提交并推 `origin`**：备注写 `发版 vX.Y.Z：<一句话要点>`，正文列本版变更（从 CHANGELOG
    未发布段提炼），保存成 message 文件（如 `.git/RELEASE_MSG.txt`）——第 8 步还要用；
    `git push origin main`（开发库收全部提交：开发提交 + 这条发版提交）。
-8. **同步 `github`（一条提交，不分批）**：发版库不收开发提交——
+8. **同步发版库（一条提交，不分批）**：GitHub 不收开发提交——
    `./scripts/push-github-release.sh <message-file>` 把 main 的**整棵树**压成一条
-   「发版 vX.Y.Z」提交推到 `github/main`：父提交是上一次发版提交，正文汇总本版功能内容
-   （可直接复用第 7 步的 message 文件）。本地 `release` 分支随之前移 = `github/main`。
-   正常发版是快进推送，不需要 force。
-9. **打 tag 并推送**（tag 指向开发库的发版提交；在 github 上它不在 main 线上，但树一致）：
+   「发版 vX.Y.Z」提交：父提交是上一次发版提交，正文汇总本版功能内容（可直接复用第 7 步的
+   message 文件），写入本地 `release` 分支，然后**快进同步到 GitHub 本地仓库**
+   `/Users/weiyi/develop/github/wycto/dsh-dock`（可用 `DSH_DOCK_GITHUB_REPO` 覆盖）并
+   由它执行 `push origin main`。正常发版是快进，不需要 force；开发库本身没有 github 远端。
+   只想同步不推送时加 `--no-push`（人工检查后自己推）。
+9. **打 tag 并推送**（tag 指向开发库的发版提交；在 GitHub 上它不在 main 线上，但树一致）：
    ```bash
    git tag -a vX.Y.Z -m "dsh-dock vX.Y.Z"
    git push origin vX.Y.Z
-   git push github vX.Y.Z
+   # 发版库的 tag 由它自己推（开发库没有 github 远端）
+   GH_REPO=${DSH_DOCK_GITHUB_REPO:-/Users/weiyi/develop/github/wycto/dsh-dock}
+   git -C "$GH_REPO" fetch "$(git rev-parse --show-toplevel)" "vX.Y.Z:refs/tags/vX.Y.Z"
+   git -C "$GH_REPO" push origin vX.Y.Z
    ```
 10. **发布 npm**：`./scripts/publish.sh`（先 `npm pack --dry-run` 预览、检查登录态，再 `npm publish`）。
     本机 `bash` 会解析到 WSL，请用 Git Bash：`& "D:\Program Files\Git\bin\bash.exe" ./scripts/publish.sh`。
