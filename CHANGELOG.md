@@ -2,6 +2,90 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.14.0 — 2026-10-10
+
+### 修复
+
+- **【模型设置】整页报「模型目录拉取失败：Unexpected token '<', "<!doctype "…」（用户实测）**。
+  v0.13.0 后的开发库把客户端 fetch 全改成文档相对路径（`dsh-dock/xxx`）以兼容反代子路径挂载，
+  但漏了【模型设置】里三处旧写法——目录 GET、图片代理保存、模型目录写回仍是绝对路径
+  `/dsh-dock/models`。站点被挂到子路径（如 `/ui/`）时，绝对路径会跳出应用前缀、拿到代理层的
+  HTML（200 + `<!doctype html>`），`res.json()` 便炸在 doctype 上；而其余功能早已是相对路径，
+  所以只有【模型设置】单页失败。三处一并改成 `dsh-dock/models`，并补一条构建产物契约
+  （`test-client-views.mjs` 用例 12：产物里不得出现 `fetch("/dsh-dock…")`）防再漏。
+  客户端半部改动，刷新页面即生效。
+- **「预览版说明」在非回环浏览器上每次刷新都重弹，且关掉【远程访问】后彻底没人管**
+  （用户实测：公司部署把主实例经 patch 层绑 `0.0.0.0:12080` 直连、远程访问停用，
+  手机打开 `http://<局域网IP>:12080/?token=…` 每次都弹）。根因不变（dsh welcome-store
+  对非回环浏览器的确认只存页面进程内存），但修复一直挂在【远程访问】的 Overlay 里——
+  功能一停用自动确认就消失，而「关掉远程访问、直连主实例」的形态同样是非回环访问。
+  现在自动确认迁到**插件级**（新增 `src/welcome-ack.js`，index.js 无条件注册
+  `webServer.tapIndex`，不随任何功能开关启停；回环地址脚本自我短路，保留 dsh 原生的
+  一次性持久确认）。【远程访问】不再挂 Overlay，回归单纯的远程入口。宿主半部改动，
+  重启 `dsh web` 生效。
+- **手机端左缘游离按钮**（用户实测截图：左上「添加工作区」、左缘半截圆钮悬在页面边缘）。
+  dsh 0.2.0 的工作区浏览器为了展开/收拢动画给自己的 `headerActions`/`sectionLabel`
+  **显式声明 `visibility: visible`**（ui-workspace `WorkspaceBrowser.module.css`），
+  穿透了收起侧栏列的列级 `visibility: hidden`——visibility 可被后代覆盖。修复：
+  对收起轨道根节点（类名同时含 `root` 与 `collapsed` 语义后缀）改用 `display:none`
+  （display 不可被后代翻转），弹层打开时 `:not(:has([role="dialog"]))` 豁免（设置/
+  插件管理弹层挂在列内部，否则连坐成空气弹层），此时退回 visibility 机制。
+  ⚠️ `display:none` **绝不能打在列上**：frame 是「侧栏 0px + 中列 1fr + 右轨 0px」的
+  网格，列 `display:none` 会从网格流里摘掉，自动放置把中列顶进 0px 轨——实测中列宽 0、
+  整页空屏。宿主/客户端两份样式同改，测试契约同步。
+- **手机端「设置」页签在英文环境点不动**：dsh 的设置按钮 aria-label 随客户端语言本地化
+  （英文是 `Settings`），页签动作只匹配了 `设置`。宿主/客户端两份动作都改为
+  「设置/Settings」双匹配（测试实例 en 环境实测点开设置弹层正常）。
+- **手机端「哪都滑不动」**（用户实测：会话/侧边栏/设置……所有地方都滑不动）。两条独立根因：
+  1. **设置/弹层被内容撑高后裁死**：窄屏排版把 `[role="dialog"][class*="panel"]` 改成
+     `flex-direction:column + height:100vh` 后，内容列（`[class*="content"]`）是默认
+     `min-height:auto` 的 flex item，会被内容撑高（无头 390×844 实测列高 1216px 塞在
+     844px 视口里），再被 `.panel` 的 `overflow:hidden` 裁掉——列内滚动容器
+     （`[class*="options"]`）因此 `scrollHeight == clientHeight`，手指怎么滑都不动。
+     修复：内容列补 `min-height:0`（实测补上后 scrollTop 0 → 425）。
+  2. **滚动兜底**：所有纵向滚动体（会话滚动体 / 侧栏列表 / 设置 options / 功能坞内容）
+     显式声明 `touch-action:pan-y` + `-webkit-overflow-scrolling:touch` + `overscroll-behavior-y:contain`，
+     避免祖先合成层/触控声明把触摸滚动吃掉。
+  另：抽屉遮罩是全屏 `touch-action:none` 浮层，现已钉死「只在抽屉真的展开时显示」，
+  收起态必须 `display:none`——残留一份会让整页滑不动（放大因素之一，一并修掉）。
+- **点工作区文件夹误收侧边栏**：侧栏树的点击路由现在按 `data-row-key` 前缀分流——
+  `session:` 行才收抽屉；`workspace:` 行早退（只展开/收拢分组，既不收抽屉也不做
+  「面板弹出即收起」探测）；仅侧栏入口（插件/设置…）保留「面板弹出即收起」探测。
+
+### 变更
+
+- **【模型设置】的「Provider 管理」搬进独立子页面**（用户反馈：挤在模型设置主页里又长又丑，
+  要求「做成子页面，长相与布局跟官方模型管理差不多」）。主页现在只留一张入口卡（名称 +
+  自定义路由数 + 密钥状态圆点 + 「管理」按钮），点进去是「模型提供商」子页面：返回入口 +
+  标题 + 说明 + 每个 Provider 一张行卡片（显示名称 / 路由 key / 模型数 / 密钥状态徽标，
+  右侧「编辑 / 删除」，删除仍是两段式确认），编辑与新增都在行内展开编辑卡片——一行一字段
+  （路由 key / 显示名称 / baseURL / API 协议 / API Key），非必填项收进「自定义设置」折叠，
+  模型清单沿用官方模型行（id / 名称 / 容量 一行网格 + 输入类型 / 思考强度），底部是虚线
+  「＋ 新增 Provider」。整页限宽 720px，尺寸/圆角/描边/按钮高度对齐官方 `ui-settings-models`，
+  颜色全部走宿主 `--dsw-alias-*` 语义变量（亮暗主题自适应），窄屏模型行改两列、按钮抬到
+  40px 触控面积。子页面是独立组件：返回主页即卸载，未保存的 Provider 草稿不会留在后台。
+  深链 `params.page === "providers"` 与 `params.openProviderForm`（后者直接展开新增表单）
+  均直达该页。渲染回归同步：主页改断言入口卡，新增子页面用例，`openProviderForm` 用例改
+  断言「子页面 + 新增表单」。
+- **手机端适配从【远程访问】迁到【手机适配】**（用户要求：远程访问就单纯的远程访问）。
+  - 【手机适配】新增宿主半部 `features/mobile/host.js`：窄屏排版样式 + 行为脚本经
+    `webServer.tapIndex` 注入 index.html（重启 dsh web 后生效），含底部 Tab 栏
+    （会话/插件/设置，等待确认角标红色脉冲）、侧栏抽屉遮罩、软键盘让位、设置弹层纵排。
+  - 【手机适配】客户端 Overlay 升级为「自建同款 chrome」：宿主脚本未就位时（旧版无注入
+    或刷新早于重启）自建整套，两者仍用 `window.__dshDockMobileDrawer` 先到先得互斥。
+    没开远程访问的本机窄屏同样生效；停用【手机适配】即全部还原。
+  - 【远程访问】回归纯粹：只保留网关（账号密码登录、二维码、令牌兑换、浏览模式目录
+    选择器、LAN 非安全上下文 crypto.randomUUID 兜底）。不再注入任何窄屏排版/Tab 栏/遮罩
+    （「预览版说明」自动确认随后也迁出——见修复节首条）。
+- **浮动侧栏按钮（44px FAB）移除**（用户要求）：会话入口统一走底部 Tab 栏「会话」页签，
+  FAB 与其重复且悬浮在内容上；`dsh-dock/mobile/v1` 偏好与面板开关一并移除。
+- **测试契约更新**：新增 `scripts/test-mobile-host.mjs`（手机适配宿主注入契约：
+  窄屏 chrome + 滚动兜底 + 点击路由 + 与远程访问解耦）；`test-mobile-relay-host.mjs`
+  反转为「远程访问注入页只含 LAN crypto 兜底，不得含任何手机端 chrome」；
+  `test-client-views.mjs` 的手机端样式/页签契约跟随新归口。`package.json` 的
+  `test:host` 序列补进 `test-mobile-host.mjs` 与 `test-welcome-ack.mjs`
+  （插件级自动确认：幂等注入、回环自愈门、中英文案、入口注册、远程访问不再挂 Overlay）。
+
 ## 0.13.0 — 2026-10-01
 
 ### 新增
@@ -52,6 +136,12 @@
 
 ### 文档
 
+- **README 补【模型提供商】子页面说明图**：`screenshots/` 新增
+  `dock-modelconfig-providers.png`（行卡片列表）、`dock-modelconfig-provider-edit.png`
+  （行内编辑卡片）、`dock-modelconfig-provider-create.png`（新增表单），并重拍
+  `dock-modelconfig.png`（主页改为「模型提供商入口卡 + 模型目录编辑器」）；「模型设置」小节
+  拆出「模型提供商（子页面）」一段，列清增删改、密钥写凭据库、拉取上游模型、两段式删除、
+  深链入口。
 - **README 补「从源码安装」方式**：原有「安装」只写了 `dsh plugin --profile web add dsh-dock` 和一句
   本地路径安装，没提 `link:` 不装依赖这一步——照做会 MODULE_NOT_FOUND。现在拆成「npm 安装」与
   「从源码安装（本地检出 + link:）」两条，后者给出 克隆 → 源码树装运行期依赖（`js-yaml`/`qrcode`）

@@ -12,13 +12,13 @@
 // 运行状态（进行中任务与最近完成）独立在 features/runstate/：三个功能各自启停、互不依赖，
 // 会话级任务追踪在宿主侧共用一份。
 //
-// Host 通信：fetch('/dsh-dock/animation/<method>')（见 features/animation/host.js）。
+// Host 通信：fetch('dsh-dock/animation/<method>')（见 features/animation/host.js）。
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { openPanel, panelNav, subscribePanel } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
-	return fetch("/dsh-dock/animation/" + method, {
+	return fetch("dsh-dock/animation/" + method, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify(args === undefined ? {} : args),

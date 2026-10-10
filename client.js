@@ -2187,7 +2187,7 @@ function initFeatureState(defs) {
 }
 function syncFeatureStateFromHost(defs) {
   if (typeof fetch !== "function") return;
-  fetch("/dsh-dock/features").then(async (res) => {
+  fetch("dsh-dock/features").then(async (res) => {
     if (!res.ok) return;
     const data = await res.json().catch(() => null);
     const persisted = data && data.ok && data.data && data.data.persisted;
@@ -2214,7 +2214,7 @@ function syncFeatureStateFromHost(defs) {
 }
 function pushFeatureEnabledToHost(id, enabled) {
   if (typeof fetch !== "function") return;
-  fetch("/dsh-dock/features", {
+  fetch("dsh-dock/features", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id, enabled })
@@ -2300,7 +2300,7 @@ function subscribePanel(fn) {
 var import_react2 = __toESM(require("react"), 1);
 var import_jsx_runtime = require("react/jsx-runtime");
 function rpcCall(method, args) {
-  return fetch("/dsh-dock/tokenlog/" + method, {
+  return fetch("dsh-dock/tokenlog/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -3731,7 +3731,7 @@ var modelsStore = {
   load() {
     if (this.snap.loading) return;
     this.set({ loading: true, error: null });
-    fetch("/dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+    fetch("dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
   }
 };
 function useModels() {
@@ -3748,35 +3748,190 @@ var DKM_TAGS = [["video", "\u89C6\u9891"], ["audio", "\u97F3\u9891"], ["document
 var DKM_PI_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 var DKM_DS_LEVELS = ["off", "low", "high", "max"];
 var DKM_EFFORT_NAMES = { off: "\u5173\u95ED", minimal: "\u6781\u4F4E", low: "\u4F4E", medium: "\u4E2D", high: "\u9AD8", xhigh: "\u8D85\u9AD8", max: "\u6700\u9AD8" };
+var DKM_APIS = [
+  ["openai-completions", "OpenAI \u517C\u5BB9\uFF08chat/completions\uFF09"],
+  ["openai-responses", "OpenAI Responses"],
+  ["anthropic-messages", "Anthropic Messages"]
+];
+var DKM_ROUTE_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+function dkmEnvFromRoute(route) {
+  const s = String(route || "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!s) return "";
+  return (/^[0-9]/.test(s) ? "KEY_" + s : s) + "_API_KEY";
+}
+var DKM_ALL_INPUT = DKM_MODALITIES.map((x) => x[0]);
+var DKM_ALL_TAGS = DKM_TAGS.map((x) => x[0]);
+function dkmToggleIn(list, v) {
+  return list.indexOf(v) >= 0 ? list.filter((x) => x !== v) : list.concat([v]);
+}
+function dkmAllInputs(on) {
+  return { input: on ? DKM_ALL_INPUT.slice() : [], tags: on ? DKM_ALL_TAGS.slice() : [] };
+}
+function dkmAllLevels(on) {
+  const lv = {};
+  for (const k of DKM_PI_LEVELS) lv[k] = !!on;
+  return { effortsMode: "custom", effortLevels: lv };
+}
+function draftFromModel(m) {
+  const levels = {};
+  if (m.efforts === "custom" && m.effortMap && typeof m.effortMap === "object") {
+    for (const lv of DKM_PI_LEVELS) levels[lv] = m.effortMap[lv] !== void 0;
+  }
+  return {
+    id: m.id || "",
+    name: m.name || "",
+    contextWindow: m.contextWindow != null ? String(m.contextWindow) : "",
+    maxTokens: m.maxTokens != null ? String(m.maxTokens) : "",
+    input: m.input && m.input.length ? m.input.slice() : ["text"],
+    tags: (m.tags || []).slice(),
+    effortsMode: m.efforts === "custom" ? "custom" : m.efforts === "off" ? "off" : "inherit",
+    effortLevels: levels,
+    raw: m.raw && typeof m.raw === "object" ? m.raw : null
+  };
+}
+function emptyModelDraft() {
+  return { id: "", name: "", contextWindow: "", maxTokens: "", input: ["text"], tags: [], effortsMode: "inherit", effortLevels: {}, raw: null };
+}
+function emptyProviderForm() {
+  return {
+    route: "",
+    displayName: "",
+    api: "openai-completions",
+    baseURL: "",
+    apiKeyEnv: "",
+    apiKey: "",
+    defaultInput: ["text"],
+    models: [],
+    extra: {}
+  };
+}
+function providerFormFromProvider(p) {
+  const raw = p.rawProfile && typeof p.rawProfile === "object" && !Array.isArray(p.rawProfile) ? p.rawProfile : {};
+  const extra = Object.assign({}, raw);
+  delete extra.displayName;
+  delete extra.api;
+  delete extra.baseURL;
+  delete extra.apiKeyEnv;
+  delete extra.defaultInput;
+  delete extra.models;
+  const models = draftFromProvider(p).models;
+  return {
+    route: p.route || p.id || "",
+    displayName: typeof raw.displayName === "string" ? raw.displayName : p.displayName || "",
+    api: typeof raw.api === "string" && raw.api ? raw.api : p.api || "openai-completions",
+    baseURL: typeof raw.baseURL === "string" ? raw.baseURL : p.baseURL || "",
+    apiKeyEnv: typeof raw.apiKeyEnv === "string" ? raw.apiKeyEnv : p.apiKeyEnv || "",
+    apiKey: "",
+    defaultInput: Array.isArray(raw.defaultInput) && raw.defaultInput.length ? raw.defaultInput.slice() : Array.isArray(p.defaultInput) && p.defaultInput.length ? p.defaultInput.slice() : ["text"],
+    models: models.length ? models : [emptyModelDraft()],
+    extra
+  };
+}
 function draftFromProvider(p) {
   return {
     id: p.id,
     kind: p.kind,
     thinking: p.thinking === "disabled" ? "disabled" : "enabled",
     defaultEffort: DKM_DS_LEVELS.indexOf(p.defaultEffort) >= 0 ? p.defaultEffort : "high",
-    models: (p.models || []).map((m) => {
-      const levels = {};
-      if (m.efforts === "custom" && m.effortMap && typeof m.effortMap === "object") {
-        for (const lv of DKM_PI_LEVELS) levels[lv] = m.effortMap[lv] !== void 0;
-      }
-      return {
-        id: m.id || "",
-        name: m.name || "",
-        contextWindow: m.contextWindow != null ? String(m.contextWindow) : "",
-        maxTokens: m.maxTokens != null ? String(m.maxTokens) : "",
-        input: m.input && m.input.length ? m.input.slice() : ["text"],
-        tags: (m.tags || []).slice(),
-        effortsMode: m.efforts === "custom" ? "custom" : m.efforts === "off" ? "off" : "inherit",
-        effortLevels: levels,
-        raw: m.raw && typeof m.raw === "object" ? m.raw : null
-      };
-    })
+    models: (p.models || []).map(draftFromModel)
   };
 }
-function ModelsView() {
+function ModelRow(props) {
+  const m = props.m, i = props.i, kind = props.kind, onPatch = props.onPatch, onDel = props.onDel;
+  return import_react3.default.createElement(
+    "div",
+    { key: i, className: "dkm-model" },
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-model-head" },
+      import_react3.default.createElement("span", { className: "dkm-model-idx" }, "#" + (i + 1)),
+      import_react3.default.createElement("button", { type: "button", className: "dkm-del", onClick: () => onDel(i) }, "\u5220\u9664")
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-grid" },
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF0C\u5982 deepseek-v4-pro\uFF09", value: m.id, onChange: (e) => onPatch(i, { id: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => onPatch(i, { name: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => onPatch(i, { contextWindow: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => onPatch(i, { maxTokens: e.target.value }) })
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-checks" },
+      import_react3.default.createElement("span", { className: "dkm-label" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
+      DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
+        "label",
+        {
+          key: v,
+          className: "dkm-check",
+          title: v === "image" ? "\u7531\u4F60\u58F0\u660E\u8BE5\u7AEF\u70B9\u652F\u6301\u56FE\u7247\uFF1A\u4FDD\u5B58\u540E\u539F\u56FE\u76F4\u53D1\uFF0C\u5E76\u53EF\u4F5C\u4E3A\u89C6\u89C9\u6A21\u578B\u5019\u9009\u3002\u7CFB\u7EDF\u4E0D\u4F1A\u66FF\u4F60\u731C\u6D4B\uFF1B\u7AEF\u70B9\u5B9E\u9645\u4E0D\u652F\u6301\u65F6\u53D6\u6D88\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406" : null
+        },
+        import_react3.default.createElement("input", {
+          type: "checkbox",
+          checked: m.input.indexOf(v) >= 0,
+          onChange: () => {
+            const next = dkmToggleIn(m.input, v);
+            onPatch(i, { input: next.length > 0 ? next : ["text"] });
+          }
+        }),
+        label
+      )),
+      import_react3.default.createElement("span", { className: "dkm-label dkm-tag", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
+      DKM_TAGS.map(([v, label]) => import_react3.default.createElement(
+        "label",
+        { key: v, className: "dkm-check dkm-tag" },
+        import_react3.default.createElement("input", { type: "checkbox", checked: m.tags.indexOf(v) >= 0, onChange: () => onPatch(i, { tags: dkmToggleIn(m.tags, v) }) }),
+        label
+      )),
+      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => onPatch(i, dkmAllInputs(true)) }, "\u5168\u9009"),
+      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009\uFF08\u8F93\u5165\u7559\u7A7A = \u7EE7\u627F\u76EE\u5F55\u9ED8\u8BA4\uFF09", onClick: () => onPatch(i, dkmAllInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkm-efforts" },
+      import_react3.default.createElement("span", { className: "dkm-label" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
+      kind === "deepseek" ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u968F Provider \u8BBE\u7F6E\uFF08Off/Low/High/Max\uFF0C\u5168\u6A21\u578B\u5171\u4EAB\uFF09") : import_react3.default.createElement(
+        "span",
+        null,
+        import_react3.default.createElement(
+          "select",
+          {
+            className: "dkm-select",
+            value: m.effortsMode,
+            onChange: (e) => onPatch(i, {
+              effortsMode: e.target.value,
+              effortLevels: e.target.value === "custom" && m.effortsMode !== "custom" ? { off: true, low: true, high: true } : m.effortLevels
+            })
+          },
+          import_react3.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
+          import_react3.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
+          import_react3.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
+        ),
+        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react3.default.createElement(
+          "label",
+          { key: lv, className: "dkm-check" },
+          import_react3.default.createElement("input", {
+            type: "checkbox",
+            checked: !!m.effortLevels[lv],
+            onChange: () => {
+              const nl = Object.assign({}, m.effortLevels);
+              nl[lv] = !nl[lv];
+              onPatch(i, { effortLevels: nl });
+            }
+          }),
+          DKM_EFFORT_NAMES[lv] || lv
+        )) : null,
+        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => onPatch(i, dkmAllLevels(true)) }, "\u5168\u9009"),
+        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => onPatch(i, dkmAllLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
+      )
+    )
+  );
+}
+function ModelsView(props) {
   const snap = useModels();
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
+  const params = props && props.params;
   const [selId, setSelId] = import_react3.default.useState(null);
   const [draft, setDraft] = import_react3.default.useState(null);
   const [builtKey, setBuiltKey] = import_react3.default.useState(null);
@@ -3789,6 +3944,8 @@ function ModelsView() {
   const [vpSaving, setVpSaving] = import_react3.default.useState(false);
   const [vpMsg, setVpMsg] = import_react3.default.useState(null);
   const [vpDirectExpanded, setVpDirectExpanded] = import_react3.default.useState(false);
+  const [page, setPage] = import_react3.default.useState("settings");
+  const [pageOpenCreate, setPageOpenCreate] = import_react3.default.useState(false);
   import_react3.default.useEffect(() => {
     modelsStore.load();
   }, []);
@@ -3813,7 +3970,7 @@ function ModelsView() {
   const saveVp = () => {
     if (!vpDraft || vpSaving) return;
     setVpSaving(true);
-    fetch("/dsh-dock/models", {
+    fetch("dsh-dock/models", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ visionProxy: vpDraft, revisions: data && data.revisions || {} }),
@@ -3851,6 +4008,13 @@ function ModelsView() {
     setSelId(id);
     setMsg(null);
   };
+  import_react3.default.useEffect(() => {
+    if (params && params.page === "providers") setPage("providers");
+    if (params && params.openProviderForm) {
+      setPage("providers");
+      setPageOpenCreate(true);
+    }
+  }, []);
   const save = () => {
     if (!draft || !cur || !dirty || saving) return;
     const models = draft.models.map((m) => ({
@@ -3870,7 +4034,7 @@ function ModelsView() {
       payload.defaultEffort = draft.defaultEffort;
     }
     setSaving(true);
-    fetch("/dsh-dock/models", {
+    fetch("dsh-dock/models", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -3884,98 +4048,28 @@ function ModelsView() {
       }
     }).catch((e) => setMsg({ ok: false, text: e && e.message || String(e) })).then(() => setSaving(false));
   };
-  const modelRow = (m, i) => import_react3.default.createElement(
-    "div",
-    { key: i, className: "dkm-model" },
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-model-head" },
-      import_react3.default.createElement("span", { className: "dkm-model-idx" }, "#" + (i + 1)),
-      import_react3.default.createElement("button", {
-        type: "button",
-        className: "dkm-del",
-        onClick: () => patchDraft({ models: draft.models.filter((_, j) => j !== i) })
-      }, "\u5220\u9664")
-    ),
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-grid" },
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF0C\u5982 deepseek-v4-pro\uFF09", value: m.id, onChange: (e) => patchModel(i, { id: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => patchModel(i, { name: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => patchModel(i, { contextWindow: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => patchModel(i, { maxTokens: e.target.value }) })
-    ),
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-checks" },
-      import_react3.default.createElement("span", { className: "dkm-label" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
-      DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
-        "label",
-        {
-          key: v,
-          className: "dkm-check",
-          title: v === "image" ? "\u7531\u4F60\u58F0\u660E\u8BE5\u7AEF\u70B9\u652F\u6301\u56FE\u7247\uFF1A\u4FDD\u5B58\u540E\u539F\u56FE\u76F4\u53D1\uFF0C\u5E76\u53EF\u4F5C\u4E3A\u89C6\u89C9\u6A21\u578B\u5019\u9009\u3002\u7CFB\u7EDF\u4E0D\u4F1A\u66FF\u4F60\u731C\u6D4B\uFF1B\u7AEF\u70B9\u5B9E\u9645\u4E0D\u652F\u6301\u65F6\u53D6\u6D88\u52FE\u9009\u5373\u53EF\u6062\u590D\u8D70\u56FE\u7247\u7406\u89E3\u4EE3\u7406" : null
-        },
-        import_react3.default.createElement("input", {
-          type: "checkbox",
-          checked: m.input.indexOf(v) >= 0,
-          onChange: () => {
-            const next = toggleIn(m.input, v);
-            patchModel(i, { input: next.length > 0 ? next : ["text"] });
-          }
-        }),
-        label
-      )),
-      import_react3.default.createElement("span", { className: "dkm-label dkm-tag", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
-      DKM_TAGS.map(([v, label]) => import_react3.default.createElement(
-        "label",
-        { key: v, className: "dkm-check dkm-tag" },
-        import_react3.default.createElement("input", { type: "checkbox", checked: m.tags.indexOf(v) >= 0, onChange: () => patchModel(i, { tags: toggleIn(m.tags, v) }) }),
-        label
-      )),
-      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => patchModel(i, allInputs(true)) }, "\u5168\u9009"),
-      import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009\uFF08\u8F93\u5165\u7559\u7A7A = \u7EE7\u627F\u76EE\u5F55\u9ED8\u8BA4\uFF09", onClick: () => patchModel(i, allInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
-    ),
-    import_react3.default.createElement(
-      "div",
-      { className: "dkm-efforts" },
-      import_react3.default.createElement("span", { className: "dkm-label" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
-      cur.kind === "deepseek" ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u968F Provider \u8BBE\u7F6E\uFF08Off/Low/High/Max\uFF0C\u5168\u6A21\u578B\u5171\u4EAB\uFF09") : import_react3.default.createElement(
-        "span",
-        null,
-        import_react3.default.createElement(
-          "select",
-          {
-            className: "dkm-select",
-            value: m.effortsMode,
-            onChange: (e) => patchModel(i, {
-              effortsMode: e.target.value,
-              effortLevels: e.target.value === "custom" && m.effortsMode !== "custom" ? { off: true, low: true, high: true } : m.effortLevels
-            })
-          },
-          import_react3.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
-          import_react3.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
-          import_react3.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
-        ),
-        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react3.default.createElement(
-          "label",
-          { key: lv, className: "dkm-check" },
-          import_react3.default.createElement("input", {
-            type: "checkbox",
-            checked: !!m.effortLevels[lv],
-            onChange: () => {
-              const nl = Object.assign({}, m.effortLevels);
-              nl[lv] = !nl[lv];
-              patchModel(i, { effortLevels: nl });
-            }
-          }),
-          DKM_EFFORT_NAMES[lv] || lv
-        )) : null,
-        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => patchModel(i, allLevels(true)) }, "\u5168\u9009"),
-        import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => patchModel(i, allLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
-      )
-    )
-  );
+  const modelRow = (m, i) => ModelRow({
+    m,
+    i,
+    kind: cur.kind,
+    onPatch: (j, patch) => patchModel(j, patch),
+    onDel: (j) => patchDraft({ models: draft.models.filter((_, k) => k !== j) })
+  });
+  if (page === "providers") {
+    return import_react3.default.createElement(ProvidersPage, {
+      data,
+      providers,
+      loading: snap.loading,
+      error: snap.error,
+      openCreate: pageOpenCreate,
+      onCreateHandled: () => setPageOpenCreate(false),
+      // 返回主页时顺手重读目录：子页面里增删改过的 Provider 立即反映到模型编辑器
+      onBack: () => {
+        setPage("settings");
+        refreshModels();
+      }
+    });
+  }
   const body = [];
   if (data) {
     body.push(import_react3.default.createElement(
@@ -4115,6 +4209,44 @@ function ModelsView() {
       )
     ));
   }
+  if (data) {
+    const custom = providers.filter((p) => p.kind === "pi-ai");
+    const missingKey = custom.filter((p) => p.apiKeyEnv && !p.apiKeyConfigured).length;
+    body.push(import_react3.default.createElement(
+      "div",
+      { key: "pf-entry", className: "dkp-card" },
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-rowhead" },
+        import_react3.default.createElement(
+          "span",
+          { className: "dkp-identity" },
+          import_react3.default.createElement("span", { className: "dkp-name" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
+          import_react3.default.createElement("span", { className: "dkp-tag" }, custom.length + " \u4E2A\u81EA\u5B9A\u4E49\u8DEF\u7531"),
+          custom.length > 0 ? import_react3.default.createElement("span", {
+            className: "dkp-dot " + (missingKey > 0 ? "warn" : "ok"),
+            role: "img",
+            title: missingKey > 0 ? "\u6709 " + missingKey + " \u4E2A Provider \u672A\u914D\u7F6E\u5BC6\u94A5" : "\u5BC6\u94A5\u5747\u5DF2\u914D\u7F6E",
+            "aria-label": missingKey > 0 ? "\u6709 Provider \u672A\u914D\u7F6E\u5BC6\u94A5" : "\u5BC6\u94A5\u5747\u5DF2\u914D\u7F6E"
+          }) : null
+        ),
+        import_react3.default.createElement(
+          "span",
+          { className: "dkp-actions" },
+          import_react3.default.createElement("button", {
+            type: "button",
+            className: "dkp-btn ghost sm",
+            onClick: () => setPage("providers")
+          }, "\u7BA1\u7406")
+        )
+      ),
+      import_react3.default.createElement(
+        "p",
+        { className: "dkp-hint" },
+        "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002"
+      )
+    ));
+  }
   if (data && providers.length === 0) {
     body.push(import_react3.default.createElement("div", { key: "empty", className: "dkm-note" }, "\u6CA1\u6709\u53EF\u7F16\u8F91\u7684\u6A21\u578B Provider\uFF08Host \u4FA7\u5C1A\u672A\u914D\u7F6E\uFF09"));
   }
@@ -4191,6 +4323,532 @@ function ModelsView() {
   }
   return import_react3.default.createElement("div", { className: "dkm-list" }, body);
 }
+function ProviderModelRow(props) {
+  const m = props.m;
+  const i = props.i;
+  const check = (v, list, kind) => import_react3.default.createElement(
+    "label",
+    { key: v[0], className: "dkp-check" },
+    import_react3.default.createElement("input", {
+      type: "checkbox",
+      checked: list.indexOf(v[0]) >= 0,
+      onChange: () => {
+        const next = dkmToggleIn(list, v[0]);
+        props.onPatch(i, kind === "input" ? { input: next.length > 0 ? next : ["text"] } : { tags: next });
+      }
+    }),
+    v[1]
+  );
+  return import_react3.default.createElement(
+    "div",
+    { className: "dkp-model-entry" },
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-model-row" },
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF09", value: m.id, onChange: (e) => props.onPatch(i, { id: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => props.onPatch(i, { name: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => props.onPatch(i, { contextWindow: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => props.onPatch(i, { maxTokens: e.target.value }) }),
+      import_react3.default.createElement("button", { type: "button", className: "dkp-iconbtn danger", title: "\u5220\u9664\u8BE5\u6A21\u578B", "aria-label": "\u5220\u9664\u6A21\u578B", onClick: () => props.onDel(i) }, "\u2715")
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-model-opts" },
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-checks" },
+        import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
+        DKM_MODALITIES.map((v) => check(v, m.input, "input")),
+        import_react3.default.createElement("span", { className: "dkp-flabel dkp-dim", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
+        DKM_TAGS.map((v) => check(v, m.tags, "tags")),
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => props.onPatch(i, dkmAllInputs(true)) }, "\u5168\u9009"),
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009", onClick: () => props.onPatch(i, dkmAllInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
+      ),
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-checks" },
+        import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
+        import_react3.default.createElement(
+          "select",
+          {
+            className: "dkp-input dkp-select dkp-select-sm",
+            value: m.effortsMode,
+            onChange: (e) => props.onPatch(i, {
+              effortsMode: e.target.value,
+              effortLevels: e.target.value === "custom" && m.effortsMode !== "custom" ? { off: true, low: true, high: true } : m.effortLevels
+            })
+          },
+          import_react3.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
+          import_react3.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
+          import_react3.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
+        ),
+        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react3.default.createElement(
+          "label",
+          { key: lv, className: "dkp-check" },
+          import_react3.default.createElement("input", {
+            type: "checkbox",
+            checked: !!m.effortLevels[lv],
+            onChange: () => {
+              const nl = Object.assign({}, m.effortLevels);
+              nl[lv] = !nl[lv];
+              props.onPatch(i, { effortLevels: nl });
+            }
+          }),
+          DKM_EFFORT_NAMES[lv] || lv
+        )) : null,
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => props.onPatch(i, dkmAllLevels(true)) }, "\u5168\u9009"),
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => props.onPatch(i, dkmAllLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
+      )
+    )
+  );
+}
+function ProvidersPage(props) {
+  const data = props.data;
+  const providers = props.providers || [];
+  const piProviders = providers.filter((p) => p.kind === "pi-ai");
+  const [pfMode, setPfMode] = import_react3.default.useState(null);
+  const [pfDraft, setPfDraft] = import_react3.default.useState(null);
+  const [pfDirty, setPfDirty] = import_react3.default.useState(false);
+  const [pfSaving, setPfSaving] = import_react3.default.useState(false);
+  const [pfMsg, setPfMsg] = import_react3.default.useState(null);
+  const [pfDelArm, setPfDelArm] = import_react3.default.useState(null);
+  const [pfFetching, setPfFetching] = import_react3.default.useState(false);
+  const [pfFetchedList, setPfFetchedList] = import_react3.default.useState(null);
+  const openPfCreate = () => {
+    setPfMode("create");
+    setPfDraft(emptyProviderForm());
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetchedList(null);
+  };
+  const openPfEdit = (p) => {
+    setPfMode("edit");
+    setPfDraft(providerFormFromProvider(p));
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetchedList(null);
+  };
+  const closePf = () => {
+    setPfMode(null);
+    setPfDraft(null);
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetchedList(null);
+  };
+  const patchPf = (patch) => {
+    setPfDraft(Object.assign({}, pfDraft, patch));
+    setPfDirty(true);
+    setPfMsg(null);
+  };
+  const patchPfModel = (i, patch) => {
+    const models = pfDraft.models.slice();
+    models[i] = Object.assign({}, models[i], patch);
+    patchPf({ models });
+  };
+  const delPfModel = (i) => patchPf({ models: pfDraft.models.filter((_, j) => j !== i) });
+  const addPfModel = () => patchPf({ models: pfDraft.models.concat([emptyModelDraft()]) });
+  const togglePfModel = (id, name, on) => {
+    const base = pfDraft.models.filter((m) => String(m.id || "").trim());
+    if (on) {
+      if (base.some((m) => String(m.id).trim() === id)) return;
+      base.push(Object.assign(emptyModelDraft(), { id, name: name || "", input: pfDraft.defaultInput.slice() }));
+    } else {
+      const i = base.findIndex((m) => String(m.id).trim() === id);
+      if (i >= 0) base.splice(i, 1);
+    }
+    patchPf({ models: base });
+  };
+  const setAllPfModels = (on) => {
+    const base = [];
+    if (on && pfFetchedList) {
+      for (const mm of pfFetchedList) {
+        const id = String(mm && mm.id || "").trim();
+        if (!id) continue;
+        base.push(Object.assign(emptyModelDraft(), { id, name: mm && mm.name || "", input: pfDraft.defaultInput.slice() }));
+      }
+    }
+    patchPf({ models: base });
+  };
+  const pfSelectedCount = () => pfDraft ? pfDraft.models.filter((m) => String(m.id || "").trim()).length : 0;
+  const pfModelsPayload = () => pfDraft.models.map((m) => ({
+    id: String(m.id || "").trim(),
+    name: String(m.name || "").trim(),
+    contextWindow: m.contextWindow === "" || m.contextWindow == null ? void 0 : Number(m.contextWindow),
+    maxTokens: m.maxTokens === "" || m.maxTokens == null ? void 0 : Number(m.maxTokens),
+    input: m.input,
+    tags: m.tags,
+    effortsMode: m.effortsMode,
+    effortLevels: m.effortLevels,
+    raw: m.raw
+  }));
+  const fetchPfModels = () => {
+    if (!pfDraft || pfFetching) return;
+    setPfFetching(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "listModels",
+        baseURL: pfDraft.baseURL,
+        api: pfDraft.api,
+        apiKeyEnv: pfDraft.apiKeyEnv,
+        apiKey: pfDraft.apiKey
+      }),
+      signal: AbortSignal.timeout(3e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfFetchedList(Array.isArray(r.body.models) ? r.body.models : []);
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfFetching(false));
+  };
+  const savePf = () => {
+    if (!pfDraft || pfSaving) return;
+    const route = pfDraft.route.trim();
+    const baseURL = pfDraft.baseURL.trim();
+    const apiKey = pfDraft.apiKey.trim();
+    let apiKeyEnv = pfDraft.apiKeyEnv.trim();
+    if (apiKey && !apiKeyEnv) {
+      apiKeyEnv = dkmEnvFromRoute(route);
+      setPfDraft(Object.assign({}, pfDraft, { apiKeyEnv }));
+    }
+    const models = pfModelsPayload();
+    if (!route) {
+      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u4E0D\u80FD\u4E3A\u7A7A\uFF08\u5982 modelscope\uFF09" });
+      return;
+    }
+    if (!DKM_ROUTE_KEY_RE.test(route)) {
+      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u975E\u6CD5\uFF1A\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u4E0E . _ -\uFF0C\u4E14\u4EE5\u5B57\u6BCD/\u6570\u5B57\u5F00\u5934" });
+      return;
+    }
+    if (!/^https?:\/\//i.test(baseURL)) {
+      setPfMsg({ ok: false, text: "baseURL \u987B\u4EE5 http:// \u6216 https:// \u5F00\u5934" });
+      return;
+    }
+    const ids = models.map((m) => m.id);
+    if (ids.length === 0 || ids.some((x) => !x)) {
+      setPfMsg({ ok: false, text: "\u6BCF\u4E2A\u6A21\u578B\u90FD\u8981\u6709 id\uFF08\u53EF\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u81EA\u52A8\u62C9\u53D6\uFF09" });
+      return;
+    }
+    if (new Set(ids).size !== ids.length) {
+      setPfMsg({ ok: false, text: "\u6A21\u578B id \u6709\u91CD\u590D" });
+      return;
+    }
+    const profile = Object.assign({}, pfDraft.extra || {});
+    const dn = pfDraft.displayName.trim();
+    if (dn) profile.displayName = dn;
+    else delete profile.displayName;
+    profile.api = pfDraft.api;
+    profile.baseURL = baseURL;
+    if (apiKeyEnv) profile.apiKeyEnv = apiKeyEnv;
+    else delete profile.apiKeyEnv;
+    profile.defaultInput = pfDraft.defaultInput;
+    profile.models = models;
+    const payload = {
+      action: pfMode === "create" ? "create" : "update",
+      route,
+      profile,
+      revisions: data && data.revisions || {}
+    };
+    if (apiKey) payload.apiKey = apiKey;
+    setPfSaving(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(3e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2" + (pfMode === "create" ? "\u65B0\u589E" : "\u66F4\u65B0") + "\uFF1B\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009" });
+        setPfMode(null);
+        setPfDraft(null);
+        setPfDirty(false);
+        modelsStore.load();
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
+  };
+  const deletePf = (p) => {
+    const route = p.route || p.id;
+    if (pfDelArm !== route) {
+      setPfDelArm(route);
+      setPfMsg(null);
+      return;
+    }
+    setPfDelArm(null);
+    setPfSaving(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "delete", route, revisions: data && data.revisions || {} }),
+      signal: AbortSignal.timeout(2e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2\u5220\u9664" });
+        if (pfMode === "edit" && pfDraft && pfDraft.route === route) {
+          setPfMode(null);
+          setPfDraft(null);
+        }
+        modelsStore.load();
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
+  };
+  const openedRef = import_react3.default.useRef(false);
+  import_react3.default.useEffect(() => {
+    if (props.openCreate && !openedRef.current) {
+      openedRef.current = true;
+      openPfCreate();
+      if (typeof props.onCreateHandled === "function") props.onCreateHandled();
+    }
+  }, []);
+  const input = (p) => import_react3.default.createElement("input", Object.assign({ className: "dkp-input" }, p));
+  const field = (label, node, hint) => import_react3.default.createElement(
+    "div",
+    { className: "dkp-field", key: label },
+    import_react3.default.createElement("label", { className: "dkp-flabel" }, label),
+    node,
+    hint ? import_react3.default.createElement("p", { className: "dkp-hint" }, hint) : null
+  );
+  const editor = !pfDraft ? null : import_react3.default.createElement(
+    "div",
+    { className: "dkp-editor" },
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-editor-head" },
+      import_react3.default.createElement("span", { className: "dkp-editor-title" }, pfMode === "create" ? "\u65B0\u589E Provider" : "\u7F16\u8F91 Provider"),
+      pfMode === "edit" ? import_react3.default.createElement("span", { className: "dkp-editor-route" }, pfDraft.route) : null
+    ),
+    field("\u8DEF\u7531 key", input({
+      value: pfDraft.route,
+      disabled: pfMode === "edit",
+      placeholder: "acme-gateway",
+      onChange: (e) => patchPf({ route: e.target.value })
+    }), pfMode === "edit" ? "\u8DEF\u7531 key \u662F\u914D\u7F6E\u952E\uFF0C\u4FDD\u5B58\u540E\u4E0D\u5EFA\u8BAE\u4FEE\u6539\u3002" : "\u552F\u4E00\u6807\u8BC6\uFF1A\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u4E0E . _ -\uFF0C\u4E14\u4EE5\u5B57\u6BCD/\u6570\u5B57\u5F00\u5934\u3002"),
+    field("\u663E\u793A\u540D\u79F0", input({
+      value: pfDraft.displayName,
+      placeholder: pfDraft.route || "\u5982 \u9B54\u642D ModelScope",
+      onChange: (e) => patchPf({ displayName: e.target.value })
+    })),
+    field("baseURL", input({
+      value: pfDraft.baseURL,
+      placeholder: pfDraft.api === "anthropic-messages" ? "https://gateway.example" : "https://gateway.example/v1",
+      onChange: (e) => patchPf({ baseURL: e.target.value })
+    }), "OpenAI \u517C\u5BB9\u7AEF\u70B9\u901A\u5E38\u4EE5 /v1 \u7ED3\u5C3E\uFF1BAnthropic Messages \u7531 SDK \u81EA\u884C\u8FFD\u52A0 /v1/messages\u3002"),
+    field("API \u534F\u8BAE", import_react3.default.createElement(
+      "select",
+      {
+        className: "dkp-input dkp-select",
+        value: pfDraft.api,
+        onChange: (e) => patchPf({ api: e.target.value })
+      },
+      DKM_APIS.map(([v, label]) => import_react3.default.createElement("option", { key: v, value: v }, label))
+    )),
+    field("API Key", import_react3.default.createElement("input", {
+      className: "dkp-input",
+      type: "password",
+      autoComplete: "new-password",
+      placeholder: pfMode === "edit" ? "\u7559\u7A7A = \u4E0D\u6539\u52A8\u5DF2\u5B58\u5BC6\u94A5" : "sk-\u2026\uFF08\u4EC5\u672C\u6B21\u5199\u5165\u672C\u673A\u51ED\u636E\u5E93\uFF0C\u4E0D\u56DE\u663E\uFF09",
+      value: pfDraft.apiKey,
+      onChange: (e) => patchPf({ apiKey: e.target.value })
+    })),
+    import_react3.default.createElement(
+      "details",
+      { className: "dkp-customized" },
+      import_react3.default.createElement("summary", { className: "dkp-summary" }, "\u81EA\u5B9A\u4E49\u8BBE\u7F6E"),
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-custombody" },
+        field("apiKeyEnv", input({
+          value: pfDraft.apiKeyEnv,
+          placeholder: "\u7559\u7A7A = \u6309\u8DEF\u7531 key \u81EA\u52A8\u751F\u6210\uFF08" + (dkmEnvFromRoute(pfDraft.route) || "ROUTE_API_KEY") + "\uFF09",
+          onChange: (e) => patchPf({ apiKeyEnv: e.target.value })
+        }), "\u51ED\u636E\u5E93\u6761\u76EE\u540D\uFF1B\u7559\u7A7A\u65F6\u6309\u8DEF\u7531 key \u63A8\u5BFC\uFF0C\u4E00\u822C\u65E0\u9700\u586B\u5199\u3002"),
+        import_react3.default.createElement(
+          "div",
+          { className: "dkp-field" },
+          import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u9ED8\u8BA4\u8F93\u5165\u7C7B\u578B"),
+          import_react3.default.createElement(
+            "div",
+            { className: "dkp-checks" },
+            DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
+              "label",
+              { key: v, className: "dkp-check" },
+              import_react3.default.createElement("input", {
+                type: "checkbox",
+                checked: pfDraft.defaultInput.indexOf(v) >= 0,
+                onChange: () => {
+                  const next = dkmToggleIn(pfDraft.defaultInput, v);
+                  patchPf({ defaultInput: next.length > 0 ? next : ["text"] });
+                }
+              }),
+              label
+            )),
+            import_react3.default.createElement("span", { className: "dkp-hint" }, "\u6A21\u578B\u672A\u5355\u72EC\u58F0\u660E\u8F93\u5165\u7C7B\u578B\u65F6\u7EE7\u627F\u8FD9\u91CC\u3002")
+          )
+        )
+      )
+    ),
+    import_react3.default.createElement(
+      "section",
+      { className: "dkp-catalog", "aria-label": "\u6A21\u578B" },
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-catalog-head" },
+        import_react3.default.createElement(
+          "div",
+          { className: "dkp-catalog-titlewrap" },
+          import_react3.default.createElement("span", { className: "dkp-catalog-title" }, "\u6A21\u578B"),
+          import_react3.default.createElement(
+            "span",
+            { className: "dkp-catalog-meta" },
+            "\u5DF2\u9009 " + pfSelectedCount() + " \u4E2A" + (pfFetchedList ? " / \u4E0A\u6E38\u5171 " + pfFetchedList.length + " \u4E2A" : "")
+          )
+        ),
+        import_react3.default.createElement(
+          "div",
+          { className: "dkp-actions" },
+          import_react3.default.createElement("button", {
+            type: "button",
+            className: "dkp-btn ghost sm",
+            disabled: pfFetching || !pfDraft.baseURL,
+            title: "\u8C03\u7528 baseURL/models \u62C9\u53D6\u8BE5\u7AEF\u70B9\u53EF\u7528\u6A21\u578B\uFF0C\u52FE\u9009\u540E\u52A0\u5165\u4E0B\u65B9\u5217\u8868",
+            onClick: fetchPfModels
+          }, pfFetching ? "\u62C9\u53D6\u4E2D\u2026" : "\u83B7\u53D6\u6A21\u578B\u5217\u8868"),
+          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u52FE\u9009\u4E0A\u6E38\u8FD4\u56DE\u7684\u5168\u90E8\u6A21\u578B", onClick: () => setAllPfModels(true) }, "\u5168\u9009") : null,
+          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u6E05\u7A7A\u5DF2\u52FE\u9009\u7684\u6A21\u578B", onClick: () => setAllPfModels(false) }, "\u6E05\u7A7A") : null
+        )
+      ),
+      pfFetchedList ? import_react3.default.createElement(
+        "div",
+        { className: "dkp-picker" },
+        pfFetchedList.length === 0 ? import_react3.default.createElement("div", { className: "dkp-hint" }, "\u4E0A\u6E38\u6CA1\u6709\u8FD4\u56DE\u4EFB\u4F55\u6A21\u578B") : pfFetchedList.map((mm) => {
+          const id = String(mm && mm.id || "").trim();
+          if (!id) return null;
+          const checked = pfDraft.models.some((m) => String(m.id || "").trim() === id);
+          return import_react3.default.createElement(
+            "label",
+            { key: id },
+            import_react3.default.createElement("input", {
+              type: "checkbox",
+              checked,
+              onChange: () => togglePfModel(id, mm && mm.name || "", !checked)
+            }),
+            import_react3.default.createElement("span", { className: "dkp-picker-id" }, id),
+            mm && mm.name ? import_react3.default.createElement("span", { className: "dkp-picker-name" }, mm.name) : null
+          );
+        })
+      ) : null,
+      pfDraft.models.length === 0 ? import_react3.default.createElement("div", { className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u6A21\u578B\u2014\u2014\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u52FE\u9009\u4E0A\u6E38\u6A21\u578B\uFF0C\u6216\u300C\u6DFB\u52A0\u6A21\u578B\u300D\u624B\u52A8\u586B\u5199\u3002") : import_react3.default.createElement(
+        "div",
+        { className: "dkp-model-list" },
+        pfDraft.models.map((m, i) => import_react3.default.createElement(ProviderModelRow, { key: i, m, i, onPatch: patchPfModel, onDel: delPfModel }))
+      ),
+      import_react3.default.createElement("button", { type: "button", className: "dkp-addmodel", onClick: addPfModel }, "\uFF0B \u6DFB\u52A0\u6A21\u578B")
+    ),
+    pfMsg && !pfMsg.ok ? import_react3.default.createElement("p", { className: "dkp-error" }, pfMsg.text) : null,
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-editor-actions" },
+      import_react3.default.createElement("span", { className: "dkp-hint" }, pfDirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : ""),
+      import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost", onClick: closePf }, "\u53D6\u6D88"),
+      import_react3.default.createElement(
+        "button",
+        { type: "button", className: "dkp-btn primary", disabled: pfSaving, onClick: savePf },
+        pfSaving ? "\u4FDD\u5B58\u4E2D\u2026" : pfMode === "create" ? "\u65B0\u589E Provider" : "\u4FDD\u5B58\u4FEE\u6539"
+      )
+    )
+  );
+  const body = [
+    import_react3.default.createElement("button", { key: "back", type: "button", className: "dkp-back", onClick: props.onBack }, "\u2190 \u6A21\u578B\u8BBE\u7F6E"),
+    import_react3.default.createElement("h2", { key: "title", className: "dkp-title" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
+    import_react3.default.createElement(
+      "p",
+      { key: "intro", className: "dkp-intro" },
+      "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u672C\u9875\u53EA\u8BFB\uFF0C\u5176\u6A21\u578B\u76EE\u5F55\u8BF7\u56DE\u300C\u6A21\u578B\u8BBE\u7F6E\u300D\u7F16\u8F91\u3002"
+    )
+  ];
+  if (props.error) {
+    body.push(import_react3.default.createElement("p", { key: "err", className: "dkp-error" }, "\u6A21\u578B\u76EE\u5F55\u62C9\u53D6\u5931\u8D25\uFF1A" + props.error));
+  }
+  if (pfMsg && !pfDraft) {
+    body.push(import_react3.default.createElement("p", { key: "msg", className: "dkp-msg " + (pfMsg.ok ? "ok" : "err"), role: "status" }, pfMsg.text));
+  }
+  if (!data) {
+    body.push(import_react3.default.createElement("p", { key: "loading", className: "dkp-hint" }, props.loading ? "\u6B63\u5728\u62C9\u53D6\u6A21\u578B\u76EE\u5F55\u2026" : "\u7B49\u5F85\u62C9\u53D6\u6A21\u578B\u76EE\u5F55"));
+  } else if (piProviders.length === 0) {
+    body.push(import_react3.default.createElement("div", { key: "empty", className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49 Provider\u2014\u2014\u70B9\u4E0B\u65B9\u300C\u65B0\u589E Provider\u300D\u6DFB\u52A0\u3002"));
+  } else {
+    body.push(import_react3.default.createElement(
+      "ul",
+      { key: "rows", className: "dkp-rows" },
+      piProviders.map((p) => {
+        const route = p.route || p.id;
+        const editing = pfMode === "edit" && !!pfDraft && pfDraft.route === route;
+        const keyMissing = !!(p.apiKeyEnv && !p.apiKeyConfigured);
+        return import_react3.default.createElement(
+          "li",
+          { key: p.id, className: "dkp-card" },
+          import_react3.default.createElement(
+            "div",
+            { className: "dkp-rowhead" },
+            import_react3.default.createElement(
+              "span",
+              { className: "dkp-identity" },
+              import_react3.default.createElement("span", { className: "dkp-name" }, p.displayName || route),
+              import_react3.default.createElement("span", { className: "dkp-tag" }, route),
+              import_react3.default.createElement("span", { className: "dkp-tag" }, (p.models ? p.models.length : 0) + " \u6A21\u578B"),
+              import_react3.default.createElement("span", {
+                className: "dkp-dot " + (keyMissing ? "missing" : "ok"),
+                role: "img",
+                title: p.apiKeyEnv ? p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv",
+                "aria-label": p.apiKeyEnv ? p.apiKeyConfigured ? "\u5BC6\u94A5\u5DF2\u914D\u7F6E" : "\u5BC6\u94A5\u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv"
+              }),
+              p.apiKeyEnv ? import_react3.default.createElement(
+                "span",
+                { className: "dkp-tag" + (keyMissing ? " warn" : " ok") },
+                p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E"
+              ) : null
+            ),
+            import_react3.default.createElement(
+              "span",
+              { className: "dkp-actions" },
+              import_react3.default.createElement("button", {
+                type: "button",
+                className: "dkp-btn ghost sm",
+                "aria-expanded": editing,
+                onClick: () => editing ? closePf() : openPfEdit(p)
+              }, editing ? "\u6536\u8D77" : "\u7F16\u8F91"),
+              import_react3.default.createElement("button", {
+                type: "button",
+                className: "dkp-btn danger sm" + (pfDelArm === route ? " arm" : ""),
+                title: pfDelArm === route ? "\u518D\u70B9\u4E00\u6B21\u786E\u8BA4\u5220\u9664" : "\u5220\u9664\u8BE5 Provider",
+                onClick: () => deletePf(p)
+              }, pfDelArm === route ? "\u786E\u8BA4\u5220\u9664\uFF1F" : "\u5220\u9664")
+            )
+          ),
+          import_react3.default.createElement("div", { className: "dkp-sub" }, [p.api, p.baseURL].filter(Boolean).join(" \xB7 ")),
+          editing ? editor : null
+        );
+      })
+    ));
+  }
+  body.push(import_react3.default.createElement(
+    "div",
+    { key: "add", className: "dkp-addblock" },
+    pfMode === "create" && pfDraft ? import_react3.default.createElement("div", { className: "dkp-card dkp-addcard" }, editor) : import_react3.default.createElement("button", { type: "button", className: "dkp-addbtn", onClick: openPfCreate }, "\uFF0B \u65B0\u589E Provider")
+  ));
+  return import_react3.default.createElement("div", { className: "dkp-page" }, body);
+}
 function ModelsStat() {
   const snap = useModels();
   const data = snap.data;
@@ -4205,7 +4863,7 @@ var feature2 = {
   name: "\u6A21\u578B\u8BBE\u7F6E",
   order: 100,
   accent: "#22d3ee",
-  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u76EE\u5F55\uFF1A\u8F93\u5165\u7C7B\u578B\uFF08\u6587\u672C/\u56FE\u7247 + \u6807\u6CE8\uFF09\u4E0E\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF1B\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF0C\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009",
+  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u76EE\u5F55\uFF08\u8F93\u5165\u7C7B\u578B/\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF09\uFF1B\u81EA\u5B9A\u4E49 Provider \u7684\u589E\u5220\u6539\u5728\u300C\u6A21\u578B\u63D0\u4F9B\u5546\u300D\u5B50\u9875\u9762\uFF0C\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF0C\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009",
   css: [
     ".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
     ".dkm-warn{color:var(--dk-warn);}",
@@ -4250,7 +4908,99 @@ var feature2 = {
     ".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
     ".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
     ".dkm-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--dsw-alias-border-l1);padding-top:8px;}",
-    ".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}"
+    ".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}",
+    // ---- 模型提供商子页面（dkp- 前缀）：对齐官方「模型」设置页的排版与尺寸 ----
+    // 官方用量参考：section 限宽 720、行卡片 .5px 描边 + radius-xl + 12/14 内距、
+    // 输入高 32、按钮高 36（行内小按钮 28）、新增按钮 44 虚线、编辑器 bg-module-platform。
+    ".dkp-page{width:100%;max-width:720px;display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);}",
+    ".dkp-back{box-sizing:border-box;align-self:flex-start;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:var(--dsw-radius-sm,6px);padding:4px 8px;margin-left:-8px;font-family:inherit;font-size:12px;line-height:18px;}",
+    ".dkp-back:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+    ".dkp-title{margin:0;font-size:16px;font-weight:500;line-height:24px;}",
+    ".dkp-intro{margin:0;color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:22px;}",
+    ".dkp-rows{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;}",
+    ".dkp-card{box-sizing:border-box;margin:0;border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l2));background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1));border-radius:var(--dsw-radius-xl,12px);padding:12px 14px;display:flex;flex-direction:column;gap:10px;}",
+    ".dkp-rowhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}",
+    ".dkp-identity{display:inline-flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;}",
+    ".dkp-name{font-size:14px;font-weight:500;line-height:22px;}",
+    ".dkp-tag{flex:none;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-xs,4px);color:var(--dsw-alias-label-secondary);padding:1px 6px;font-size:11px;line-height:16px;}",
+    ".dkp-tag.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+    ".dkp-tag.warn{color:var(--dk-warn);border-color:currentColor;}",
+    ".dkp-dot{box-sizing:border-box;flex:none;width:8px;height:8px;border-radius:50%;display:inline-block;}",
+    ".dkp-dot.ok{background:var(--dsw-alias-state-success-primary);}",
+    ".dkp-dot.missing{background:var(--dsw-alias-state-error-primary);}",
+    ".dkp-dot.warn{background:var(--dk-warn);}",
+    ".dkp-sub{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+    ".dkp-hint{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkp-dim{color:var(--dsw-alias-label-tertiary);}",
+    ".dkp-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:18px;}",
+    ".dkp-msg{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;}",
+    ".dkp-msg.ok{color:var(--dsw-alias-state-success-primary);}",
+    ".dkp-msg.err{color:var(--dsw-alias-state-error-primary);}",
+    ".dkp-actions{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;}",
+    ".dkp-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:36px;padding:0 14px;border:none;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer;}",
+    ".dkp-btn.ghost{border:.5px solid var(--dsw-alias-border-l3);}",
+    ".dkp-btn.ghost:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-btn.primary{background:var(--dsw-alias-button-primary-fill,var(--dk-accent));color:var(--dsw-alias-label-primary-foreground,#fff);}",
+    ".dkp-btn.primary:hover{background:var(--dsw-alias-button-primary-hover,var(--dk-accent));}",
+    ".dkp-btn.danger{color:var(--dsw-alias-state-error-primary);}",
+    ".dkp-btn.danger:hover{background:var(--dsw-alias-interactive-bg-hover-danger,rgba(220,38,38,.1));}",
+    ".dkp-btn.arm{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
+    ".dkp-btn.sm{height:28px;padding:0 10px;border-radius:var(--dsw-radius-sm,6px);font-size:12px;line-height:18px;}",
+    ".dkp-btn[disabled]{opacity:.4;cursor:default;}",
+    ".dkp-editor{border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-module-platform,var(--dsw-alias-bg-layer-1));padding:14px 16px;display:flex;flex-direction:column;gap:14px;}",
+    ".dkp-editor-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}",
+    ".dkp-editor-title{font-size:14px;font-weight:500;line-height:22px;}",
+    ".dkp-editor-route{color:var(--dsw-alias-label-tertiary);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;line-height:18px;}",
+    ".dkp-field{display:flex;flex-direction:column;gap:6px;min-width:0;}",
+    ".dkp-flabel{display:inline-flex;align-items:center;gap:10px;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkp-input{box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l2));border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;}",
+    ".dkp-input:focus{border-color:var(--dsw-alias-state-business-primary,var(--dk-accent));outline:none;}",
+    ".dkp-input::placeholder{color:var(--dsw-alias-label-dimmed,var(--dsw-alias-label-tertiary));}",
+    ".dkp-input:disabled{opacity:.6;cursor:default;}",
+    "select.dkp-input{appearance:auto;cursor:pointer;max-width:240px;}",
+    ".dkp-select-sm{height:28px;max-width:160px;font-size:12px;line-height:18px;}",
+    ".dkp-checks{display:flex;align-items:center;gap:16px;flex-wrap:wrap;min-height:32px;}",
+    ".dkp-check{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;}",
+    ".dkp-check input{accent-color:var(--dk-accent);margin:0;}",
+    ".dkp-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:transparent;color:var(--dsw-alias-label-tertiary);padding:1px 8px;font-family:inherit;font-size:11px;line-height:16px;flex:none;}",
+    ".dkp-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
+    ".dkp-customized{border-top:.5px solid var(--dsw-alias-border-l2);padding-top:10px;}",
+    ".dkp-summary{display:flex;align-items:center;gap:6px;width:fit-content;margin-left:-4px;padding:2px 4px;border-radius:var(--dsw-radius-sm,6px);list-style:none;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkp-summary::-webkit-details-marker{display:none;}",
+    '.dkp-summary::before{content:"";width:5px;height:5px;border-right:1.5px solid;border-bottom:1.5px solid;transform:rotate(-45deg);transition:transform .12s;}',
+    ".dkp-customized[open]>.dkp-summary::before{transform:rotate(45deg);}",
+    ".dkp-summary:hover{color:var(--dsw-alias-label-primary);}",
+    ".dkp-custombody{display:flex;flex-direction:column;gap:12px;padding-top:12px;}",
+    ".dkp-catalog{border-top:.5px solid var(--dsw-alias-border-l2);padding-top:12px;display:flex;flex-direction:column;gap:10px;}",
+    ".dkp-catalog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}",
+    ".dkp-catalog-titlewrap{display:flex;flex-direction:column;gap:2px;}",
+    ".dkp-catalog-title{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkp-catalog-meta{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkp-model-list{display:flex;flex-direction:column;gap:8px;}",
+    ".dkp-model-entry{border:.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l2));border-radius:var(--dsw-radius-lg,10px);padding:6px;display:flex;flex-direction:column;gap:6px;}",
+    ".dkp-model-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,.7fr) minmax(0,.7fr) auto;gap:6px;align-items:center;}",
+    ".dkp-model-row .dkp-input{height:30px;padding:0 8px;font-size:13px;}",
+    ".dkp-model-opts{display:flex;flex-direction:column;gap:4px;padding:2px 2px 0;}",
+    ".dkp-iconbtn{box-sizing:border-box;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:12px;line-height:1;}",
+    ".dkp-iconbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+    ".dkp-iconbtn.danger:hover{background:var(--dsw-alias-interactive-bg-hover-danger,rgba(220,38,38,.1));color:var(--dsw-alias-state-error-primary);}",
+    ".dkp-addmodel{box-sizing:border-box;align-self:flex-start;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;}",
+    ".dkp-addmodel:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-picker{max-height:320px;overflow-y:auto;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);padding:4px 6px;display:flex;flex-direction:column;gap:2px;}",
+    ".dkp-picker label{display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;padding:6px 8px;border-radius:var(--dsw-radius-md,8px);}",
+    ".dkp-picker label:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-picker input{accent-color:var(--dk-accent);margin:0;flex:none;}",
+    ".dkp-picker-id{flex:none;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:13px;line-height:20px;}",
+    ".dkp-picker-name{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+    ".dkp-empty{border:1px dashed var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-lg,10px);padding:12px;text-align:center;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkp-addblock{display:flex;align-items:stretch;}",
+    ".dkp-addbtn{box-sizing:border-box;flex:1 1 auto;min-width:180px;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-lg,10px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer;}",
+    ".dkp-addbtn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-addcard{flex:1 1 auto;padding:14px 16px;}",
+    ".dkp-addcard .dkp-editor{background:transparent;padding:0;}",
+    ".dkp-editor-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;border-top:.5px solid var(--dsw-alias-border-l2);padding-top:12px;}",
+    ".dkp-editor-actions .dkp-hint{margin-right:auto;}",
+    "@media (max-width:680px){.dkp-page{max-width:none;gap:14px}.dkp-intro{font-size:13px;line-height:20px}.dkp-model-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dkp-model-row .dkp-iconbtn{justify-self:end}.dkp-editor{padding:12px}.dkp-addcard{padding:12px 14px}.dkp-btn{height:40px}.dkp-btn.sm{height:34px}.dkp-addbtn{height:48px}}"
   ].join("\n"),
   View: ModelsView,
   HomeStat: ModelsStat
@@ -4402,7 +5152,7 @@ var balanceStore = {
   load() {
     if (this.snap.loading) return;
     this.set({ loading: true });
-    fetch("/dsh-dock/balance", { signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u4F59\u989D\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+    fetch("dsh-dock/balance", { signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u4F59\u989D\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
   }
 };
 function useBalance(ctx) {
@@ -4725,7 +5475,7 @@ var feature5 = {
 var import_react8 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 function rpcCall2(method, args) {
-  return fetch("/dsh-dock/animation/" + method, {
+  return fetch("dsh-dock/animation/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -6402,7 +7152,7 @@ var feature6 = {
 var import_react9 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 function rpcCall3(method, args) {
-  return fetch("/dsh-dock/notify/" + method, {
+  return fetch("dsh-dock/notify/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -7166,7 +7916,7 @@ var feature7 = {
 var import_react10 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 function rpcCall4(method, args) {
-  return fetch("/dsh-dock/runstate/" + method, {
+  return fetch("dsh-dock/runstate/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(args === void 0 ? {} : args)
@@ -10149,7 +10899,7 @@ function initialDash() {
 }
 function useTaskPulse() {
   const [status, setStatus] = (0, import_react20.useState)({ loading: true, active: [], error: false });
-  const refresh = (0, import_react20.useCallback)(() => fetch("/dsh-dock/animation/status", {
+  const refresh = (0, import_react20.useCallback)(() => fetch("dsh-dock/animation/status", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}"
@@ -10922,7 +11672,7 @@ var import_react21 = require("react");
 var import_qrcode = __toESM(require_browser(), 1);
 var import_jsx_runtime14 = require("react/jsx-runtime");
 function rpc(method, payload) {
-  return fetch("/dsh-dock/mobile-relay/" + method, {
+  return fetch("dsh-dock/mobile-relay/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload || {})
@@ -11221,247 +11971,6 @@ function RemoteCard() {
 function MobileRelayView() {
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(RemoteCard, {});
 }
-function MobileRelayOverlay() {
-  (0, import_react21.useEffect)(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return void 0;
-    const host = window.location && window.location.hostname || "";
-    const loopback = host === "127.0.0.1" || host === "localhost" || host === "::1" || host.endsWith(".localhost");
-    if (loopback) return void 0;
-    if (typeof MutationObserver === "undefined") return void 0;
-    let done = false;
-    const tryDismiss = () => {
-      if (done) return;
-      const dialogs = document.querySelectorAll('[role="dialog"]');
-      for (const dialog of dialogs) {
-        const text = dialog.textContent || "";
-        if (!/预览版说明|Preview Notice/.test(text)) continue;
-        const btn = [...dialog.querySelectorAll("button")].find((b) => {
-          const t = (b.textContent || "").trim();
-          return t === "\u7EE7\u7EED" || t === "Continue";
-        });
-        if (btn) {
-          done = true;
-          btn.click();
-          observer.disconnect();
-        }
-        break;
-      }
-    };
-    const observer = new MutationObserver(tryDismiss);
-    observer.observe(document.body, { childList: true, subtree: true });
-    tryDismiss();
-    const stopTimer = setTimeout(() => observer.disconnect(), 6e4);
-    return () => {
-      clearTimeout(stopTimer);
-      observer.disconnect();
-    };
-  }, []);
-  (0, import_react21.useEffect)(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return void 0;
-    const mq = window.matchMedia ? window.matchMedia("(max-width:700px)") : null;
-    if (!mq) return void 0;
-    if (window.__dshDockMobileDrawer === "host") return void 0;
-    window.__dshDockMobileDrawer = "client";
-    const narrow = () => mq.matches;
-    const frameEl = () => document.querySelector('[class$="frame"]');
-    const sidebarCollapsed = () => {
-      const f = frameEl();
-      return !!f && f.hasAttribute("data-sidebar-collapsed");
-    };
-    const dialogOpen = () => !!document.querySelector('[role="dialog"][class*="panel"]');
-    const rightOpen = () => !!document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
-    const collapse = () => {
-      const b = document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
-      if (b) b.click();
-    };
-    const expand = () => {
-      const b = document.querySelector('button[aria-label="\u6253\u5F00\u4FA7\u8FB9\u680F"],button[aria-label="Open sidebar"]');
-      if (b) b.click();
-    };
-    const closeDetails = () => {
-      const panel = document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
-      if (!panel) return;
-      const toggle = panel.querySelector("[data-sidebar-right-toggle]");
-      if (toggle) toggle.click();
-    };
-    const scrim = document.createElement("div");
-    scrim.className = "dsh-mobile-scrim";
-    document.body.appendChild(scrim);
-    document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
-    const tabbar = document.createElement("nav");
-    tabbar.className = "dsh-mobile-tabbar";
-    tabbar.setAttribute("aria-label", "\u5E95\u90E8\u5BFC\u822A");
-    let tasksActive = 0;
-    let tasksWaiting = 0;
-    const tabDefs = [
-      {
-        id: "sessions",
-        label: "\u4F1A\u8BDD",
-        icon: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>',
-        act: () => expand()
-      },
-      {
-        id: "dock",
-        label: "\u63D2\u4EF6",
-        icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
-        act: () => {
-          openPanel(tasksActive > 0 || tasksWaiting > 0 ? "runstate" : "home");
-        }
-      },
-      {
-        id: "settings",
-        label: "\u8BBE\u7F6E",
-        icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>',
-        act: () => {
-          const b = [...document.querySelectorAll("button")].find((x) => (x.getAttribute("aria-label") || "") === "\u8BBE\u7F6E" || (x.textContent || "").trim() === "\u8BBE\u7F6E");
-          if (b) b.click();
-        }
-      }
-    ];
-    let tasksBadge = null;
-    const tabButtons = tabDefs.map((def) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "dsh-mobile-tab";
-      b.dataset.tab = def.id;
-      b.innerHTML = def.icon + "<span>" + def.label + "</span>";
-      b.addEventListener("click", () => def.act());
-      if (def.id === "dock") {
-        tasksBadge = document.createElement("span");
-        tasksBadge.className = "dsh-mobile-tab-badge";
-        tasksBadge.style.display = "none";
-        b.appendChild(tasksBadge);
-      }
-      tabbar.appendChild(b);
-      return b;
-    });
-    document.body.appendChild(tabbar);
-    const syncTabs = () => {
-      const expanded = !sidebarCollapsed();
-      const settingsOpen = dialogOpen();
-      for (const b of tabButtons) {
-        const id = b.dataset.tab;
-        const on = id === "sessions" && expanded || id === "dock" && panelNav.open || id === "settings" && settingsOpen;
-        b.classList.toggle("on", on);
-      }
-    };
-    const unsubPanel = subscribePanel(syncTabs);
-    let runstateGone = false;
-    const pollTasks = () => {
-      if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === "hidden" || !tabbar.isConnected) return;
-      fetch("/dsh-dock/runstate/status", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}"
-      }).then(async (res) => {
-        if (res.status === 404 || res.status === 405) {
-          runstateGone = true;
-          tasksActive = 0;
-          tasksWaiting = 0;
-          tasksBadge.style.display = "none";
-          return null;
-        }
-        const body = await res.json().catch(() => null);
-        if (!body) return null;
-        const active = body.data && body.data.active || [];
-        const waiting = active.filter((t) => t.approvals && t.approvals.length).length;
-        tasksActive = active.length;
-        tasksWaiting = waiting;
-        if (waiting > 0) {
-          tasksBadge.textContent = String(waiting);
-          tasksBadge.className = "dsh-mobile-tab-badge wait";
-          tasksBadge.style.display = "";
-        } else if (active.length > 0) {
-          tasksBadge.textContent = String(active.length);
-          tasksBadge.className = "dsh-mobile-tab-badge";
-          tasksBadge.style.display = "";
-        } else {
-          tasksBadge.style.display = "none";
-        }
-      }).catch(() => {
-      });
-    };
-    const tasksTimer = setInterval(pollTasks, 3e3);
-    const vv = window.visualViewport || null;
-    const kbdSync = () => {
-      if (!vv) return;
-      const kbd = vv.height > 0 && window.innerHeight - vv.height > 120;
-      document.documentElement.classList.toggle("dsh-dock-kbd", kbd);
-    };
-    const sync = () => {
-      kbdSync();
-      document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => {
-        if (el !== tabbar) el.remove();
-      });
-      const on = narrow() && !!frameEl() && !dialogOpen();
-      const collapsed = sidebarCollapsed();
-      const right = rightOpen();
-      if (scrim) scrim.style.display = on && !collapsed ? "" : "none";
-      tabbar.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? "" : "none";
-      syncTabs();
-    };
-    sync();
-    pollTasks();
-    const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(sync) : null;
-    if (observer) observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed"], subtree: true });
-    const timer = setInterval(sync, 1500);
-    const onMq = () => sync();
-    if (mq.addEventListener) mq.addEventListener("change", onMq);
-    else if (mq.addListener) mq.addListener(onMq);
-    window.addEventListener("resize", kbdSync);
-    if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") pollTasks();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    const onClick = (e) => {
-      if (!narrow()) return;
-      const t = e.target;
-      if (!t || !t.closest) return;
-      if (t.closest(".dsh-mobile-tabbar")) return;
-      const expanded = !!document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
-      const col = document.querySelector('[class*="sidebarCol"]');
-      const inSidebar = col && col.contains(t);
-      if (!expanded && !inSidebar) return;
-      if (inSidebar) {
-        const row = t.closest('[role="treeitem"]');
-        const rowKey = row && row.getAttribute("data-row-key") || "";
-        const sessionRow = rowKey && rowKey.startsWith("session:") || row && !rowKey && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]');
-        const fresh = t.closest('[class*="newSession"]');
-        if (sessionRow || fresh) setTimeout(() => {
-          collapse();
-          closeDetails();
-        }, 300);
-        else {
-          setTimeout(() => {
-            if (document.querySelector('[role="dialog"]')) collapse();
-          }, 260);
-        }
-        return;
-      }
-      if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]')) return;
-      collapse();
-    };
-    document.addEventListener("click", onClick, true);
-    return () => {
-      document.removeEventListener("click", onClick, true);
-      if (observer) observer.disconnect();
-      clearInterval(timer);
-      clearInterval(tasksTimer);
-      unsubPanel();
-      if (mq.removeEventListener) mq.removeEventListener("change", onMq);
-      else if (mq.removeListener) mq.removeListener(onMq);
-      window.removeEventListener("resize", kbdSync);
-      if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
-      document.removeEventListener("visibilitychange", onVisible);
-      document.documentElement.classList.remove("dsh-dock-kbd");
-      if (scrim) scrim.remove();
-      tabbar.remove();
-      if (window.__dshDockMobileDrawer === "client") delete window.__dshDockMobileDrawer;
-    };
-  }, []);
-  return null;
-}
 function MobileRelayHomeStat() {
   const [summary, setSummary] = (0, import_react21.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
   (0, import_react21.useEffect)(() => {
@@ -11487,53 +11996,9 @@ var feature10 = {
   defaultEnabled: false,
   css: `
 .dmr{--dmr-accent:var(--dk-accent,#2f6fed);--dmr-accent-soft:color-mix(in srgb,var(--dmr-accent) 13%,transparent);display:flex;flex-direction:column;gap:16px;max-width:720px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}.dmr h3,.dmr h4,.dmr p{margin:0}.dmr h3{font-size:17px;line-height:1.25;letter-spacing:-.01em}.dmr h4{font-size:13px}.dmr-hero,.dmr-status-head{display:flex;align-items:flex-start;gap:12px}.dmr-hero>div,.dmr-status-head>div{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-hero-icon{width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:14px;background:var(--dmr-accent-soft);color:var(--dmr-accent);border:1px solid color-mix(in srgb,var(--dmr-accent) 35%,var(--dsw-alias-border-l1))}.dmr-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}.dmr-steps li{display:flex;gap:9px;padding:11px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:12px}.dmr-steps li>span{width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;font-size:11px;font-weight:700;color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-steps div{display:flex;flex-direction:column;gap:3px;min-width:0}.dmr-steps strong{font-size:12px}.dmr-steps small{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}.dmr-field{display:flex;flex-direction:column;gap:6px;font-weight:600}.dmr-field input,.dmr-field select,.dmr-note textarea{box-sizing:border-box;width:100%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:10px;padding:10px 12px;min-height:44px;font:inherit;outline:none;transition:border-color .18s ease,box-shadow .18s ease}.dmr-field input:focus,.dmr-field select:focus,.dmr-note textarea:focus{border-color:var(--dmr-accent);box-shadow:0 0 0 3px var(--dmr-accent-soft)}.dmr-field small{font-weight:400}.dmr-network-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(150px,.6fr);gap:12px}.dmr-security{padding:12px 13px;border:1px solid color-mix(in srgb,var(--dk-warn) 48%,var(--dsw-alias-border-l1));border-radius:12px;background:color-mix(in srgb,var(--dk-warn) 9%,transparent)}.dmr-security strong{display:block;margin-bottom:4px;color:var(--dk-warn);font-size:12px}.dmr-security p{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.55}.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button{font:inherit;touch-action:manipulation;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease,opacity .18s ease}.dmr-primary,.dmr-secondary{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:9px 13px;font-weight:600}.dmr-primary{align-self:flex-start;border:1px solid var(--dmr-accent);background:var(--dmr-accent);color:#fff}.dmr-primary:hover{filter:brightness(1.05)}.dmr-secondary{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}.dmr-secondary:hover{border-color:var(--dmr-accent);background:var(--dmr-accent-soft)}.dmr-primary:active,.dmr-secondary:active,.dmr-icon-button:active{transform:scale(.98)}.dmr-primary:disabled,.dmr-secondary:disabled,.dmr-text-button:disabled,.dmr-icon-button:disabled{cursor:not-allowed;opacity:.5}.dmr-message{display:flex;align-items:flex-start;gap:7px;padding:10px 12px;border-radius:10px;font-size:12px}.dmr-message.success{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent)}.dmr-message.error{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}.dmr-status-head{justify-content:space-between}.dmr-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--dmr-accent)}.dmr-eyebrow i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px var(--dmr-accent-soft)}.dmr-icon-button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:var(--dsw-alias-label-secondary)}.dmr-icon-button:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor}.dmr-share{display:flex;flex-direction:column;gap:9px;padding:13px;border:1px solid color-mix(in srgb,var(--dmr-accent) 32%,var(--dsw-alias-border-l1));border-radius:13px;background:var(--dmr-accent-soft)}.dmr-share-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:center}.dmr-qr-card{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border-radius:12px;background:#fff;color:#111827;text-align:center}.dmr-qr-card img{display:block;width:176px;height:176px;max-width:100%;object-fit:contain}.dmr-qr-card strong{font-size:12px}.dmr-qr-card small{color:#4b5563;font-size:10px}.dmr-qr-loading{display:grid;place-items:center;width:176px;height:176px;color:#64748b;font-size:12px}.dmr-share-detail{min-width:0;display:flex;flex-direction:column;gap:10px}.dmr-share-detail>div:first-child{display:flex;flex-direction:column;gap:4px}.dmr-link{padding:10px 11px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:var(--dsw-alias-label-secondary)}.dmr-share-actions{display:flex;gap:8px;flex-wrap:wrap}.dmr-share-actions .dmr-primary{align-self:auto}.dmr-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dmr-overview-card{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dmr-overview-card>span{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-overview-card strong{font-size:16px;letter-spacing:-.01em}.dmr-section{display:flex;flex-direction:column;gap:9px}.dmr-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.dmr-section-head small{font-size:11px;color:var(--dsw-alias-label-tertiary)}.dmr-text-button{border:0;background:transparent;color:var(--dmr-accent);padding:8px;min-height:36px;font-weight:600}.dmr-task-list{display:flex;flex-direction:column;gap:8px}.dmr-task{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dmr-task>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.dmr-task strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dmr-phase{flex:none;border-radius:999px;padding:3px 8px;font-size:11px;background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-phase.write{color:var(--dsw-alias-state-success-primary)}.dmr-phase.code{color:var(--dk-warn)}.dmr-phase.search{color:#0d9488}.dmr-empty{padding:18px 12px;text-align:center;border:1px dashed var(--dsw-alias-border-l2);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}.dmr-note{display:flex;flex-direction:column;gap:9px;padding-top:2px}.dmr-note blockquote{margin:0;padding:10px 12px;border-left:3px solid var(--dmr-accent);border-radius:0 9px 9px 0;background:var(--dmr-accent-soft);white-space:pre-wrap;font-size:12px}.dmr-note textarea{min-height:88px;resize:vertical;line-height:1.5}.dmr-note .dmr-secondary{align-self:flex-start}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media (max-width:680px){.dmr{gap:14px;font-size:14px}.dmr h3{font-size:18px}.dmr-steps{grid-template-columns:1fr;gap:8px}.dmr-steps li{padding:10px}.dmr-steps small,.dmr-hero p,.dmr-status-head p,.dmr-field small,.dmr-share small,.dmr-overview-card small,.dmr-task small,.dmr-note p{font-size:12px}.dmr-network-grid{grid-template-columns:1fr;gap:10px}.dmr-field input,.dmr-field select{font-size:16px}.dmr-primary,.dmr-secondary{width:100%;font-size:14px}.dmr-share-layout{grid-template-columns:1fr;gap:12px}.dmr-qr-card{width:min(240px,100%);margin:0 auto}.dmr-qr-card img,.dmr-qr-loading{width:210px;height:210px}.dmr-share-actions{flex-direction:column}.dmr-share-actions .dmr-primary{width:100%}.dmr-overview{gap:8px}.dmr-overview-card{padding:11px}.dmr-status-head{gap:8px}.dmr-link{font-size:11px}.dmr-note textarea{font-size:16px;min-height:104px}.dmr-note .dmr-secondary{align-self:stretch}.dmr-compact .dmr-hero-icon{width:40px;height:40px;border-radius:13px}}@media (prefers-reduced-motion:reduce){.dmr-primary,.dmr-secondary,.dmr-text-button,.dmr-icon-button,.dmr-field input,.dmr-field select,.dmr-note textarea{transition:none}}.dmr-lan{flex:none;margin-top:6px;padding-top:16px;border-top:1px solid var(--dsw-alias-border-l1)}.dmr-lan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.dmr-lan-title{min-width:0;display:flex;flex-direction:column;gap:4px}.dmr-lan-title p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55}.dmr-lan-badge{flex:none;display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary)}.dmr-lan-badge.on{border-color:color-mix(in srgb,var(--dmr-accent) 45%,transparent);background:var(--dmr-accent-soft);color:var(--dmr-accent)}.dmr-lan-active,.dmr-lan-idle{display:flex;flex-direction:column;gap:12px}.dmr-lan-active .dmr-share-detail small strong{color:var(--dsw-alias-state-error-primary)}.dmr-danger{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,var(--dsw-alias-border-l2));color:var(--dsw-alias-state-error-primary)}.dmr-danger:hover{border-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent)}
-/* \u62BD\u5C49\u906E\u7F69\uFF1A\u4FA7\u680F\u6D6E\u5C42\u5C55\u5F00\u65F6\u76D6\u4F4F\u9875\u9762\u3002\u5DE6\u7F18\u6D6E\u52A8\u300C\u62BD\u5C49\u628A\u624B\u300D\u5DF2\u79FB\u9664\u2014\u2014\u4F1A\u8BDD\u5165\u53E3
- * \u7EDF\u4E00\u8D70\u5E95\u90E8 Tab \u680F\u300C\u4F1A\u8BDD\u300D\u9875\u7B7E\uFF0C\u628A\u624B\u60AC\u6D6E\u5728\u5185\u5BB9\u4E0A\u8FD8\u538B\u8FC7\u8F93\u5165\u533A\uFF08\u7528\u6237\u5B9E\u6D4B\uFF09\u3002 */
-@media (max-width:700px){.dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}
-/* ---- \u4EFF ZCode \u624B\u673A\u7AEF\uFF1A\u5E95\u90E8 Tab \u680F + \u8F93\u5165\u533A\u5438\u9644\u5E95\u90E8 ---- */
-.dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:65;display:flex;align-items:stretch;justify-content:space-around;padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));touch-action:manipulation}
-.dsh-mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;padding:4px 0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary,#8b95ab);font:600 11px/1.2 inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;border-radius:10px}
-.dsh-mobile-tab svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}
-.dsh-mobile-tab.on svg{color:var(--dk-accent,#4d9fff)}
-.dsh-mobile-tab:active{transform:scale(.94)}
-/* \u300C\u4EFB\u52A1\u300D\u9875\u7B7E\u89D2\u6807\uFF1A\u8FDB\u884C\u4E2D=\u84DD\uFF08\u6570\u91CF\uFF09\uFF0C\u7B49\u5F85\u786E\u8BA4=\u7EA2\uFF08\u6570\u91CF+\u8109\u51B2\uFF09\u2014\u2014\u63A5\u529B\u573A\u666F\u91CC
- * \u7B49\u5F85\u786E\u8BA4\u662F\u6700\u9700\u8981\u4EBA\u4ECB\u5165\u7684\u72B6\u6001\uFF0C\u4E00\u773C\u53EF\u89C1\uFF1B\u6570\u636E\u6765\u81EA runstate \u5BBF\u4E3B\u8DEF\u7531\u4F4E\u9891\u8F6E\u8BE2\u3002 */
-.dsh-mobile-tab{position:relative}
-.dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}
-.dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}
-@keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
-@media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}
-/* \u8F93\u5165\u533A\u5438\u9644\u5230 Tab \u680F\u4E0A\u65B9\uFF1A\u5BBF\u4E3B\u628A\u6B22\u8FCE\u5185\u5BB9 justify-content:center \u5782\u76F4\u5C45\u4E2D\uFF0C
- * \u624B\u673A\u89C6\u53E3\u4E0B\u8F93\u5165\u5361\u7247\u60AC\u5728\u4E2D\u90E8\u3001\u4E0B\u65B9\u7559\u51FA\u5927\u7247\u7A7A\u767D\u3002\u6539\u7528\u300C\u8F93\u5165\u533A margin-top:auto\u300D
- * \u8D34\u5E95\uFF0C\u5E76\u7ED9\u6EDA\u52A8\u4F53\u7559\u51FA Tab \u680F\u9AD8\u5EA6\u7684\u5185\u8FB9\u8DDD\uFF0C\u907F\u514D\u5185\u5BB9\u88AB Tab \u680F\u906E\u6321\u3002
- * \u26A0\uFE0F \u7EDD\u4E0D\u80FD\u7ED9\u6EDA\u52A8\u4F53\u52A0 justify-content:flex-end/center \u8D34\u5E95\uFF1A\u5185\u5BB9\u4F1A\u88AB\u6324\u5230\u6EDA\u52A8\u4F53
- * \u8D77\u70B9\u4E4B\u5916\uFF0CChrome \u4E0D\u628A\u8D77\u70B9\u65B9\u5411\u6EA2\u51FA\u7B97\u8FDB scrollHeight\uFF08\u624B\u673A\u89C6\u53E3\u5B9E\u6D4B
- * scrollHeight==clientHeight\u3001maxScroll==0\uFF09\uFF0C\u4F1A\u8BDD\u8BB0\u5F55\u5F7B\u5E95\u6EDA\u4E0D\u52A8\u3001\u9996\u6761\u6D88\u606F\u6C38\u8FDC
- * \u770B\u4E0D\u5230\u3002\u5BBF\u4E3B\u534A\u90E8\u65E7\u7248\u6CE8\u5165\u91CC\u8FD8\u7559\u7740\u90A3\u6761 flex-end\uFF08\u8981\u91CD\u542F dsh web \u624D\u6D88\u5931\uFF09\uFF0C\u8FD9\u91CC
- * \u7528\u66F4\u9AD8\u4F18\u5148\u7EA7\u7684\u9009\u62E9\u5668\u663E\u5F0F\u590D\u4F4D\uFF1A\u5237\u65B0\u9875\u9762\u5373\u4FEE\u597D\uFF0C\u4E0D\u5FC5\u7B49\u91CD\u542F\u3002 */
-[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
-[class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}
-[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}
-/* \u8F93\u5165\u533A\u5DE5\u5177\u884C\u4E0A\u7684 dsh-dock chip\uFF08\u7528\u91CF/\u4F59\u989D\uFF09\uFF1A\u7A84\u5C4F\u4E0B 28cqw \u7684\u5BBD\u5EA6\u4E0A\u9650\u628A\u5B83\u4EEC\u6324\u6210
- * \u300C\u2026\u300D\u300C\u4F59..\u300D\uFF08\u624B\u673A\u5B9E\u6D4B\uFF09\uFF0C\u65E2\u8BFB\u4E0D\u51FA\u6570\u503C\u53C8\u767D\u5360\u8F93\u5165\u884C\u7A7A\u95F4\u3002\u624B\u673A\u7AEF\u6574\u7EC4\u6536\u8D77\uFF0C\u6570\u503C\u5728
- * \u5E95\u90E8\u300C\u529F\u80FD\u575E\u300D\u91CC\u770B\uFF08\u7528\u91CF/\u4F59\u989D\u9875\u4FE1\u606F\u66F4\u5168\uFF09\uFF1B\u684C\u9762\u7AEF\u4E0D\u52A8\u3002 */
-.dockchip-row{display:none}
-/* \u6536\u8D77\u7684\u4FA7\u680F\u8F68\u9053\uFF08collapsed rail\uFF09\u5728\u7A84\u5C4F\u53EA\u5269 1px \u5360\u4F4D\uFF0C\u4F46\u8F68\u9053\u91CC\u7684\u6309\u94AE
- * \u4ECD\u4F1A\u6EA2\u51FA\u8D34\u5728\u5DE6\u8FB9\u7F18\uFF08\u529F\u80FD\u575E/\u8FDB\u5316/\u8BBE\u7F6E\u4E09\u679A\u9732\u51FA\u534A\u8FB9\u7684\u5706\u94AE\uFF09\u3002\u9690\u85CF\u6574\u5217\uFF0C
- * \u8FD9\u4E9B\u5165\u53E3\u5DF2\u7531\u5E95\u90E8 Tab \u680F\u63A5\u7BA1\uFF1B\u5C55\u5F00\u62BD\u5C49\uFF08z 80\uFF09\u4E0D\u53D7\u5F71\u54CD\u3002 */
-[class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}
-/* \u8F6F\u952E\u76D8\u5F39\u51FA\uFF08visualViewport \u5224\u5B9A\uFF0C\u6302 html.dsh-dock-kbd\uFF09\uFF1ATab \u680F\u6574\u4F53\u8BA9\u4F4D\uFF08\u6253\u5B57\u65F6
- * \u5B83\u53EA\u4F1A\u6324\u5360\u952E\u76D8\u4E0A\u65B9\u7684\u4E00\u7EBF\u7A7A\u95F4\uFF09\uFF0C\u6EDA\u52A8\u4F53\u7559\u767D\u6536\u7A84\u3002\u9009\u62E9\u5668\u7279\u5F02\u6027\u9AD8\u4E8E\u4E0A\u9762\u7684 72px
- * \u7559\u767D\u89C4\u5219\uFF0C\u80FD\u538B\u8FC7\u53BB\u3002\u5BBF\u4E3B\u63A5\u7BA1\u671F\u95F4\u7531\u5BBF\u4E3B\u811A\u672C\u540C\u6B65\u7F6E/\u6458\u8FD9\u4E2A\u7C7B\u3002 */
-html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}
-html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}
-/* \u529F\u80FD\u575E\u9762\u677F\u5728\u624B\u673A\u7AEF\u62AC\u5230\u539F\u751F\u5F39\u5C42\u4E4B\u4E0A\uFF1A\u4ECE\u4FA7\u680F\u8FDB\u7684\u5B98\u65B9\u63D2\u4EF6\u7BA1\u7406\u9875\u7B49\u539F\u751F\u5F39\u5C42 z \u5E8F\u9AD8\u4E8E
- * \u9762\u677F\u9ED8\u8BA4\u7684 200\uFF0C\u529F\u80FD\u575E\u5F00\u5728\u4E0B\u9762\u4F1A\u88AB\u76D6\u4F4F\u2014\u2014\u300C\u63D2\u4EF6\u300D\u9875\u7B7E\u70B9\u4E86\u50CF\u6CA1\u53CD\u5E94/\u9732\u51FA\u539F\u9875\u9762\u3002 */
-[class*="dockm-backdrop"]{z-index:2000 !important}}`,
+`,
   View: MobileRelayView,
-  HomeStat: MobileRelayHomeStat,
-  Overlay: MobileRelayOverlay
+  HomeStat: MobileRelayHomeStat
 };
 
 // features/mobile/view.js
@@ -11541,42 +12006,7 @@ var import_react22 = __toESM(require("react"), 1);
 var import_react23 = require("react");
 var MOBILE_QUERY_NARROW = "(max-width: 820px)";
 var MOBILE_QUERY_COARSE = "(pointer: coarse) and (hover: none)";
-var MOBILE_STORE_KEY = "dsh-dock/mobile/v1";
-var mobilePref = { floating: true };
-try {
-  if (typeof localStorage !== "undefined") {
-    const raw = localStorage.getItem(MOBILE_STORE_KEY);
-    const obj = raw ? JSON.parse(raw) : null;
-    if (obj && typeof obj === "object" && typeof obj.floating === "boolean") mobilePref.floating = obj.floating;
-  }
-} catch {
-}
-var prefListeners = /* @__PURE__ */ new Set();
-function notifyPref() {
-  for (const fn of prefListeners) {
-    try {
-      fn();
-    } catch {
-    }
-  }
-}
-function floatingShown() {
-  return mobilePref.floating !== false;
-}
-function setFloatingShown(value) {
-  mobilePref.floating = value !== false;
-  try {
-    if (typeof localStorage !== "undefined") localStorage.setItem(MOBILE_STORE_KEY, JSON.stringify(mobilePref));
-  } catch {
-  }
-  notifyPref();
-}
-function subscribePref(fn) {
-  prefListeners.add(fn);
-  return () => {
-    prefListeners.delete(fn);
-  };
-}
+var MOBILE_QUERY_CHROME = "(max-width: 700px)";
 function mobileActive() {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   try {
@@ -11585,10 +12015,27 @@ function mobileActive() {
     return false;
   }
 }
-function MobileOverlay(props) {
-  const ctx = props && props.ctx;
+function watchQuery(query, onChange) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {
+  };
+  let mq = null;
+  try {
+    mq = window.matchMedia(query);
+  } catch {
+    return () => {
+    };
+  }
+  const update = () => onChange(mq.matches);
+  update();
+  if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
+  else if (typeof mq.addListener === "function") mq.addListener(update);
+  return () => {
+    if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
+    else if (typeof mq.removeListener === "function") mq.removeListener(update);
+  };
+}
+function MobileOverlay() {
   const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
-  const [floating, setFloating] = (0, import_react23.useState)(() => floatingShown());
   (0, import_react23.useEffect)(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
     let mqs = [];
@@ -11628,56 +12075,217 @@ function MobileOverlay(props) {
       document.body.removeAttribute("data-dk-mobile");
     };
   }, [active]);
-  (0, import_react23.useEffect)(() => subscribePref(() => setFloating(floatingShown())), []);
-  const [relayBand, setRelayBand] = (0, import_react23.useState)(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-    try {
-      return window.matchMedia("(max-width: 700px)").matches;
-    } catch {
-      return false;
+  (0, import_react23.useEffect)(() => mobileChrome(), []);
+  return null;
+}
+function mobileChrome() {
+  if (typeof window === "undefined" || typeof document === "undefined") return void 0;
+  const mq = window.matchMedia ? window.matchMedia(MOBILE_QUERY_CHROME) : null;
+  if (!mq) return void 0;
+  if (window.__dshDockMobileDrawer === "host") return void 0;
+  window.__dshDockMobileDrawer = "client";
+  const narrow = () => mq.matches;
+  const frameEl = () => document.querySelector('[class$="frame"]');
+  const sidebarCollapsed = () => {
+    const f = frameEl();
+    return !!f && f.hasAttribute("data-sidebar-collapsed");
+  };
+  const dialogOpen = () => !!document.querySelector('[role="dialog"][class*="panel"]');
+  const rightOpen = () => !!document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
+  const collapse = () => {
+    const b = document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
+    if (b) b.click();
+  };
+  const expand = () => {
+    const b = document.querySelector('button[aria-label="\u6253\u5F00\u4FA7\u8FB9\u680F"],button[aria-label="Open sidebar"]');
+    if (b) b.click();
+  };
+  const closeDetails = () => {
+    const panel = document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
+    if (!panel) return;
+    const toggle = panel.querySelector("[data-sidebar-right-toggle]");
+    if (toggle) toggle.click();
+  };
+  const scrim = document.createElement("div");
+  scrim.className = "dsh-mobile-scrim";
+  document.body.appendChild(scrim);
+  document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
+  const tabbar = document.createElement("nav");
+  tabbar.className = "dsh-mobile-tabbar";
+  tabbar.setAttribute("aria-label", "\u5E95\u90E8\u5BFC\u822A");
+  let tasksActive = 0;
+  let tasksWaiting = 0;
+  const tabDefs = [
+    {
+      id: "sessions",
+      label: "\u4F1A\u8BDD",
+      icon: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>',
+      act: () => expand()
+    },
+    {
+      id: "dock",
+      label: "\u63D2\u4EF6",
+      icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+      act: () => {
+        openPanel(tasksActive > 0 || tasksWaiting > 0 ? "runstate" : "home");
+      }
+    },
+    {
+      id: "settings",
+      label: "\u8BBE\u7F6E",
+      icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>',
+      act: () => {
+        const b = [...document.querySelectorAll("button")].find((x) => {
+          const a = x.getAttribute("aria-label") || "";
+          return a === "\u8BBE\u7F6E" || a === "Settings" || (x.textContent || "").trim() === "\u8BBE\u7F6E";
+        });
+        if (b) b.click();
+      }
     }
+  ];
+  let tasksBadge = null;
+  const tabButtons = tabDefs.map((def) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "dsh-mobile-tab";
+    b.dataset.tab = def.id;
+    b.innerHTML = def.icon + "<span>" + def.label + "</span>";
+    b.addEventListener("click", () => def.act());
+    if (def.id === "dock") {
+      tasksBadge = document.createElement("span");
+      tasksBadge.className = "dsh-mobile-tab-badge";
+      tasksBadge.style.display = "none";
+      b.appendChild(tasksBadge);
+    }
+    tabbar.appendChild(b);
+    return b;
   });
-  (0, import_react23.useEffect)(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
-    let mq = null;
-    try {
-      mq = window.matchMedia("(max-width: 700px)");
-    } catch {
-      return void 0;
-    }
-    const update = () => setRelayBand(mq.matches);
-    update();
-    if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
-    else if (typeof mq.addListener === "function") mq.addListener(update);
-    return () => {
-      if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
-      else if (typeof mq.removeListener === "function") mq.removeListener(update);
-    };
-  }, []);
-  if (!active || !floating) return null;
-  const relayChromeActive = typeof window !== "undefined" && window.__dshDockMobileDrawer != null && relayBand;
-  if (relayChromeActive) return null;
-  const onToggle = () => {
-    try {
-      const layout = ctx && ctx.get ? ctx.get("layout") : null;
-      if (layout && typeof layout.toggleSidebar === "function") layout.toggleSidebar();
-      else console.warn("[dsh-dock] \u624B\u673A\u9002\u914D\uFF1Actx.layout.toggleSidebar \u4E0D\u53EF\u7528\uFF08dsh \u7248\u672C\u8FC7\u65E7\uFF1F\uFF09");
-    } catch (err) {
-      console.error("[dsh-dock] \u624B\u673A\u9002\u914D\uFF1A\u5207\u6362\u4FA7\u680F\u5931\u8D25\uFF1A", err);
+  document.body.appendChild(tabbar);
+  const syncTabs = () => {
+    const expanded = !sidebarCollapsed();
+    const settingsOpen = dialogOpen();
+    for (const b of tabButtons) {
+      const id = b.dataset.tab;
+      const on = id === "sessions" && expanded || id === "dock" && panelNav.open || id === "settings" && settingsOpen;
+      b.classList.toggle("on", on);
     }
   };
-  return import_react22.default.createElement("button", {
-    type: "button",
-    className: "dkmob-fab",
-    "aria-label": "\u5F00\u5173\u4FA7\u680F",
-    title: "\u5F00\u5173\u4FA7\u680F",
-    onClick: onToggle
-  }, import_react22.default.createElement(
-    "svg",
-    { width: 20, height: 20, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react22.default.createElement("rect", { x: 1.5, y: 2.5, width: 13, height: 11, rx: 2 }),
-    import_react22.default.createElement("line", { x1: 6, y1: 2.5, x2: 6, y2: 13.5 })
-  ));
+  const unsubPanel = subscribePanel(syncTabs);
+  let runstateGone = false;
+  const pollTasks = () => {
+    if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === "hidden" || !tabbar.isConnected) return;
+    fetch("dsh-dock/runstate/status", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}"
+    }).then(async (res) => {
+      if (res.status === 404 || res.status === 405) {
+        runstateGone = true;
+        tasksActive = 0;
+        tasksWaiting = 0;
+        tasksBadge.style.display = "none";
+        return null;
+      }
+      const body = await res.json().catch(() => null);
+      if (!body) return null;
+      const active = body.data && body.data.active || [];
+      const waiting = active.filter((t) => t.approvals && t.approvals.length).length;
+      tasksActive = active.length;
+      tasksWaiting = waiting;
+      if (waiting > 0) {
+        tasksBadge.textContent = String(waiting);
+        tasksBadge.className = "dsh-mobile-tab-badge wait";
+        tasksBadge.style.display = "";
+      } else if (active.length > 0) {
+        tasksBadge.textContent = String(active.length);
+        tasksBadge.className = "dsh-mobile-tab-badge";
+        tasksBadge.style.display = "";
+      } else {
+        tasksBadge.style.display = "none";
+      }
+    }).catch(() => {
+    });
+  };
+  const tasksTimer = setInterval(pollTasks, 3e3);
+  const vv = window.visualViewport || null;
+  const kbdSync = () => {
+    if (!vv) return;
+    const kbd = vv.height > 0 && window.innerHeight - vv.height > 120;
+    document.documentElement.classList.toggle("dsh-dock-kbd", kbd);
+  };
+  const sync = () => {
+    kbdSync();
+    document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => {
+      if (el !== tabbar) el.remove();
+    });
+    const on = narrow() && !!frameEl() && !dialogOpen();
+    const collapsed = sidebarCollapsed();
+    const right = rightOpen();
+    if (scrim) scrim.style.display = on && !collapsed ? "" : "none";
+    tabbar.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? "" : "none";
+    syncTabs();
+  };
+  sync();
+  pollTasks();
+  const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(sync) : null;
+  if (observer) observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed"], subtree: true });
+  const timer = setInterval(sync, 1500);
+  const onMq = () => sync();
+  if (mq.addEventListener) mq.addEventListener("change", onMq);
+  else if (mq.addListener) mq.addListener(onMq);
+  window.addEventListener("resize", kbdSync);
+  if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
+  const onVisible = () => {
+    if (document.visibilityState === "visible") pollTasks();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  const onClick = (e) => {
+    if (!narrow()) return;
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest(".dsh-mobile-tabbar")) return;
+    const expanded = !!document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
+    const col = document.querySelector('[class*="sidebarCol"]');
+    const inSidebar = col && col.contains(t);
+    if (!expanded && !inSidebar) return;
+    if (inSidebar) {
+      const row = t.closest('[role="treeitem"]');
+      const rowKey = row && row.getAttribute("data-row-key") || "";
+      const sessionRow = rowKey && rowKey.startsWith("session:") || row && !rowKey && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]');
+      const fresh = t.closest('[class*="newSession"]');
+      if (sessionRow || fresh) {
+        setTimeout(() => {
+          collapse();
+          closeDetails();
+        }, 300);
+        return;
+      }
+      if (rowKey.startsWith("workspace:")) return;
+      setTimeout(() => {
+        if (document.querySelector('[role="dialog"]')) collapse();
+      }, 260);
+      return;
+    }
+    if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]')) return;
+    collapse();
+  };
+  document.addEventListener("click", onClick, true);
+  return () => {
+    document.removeEventListener("click", onClick, true);
+    if (observer) observer.disconnect();
+    clearInterval(timer);
+    clearInterval(tasksTimer);
+    unsubPanel();
+    if (mq.removeEventListener) mq.removeEventListener("change", onMq);
+    else if (mq.removeListener) mq.removeListener(onMq);
+    window.removeEventListener("resize", kbdSync);
+    if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
+    document.removeEventListener("visibilitychange", onVisible);
+    document.documentElement.classList.remove("dsh-dock-kbd");
+    if (scrim) scrim.remove();
+    tabbar.remove();
+    if (window.__dshDockMobileDrawer === "client") delete window.__dshDockMobileDrawer;
+  };
 }
 function useViewportSize() {
   const [size, setSize] = (0, import_react23.useState)(() => typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight });
@@ -11689,31 +12297,38 @@ function useViewportSize() {
   }, []);
   return size;
 }
-function MobileView() {
+function useMobileState() {
   const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
-  const [floating, setFloating] = (0, import_react23.useState)(() => floatingShown());
-  const size = useViewportSize();
+  const [chrome, setChrome] = (0, import_react23.useState)(() => typeof window === "undefined" || typeof window.matchMedia !== "function" ? false : window.matchMedia(MOBILE_QUERY_CHROME).matches);
+  const [owner, setOwner] = (0, import_react23.useState)(() => typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null);
   (0, import_react23.useEffect)(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
+    const offChrome = watchQuery(MOBILE_QUERY_CHROME, setChrome);
     let mqs = [];
     try {
       mqs = [window.matchMedia(MOBILE_QUERY_NARROW), window.matchMedia(MOBILE_QUERY_COARSE)];
     } catch {
-      return void 0;
+      mqs = [];
     }
-    const update = () => setActive(mqs.some((mq) => mq.matches));
-    update();
+    const compute = () => setActive(mqs.some((mq) => mq.matches));
     for (const mq of mqs) {
-      if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
-      else if (typeof mq.addListener === "function") mq.addListener(update);
+      if (typeof mq.addEventListener === "function") mq.addEventListener("change", compute);
+      else if (typeof mq.addListener === "function") mq.addListener(compute);
     }
+    const timer = setInterval(() => setOwner(typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null), 1e3);
     return () => {
+      offChrome();
       for (const mq of mqs) {
-        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
-        else if (typeof mq.removeListener === "function") mq.removeListener(update);
+        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", compute);
+        else if (typeof mq.removeListener === "function") mq.removeListener(compute);
       }
+      clearInterval(timer);
     };
   }, []);
+  return { active, chrome, owner };
+}
+function MobileView() {
+  const { active, chrome, owner } = useMobileState();
+  const size = useViewportSize();
   return import_react22.default.createElement(
     "div",
     { className: "dkmob-root" },
@@ -11732,73 +12347,44 @@ function MobileView() {
     import_react22.default.createElement(
       "div",
       { className: "dkmob-row" },
-      import_react22.default.createElement("span", { className: "dkmob-label" }, "\u6D6E\u52A8\u4FA7\u680F\u6309\u94AE"),
-      import_react22.default.createElement("button", {
-        type: "button",
-        className: "dock-sw" + (floating ? " on" : ""),
-        role: "switch",
-        "aria-checked": floating,
-        "aria-label": (floating ? "\u9690\u85CF" : "\u663E\u793A") + "\u6D6E\u52A8\u4FA7\u680F\u6309\u94AE",
-        title: floating ? "\u9690\u85CF\u5DE6\u4E0B\u89D2\u7684\u6D6E\u52A8\u4FA7\u680F\u5F00\u5173" : "\u663E\u793A\u5DE6\u4E0B\u89D2\u7684\u6D6E\u52A8\u4FA7\u680F\u5F00\u5173",
-        onClick: () => setFloatingShown(!floating)
-      }),
-      import_react22.default.createElement("span", { className: "dkmob-dim" }, "44px \u5706\u94AE\u56FA\u5B9A\u5728\u5DE6\u4E0B\u89D2\uFF0C\u8C03\u7528 dsh \u5B98\u65B9 toggleSidebar \u5F00\u5408\u7A84\u5C4F\u62BD\u5C49\uFF1B\u4E0D\u9700\u8981\u65F6\u53EF\u5728\u6B64\u5173\u95ED\u3002")
+      import_react22.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u7AEF chrome"),
+      import_react22.default.createElement("span", { className: "dkmob-state" + (chrome ? " on" : "") }, chrome ? "\u2264700px\uFF0C\u751F\u6548\u4E2D" : "\u672A\u547D\u4E2D"),
+      import_react22.default.createElement(
+        "span",
+        { className: "dkmob-dim" },
+        "\u5E95\u90E8 Tab \u680F\uFF08\u4F1A\u8BDD / \u63D2\u4EF6 / \u8BBE\u7F6E\uFF09+ \u4FA7\u680F\u62BD\u5C49\u906E\u7F69 + \u8F6F\u952E\u76D8\u8BA9\u4F4D\uFF1B\u4F1A\u8BDD\u5165\u53E3\u5728\u5E95\u90E8\u300C\u4F1A\u8BDD\u300D\u9875\u7B7E\uFF0C\u4E0D\u8BBE\u5DE6\u7F18\u6D6E\u52A8\u6309\u94AE\u3002",
+        owner === "host" ? "\u5F53\u524D\u7531\u5BBF\u4E3B\u6CE8\u5165\u7248\u9A71\u52A8\uFF08\u91CD\u542F dsh web \u540E\u751F\u6548\u7684\u90A3\u5957\uFF09\u3002" : owner === "client" ? "\u5F53\u524D\u7531\u5BA2\u6237\u7AEF\u81EA\u5EFA\u7248\u9A71\u52A8\uFF08\u5237\u65B0\u5373\u751F\u6548\uFF09\u3002" : ""
+      )
     ),
     import_react22.default.createElement(
       "div",
       { className: "dkmob-note" },
       "\u751F\u6548\u4E2D\u7684\u4F18\u5316\uFF1A\u8F93\u5165\u7C7B\u63A7\u4EF6\u5B57\u53F7\u62C9\u5230 16px\uFF08\u907F\u514D iOS \u805A\u7126\u7F29\u653E\u6574\u9875\uFF09\xB7 \u7EAF\u56FE\u6807\u6309\u94AE\u9762\u79EF\u515C\u5E95 \u226536px \xB7 ",
-      "\u53BB\u6389\u70B9\u6309\u9AD8\u4EAE\u4E0E\u53CC\u51FB\u7F29\u653E\u5224\u5B9A \xB7 \u4EE3\u7801\u5757\u6A2A\u5411\u6EDA\u52A8\u3001\u884C\u5185\u4EE3\u7801\u81EA\u52A8\u6362\u884C \xB7 viewport meta \u8865 viewport-fit=cover",
+      "\u53BB\u6389\u70B9\u6309\u9AD8\u4EAE\u4E0E\u53CC\u51FB\u7F29\u653E\u5224\u5B9A \xB7 \u4EE3\u7801\u5757\u6A2A\u5411\u6EDA\u52A8\u3001\u884C\u5185\u4EE3\u7801\u81EA\u52A8\u6362\u884C \xB7 \u6EDA\u52A8\u4F53 touch-action:pan-y + iOS \u60EF\u6027\u6EDA\u52A8 \xB7 ",
+      "\u8BBE\u7F6E\u5F39\u5C42\u5185\u5BB9\u5217 min-height:0\uFF08\u5426\u5219\u7A84\u5C4F\u5F39\u5C42\u88AB\u5185\u5BB9\u6491\u9AD8\u540E\u6574\u7247\u6ED1\u4E0D\u52A8\uFF09\xB7 viewport meta \u8865 viewport-fit=cover",
       "\uFF08standalone \u5168\u5C4F\u65F6\u7ED9\u5706\u89D2/\u5218\u6D77\u7559\u5B89\u5168\u533A\uFF09\u3002\u505C\u7528\u672C\u529F\u80FD\u5373\u5168\u90E8\u8FD8\u539F\u3002"
     )
   );
 }
 function MobileStat() {
-  const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
-  const [floating, setFloating] = (0, import_react23.useState)(() => floatingShown());
-  (0, import_react23.useEffect)(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
-    let mqs = [];
-    try {
-      mqs = [window.matchMedia(MOBILE_QUERY_NARROW), window.matchMedia(MOBILE_QUERY_COARSE)];
-    } catch {
-      return void 0;
-    }
-    const update = () => setActive(mqs.some((mq) => mq.matches));
-    update();
-    for (const mq of mqs) {
-      if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
-      else if (typeof mq.addListener === "function") mq.addListener(update);
-    }
-    return () => {
-      for (const mq of mqs) {
-        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
-        else if (typeof mq.removeListener === "function") mq.removeListener(update);
-      }
-    };
-  }, []);
-  (0, import_react23.useEffect)(() => subscribePref(() => setFloating(floatingShown())), []);
+  const { active, chrome } = useMobileState();
   if (!active) return import_react22.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
-  return import_react22.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 \u6D6E\u52A8\u4FA7\u680F\u6309\u94AE" + (floating ? "\u663E\u793A" : "\u5DF2\u9690\u85CF"));
+  return import_react22.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5E95\u90E8 Tab \u680F\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
 }
 var css6 = [
-  // 浮动侧栏按钮：44px 触控面积（Apple HIG 最低建议），token 取主题变量自动适配亮暗色；
-  // z-index 190 压在功能坞弹层（dockm-backdrop，200）之下，弹层打开时被遮罩盖住不误触。
-  ".dkmob-fab{position:fixed;left:calc(env(safe-area-inset-left,0px) + 62px);bottom:calc(env(safe-area-inset-bottom,0px) + 74px);z-index:190;width:44px;height:44px;border-radius:50%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);display:inline-flex;align-items:center;justify-content:center;padding:0;box-shadow:0 4px 14px rgb(0 0 0 / .22);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s var(--ds-ease-in-out),background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
-  ".dkmob-fab:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
-  ".dkmob-fab:active{transform:scale(.94);}",
   // 输入类控件 16px：防 iOS 聚焦自动放大（<16px 的输入框聚焦时 Safari 强制缩放页面）
   'body[data-dk-mobile="1"] :is(textarea, input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="password"], input[type="number"], input[type="email"], [contenteditable="true"]){font-size:16px !important;}',
   // 触控基础：去点按高亮、消双击缩放判定
   'body[data-dk-mobile="1"] :is(button, [role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
   // 纯图标按钮面积兜底：实测窄屏下一批 28×28 的工具钮很难点中；36px 是不引起行高剧变的上限。
-  // 只收「唯一子元素是 svg」的按钮，避免撑坏带文字的行内控件；排除远程访问的抽屉把手
-  // （.dsh-mobile-drawer-btn 贴边设计 30px 宽，被撑到 36 会破坏边缘吸附观感）与本模块 FAB。
-  'body[data-dk-mobile="1"] button:has(> svg:only-child):not(.dsh-mobile-drawer-btn):not(.dkmob-fab){min-width:36px;min-height:36px;}',
+  // 只收「唯一子元素是 svg」的按钮，避免撑坏带文字的行内控件；排除本模块 chrome 按钮。
+  'body[data-dk-mobile="1"] button:has(> svg:only-child):not(.dsh-mobile-tab){min-width:36px;min-height:36px;}',
   // 代码块横向滚动、行内代码换行：窄屏不撑破版面
   'body[data-dk-mobile="1"] pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}',
   'body[data-dk-mobile="1"] code{overflow-wrap:anywhere;}',
   'body[data-dk-mobile="1"] pre code{overflow-wrap:normal;}',
+  // 滚动兜底：所有纵向滚动体可纵向平移 + iOS 惯性滚动（祖先合成层/触控声明不再吃掉触摸滚动）。
+  'body[data-dk-mobile="1"] :is([class*="scrollBody"], [class*="sidebarCol"] [class*="list"], [role="dialog"] [class*="options"], [class*="dockm-content"]){-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;}',
   // iOS 横竖屏切换时的字号自动膨胀关掉（:has 挂到 html 上；dsh 自身样式已依赖 :has，基线足够）
   'html:has(body[data-dk-mobile="1"]){-webkit-text-size-adjust:100%;text-size-adjust:100%;}',
   // 功能页自身
@@ -11808,14 +12394,66 @@ var css6 = [
   ".dkmob-state{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 10px;font-size:11px;}",
   ".dkmob-state.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
   ".dkmob-dim{color:var(--dsw-alias-label-secondary);font-size:12px;}",
-  ".dkmob-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}"
+  ".dkmob-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
+  // 手机端 chrome：底部 Tab 栏 + 抽屉遮罩（窄屏 ≤700px；与宿主半部同款）
+  "@media (max-width:700px){",
+  ".dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}",
+  ".dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:65;display:flex;align-items:stretch;justify-content:space-around;padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));touch-action:manipulation}",
+  ".dsh-mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;padding:4px 0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary,#8b95ab);font:600 11px/1.2 inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;border-radius:10px;position:relative}",
+  ".dsh-mobile-tab svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}",
+  ".dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}",
+  ".dsh-mobile-tab.on svg{color:var(--dk-accent,#4d9fff)}",
+  ".dsh-mobile-tab:active{transform:scale(.94)}",
+  ".dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}",
+  ".dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}",
+  "@keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}",
+  "@media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}",
+  // ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
+  // 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
+  // （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden
+  // 裁掉——列内滚动容器（[class*=options]）因此 scrollHeight==clientHeight，手指怎么滑
+  // 都不动。补 min-height:0 后 scrollTop 0 → 425。宿主半部 MOBILE_LAYOUT_CSS 同款；
+  // 两处都写是因为宿主注入要重启 dsh web 才更新，而客户端样式刷新即生效，覆盖窗口期。
+  '[role="dialog"][class*="panel"]>[class*="content"]{min-height:0!important}',
+  // 输入区吸附到 Tab 栏上方 + 滚动体留白（与宿主半部同款）。
+  // ⚠️ 绝不能给滚动体加 justify-content:flex-end/center 贴底：内容会被挤到滚动体
+  // 起点之外，Chrome 不把起点方向溢出算进 scrollHeight（手机视口实测
+  // scrollHeight==clientHeight、maxScroll==0），会话记录彻底滚不动、首条消息永远看不到。
+  // 宿主半部旧版注入里还留着那条 flex-end（要重启 dsh web 才消失），这里用更高优先级
+  // 的选择器显式复位：刷新页面即修好，不必等重启。
+  '[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}',
+  'html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}',
+  'html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}',
+  '[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}',
+  // 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
+  // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
+  // 底部「插件」里看（用量/余额页信息更全）；桌面端不动。
+  ".dockchip-row{display:none}",
+  '[class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
+  // ⚠️ 列级 visibility:hidden 在 dsh 0.2.0 上挡不住：工作区浏览器给自己的
+  // headerActions/sectionLabel 显式声明 visibility:visible（展开/收拢动画用），visibility
+  // 可被后代覆盖，轨道按钮会从隐藏列里「透」出来（实测手机截图左缘游离按钮）。
+  // display:none 不可被后代翻转——但只能打在**轨道根节点**上（类名同时含 root 与
+  // collapsed 两个语义后缀），绝不能打在列上：frame 是「侧栏 0px + 中列 1fr + 右轨 0px」
+  // 的网格，列 display:none 会从网格流里摘掉，中列被自动放置顶进 0px 轨（实测整页空屏）。
+  // 弹层打开时豁免（设置弹层挂在列内部，display:none 会连坐成空气弹层），此时列退回
+  // visibility 机制（由下一条 [role=dialog] 强制可见），窄屏弹层全屏铺满盖住透出的轨道。
+  '[class*="sidebarCol"]:has([class*="collapsed"]):not(:has([role="dialog"])) [class*="root"][class*="collapsed"]{display:none !important}',
+  // 设置/插件管理弹层挂在侧栏列内部：上面隐藏整列会把它连坐隐藏（空气弹层）。
+  // visibility 可被后代覆盖，弹层关闭态整体卸载，所以只在真正打开时命中。
+  '[class*="sidebarCol"]:has([class*="collapsed"]) [role="dialog"]{visibility:visible}',
+  "html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}",
+  // 功能坞面板在手机端抬到原生弹层之上：从侧栏进的官方插件管理页等原生弹层 z 序高于
+  // 面板默认的 200，功能坞开在下面会被盖住——「插件」页签点了像没反应/露出原页面。
+  '[class*="dockm-backdrop"]{z-index:2000 !important}',
+  "}"
 ].join("\n");
 var feature11 = {
   id: "mobile",
   name: "\u624B\u673A\u9002\u914D",
   order: 170,
   accent: "#34d399",
-  description: "\u624B\u673A/\u7A84\u5C4F\u6392\u7248\u4E0E\u89E6\u63A7\u515C\u5E95\uFF1A16px \u8F93\u5165\u9632 iOS \u7F29\u653E\u3001\u56FE\u6807\u6309\u94AE\u89E6\u63A7\u9762\u79EF\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u6D6E\u52A8\u4FA7\u680F\u5F00\u5173",
+  description: "\u624B\u673A/\u7A84\u5C4F\u6392\u7248\u4E0E\u89E6\u63A7\u515C\u5E95\uFF1A\u5E95\u90E8 Tab \u680F + \u4FA7\u680F\u62BD\u5C49\u300116px \u8F93\u5165\u9632 iOS \u7F29\u653E\u3001\u56FE\u6807\u6309\u94AE\u89E6\u63A7\u9762\u79EF\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u6EDA\u52A8\u515C\u5E95",
   defaultEnabled: true,
   css: css6,
   Overlay: MobileOverlay,
@@ -11824,7 +12462,7 @@ var feature11 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.13.0";
+var DOCK_VERSION = "0.14.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
