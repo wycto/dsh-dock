@@ -3731,7 +3731,7 @@ var modelsStore = {
   load() {
     if (this.snap.loading) return;
     this.set({ loading: true, error: null });
-    fetch("/dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+    fetch("dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
   }
 };
 function useModels() {
@@ -3944,15 +3944,8 @@ function ModelsView(props) {
   const [vpSaving, setVpSaving] = import_react3.default.useState(false);
   const [vpMsg, setVpMsg] = import_react3.default.useState(null);
   const [vpDirectExpanded, setVpDirectExpanded] = import_react3.default.useState(false);
-  const [pfMode, setPfMode] = import_react3.default.useState(null);
-  const [pfDraft, setPfDraft] = import_react3.default.useState(null);
-  const [pfDirty, setPfDirty] = import_react3.default.useState(false);
-  const [pfSaving, setPfSaving] = import_react3.default.useState(false);
-  const [pfMsg, setPfMsg] = import_react3.default.useState(null);
-  const [pfDelArm, setPfDelArm] = import_react3.default.useState(null);
-  const [pfFetching, setPfFetching] = import_react3.default.useState(false);
-  const [pfFetched, setPfFetched] = import_react3.default.useState(null);
-  const [pfFetchedList, setPfFetchedList] = import_react3.default.useState(null);
+  const [page, setPage] = import_react3.default.useState("settings");
+  const [pageOpenCreate, setPageOpenCreate] = import_react3.default.useState(false);
   import_react3.default.useEffect(() => {
     modelsStore.load();
   }, []);
@@ -3977,7 +3970,7 @@ function ModelsView(props) {
   const saveVp = () => {
     if (!vpDraft || vpSaving) return;
     setVpSaving(true);
-    fetch("/dsh-dock/models", {
+    fetch("dsh-dock/models", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ visionProxy: vpDraft, revisions: data && data.revisions || {} }),
@@ -4015,204 +4008,12 @@ function ModelsView(props) {
     setSelId(id);
     setMsg(null);
   };
-  const piProviders = providers.filter((p) => p.kind === "pi-ai");
-  const openPfCreate = () => {
-    setPfMode("create");
-    setPfDraft(emptyProviderForm());
-    setPfDirty(false);
-    setPfMsg(null);
-    setPfDelArm(null);
-    setPfFetched(null);
-    setPfFetchedList(null);
-  };
-  const openPfEdit = (p) => {
-    setPfMode("edit");
-    setPfDraft(providerFormFromProvider(p));
-    setPfDirty(false);
-    setPfMsg(null);
-    setPfDelArm(null);
-    setPfFetched(null);
-    setPfFetchedList(null);
-  };
-  const closePf = () => {
-    setPfMode(null);
-    setPfDraft(null);
-    setPfDirty(false);
-    setPfMsg(null);
-    setPfDelArm(null);
-    setPfFetched(null);
-    setPfFetchedList(null);
-  };
-  const patchPf = (patch) => {
-    setPfDraft(Object.assign({}, pfDraft, patch));
-    setPfDirty(true);
-    setPfMsg(null);
-  };
-  const patchPfModel = (i, patch) => {
-    const models = pfDraft.models.slice();
-    models[i] = Object.assign({}, models[i], patch);
-    patchPf({ models });
-  };
-  const delPfModel = (i) => patchPf({ models: pfDraft.models.filter((_, j) => j !== i) });
-  const addPfModel = () => patchPf({ models: pfDraft.models.concat([emptyModelDraft()]) });
-  const togglePfModel = (id, name, on) => {
-    const base = pfDraft.models.filter((m) => String(m.id || "").trim());
-    if (on) {
-      if (base.some((m) => String(m.id).trim() === id)) return;
-      base.push(Object.assign(emptyModelDraft(), { id, name: name || "", input: pfDraft.defaultInput.slice() }));
-    } else {
-      const i = base.findIndex((m) => String(m.id).trim() === id);
-      if (i >= 0) base.splice(i, 1);
-    }
-    patchPf({ models: base });
-  };
-  const setAllPfModels = (on) => {
-    const base = [];
-    if (on && pfFetchedList) {
-      for (const mm of pfFetchedList) {
-        const id = String(mm && mm.id || "").trim();
-        if (!id) continue;
-        base.push(Object.assign(emptyModelDraft(), { id, name: mm && mm.name || "", input: pfDraft.defaultInput.slice() }));
-      }
-    }
-    patchPf({ models: base });
-  };
-  const pfSelectedCount = () => pfDraft ? pfDraft.models.filter((m) => String(m.id || "").trim()).length : 0;
-  const pfModelsPayload = () => pfDraft.models.map((m) => ({
-    id: String(m.id || "").trim(),
-    name: String(m.name || "").trim(),
-    contextWindow: m.contextWindow === "" || m.contextWindow == null ? void 0 : Number(m.contextWindow),
-    maxTokens: m.maxTokens === "" || m.maxTokens == null ? void 0 : Number(m.maxTokens),
-    input: m.input,
-    tags: m.tags,
-    effortsMode: m.effortsMode,
-    effortLevels: m.effortLevels,
-    raw: m.raw
-  }));
-  const fetchPfModels = () => {
-    if (!pfDraft || pfFetching) return;
-    setPfFetching(true);
-    setPfMsg(null);
-    setPfFetched(null);
-    fetch("dsh-dock/models", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        action: "listModels",
-        baseURL: pfDraft.baseURL,
-        api: pfDraft.api,
-        apiKeyEnv: pfDraft.apiKeyEnv,
-        apiKey: pfDraft.apiKey
-      }),
-      signal: AbortSignal.timeout(3e4)
-    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
-      if (r.status === 200 && r.body && r.body.ok) {
-        const list = Array.isArray(r.body.models) ? r.body.models : [];
-        setPfFetchedList(list);
-        setPfFetched({ count: list.length });
-      } else {
-        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
-      }
-    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfFetching(false));
-  };
-  const savePf = () => {
-    if (!pfDraft || pfSaving) return;
-    const route = pfDraft.route.trim();
-    const baseURL = pfDraft.baseURL.trim();
-    const apiKey = pfDraft.apiKey.trim();
-    let apiKeyEnv = pfDraft.apiKeyEnv.trim();
-    if (apiKey && !apiKeyEnv) {
-      apiKeyEnv = dkmEnvFromRoute(route);
-      setPfDraft(Object.assign({}, pfDraft, { apiKeyEnv }));
-    }
-    const models = pfModelsPayload();
-    if (!route) {
-      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u4E0D\u80FD\u4E3A\u7A7A\uFF08\u5982 modelscope\uFF09" });
-      return;
-    }
-    if (!DKM_ROUTE_KEY_RE.test(route)) {
-      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u975E\u6CD5\uFF1A\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u4E0E . _ -\uFF0C\u4E14\u4EE5\u5B57\u6BCD/\u6570\u5B57\u5F00\u5934" });
-      return;
-    }
-    if (!/^https?:\/\//i.test(baseURL)) {
-      setPfMsg({ ok: false, text: "baseURL \u987B\u4EE5 http:// \u6216 https:// \u5F00\u5934" });
-      return;
-    }
-    const ids = models.map((m) => m.id);
-    if (ids.length === 0 || ids.some((x) => !x)) {
-      setPfMsg({ ok: false, text: "\u6BCF\u4E2A\u6A21\u578B\u90FD\u8981\u6709 id\uFF08\u53EF\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u81EA\u52A8\u62C9\u53D6\uFF09" });
-      return;
-    }
-    if (new Set(ids).size !== ids.length) {
-      setPfMsg({ ok: false, text: "\u6A21\u578B id \u6709\u91CD\u590D" });
-      return;
-    }
-    const profile = Object.assign({}, pfDraft.extra || {});
-    const dn = pfDraft.displayName.trim();
-    if (dn) profile.displayName = dn;
-    else delete profile.displayName;
-    profile.api = pfDraft.api;
-    profile.baseURL = baseURL;
-    if (apiKeyEnv) profile.apiKeyEnv = apiKeyEnv;
-    else delete profile.apiKeyEnv;
-    profile.defaultInput = pfDraft.defaultInput;
-    profile.models = models;
-    const payload = {
-      action: pfMode === "create" ? "create" : "update",
-      route,
-      profile,
-      revisions: data && data.revisions || {}
-    };
-    if (apiKey) payload.apiKey = apiKey;
-    setPfSaving(true);
-    setPfMsg(null);
-    fetch("dsh-dock/models", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(3e4)
-    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
-      if (r.status === 200 && r.body && r.body.ok) {
-        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2" + (pfMode === "create" ? "\u65B0\u589E" : "\u66F4\u65B0") + "\uFF1B\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009" });
-        setPfMode(null);
-        setPfDraft(null);
-        setPfDirty(false);
-        modelsStore.load();
-      } else {
-        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
-      }
-    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
-  };
-  const deletePf = (p) => {
-    const route = p.route || p.id;
-    if (pfDelArm !== route) {
-      setPfDelArm(route);
-      setPfMsg(null);
-      return;
-    }
-    setPfDelArm(null);
-    setPfSaving(true);
-    setPfMsg(null);
-    fetch("dsh-dock/models", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "delete", route, revisions: data && data.revisions || {} }),
-      signal: AbortSignal.timeout(2e4)
-    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
-      if (r.status === 200 && r.body && r.body.ok) {
-        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2\u5220\u9664" });
-        if (pfMode === "edit" && pfDraft && pfDraft.route === route) {
-          setPfMode(null);
-          setPfDraft(null);
-        }
-        modelsStore.load();
-      } else {
-        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
-      }
-    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
-  };
   import_react3.default.useEffect(() => {
-    if (params && params.openProviderForm) openPfCreate();
+    if (params && params.page === "providers") setPage("providers");
+    if (params && params.openProviderForm) {
+      setPage("providers");
+      setPageOpenCreate(true);
+    }
   }, []);
   const save = () => {
     if (!draft || !cur || !dirty || saving) return;
@@ -4233,7 +4034,7 @@ function ModelsView(props) {
       payload.defaultEffort = draft.defaultEffort;
     }
     setSaving(true);
-    fetch("/dsh-dock/models", {
+    fetch("dsh-dock/models", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -4254,6 +4055,21 @@ function ModelsView(props) {
     onPatch: (j, patch) => patchModel(j, patch),
     onDel: (j) => patchDraft({ models: draft.models.filter((_, k) => k !== j) })
   });
+  if (page === "providers") {
+    return import_react3.default.createElement(ProvidersPage, {
+      data,
+      providers,
+      loading: snap.loading,
+      error: snap.error,
+      openCreate: pageOpenCreate,
+      onCreateHandled: () => setPageOpenCreate(false),
+      // 返回主页时顺手重读目录：子页面里增删改过的 Provider 立即反映到模型编辑器
+      onBack: () => {
+        setPage("settings");
+        refreshModels();
+      }
+    });
+  }
   const body = [];
   if (data) {
     body.push(import_react3.default.createElement(
@@ -4394,142 +4210,41 @@ function ModelsView(props) {
     ));
   }
   if (data) {
+    const custom = providers.filter((p) => p.kind === "pi-ai");
+    const missingKey = custom.filter((p) => p.apiKeyEnv && !p.apiKeyConfigured).length;
     body.push(import_react3.default.createElement(
       "div",
-      { key: "pf-mgmt", className: "dkm-prov" },
+      { key: "pf-entry", className: "dkp-card" },
       import_react3.default.createElement(
         "div",
-        { className: "dkm-prov-head" },
-        import_react3.default.createElement("span", { className: "dkm-name" }, "Provider \u7BA1\u7406"),
-        import_react3.default.createElement("span", { className: "dkm-badge" }, piProviders.length + " \u4E2A\u81EA\u5B9A\u4E49\u8DEF\u7531"),
-        import_react3.default.createElement("button", {
-          type: "button",
-          className: "dkm-save",
-          style: { marginLeft: "auto" },
-          onClick: openPfCreate
-        }, "\uFF0B \u65B0\u589E Provider")
-      ),
-      import_react3.default.createElement(
-        "div",
-        { className: "dkm-sub" },
-        "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u6B64\u53EA\u8BFB\uFF0C\u8BF7\u5728\u4E0B\u65B9\u7F16\u8F91\u5176\u6A21\u578B\u3002"
-      ),
-      pfMsg ? import_react3.default.createElement("div", { className: "dkm-msg " + (pfMsg.ok ? "ok" : "err") }, pfMsg.text) : null,
-      piProviders.length === 0 ? import_react3.default.createElement("div", { className: "dkm-note" }, "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49 Provider\u2014\u2014\u70B9\u53F3\u4E0A\u300C\uFF0B \u65B0\u589E Provider\u300D\u6DFB\u52A0\u3002") : import_react3.default.createElement(
-        "div",
-        { className: "dkm-pflist" },
-        piProviders.map((p) => import_react3.default.createElement(
-          "div",
-          { key: p.id, className: "dkm-pfrow" },
-          import_react3.default.createElement(
-            "div",
-            { className: "dkm-pfrow-main" },
-            import_react3.default.createElement("span", { className: "dkm-name" }, p.displayName || p.id),
-            import_react3.default.createElement("span", { className: "dkm-badge" }, p.route || p.id),
-            import_react3.default.createElement("span", { className: "dkm-badge" }, (p.models ? p.models.length : 0) + " \u6A21\u578B"),
-            import_react3.default.createElement(
-              "span",
-              { className: "dkm-badge " + (p.apiKeyConfigured ? "dkm-ok" : "dkm-warn") },
-              p.apiKeyEnv ? p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv"
-            ),
-            import_react3.default.createElement("span", { className: "dkm-sub" }, [p.api, p.baseURL].filter(Boolean).join(" \xB7 "))
-          ),
-          import_react3.default.createElement(
-            "div",
-            { className: "dkm-pfrow-actions" },
-            import_react3.default.createElement("button", { type: "button", className: "dkm-mini", onClick: () => openPfEdit(p) }, "\u7F16\u8F91"),
-            import_react3.default.createElement("button", {
-              type: "button",
-              className: "dkm-mini dkm-del" + (pfDelArm === (p.route || p.id) ? " arm" : ""),
-              title: pfDelArm === (p.route || p.id) ? "\u518D\u70B9\u4E00\u6B21\u786E\u8BA4\u5220\u9664" : "\u5220\u9664\u8BE5 Provider",
-              onClick: () => deletePf(p)
-            }, pfDelArm === (p.route || p.id) ? "\u786E\u8BA4\u5220\u9664\uFF1F" : "\u5220\u9664")
-          )
-        ))
-      ),
-      pfMode && pfDraft ? import_react3.default.createElement(
-        "div",
-        { className: "dkm-pfform" },
+        { className: "dkp-rowhead" },
         import_react3.default.createElement(
-          "div",
-          { className: "dkm-prov-head" },
-          import_react3.default.createElement("span", { className: "dkm-name" }, pfMode === "create" ? "\u65B0\u589E Provider" : "\u7F16\u8F91 Provider\uFF1A" + pfDraft.route),
-          import_react3.default.createElement("button", { type: "button", className: "dkm-mini", style: { marginLeft: "auto" }, onClick: closePf }, "\u53D6\u6D88")
+          "span",
+          { className: "dkp-identity" },
+          import_react3.default.createElement("span", { className: "dkp-name" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
+          import_react3.default.createElement("span", { className: "dkp-tag" }, custom.length + " \u4E2A\u81EA\u5B9A\u4E49\u8DEF\u7531"),
+          custom.length > 0 ? import_react3.default.createElement("span", {
+            className: "dkp-dot " + (missingKey > 0 ? "warn" : "ok"),
+            role: "img",
+            title: missingKey > 0 ? "\u6709 " + missingKey + " \u4E2A Provider \u672A\u914D\u7F6E\u5BC6\u94A5" : "\u5BC6\u94A5\u5747\u5DF2\u914D\u7F6E",
+            "aria-label": missingKey > 0 ? "\u6709 Provider \u672A\u914D\u7F6E\u5BC6\u94A5" : "\u5BC6\u94A5\u5747\u5DF2\u914D\u7F6E"
+          }) : null
         ),
         import_react3.default.createElement(
-          "div",
-          { className: "dkm-grid dkm-pfgrid" },
-          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u8DEF\u7531 key\uFF08\u5FC5\u586B\uFF0C\u5982 modelscope\uFF1B\u4FDD\u5B58\u540E\u4E0D\u5EFA\u8BAE\u6539\uFF09", value: pfDraft.route, disabled: pfMode === "edit", onChange: (e) => patchPf({ route: e.target.value }) }),
-          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u5982 \u9B54\u642D ModelScope\uFF09", value: pfDraft.displayName, onChange: (e) => patchPf({ displayName: e.target.value }) }),
-          import_react3.default.createElement(
-            "select",
-            { className: "dkm-input", value: pfDraft.api, onChange: (e) => patchPf({ api: e.target.value }) },
-            DKM_APIS.map(([v, label]) => import_react3.default.createElement("option", { key: v, value: v }, label))
-          ),
-          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "baseURL\uFF08\u5982 https://api-inference.modelscope.cn/v1\uFF09", value: pfDraft.baseURL, onChange: (e) => patchPf({ baseURL: e.target.value }) }),
-          import_react3.default.createElement("input", { className: "dkm-input", placeholder: "apiKeyEnv\uFF08\u7559\u7A7A = \u4FDD\u5B58\u65F6\u6309\u8DEF\u7531 key \u81EA\u52A8\u751F\u6210\uFF09", value: pfDraft.apiKeyEnv, onChange: (e) => patchPf({ apiKeyEnv: e.target.value }) }),
-          import_react3.default.createElement("input", { className: "dkm-input", type: "password", placeholder: "API Key \u660E\u6587\uFF08\u4EC5\u672C\u6B21\u5199\u5165\u51ED\u636E\u5E93\uFF0C\u4E0D\u56DE\u663E\uFF1B\u7559\u7A7A = \u4E0D\u6539\uFF09", value: pfDraft.apiKey, onChange: (e) => patchPf({ apiKey: e.target.value }) })
-        ),
-        import_react3.default.createElement(
-          "div",
-          { className: "dkm-checks" },
-          import_react3.default.createElement("span", { className: "dkm-label" }, "\u9ED8\u8BA4\u8F93\u5165\u7C7B\u578B\uFF1A"),
-          DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
-            "label",
-            { key: v, className: "dkm-check" },
-            import_react3.default.createElement("input", {
-              type: "checkbox",
-              checked: pfDraft.defaultInput.indexOf(v) >= 0,
-              onChange: () => {
-                const next = dkmToggleIn(pfDraft.defaultInput, v);
-                patchPf({ defaultInput: next.length > 0 ? next : ["text"] });
-              }
-            }),
-            label
-          )),
+          "span",
+          { className: "dkp-actions" },
           import_react3.default.createElement("button", {
             type: "button",
-            className: "dkm-mini",
-            disabled: pfFetching || !pfDraft.baseURL,
-            title: "\u8C03\u7528 baseURL/models \u62C9\u53D6\u8BE5\u7AEF\u70B9\u53EF\u7528\u6A21\u578B\uFF0C\u52FE\u9009\u540E\u52A0\u5165\u4E0B\u65B9\u5217\u8868",
-            onClick: fetchPfModels
-          }, pfFetching ? "\u62C9\u53D6\u4E2D\u2026" : "\u83B7\u53D6\u6A21\u578B\u5217\u8868"),
-          pfFetchedList ? import_react3.default.createElement("span", { className: "dkm-sub" }, "\u5DF2\u9009 " + pfSelectedCount() + " / \u4E0A\u6E38\u5171 " + pfFetchedList.length + " \u4E2A") : null,
-          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u52FE\u9009\u4E0A\u6E38\u8FD4\u56DE\u7684\u5168\u90E8\u6A21\u578B", onClick: () => setAllPfModels(true) }, "\u5168\u9009") : null,
-          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkm-mini", title: "\u6E05\u7A7A\u5DF2\u52FE\u9009\u7684\u6A21\u578B", onClick: () => setAllPfModels(false) }, "\u6E05\u7A7A") : null
-        ),
-        pfFetchedList ? import_react3.default.createElement(
-          "div",
-          { className: "dkm-pfpick" },
-          pfFetchedList.length === 0 ? import_react3.default.createElement("div", { className: "dkm-sub" }, "\u4E0A\u6E38\u6CA1\u6709\u8FD4\u56DE\u4EFB\u4F55\u6A21\u578B") : pfFetchedList.map((mm) => {
-            const id = String(mm && mm.id || "").trim();
-            if (!id) return null;
-            const checked = pfDraft.models.some((m) => String(m.id || "").trim() === id);
-            return import_react3.default.createElement(
-              "label",
-              { key: id },
-              import_react3.default.createElement("input", {
-                type: "checkbox",
-                checked,
-                onChange: () => togglePfModel(id, mm && mm.name || "", !checked)
-              }),
-              import_react3.default.createElement("span", null, id + (mm && mm.name ? " \xB7 " + mm.name : ""))
-            );
-          })
-        ) : null,
-        import_react3.default.createElement(
-          "div",
-          { style: { display: "flex", flexDirection: "column", gap: "8px" } },
-          pfDraft.models.map((m, i) => ModelRow({ m, i, kind: "pi-ai", onPatch: patchPfModel, onDel: delPfModel })),
-          import_react3.default.createElement("button", { type: "button", className: "dkm-add", onClick: addPfModel }, "+ \u6DFB\u52A0\u6A21\u578B")
-        ),
-        import_react3.default.createElement(
-          "div",
-          { className: "dkm-savebar" },
-          import_react3.default.createElement("span", { className: "dkm-msg" }, pfDirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : ""),
-          import_react3.default.createElement("button", { type: "button", className: "dkm-save", disabled: pfSaving, onClick: savePf }, pfSaving ? "\u4FDD\u5B58\u4E2D\u2026" : pfMode === "create" ? "\u65B0\u589E Provider" : "\u4FDD\u5B58\u4FEE\u6539")
+            className: "dkp-btn ghost sm",
+            onClick: () => setPage("providers")
+          }, "\u7BA1\u7406")
         )
-      ) : null
+      ),
+      import_react3.default.createElement(
+        "p",
+        { className: "dkp-hint" },
+        "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002"
+      )
     ));
   }
   if (data && providers.length === 0) {
@@ -4608,6 +4323,532 @@ function ModelsView(props) {
   }
   return import_react3.default.createElement("div", { className: "dkm-list" }, body);
 }
+function ProviderModelRow(props) {
+  const m = props.m;
+  const i = props.i;
+  const check = (v, list, kind) => import_react3.default.createElement(
+    "label",
+    { key: v[0], className: "dkp-check" },
+    import_react3.default.createElement("input", {
+      type: "checkbox",
+      checked: list.indexOf(v[0]) >= 0,
+      onChange: () => {
+        const next = dkmToggleIn(list, v[0]);
+        props.onPatch(i, kind === "input" ? { input: next.length > 0 ? next : ["text"] } : { tags: next });
+      }
+    }),
+    v[1]
+  );
+  return import_react3.default.createElement(
+    "div",
+    { className: "dkp-model-entry" },
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-model-row" },
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF09", value: m.id, onChange: (e) => props.onPatch(i, { id: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => props.onPatch(i, { name: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => props.onPatch(i, { contextWindow: e.target.value }) }),
+      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => props.onPatch(i, { maxTokens: e.target.value }) }),
+      import_react3.default.createElement("button", { type: "button", className: "dkp-iconbtn danger", title: "\u5220\u9664\u8BE5\u6A21\u578B", "aria-label": "\u5220\u9664\u6A21\u578B", onClick: () => props.onDel(i) }, "\u2715")
+    ),
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-model-opts" },
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-checks" },
+        import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
+        DKM_MODALITIES.map((v) => check(v, m.input, "input")),
+        import_react3.default.createElement("span", { className: "dkp-flabel dkp-dim", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
+        DKM_TAGS.map((v) => check(v, m.tags, "tags")),
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => props.onPatch(i, dkmAllInputs(true)) }, "\u5168\u9009"),
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009", onClick: () => props.onPatch(i, dkmAllInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
+      ),
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-checks" },
+        import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
+        import_react3.default.createElement(
+          "select",
+          {
+            className: "dkp-input dkp-select dkp-select-sm",
+            value: m.effortsMode,
+            onChange: (e) => props.onPatch(i, {
+              effortsMode: e.target.value,
+              effortLevels: e.target.value === "custom" && m.effortsMode !== "custom" ? { off: true, low: true, high: true } : m.effortLevels
+            })
+          },
+          import_react3.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
+          import_react3.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
+          import_react3.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
+        ),
+        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react3.default.createElement(
+          "label",
+          { key: lv, className: "dkp-check" },
+          import_react3.default.createElement("input", {
+            type: "checkbox",
+            checked: !!m.effortLevels[lv],
+            onChange: () => {
+              const nl = Object.assign({}, m.effortLevels);
+              nl[lv] = !nl[lv];
+              props.onPatch(i, { effortLevels: nl });
+            }
+          }),
+          DKM_EFFORT_NAMES[lv] || lv
+        )) : null,
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => props.onPatch(i, dkmAllLevels(true)) }, "\u5168\u9009"),
+        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => props.onPatch(i, dkmAllLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
+      )
+    )
+  );
+}
+function ProvidersPage(props) {
+  const data = props.data;
+  const providers = props.providers || [];
+  const piProviders = providers.filter((p) => p.kind === "pi-ai");
+  const [pfMode, setPfMode] = import_react3.default.useState(null);
+  const [pfDraft, setPfDraft] = import_react3.default.useState(null);
+  const [pfDirty, setPfDirty] = import_react3.default.useState(false);
+  const [pfSaving, setPfSaving] = import_react3.default.useState(false);
+  const [pfMsg, setPfMsg] = import_react3.default.useState(null);
+  const [pfDelArm, setPfDelArm] = import_react3.default.useState(null);
+  const [pfFetching, setPfFetching] = import_react3.default.useState(false);
+  const [pfFetchedList, setPfFetchedList] = import_react3.default.useState(null);
+  const openPfCreate = () => {
+    setPfMode("create");
+    setPfDraft(emptyProviderForm());
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetchedList(null);
+  };
+  const openPfEdit = (p) => {
+    setPfMode("edit");
+    setPfDraft(providerFormFromProvider(p));
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetchedList(null);
+  };
+  const closePf = () => {
+    setPfMode(null);
+    setPfDraft(null);
+    setPfDirty(false);
+    setPfMsg(null);
+    setPfDelArm(null);
+    setPfFetchedList(null);
+  };
+  const patchPf = (patch) => {
+    setPfDraft(Object.assign({}, pfDraft, patch));
+    setPfDirty(true);
+    setPfMsg(null);
+  };
+  const patchPfModel = (i, patch) => {
+    const models = pfDraft.models.slice();
+    models[i] = Object.assign({}, models[i], patch);
+    patchPf({ models });
+  };
+  const delPfModel = (i) => patchPf({ models: pfDraft.models.filter((_, j) => j !== i) });
+  const addPfModel = () => patchPf({ models: pfDraft.models.concat([emptyModelDraft()]) });
+  const togglePfModel = (id, name, on) => {
+    const base = pfDraft.models.filter((m) => String(m.id || "").trim());
+    if (on) {
+      if (base.some((m) => String(m.id).trim() === id)) return;
+      base.push(Object.assign(emptyModelDraft(), { id, name: name || "", input: pfDraft.defaultInput.slice() }));
+    } else {
+      const i = base.findIndex((m) => String(m.id).trim() === id);
+      if (i >= 0) base.splice(i, 1);
+    }
+    patchPf({ models: base });
+  };
+  const setAllPfModels = (on) => {
+    const base = [];
+    if (on && pfFetchedList) {
+      for (const mm of pfFetchedList) {
+        const id = String(mm && mm.id || "").trim();
+        if (!id) continue;
+        base.push(Object.assign(emptyModelDraft(), { id, name: mm && mm.name || "", input: pfDraft.defaultInput.slice() }));
+      }
+    }
+    patchPf({ models: base });
+  };
+  const pfSelectedCount = () => pfDraft ? pfDraft.models.filter((m) => String(m.id || "").trim()).length : 0;
+  const pfModelsPayload = () => pfDraft.models.map((m) => ({
+    id: String(m.id || "").trim(),
+    name: String(m.name || "").trim(),
+    contextWindow: m.contextWindow === "" || m.contextWindow == null ? void 0 : Number(m.contextWindow),
+    maxTokens: m.maxTokens === "" || m.maxTokens == null ? void 0 : Number(m.maxTokens),
+    input: m.input,
+    tags: m.tags,
+    effortsMode: m.effortsMode,
+    effortLevels: m.effortLevels,
+    raw: m.raw
+  }));
+  const fetchPfModels = () => {
+    if (!pfDraft || pfFetching) return;
+    setPfFetching(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "listModels",
+        baseURL: pfDraft.baseURL,
+        api: pfDraft.api,
+        apiKeyEnv: pfDraft.apiKeyEnv,
+        apiKey: pfDraft.apiKey
+      }),
+      signal: AbortSignal.timeout(3e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfFetchedList(Array.isArray(r.body.models) ? r.body.models : []);
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfFetching(false));
+  };
+  const savePf = () => {
+    if (!pfDraft || pfSaving) return;
+    const route = pfDraft.route.trim();
+    const baseURL = pfDraft.baseURL.trim();
+    const apiKey = pfDraft.apiKey.trim();
+    let apiKeyEnv = pfDraft.apiKeyEnv.trim();
+    if (apiKey && !apiKeyEnv) {
+      apiKeyEnv = dkmEnvFromRoute(route);
+      setPfDraft(Object.assign({}, pfDraft, { apiKeyEnv }));
+    }
+    const models = pfModelsPayload();
+    if (!route) {
+      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u4E0D\u80FD\u4E3A\u7A7A\uFF08\u5982 modelscope\uFF09" });
+      return;
+    }
+    if (!DKM_ROUTE_KEY_RE.test(route)) {
+      setPfMsg({ ok: false, text: "\u8DEF\u7531 key \u975E\u6CD5\uFF1A\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u4E0E . _ -\uFF0C\u4E14\u4EE5\u5B57\u6BCD/\u6570\u5B57\u5F00\u5934" });
+      return;
+    }
+    if (!/^https?:\/\//i.test(baseURL)) {
+      setPfMsg({ ok: false, text: "baseURL \u987B\u4EE5 http:// \u6216 https:// \u5F00\u5934" });
+      return;
+    }
+    const ids = models.map((m) => m.id);
+    if (ids.length === 0 || ids.some((x) => !x)) {
+      setPfMsg({ ok: false, text: "\u6BCF\u4E2A\u6A21\u578B\u90FD\u8981\u6709 id\uFF08\u53EF\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u81EA\u52A8\u62C9\u53D6\uFF09" });
+      return;
+    }
+    if (new Set(ids).size !== ids.length) {
+      setPfMsg({ ok: false, text: "\u6A21\u578B id \u6709\u91CD\u590D" });
+      return;
+    }
+    const profile = Object.assign({}, pfDraft.extra || {});
+    const dn = pfDraft.displayName.trim();
+    if (dn) profile.displayName = dn;
+    else delete profile.displayName;
+    profile.api = pfDraft.api;
+    profile.baseURL = baseURL;
+    if (apiKeyEnv) profile.apiKeyEnv = apiKeyEnv;
+    else delete profile.apiKeyEnv;
+    profile.defaultInput = pfDraft.defaultInput;
+    profile.models = models;
+    const payload = {
+      action: pfMode === "create" ? "create" : "update",
+      route,
+      profile,
+      revisions: data && data.revisions || {}
+    };
+    if (apiKey) payload.apiKey = apiKey;
+    setPfSaving(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(3e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2" + (pfMode === "create" ? "\u65B0\u589E" : "\u66F4\u65B0") + "\uFF1B\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009" });
+        setPfMode(null);
+        setPfDraft(null);
+        setPfDirty(false);
+        modelsStore.load();
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
+  };
+  const deletePf = (p) => {
+    const route = p.route || p.id;
+    if (pfDelArm !== route) {
+      setPfDelArm(route);
+      setPfMsg(null);
+      return;
+    }
+    setPfDelArm(null);
+    setPfSaving(true);
+    setPfMsg(null);
+    fetch("dsh-dock/models", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "delete", route, revisions: data && data.revisions || {} }),
+      signal: AbortSignal.timeout(2e4)
+    }).then((res) => res.json().then((b) => ({ status: res.status, body: b })).catch(() => ({ status: res.status, body: {} }))).then((r) => {
+      if (r.status === 200 && r.body && r.body.ok) {
+        setPfMsg({ ok: true, text: "Provider\u300C" + route + "\u300D\u5DF2\u5220\u9664" });
+        if (pfMode === "edit" && pfDraft && pfDraft.route === route) {
+          setPfMode(null);
+          setPfDraft(null);
+        }
+        modelsStore.load();
+      } else {
+        setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
+      }
+    }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
+  };
+  const openedRef = import_react3.default.useRef(false);
+  import_react3.default.useEffect(() => {
+    if (props.openCreate && !openedRef.current) {
+      openedRef.current = true;
+      openPfCreate();
+      if (typeof props.onCreateHandled === "function") props.onCreateHandled();
+    }
+  }, []);
+  const input = (p) => import_react3.default.createElement("input", Object.assign({ className: "dkp-input" }, p));
+  const field = (label, node, hint) => import_react3.default.createElement(
+    "div",
+    { className: "dkp-field", key: label },
+    import_react3.default.createElement("label", { className: "dkp-flabel" }, label),
+    node,
+    hint ? import_react3.default.createElement("p", { className: "dkp-hint" }, hint) : null
+  );
+  const editor = !pfDraft ? null : import_react3.default.createElement(
+    "div",
+    { className: "dkp-editor" },
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-editor-head" },
+      import_react3.default.createElement("span", { className: "dkp-editor-title" }, pfMode === "create" ? "\u65B0\u589E Provider" : "\u7F16\u8F91 Provider"),
+      pfMode === "edit" ? import_react3.default.createElement("span", { className: "dkp-editor-route" }, pfDraft.route) : null
+    ),
+    field("\u8DEF\u7531 key", input({
+      value: pfDraft.route,
+      disabled: pfMode === "edit",
+      placeholder: "acme-gateway",
+      onChange: (e) => patchPf({ route: e.target.value })
+    }), pfMode === "edit" ? "\u8DEF\u7531 key \u662F\u914D\u7F6E\u952E\uFF0C\u4FDD\u5B58\u540E\u4E0D\u5EFA\u8BAE\u4FEE\u6539\u3002" : "\u552F\u4E00\u6807\u8BC6\uFF1A\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u4E0E . _ -\uFF0C\u4E14\u4EE5\u5B57\u6BCD/\u6570\u5B57\u5F00\u5934\u3002"),
+    field("\u663E\u793A\u540D\u79F0", input({
+      value: pfDraft.displayName,
+      placeholder: pfDraft.route || "\u5982 \u9B54\u642D ModelScope",
+      onChange: (e) => patchPf({ displayName: e.target.value })
+    })),
+    field("baseURL", input({
+      value: pfDraft.baseURL,
+      placeholder: pfDraft.api === "anthropic-messages" ? "https://gateway.example" : "https://gateway.example/v1",
+      onChange: (e) => patchPf({ baseURL: e.target.value })
+    }), "OpenAI \u517C\u5BB9\u7AEF\u70B9\u901A\u5E38\u4EE5 /v1 \u7ED3\u5C3E\uFF1BAnthropic Messages \u7531 SDK \u81EA\u884C\u8FFD\u52A0 /v1/messages\u3002"),
+    field("API \u534F\u8BAE", import_react3.default.createElement(
+      "select",
+      {
+        className: "dkp-input dkp-select",
+        value: pfDraft.api,
+        onChange: (e) => patchPf({ api: e.target.value })
+      },
+      DKM_APIS.map(([v, label]) => import_react3.default.createElement("option", { key: v, value: v }, label))
+    )),
+    field("API Key", import_react3.default.createElement("input", {
+      className: "dkp-input",
+      type: "password",
+      autoComplete: "new-password",
+      placeholder: pfMode === "edit" ? "\u7559\u7A7A = \u4E0D\u6539\u52A8\u5DF2\u5B58\u5BC6\u94A5" : "sk-\u2026\uFF08\u4EC5\u672C\u6B21\u5199\u5165\u672C\u673A\u51ED\u636E\u5E93\uFF0C\u4E0D\u56DE\u663E\uFF09",
+      value: pfDraft.apiKey,
+      onChange: (e) => patchPf({ apiKey: e.target.value })
+    })),
+    import_react3.default.createElement(
+      "details",
+      { className: "dkp-customized" },
+      import_react3.default.createElement("summary", { className: "dkp-summary" }, "\u81EA\u5B9A\u4E49\u8BBE\u7F6E"),
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-custombody" },
+        field("apiKeyEnv", input({
+          value: pfDraft.apiKeyEnv,
+          placeholder: "\u7559\u7A7A = \u6309\u8DEF\u7531 key \u81EA\u52A8\u751F\u6210\uFF08" + (dkmEnvFromRoute(pfDraft.route) || "ROUTE_API_KEY") + "\uFF09",
+          onChange: (e) => patchPf({ apiKeyEnv: e.target.value })
+        }), "\u51ED\u636E\u5E93\u6761\u76EE\u540D\uFF1B\u7559\u7A7A\u65F6\u6309\u8DEF\u7531 key \u63A8\u5BFC\uFF0C\u4E00\u822C\u65E0\u9700\u586B\u5199\u3002"),
+        import_react3.default.createElement(
+          "div",
+          { className: "dkp-field" },
+          import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u9ED8\u8BA4\u8F93\u5165\u7C7B\u578B"),
+          import_react3.default.createElement(
+            "div",
+            { className: "dkp-checks" },
+            DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
+              "label",
+              { key: v, className: "dkp-check" },
+              import_react3.default.createElement("input", {
+                type: "checkbox",
+                checked: pfDraft.defaultInput.indexOf(v) >= 0,
+                onChange: () => {
+                  const next = dkmToggleIn(pfDraft.defaultInput, v);
+                  patchPf({ defaultInput: next.length > 0 ? next : ["text"] });
+                }
+              }),
+              label
+            )),
+            import_react3.default.createElement("span", { className: "dkp-hint" }, "\u6A21\u578B\u672A\u5355\u72EC\u58F0\u660E\u8F93\u5165\u7C7B\u578B\u65F6\u7EE7\u627F\u8FD9\u91CC\u3002")
+          )
+        )
+      )
+    ),
+    import_react3.default.createElement(
+      "section",
+      { className: "dkp-catalog", "aria-label": "\u6A21\u578B" },
+      import_react3.default.createElement(
+        "div",
+        { className: "dkp-catalog-head" },
+        import_react3.default.createElement(
+          "div",
+          { className: "dkp-catalog-titlewrap" },
+          import_react3.default.createElement("span", { className: "dkp-catalog-title" }, "\u6A21\u578B"),
+          import_react3.default.createElement(
+            "span",
+            { className: "dkp-catalog-meta" },
+            "\u5DF2\u9009 " + pfSelectedCount() + " \u4E2A" + (pfFetchedList ? " / \u4E0A\u6E38\u5171 " + pfFetchedList.length + " \u4E2A" : "")
+          )
+        ),
+        import_react3.default.createElement(
+          "div",
+          { className: "dkp-actions" },
+          import_react3.default.createElement("button", {
+            type: "button",
+            className: "dkp-btn ghost sm",
+            disabled: pfFetching || !pfDraft.baseURL,
+            title: "\u8C03\u7528 baseURL/models \u62C9\u53D6\u8BE5\u7AEF\u70B9\u53EF\u7528\u6A21\u578B\uFF0C\u52FE\u9009\u540E\u52A0\u5165\u4E0B\u65B9\u5217\u8868",
+            onClick: fetchPfModels
+          }, pfFetching ? "\u62C9\u53D6\u4E2D\u2026" : "\u83B7\u53D6\u6A21\u578B\u5217\u8868"),
+          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u52FE\u9009\u4E0A\u6E38\u8FD4\u56DE\u7684\u5168\u90E8\u6A21\u578B", onClick: () => setAllPfModels(true) }, "\u5168\u9009") : null,
+          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u6E05\u7A7A\u5DF2\u52FE\u9009\u7684\u6A21\u578B", onClick: () => setAllPfModels(false) }, "\u6E05\u7A7A") : null
+        )
+      ),
+      pfFetchedList ? import_react3.default.createElement(
+        "div",
+        { className: "dkp-picker" },
+        pfFetchedList.length === 0 ? import_react3.default.createElement("div", { className: "dkp-hint" }, "\u4E0A\u6E38\u6CA1\u6709\u8FD4\u56DE\u4EFB\u4F55\u6A21\u578B") : pfFetchedList.map((mm) => {
+          const id = String(mm && mm.id || "").trim();
+          if (!id) return null;
+          const checked = pfDraft.models.some((m) => String(m.id || "").trim() === id);
+          return import_react3.default.createElement(
+            "label",
+            { key: id },
+            import_react3.default.createElement("input", {
+              type: "checkbox",
+              checked,
+              onChange: () => togglePfModel(id, mm && mm.name || "", !checked)
+            }),
+            import_react3.default.createElement("span", { className: "dkp-picker-id" }, id),
+            mm && mm.name ? import_react3.default.createElement("span", { className: "dkp-picker-name" }, mm.name) : null
+          );
+        })
+      ) : null,
+      pfDraft.models.length === 0 ? import_react3.default.createElement("div", { className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u6A21\u578B\u2014\u2014\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u52FE\u9009\u4E0A\u6E38\u6A21\u578B\uFF0C\u6216\u300C\u6DFB\u52A0\u6A21\u578B\u300D\u624B\u52A8\u586B\u5199\u3002") : import_react3.default.createElement(
+        "div",
+        { className: "dkp-model-list" },
+        pfDraft.models.map((m, i) => import_react3.default.createElement(ProviderModelRow, { key: i, m, i, onPatch: patchPfModel, onDel: delPfModel }))
+      ),
+      import_react3.default.createElement("button", { type: "button", className: "dkp-addmodel", onClick: addPfModel }, "\uFF0B \u6DFB\u52A0\u6A21\u578B")
+    ),
+    pfMsg && !pfMsg.ok ? import_react3.default.createElement("p", { className: "dkp-error" }, pfMsg.text) : null,
+    import_react3.default.createElement(
+      "div",
+      { className: "dkp-editor-actions" },
+      import_react3.default.createElement("span", { className: "dkp-hint" }, pfDirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : ""),
+      import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost", onClick: closePf }, "\u53D6\u6D88"),
+      import_react3.default.createElement(
+        "button",
+        { type: "button", className: "dkp-btn primary", disabled: pfSaving, onClick: savePf },
+        pfSaving ? "\u4FDD\u5B58\u4E2D\u2026" : pfMode === "create" ? "\u65B0\u589E Provider" : "\u4FDD\u5B58\u4FEE\u6539"
+      )
+    )
+  );
+  const body = [
+    import_react3.default.createElement("button", { key: "back", type: "button", className: "dkp-back", onClick: props.onBack }, "\u2190 \u6A21\u578B\u8BBE\u7F6E"),
+    import_react3.default.createElement("h2", { key: "title", className: "dkp-title" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
+    import_react3.default.createElement(
+      "p",
+      { key: "intro", className: "dkp-intro" },
+      "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u672C\u9875\u53EA\u8BFB\uFF0C\u5176\u6A21\u578B\u76EE\u5F55\u8BF7\u56DE\u300C\u6A21\u578B\u8BBE\u7F6E\u300D\u7F16\u8F91\u3002"
+    )
+  ];
+  if (props.error) {
+    body.push(import_react3.default.createElement("p", { key: "err", className: "dkp-error" }, "\u6A21\u578B\u76EE\u5F55\u62C9\u53D6\u5931\u8D25\uFF1A" + props.error));
+  }
+  if (pfMsg && !pfDraft) {
+    body.push(import_react3.default.createElement("p", { key: "msg", className: "dkp-msg " + (pfMsg.ok ? "ok" : "err"), role: "status" }, pfMsg.text));
+  }
+  if (!data) {
+    body.push(import_react3.default.createElement("p", { key: "loading", className: "dkp-hint" }, props.loading ? "\u6B63\u5728\u62C9\u53D6\u6A21\u578B\u76EE\u5F55\u2026" : "\u7B49\u5F85\u62C9\u53D6\u6A21\u578B\u76EE\u5F55"));
+  } else if (piProviders.length === 0) {
+    body.push(import_react3.default.createElement("div", { key: "empty", className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49 Provider\u2014\u2014\u70B9\u4E0B\u65B9\u300C\u65B0\u589E Provider\u300D\u6DFB\u52A0\u3002"));
+  } else {
+    body.push(import_react3.default.createElement(
+      "ul",
+      { key: "rows", className: "dkp-rows" },
+      piProviders.map((p) => {
+        const route = p.route || p.id;
+        const editing = pfMode === "edit" && !!pfDraft && pfDraft.route === route;
+        const keyMissing = !!(p.apiKeyEnv && !p.apiKeyConfigured);
+        return import_react3.default.createElement(
+          "li",
+          { key: p.id, className: "dkp-card" },
+          import_react3.default.createElement(
+            "div",
+            { className: "dkp-rowhead" },
+            import_react3.default.createElement(
+              "span",
+              { className: "dkp-identity" },
+              import_react3.default.createElement("span", { className: "dkp-name" }, p.displayName || route),
+              import_react3.default.createElement("span", { className: "dkp-tag" }, route),
+              import_react3.default.createElement("span", { className: "dkp-tag" }, (p.models ? p.models.length : 0) + " \u6A21\u578B"),
+              import_react3.default.createElement("span", {
+                className: "dkp-dot " + (keyMissing ? "missing" : "ok"),
+                role: "img",
+                title: p.apiKeyEnv ? p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv",
+                "aria-label": p.apiKeyEnv ? p.apiKeyConfigured ? "\u5BC6\u94A5\u5DF2\u914D\u7F6E" : "\u5BC6\u94A5\u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv"
+              }),
+              p.apiKeyEnv ? import_react3.default.createElement(
+                "span",
+                { className: "dkp-tag" + (keyMissing ? " warn" : " ok") },
+                p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E"
+              ) : null
+            ),
+            import_react3.default.createElement(
+              "span",
+              { className: "dkp-actions" },
+              import_react3.default.createElement("button", {
+                type: "button",
+                className: "dkp-btn ghost sm",
+                "aria-expanded": editing,
+                onClick: () => editing ? closePf() : openPfEdit(p)
+              }, editing ? "\u6536\u8D77" : "\u7F16\u8F91"),
+              import_react3.default.createElement("button", {
+                type: "button",
+                className: "dkp-btn danger sm" + (pfDelArm === route ? " arm" : ""),
+                title: pfDelArm === route ? "\u518D\u70B9\u4E00\u6B21\u786E\u8BA4\u5220\u9664" : "\u5220\u9664\u8BE5 Provider",
+                onClick: () => deletePf(p)
+              }, pfDelArm === route ? "\u786E\u8BA4\u5220\u9664\uFF1F" : "\u5220\u9664")
+            )
+          ),
+          import_react3.default.createElement("div", { className: "dkp-sub" }, [p.api, p.baseURL].filter(Boolean).join(" \xB7 ")),
+          editing ? editor : null
+        );
+      })
+    ));
+  }
+  body.push(import_react3.default.createElement(
+    "div",
+    { key: "add", className: "dkp-addblock" },
+    pfMode === "create" && pfDraft ? import_react3.default.createElement("div", { className: "dkp-card dkp-addcard" }, editor) : import_react3.default.createElement("button", { type: "button", className: "dkp-addbtn", onClick: openPfCreate }, "\uFF0B \u65B0\u589E Provider")
+  ));
+  return import_react3.default.createElement("div", { className: "dkp-page" }, body);
+}
 function ModelsStat() {
   const snap = useModels();
   const data = snap.data;
@@ -4622,7 +4863,7 @@ var feature2 = {
   name: "\u6A21\u578B\u8BBE\u7F6E",
   order: 100,
   accent: "#22d3ee",
-  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u76EE\u5F55\uFF1A\u8F93\u5165\u7C7B\u578B\uFF08\u6587\u672C/\u56FE\u7247 + \u6807\u6CE8\uFF09\u4E0E\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF1B\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF0C\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009",
+  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u76EE\u5F55\uFF08\u8F93\u5165\u7C7B\u578B/\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF09\uFF1B\u81EA\u5B9A\u4E49 Provider \u7684\u589E\u5220\u6539\u5728\u300C\u6A21\u578B\u63D0\u4F9B\u5546\u300D\u5B50\u9875\u9762\uFF0C\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF0C\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009",
   css: [
     ".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
     ".dkm-warn{color:var(--dk-warn);}",
@@ -4668,21 +4909,98 @@ var feature2 = {
     ".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
     ".dkm-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--dsw-alias-border-l1);padding-top:8px;}",
     ".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}",
-    ".dkm-pflist{display:flex;flex-direction:column;gap:6px;}",
-    ".dkm-pfrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;}",
-    ".dkm-pfrow-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 auto;min-width:0;}",
-    ".dkm-pfrow-main .dkm-sub{max-width:300px;}",
-    ".dkm-pfrow-actions{display:flex;align-items:center;gap:6px;flex:none;}",
-    ".dkm-pfrow-actions .dkm-del{margin-left:0;}",
-    ".dkm-pfform{border-top:1px dashed var(--dsw-alias-border-l1);padding-top:10px;display:flex;flex-direction:column;gap:8px;}",
-    ".dkm-pfgrid{grid-template-columns:1fr 1fr;gap:6px;}",
-    ".dkm-pfgrid .dkm-input{width:100%;box-sizing:border-box;}",
-    ".dkm-pfgrid select.dkm-input{appearance:auto;}",
-    ".dkm-pfpick{max-height:220px;overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;}",
-    ".dkm-pfpick label{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
-    ".dkm-pfpick label:hover{background:var(--dsw-alias-fill-l2,rgba(128,128,128,.12));}",
-    ".dkm-ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-    ".dkm-del.arm{color:var(--dsw-alias-state-error-primary);border-color:currentColor;background:transparent;}"
+    // ---- 模型提供商子页面（dkp- 前缀）：对齐官方「模型」设置页的排版与尺寸 ----
+    // 官方用量参考：section 限宽 720、行卡片 .5px 描边 + radius-xl + 12/14 内距、
+    // 输入高 32、按钮高 36（行内小按钮 28）、新增按钮 44 虚线、编辑器 bg-module-platform。
+    ".dkp-page{width:100%;max-width:720px;display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);}",
+    ".dkp-back{box-sizing:border-box;align-self:flex-start;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:var(--dsw-radius-sm,6px);padding:4px 8px;margin-left:-8px;font-family:inherit;font-size:12px;line-height:18px;}",
+    ".dkp-back:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+    ".dkp-title{margin:0;font-size:16px;font-weight:500;line-height:24px;}",
+    ".dkp-intro{margin:0;color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:22px;}",
+    ".dkp-rows{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;}",
+    ".dkp-card{box-sizing:border-box;margin:0;border:.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l2));background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1));border-radius:var(--dsw-radius-xl,12px);padding:12px 14px;display:flex;flex-direction:column;gap:10px;}",
+    ".dkp-rowhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}",
+    ".dkp-identity{display:inline-flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;}",
+    ".dkp-name{font-size:14px;font-weight:500;line-height:22px;}",
+    ".dkp-tag{flex:none;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-xs,4px);color:var(--dsw-alias-label-secondary);padding:1px 6px;font-size:11px;line-height:16px;}",
+    ".dkp-tag.ok{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+    ".dkp-tag.warn{color:var(--dk-warn);border-color:currentColor;}",
+    ".dkp-dot{box-sizing:border-box;flex:none;width:8px;height:8px;border-radius:50%;display:inline-block;}",
+    ".dkp-dot.ok{background:var(--dsw-alias-state-success-primary);}",
+    ".dkp-dot.missing{background:var(--dsw-alias-state-error-primary);}",
+    ".dkp-dot.warn{background:var(--dk-warn);}",
+    ".dkp-sub{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+    ".dkp-hint{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkp-dim{color:var(--dsw-alias-label-tertiary);}",
+    ".dkp-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:18px;}",
+    ".dkp-msg{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;}",
+    ".dkp-msg.ok{color:var(--dsw-alias-state-success-primary);}",
+    ".dkp-msg.err{color:var(--dsw-alias-state-error-primary);}",
+    ".dkp-actions{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;}",
+    ".dkp-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:36px;padding:0 14px;border:none;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer;}",
+    ".dkp-btn.ghost{border:.5px solid var(--dsw-alias-border-l3);}",
+    ".dkp-btn.ghost:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-btn.primary{background:var(--dsw-alias-button-primary-fill,var(--dk-accent));color:var(--dsw-alias-label-primary-foreground,#fff);}",
+    ".dkp-btn.primary:hover{background:var(--dsw-alias-button-primary-hover,var(--dk-accent));}",
+    ".dkp-btn.danger{color:var(--dsw-alias-state-error-primary);}",
+    ".dkp-btn.danger:hover{background:var(--dsw-alias-interactive-bg-hover-danger,rgba(220,38,38,.1));}",
+    ".dkp-btn.arm{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
+    ".dkp-btn.sm{height:28px;padding:0 10px;border-radius:var(--dsw-radius-sm,6px);font-size:12px;line-height:18px;}",
+    ".dkp-btn[disabled]{opacity:.4;cursor:default;}",
+    ".dkp-editor{border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-module-platform,var(--dsw-alias-bg-layer-1));padding:14px 16px;display:flex;flex-direction:column;gap:14px;}",
+    ".dkp-editor-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}",
+    ".dkp-editor-title{font-size:14px;font-weight:500;line-height:22px;}",
+    ".dkp-editor-route{color:var(--dsw-alias-label-tertiary);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;line-height:18px;}",
+    ".dkp-field{display:flex;flex-direction:column;gap:6px;min-width:0;}",
+    ".dkp-flabel{display:inline-flex;align-items:center;gap:10px;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkp-input{box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l2));border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;}",
+    ".dkp-input:focus{border-color:var(--dsw-alias-state-business-primary,var(--dk-accent));outline:none;}",
+    ".dkp-input::placeholder{color:var(--dsw-alias-label-dimmed,var(--dsw-alias-label-tertiary));}",
+    ".dkp-input:disabled{opacity:.6;cursor:default;}",
+    "select.dkp-input{appearance:auto;cursor:pointer;max-width:240px;}",
+    ".dkp-select-sm{height:28px;max-width:160px;font-size:12px;line-height:18px;}",
+    ".dkp-checks{display:flex;align-items:center;gap:16px;flex-wrap:wrap;min-height:32px;}",
+    ".dkp-check{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;}",
+    ".dkp-check input{accent-color:var(--dk-accent);margin:0;}",
+    ".dkp-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:transparent;color:var(--dsw-alias-label-tertiary);padding:1px 8px;font-family:inherit;font-size:11px;line-height:16px;flex:none;}",
+    ".dkp-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
+    ".dkp-customized{border-top:.5px solid var(--dsw-alias-border-l2);padding-top:10px;}",
+    ".dkp-summary{display:flex;align-items:center;gap:6px;width:fit-content;margin-left:-4px;padding:2px 4px;border-radius:var(--dsw-radius-sm,6px);list-style:none;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkp-summary::-webkit-details-marker{display:none;}",
+    '.dkp-summary::before{content:"";width:5px;height:5px;border-right:1.5px solid;border-bottom:1.5px solid;transform:rotate(-45deg);transition:transform .12s;}',
+    ".dkp-customized[open]>.dkp-summary::before{transform:rotate(45deg);}",
+    ".dkp-summary:hover{color:var(--dsw-alias-label-primary);}",
+    ".dkp-custombody{display:flex;flex-direction:column;gap:12px;padding-top:12px;}",
+    ".dkp-catalog{border-top:.5px solid var(--dsw-alias-border-l2);padding-top:12px;display:flex;flex-direction:column;gap:10px;}",
+    ".dkp-catalog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}",
+    ".dkp-catalog-titlewrap{display:flex;flex-direction:column;gap:2px;}",
+    ".dkp-catalog-title{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkp-catalog-meta{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkp-model-list{display:flex;flex-direction:column;gap:8px;}",
+    ".dkp-model-entry{border:.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l2));border-radius:var(--dsw-radius-lg,10px);padding:6px;display:flex;flex-direction:column;gap:6px;}",
+    ".dkp-model-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,.7fr) minmax(0,.7fr) auto;gap:6px;align-items:center;}",
+    ".dkp-model-row .dkp-input{height:30px;padding:0 8px;font-size:13px;}",
+    ".dkp-model-opts{display:flex;flex-direction:column;gap:4px;padding:2px 2px 0;}",
+    ".dkp-iconbtn{box-sizing:border-box;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:12px;line-height:1;}",
+    ".dkp-iconbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+    ".dkp-iconbtn.danger:hover{background:var(--dsw-alias-interactive-bg-hover-danger,rgba(220,38,38,.1));color:var(--dsw-alias-state-error-primary);}",
+    ".dkp-addmodel{box-sizing:border-box;align-self:flex-start;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;}",
+    ".dkp-addmodel:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-picker{max-height:320px;overflow-y:auto;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);padding:4px 6px;display:flex;flex-direction:column;gap:2px;}",
+    ".dkp-picker label{display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;padding:6px 8px;border-radius:var(--dsw-radius-md,8px);}",
+    ".dkp-picker label:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-picker input{accent-color:var(--dk-accent);margin:0;flex:none;}",
+    ".dkp-picker-id{flex:none;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:13px;line-height:20px;}",
+    ".dkp-picker-name{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+    ".dkp-empty{border:1px dashed var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-lg,10px);padding:12px;text-align:center;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkp-addblock{display:flex;align-items:stretch;}",
+    ".dkp-addbtn{box-sizing:border-box;flex:1 1 auto;min-width:180px;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-lg,10px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer;}",
+    ".dkp-addbtn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkp-addcard{flex:1 1 auto;padding:14px 16px;}",
+    ".dkp-addcard .dkp-editor{background:transparent;padding:0;}",
+    ".dkp-editor-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;border-top:.5px solid var(--dsw-alias-border-l2);padding-top:12px;}",
+    ".dkp-editor-actions .dkp-hint{margin-right:auto;}",
+    "@media (max-width:680px){.dkp-page{max-width:none;gap:14px}.dkp-intro{font-size:13px;line-height:20px}.dkp-model-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dkp-model-row .dkp-iconbtn{justify-self:end}.dkp-editor{padding:12px}.dkp-addcard{padding:12px 14px}.dkp-btn{height:40px}.dkp-btn.sm{height:34px}.dkp-addbtn{height:48px}}"
   ].join("\n"),
   View: ModelsView,
   HomeStat: ModelsStat
