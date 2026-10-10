@@ -68,11 +68,14 @@ export function initFeatureState(defs) {
 	syncFeatureStateFromHost(defs);
 }
 
-/** 从宿主 /dsh-dock/features 拉取持久化开关，覆盖尚未本地表态的功能默认值。
+/** 从宿主 dsh-dock/features 拉取持久化开关，覆盖尚未本地表态的功能默认值。
+ * 路由一律用文档相对路径（不带前导斜杠）：DSH 的 index.html 带 <base href="./">，
+ * 子路径反代（如 /ui/）下自动解析为 /ui/dsh-dock/...，根挂载下即 dsh-dock/...。
+ * 写死前导斜杠会绕过反代挂载前缀，请求被 302 打回应用入口，宿主接口整片失败。
  * 拉取失败（宿主旧版本无此路由）静默降级——沿用本地默认。 */
 function syncFeatureStateFromHost(defs) {
 	if (typeof fetch !== "function") return;
-	fetch("/dsh-dock/features").then(async (res) => {
+	fetch("dsh-dock/features").then(async (res) => {
 		if (!res.ok) return;
 		const data = await res.json().catch(() => null);
 		const persisted = data && data.ok && data.data && data.data.persisted;
@@ -108,7 +111,7 @@ function syncFeatureStateFromHost(defs) {
  * 开关永远 404 而这里毫无声息，排查了两个版本才发现。） */
 function pushFeatureEnabledToHost(id, enabled) {
 	if (typeof fetch !== "function") return;
-	fetch("/dsh-dock/features", {
+	fetch("dsh-dock/features", {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify({ id, enabled }),

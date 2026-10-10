@@ -47,7 +47,7 @@ function initialDash() {
 
 function useTaskPulse() {
 	const [status, setStatus] = useState({ loading: true, active: [], error: false });
-	const refresh = useCallback(() => fetch("/dsh-dock/animation/status", {
+	const refresh = useCallback(() => fetch("dsh-dock/animation/status", {
 		method: "POST", headers: { "content-type": "application/json" }, body: "{}",
 	}).then((res) => res.json()).then((payload) => {
 		if (!payload || !payload.ok) throw new Error("status unavailable");

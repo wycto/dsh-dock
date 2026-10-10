@@ -172,15 +172,20 @@ function resolveStatus(s) { return typeof s === "function" ? s() : s; }
 function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus) {
 	return (url, init) => {
 		// 只拦截功能开关的同步 POST；功能自己的 RPC 也是 POST，不能一起吃掉
-		if (init && init.method === "POST" && String(url).includes("/dsh-dock/features")) {
+		if (init && init.method === "POST" && String(url).includes("dsh-dock/features")) {
 			posts.push({ url: String(url), body: JSON.parse(init.body || "{}") });
 			return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, data: {} }) });
+		}
+		// 模型目录：视图直接用 json() 结果作目录（不包 ok/data），须与真实宿主一致
+		//（视图用相对 URL "dsh-dock/models"，此处不要求前导斜杠以兼容）
+		if (String(url).includes("dsh-dock/models")) {
+			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
 		}
 		let data = {};
 		// 用量记录 query 的正常响应。此前该分支缺失 → TokenLogView 渲染时读 data.counts 抛错、
 		// 被错误边界降级为一行提示，而断言用的 marker「用量」恰好能在卡片描述里命中，于是
 		// 「渲染正常」是假的。补上真实响应后，下面用「调用明细」「单价设置」等内容做断言。
-		if (url.includes("/dsh-dock/tokenlog/query")) {
+		if (url.includes("dsh-dock/tokenlog/query")) {
 			data = {
 				records: [{
 					id: "s1:1", time: 1_700_000_000_000, sessionId: "sess-1", provider: "deepseek", model: "deepseek-v4-flash",
@@ -200,7 +205,7 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 				summary: [],
 			};
 		}
-		if (url.includes("/dsh-dock/tokenlog/pricing")) {
+		if (url.includes("dsh-dock/tokenlog/pricing")) {
 			data = {
 				usdCnyRate: 7.2, fetchOfficial: true, pricingFetchIntervalHours: 24,
 				// 多段分时价（覆盖时段增删/跨零点/日期类型展示分支）
@@ -217,10 +222,10 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 				models: ["deepseek-v4-flash", "glm-4"], sourcesByModel: { "deepseek-v4-flash": "自定义", "glm-4": "兜底" },
 			};
 		}
-		if (url.includes("/dsh-dock/animation/status")) data = resolveStatus(animationStatus);
-		else if (url.includes("/dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
-		else if (url.includes("/dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
-		else if (url.includes("/dsh-dock/features")) data = { persisted: persisted || {} };
+		if (url.includes("dsh-dock/animation/status")) data = resolveStatus(animationStatus);
+		else if (url.includes("dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
+		else if (url.includes("dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
+		else if (url.includes("dsh-dock/features")) data = { persisted: persisted || {} };
 		return Promise.resolve({
 			ok: true,
 			status: 200,
@@ -270,6 +275,8 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 		console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
 		fetch: makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
+		// 视图的 fetch 用 AbortSignal.timeout 设超时；沙箱补一个最小替身（stub 忽略 signal）
+		AbortSignal: { timeout: () => ({}) },
 		localStorage: {
 			getItem: (k) => (k in store ? store[k] : null),
 			setItem: (k, v) => { store[k] = String(v); },
@@ -347,6 +354,43 @@ const RUNSTATE_STATUS = {
 	recent: ANIMATION_STATUS.recent,
 };
 
+// 模型设置 /dsh-dock/models：视图把 json() 结果直接当目录用（不包 ok/data），
+// 与真实宿主 sendJson(res, 200, payload) 一致。给一个含 pi-ai 路由的目录，
+// 覆盖 Provider 管理列表 + 新增表单 + 选中 Provider 编辑器三条渲染分支。
+const MODELCONFIG_DIR = {
+	generatedAt: 1_700_000_000_000,
+	default: { provider: "modelscope", model: "Qwen/Qwen3.8-27B", reasoningEffort: "high" },
+	revisions: { "llm-pi-ai": 1, "llm-deepseek": 0, "dsh-dock": 3 },
+	visionProxy: { enabled: false, provider: "", model: "" },
+	providers: [
+		{
+			id: "deepseek-official", kind: "deepseek", displayName: "DeepSeek", api: "deepseek",
+			baseURL: "https://api.deepseek.com", apiKeyEnv: "DEEPSEEK_API_KEY",
+			thinking: "enabled", defaultEffort: "high", effortLevels: ["off", "low", "high", "max"],
+			models: [{ id: "deepseek-flash", name: "DeepSeek Flash", contextWindow: 64000, maxTokens: 8192, input: ["text"], efforts: "inherit", effortMap: null, tags: [], raw: { id: "deepseek-flash" } }],
+		},
+		{
+			id: "modelscope", route: "modelscope", kind: "pi-ai", displayName: "魔搭 ModelScope",
+			api: "openai-completions", baseURL: "https://api-inference.modelscope.cn/v1",
+			apiKeyEnv: "MODELSCOPE_API_KEY", apiKeyConfigured: true,
+			apis: ["openai-completions", "openai-responses", "anthropic-messages"],
+			defaultInput: ["text", "image"],
+			rawProfile: {
+				displayName: "魔搭 ModelScope", api: "openai-completions",
+				baseURL: "https://api-inference.modelscope.cn/v1", apiKeyEnv: "MODELSCOPE_API_KEY",
+				defaultInput: ["text", "image"],
+				models: [{ id: "Qwen/Qwen3.8-27B", name: "Qwen3.8 27B", reasoningEfforts: { off: null, low: "low", medium: "medium", high: "high" } }],
+			},
+			models: [{
+				id: "Qwen/Qwen3.8-27B", name: "Qwen3.8 27B", contextWindow: 262144, maxTokens: 32768,
+				input: ["text", "image"], efforts: "custom",
+				effortMap: { off: null, low: "low", medium: "medium", high: "high" }, tags: ["video"],
+				raw: { id: "Qwen/Qwen3.8-27B", reasoningEfforts: { off: null, low: "low", medium: "medium", high: "high" }, compat: { supportsDeveloperRole: false } },
+			}],
+		},
+	],
+};
+
 // ---------- 用例：每个内置功能单独启用后，设置页面板必须渲染出内容且不抛错 ----------
 const FEATURES = [
 	{ id: "animation", name: "任务动画", marker: "运行动画", deep: true },
@@ -400,6 +444,66 @@ for (const f of FEATURES) {
 			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
 		}
 	}
+	// 模型设置：主页只剩「模型提供商」入口卡——提供商列表/表单已搬进独立子页面（见用例 1.4b）。
+	// 这里断言入口卡真的渲染（含自定义路由计数与「管理」按钮），防止子页面入口被误删成死路。
+	if (f.id === "modelconfig" && !error) {
+		for (const needle of ["模型提供商", "个自定义路由", "管理"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置主页缺少「${needle}」（提供商子页面入口卡未渲染）`); }
+		}
+	}
+}
+
+// ---------- 用例 1.4：模型设置「新增 Provider」表单（params.openProviderForm 直达子页面并展开表单）----------
+// 提供商管理已从主页搬进独立子页面；openProviderForm 深链既要落到子页面，又要直接展开新增表单。
+// 用全新 runtime 避免与主页渲染共享组件实例状态。
+{
+	const enabled = {};
+	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
+		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+		if (!reg) detail = "没有注册 settings.section";
+		else {
+			const formHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { openProviderForm: true } }));
+			// 沙箱只序列化文本节点（不含 input 的 placeholder 属性），故用表单特有的文本断言：
+			// 子页面标题 + api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
+			for (const needle of ["模型提供商", "新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
+				if (!formHtml.includes(needle)) { detail = "新增 Provider 表单缺少「" + needle + "」"; break; }
+			}
+		}
+	} catch (e) {
+		detail = "Provider 表单渲染抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { failed++; console.log("✗ " + detail); }
+	else console.log("✓ 模型设置 Provider 表单：params.openProviderForm 直达子页面「新增 Provider」表单（路由/api/baseURL/key/模型行）");
+}
+
+// ---------- 用例 1.4b：模型设置「模型提供商」子页面（params.page 直达）----------
+// 用户反馈：提供商管理挤在模型设置主页里又长又丑。现在它是独立子页面，按官方「模型」设置页排版：
+// 返回入口 + 标题/说明 + 行卡片（名称/路由/模型数/密钥状态 + 编辑/删除）+ 底部虚线新增。
+// 这条断言锁住「子页面自己就能渲染出整张列表」，避免入口卡指向一个空页面。
+{
+	const enabled = {};
+	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
+		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+		if (!reg) detail = "没有注册 settings.section";
+		else {
+			const pageHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { page: "providers" } }));
+			for (const needle of ["← 模型设置", "模型提供商", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
+				if (!pageHtml.includes(needle)) { detail = "模型提供商子页面缺少「" + needle + "」"; break; }
+			}
+			// 主业内容（图片理解代理 / 模型目录编辑器）不该跟着出现在子页面里
+			if (!detail && pageHtml.includes("图片理解代理")) detail = "模型提供商子页面串进了主页内容（图片理解代理）";
+		}
+	} catch (e) {
+		detail = "模型提供商子页面渲染抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { failed++; console.log("✗ " + detail); }
+	else console.log("✓ 模型设置「模型提供商」子页面：params.page=\"providers\" 直达行卡片列表（密钥状态/模型数/编辑/删除/新增）");
 }
 
 	if (failed) {
@@ -603,7 +707,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		try {
 			const { posts } = loadDock(c.local, ANIMATION_STATUS, NOTIFY_STATUS, c.persisted);
 			await new Promise((resolve) => setTimeout(resolve, 30)); // 等 syncFeatureStateFromHost 的 fetch 回来
-			const pushes = posts.filter((p) => p.url.includes("/dsh-dock/features")).map((p) => p.body);
+			const pushes = posts.filter((p) => p.url.includes("dsh-dock/features")).map((p) => p.body);
 			const got = pushes.find((b) => b.id === "notify") || null;
 			if (c.expect === null && got) { detail = `${c.name}：不该补推，却推了 ${JSON.stringify(got)}`; break; }
 			if (c.expect && (!got || got.enabled !== c.expect.enabled)) {
@@ -767,6 +871,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/\.dockchip-row\{display:none\}/.test(bundle)) issues.push("窄屏没有收起输入区 chip");
 	if (/dsh-mobile-drawer-btn/.test(bundle)) issues.push("客户端不应再有左缘浮动抽屉把手（会话入口在底部 Tab 栏「会话」）");
 	if (/dsh-dock-drawer-top|dsh-dock-drawer-off/.test(bundle)) issues.push("残留了把手定位的 CSS 变量/隐藏开关");
+	if (!/\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\):not\(:has\(\[role="dialog"\]\)\) \[class\*="root"\]\[class\*="collapsed"\]\{display:none !important\}/.test(bundle)) issues.push("收起轨道没有 display:none 主隐藏（dsh 0.2.0 的 WorkspaceBrowser 自带 visibility:visible，会从列级 hidden 里透出游离按钮）");
 	if (issues.length) {
 		console.log(`✗ 手机端样式契约：${issues.join("；")}`);
 		process.exit(1);
@@ -784,7 +889,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/id: "dock",\s*label: "(插件|\\u63D2\\u4EF6)"/.test(bundle)) issues.push("Tab 栏没有「插件」页签定义");
 	if (!/act: \(\) => \{\s*openPanel\(tasksActive > 0 \|\| tasksWaiting > 0 \? "runstate" : "home"\);?\s*\}/.test(bundle)) issues.push("「插件」页签不是无条件打开功能坞（开关式会在面板被原生页盖住时把功能坞关掉，露出原页面）");
 	if (!/\[class\*="dockm-backdrop"\]\{z-index:2000 !important\}/.test(bundle)) issues.push("手机端没有把功能坞面板抬到原生弹层之上（z 2000）");
-	if (!/\/dsh-dock\/runstate\/status/.test(bundle)) issues.push("「插件」页签角标没有轮询 runstate 路由");
+	if (!/\/?dsh-dock\/runstate\/status/.test(bundle)) issues.push("「插件」页签角标没有轮询 runstate 路由");
 	if (!/dsh-mobile-tab-badge/.test(bundle)) issues.push("缺少页签角标元素/样式");
 	if (!/dsh-mobile-tab-badge wait/.test(bundle)) issues.push("角标缺少等待确认（红色脉冲）态");
 	if (!/querySelectorAll\("\.dsh-mobile-tabbar"\)/.test(bundle)) issues.push("Overlay 没有兜底摘除残留旧 Tab 栏");
@@ -797,6 +902,20 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 手机端任务页签契约：任务/功能坞并入「插件」、等待确认角标红色脉冲、兜底摘除残留 Tab 栏、软键盘让位");
+}
+
+// ---------- 用例 12：客户端 fetch 一律用文档相对路径（反代子路径挂载契约） ----------
+// 真实事故（用户实测）：【模型设置】切页报「模型目录拉取失败：Unexpected token '<', "<!doctype "…」。
+// 反代/网关把 dsh 挂在子路径（如 /ui/）时，绝对路径 fetch("/dsh-dock/models") 会跳出应用前缀，
+// 命中站点 HTML，res.json() 便炸在 doctype 上。约定：客户端只写 "dsh-dock/xxx"（相对当前文档，
+// 浏览器自动补全前缀）；宿主 webServer.register 仍是绝对路径 —— 两半部不要混写。
+// 注：/__dsh_auth/health 是网关自己的根路径端点，属有意为之，不在本契约内。
+{
+	if (/fetch\(\s*["'`]\/dsh-dock/.test(bundle)) {
+		console.log('✗ 客户端 fetch 路径契约：仍有绝对路径 fetch("/dsh-dock…")（子路径反代挂载下会返回 HTML，JSON 解析崩溃）');
+		process.exit(1);
+	}
+	console.log("✓ 客户端 fetch 路径契约：全部为文档相对路径（兼容反代子路径挂载）");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

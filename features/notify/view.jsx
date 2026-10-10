@@ -10,12 +10,12 @@
 // features/runstate/，本模块只管通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书群机器人推送）。
 // 模块启停 = 功能坞里的开关（独立菜单项），本页不再有第二个总开关。
 //
-// Host 通信：fetch('/dsh-dock/notify/<method>')（见 features/notify/host.js）。
+// Host 通信：fetch('dsh-dock/notify/<method>')（见 features/notify/host.js）。
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
-	return fetch("/dsh-dock/notify/" + method, {
+	return fetch("dsh-dock/notify/" + method, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify(args === undefined ? {} : args),
