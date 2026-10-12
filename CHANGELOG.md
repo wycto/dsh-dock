@@ -2,6 +2,29 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## 未发布
+
+### 变更
+
+- **【手机适配】移除底部 Tab 栏，会话入口改为左上角汉堡菜单**（用户要求：底部三个菜单入口
+  太占页面空间）。原底部常驻 Tab 栏（会话 / 插件 / 设置）在 390×844 上占掉视口底部约
+  48px + 安全区（≈8% 纵向空间），且与抽屉本身语义重复。现在：
+  - **左上角新增「三条横线」折叠菜单**（`.dsh-mobile-burger`，44×44 触控面积，
+    避让 `env(safe-area-inset-*)` 刘海/圆角安全区，z 66 低于遮罩 75 / 抽屉 80），
+    点击展开左侧会话抽屉；抽屉展开时 `aria-expanded="true"` 且按钮高亮。
+  - **底部 Tab 栏与「插件」页签任务角标整体移除**（`TAB_DEFS` / `.dsh-mobile-tabbar` /
+    `.dsh-mobile-tab` / `.dsh-mobile-tab-badge` / runstate 角标轮询全部删掉）。
+    插件 / 设置 / 运行状态等入口本来就在抽屉里（原生侧栏 rail），展开抽屉即可达，
+    不在 chrome 里重复提供。构建产物里仍保留一句 `.dsh-mobile-tabbar` 兜底摘除，
+    用来清掉宿主旧注入在页面里留下的历史 Tab 栏。
+  - 滚动体底部留白从 72px（原 Tab 栏高度 + 安全区）收窄到 24px + 安全区；
+    软键盘弹出时改为隐藏汉堡。
+  - 两半部同步改：`features/mobile/view.js`（客户端，刷新即生效）与
+    `features/mobile/host.js`（宿主注入，**需重启 `dsh web`**）。
+  - 契约测试同步：`scripts/test-mobile-host.mjs` 与 `scripts/test-client-views.mjs`
+    用例 10/11 由「Tab 栏契约」改为「汉堡契约」——钉死 Tab 栏/角标必须为零、
+    汉堡存在且为三条横线/≥44×44/贴左上安全区/能转发原生「打开侧边栏」。
+
 ## v0.14.0 — 2026-10-10
 
 ### 修复

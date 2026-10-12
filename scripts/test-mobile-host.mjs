@@ -6,7 +6,8 @@ import { feature } from '../features/mobile/host.js'
 // 手机端排版/行为从【远程访问】整体迁到本模块——远程访问只保留远程入口。
 // 本测试钉住 tapIndex 注入页必须含有的窄屏 chrome（布局样式 + 行为脚本）、
 // 滚动兜底（设置弹层 min-height:0、滚动体 touch-action:pan-y）、
-// 无左缘浮动抽屉按钮、以及「点文件夹不收抽屉」的点击路由。
+// 无底部 Tab 栏 / 无左缘浮动抽屉按钮（会话入口 = 左上角汉堡菜单）、
+// 以及「点文件夹不收抽屉」的点击路由。
 // 客户端半部（features/mobile/view.js）的同款契约见 scripts/test-client-views.mjs。
 
 const indexTransforms = []
@@ -41,18 +42,28 @@ try {
   // —— 与【远程访问】解耦：注入页只含窄屏 chrome，不含 LAN crypto 兜底（那归远程访问）——
   assert.doesNotMatch(once1, /data-dsh-lan-compat/, '手机适配不应注入 LAN crypto 兜底（归远程访问）')
 
-  // —— 不得有左缘浮动抽屉把手：会话入口统一走底部 Tab 栏「会话」页签 ——
+  // —— 不得有底部 Tab 栏、不得有左缘浮动抽屉把手 ——
+  // 用户要求：底部常驻三入口（会话/插件/设置）太占页面空间，改为左上角汉堡菜单。
+  // 会话入口 = 汉堡按钮（转发原生「打开侧边栏」）；插件/设置等入口在抽屉里，不重复提供。
+  assert.doesNotMatch(once1, /\.dsh-mobile-tabbar\s*\{/, '底部 Tab 栏样式必须移除（用户要求改为左上角汉堡菜单）')
+  assert.doesNotMatch(once1, /\.dsh-mobile-tab\s*\{/, '底部 Tab 页签样式必须移除')
+  assert.doesNotMatch(once1, /dsh-mobile-tab-badge/, '「插件」页签角标必须随 Tab 栏一并移除')
+  assert.doesNotMatch(once1, /TAB_DEFS/, '不得残留 Tab 定义表')
   assert.doesNotMatch(once1, /dsh-mobile-drawer-btn/)
   assert.doesNotMatch(once1, /dsh-dock-drawer-top|dsh-dock-drawer-off|dkmob-fab/, '不得残留浮动侧栏按钮')
 
-  // —— 抽屉遮罩 + 底部 Tab 栏（会话/插件/设置）——
+  // —— 左上角汉堡菜单 + 抽屉遮罩 ——
   assert.match(once1, /dsh-mobile-scrim/, '缺抽屉遮罩')
-  assert.match(once1, /dsh-mobile-tabbar/, '缺底部 Tab 栏样式')
-  assert.match(once1, /打开侧边栏/, 'Tab 栏「会话」页签没有转发原生打开侧边栏')
-  assert.match(once1, /\{id:"dock",label:"插件"/, 'Tab 栏缺「插件」页签')
-  assert.doesNotMatch(once1, /\{id:"tasks"/, '不应再有独立「任务」页签（应并入「插件」）')
-  assert.match(once1, /dsh-mobile-tab-badge/, '缺「插件」页签任务角标样式/元素')
-  assert.match(once1, /\/?dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
+  assert.match(once1, /\.dsh-mobile-burger\{/, '缺左上角汉堡菜单样式')
+  // 三条横线（汉堡语义）：三个 path，y 递增且等距。
+  assert.match(once1, /M4 7h16"\/><path d="M4 12h16"\/><path d="M4 17h16"/, '汉堡图标不是三条横线')
+  assert.match(once1, /className="dsh-mobile-burger"/, '缺汉堡按钮元素创建')
+  // 按钮必须够大（触控面积）且停在左上角（安全区避让）。
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*width:44px;height:44px/, '汉堡按钮触控面积不足 44×44')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*left:calc\(env\(safe-area-inset-left,0px\) \+ 8px\)/, '汉堡没有避让左侧安全区')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*top:calc\(env\(safe-area-inset-top,0px\) \+ 8px\)/, '汉堡没有避让顶部安全区（刘海）')
+  assert.match(once1, /打开侧边栏/, '汉堡没有转发原生「打开侧边栏」')
+  assert.match(once1, /aria-expanded/, '汉堡没有维护展开态语义')
   assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
 
   // —— 「哪都滑不动」回归钉（本轮核心修复）——

@@ -861,15 +861,16 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 // scrollHeight==clientHeight、maxScroll==0），整段会话定格在视口外，首条消息永远看不到。
 // 贴底只能用输入区自己的 margin-top:auto（有剩余空间才生效，不制造起点溢出）。
 // 同时锁死：窄屏收起输入区 chip（否则被 28cqw 上限挤成「余..」）；左缘浮动「抽屉把手」
-// 必须保持移除（用户实测：与底部 Tab 栏「会话」页签功能重复，还悬浮在内容上）。
-// 宿主半部同款契约在 scripts/test-mobile-relay-host.mjs 里，两半部必须一起改。
+// 必须保持移除（用户实测：与抽屉入口功能重复，还悬浮在内容上）；底部 Tab 栏必须移除
+// （用户要求：三个常驻入口太占页面空间，会话入口改为左上角汉堡菜单）。
+// 宿主半部同款契约在 scripts/test-mobile-host.mjs 里，两半部必须一起改。
 {
 	const issues = [];
 	if (/\[class\*="scrollBody"\][^{}]*\{[^}]*justify-content:\s*(?:flex-end|center)/.test(bundle)) issues.push("滚动体被设置成 flex-end/center（会让会话记录滚不动）");
 	if (!/\[class\*="scrollBody"\]\[data-conversation-scroll\]\{justify-content:flex-start !important/.test(bundle)) issues.push("会话滚动体没有显式复位成 flex-start（压不过宿主旧注入，手机刷新后仍滚不动）");
 	if (!/\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/.test(bundle)) issues.push("输入区贴底没有走 margin-top:auto");
 	if (!/\.dockchip-row\{display:none\}/.test(bundle)) issues.push("窄屏没有收起输入区 chip");
-	if (/dsh-mobile-drawer-btn/.test(bundle)) issues.push("客户端不应再有左缘浮动抽屉把手（会话入口在底部 Tab 栏「会话」）");
+	if (/dsh-mobile-drawer-btn/.test(bundle)) issues.push("客户端不应再有左缘浮动抽屉把手（会话入口在左上角汉堡菜单）");
 	if (/dsh-dock-drawer-top|dsh-dock-drawer-off/.test(bundle)) issues.push("残留了把手定位的 CSS 变量/隐藏开关");
 	if (!/\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\):not\(:has\(\[role="dialog"\]\)\) \[class\*="root"\]\[class\*="collapsed"\]\{display:none !important\}/.test(bundle)) issues.push("收起轨道没有 display:none 主隐藏（dsh 0.2.0 的 WorkspaceBrowser 自带 visibility:visible，会从列级 hidden 里透出游离按钮）");
 	if (issues.length) {
@@ -879,29 +880,43 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 手机端样式契约：滚动体不设 justify-content、贴底走 margin-top:auto、chip 窄屏收起、无浮动抽屉把手");
 }
 
-// ---------- 用例 11：手机端「插件」页签、任务角标与软键盘适配（接力体验契约） ----------
-// 远程访问的手机端要有「一眼看到公司电脑上任务」的入口：「任务」「功能坞」合并为一个
-// 「插件」页签——任务状态以角标显示在「插件」上（进行中蓝数量、等待确认红+脉冲），
-// 有任务时点「插件」直达运行状态页；软键盘弹出时 Tab 栏让位；兜底摘除残留旧 Tab 栏。
+// ---------- 用例 11：手机端左上角汉堡菜单与软键盘适配（替代原底部 Tab 栏契约） ----------
+// 用户要求：底部三个常驻入口（会话/插件/设置）太占页面空间，全部去掉，改为左上角
+// 「三条横线」折叠菜单，点击展开左侧会话抽屉。插件/设置/运行状态等入口本来就在抽屉里
+// （原生侧栏 rail），展开抽屉即可达，不在 chrome 里重复提供。
+// 本用例钉住：汉堡存在且语义正确、底部 Tab 栏与角标彻底移除、残留 Tab 兜底摘除、
+// 软键盘让位、以及「点会话才收抽屉」的点击路由。
 {
 	const issues = [];
-	if (/id: "tasks"/.test(bundle)) issues.push("残留独立的「任务」页签（应并入「插件」）");
-	if (!/id: "dock",\s*label: "(插件|\\u63D2\\u4EF6)"/.test(bundle)) issues.push("Tab 栏没有「插件」页签定义");
-	if (!/act: \(\) => \{\s*openPanel\(tasksActive > 0 \|\| tasksWaiting > 0 \? "runstate" : "home"\);?\s*\}/.test(bundle)) issues.push("「插件」页签不是无条件打开功能坞（开关式会在面板被原生页盖住时把功能坞关掉，露出原页面）");
+	// 底部 Tab 栏/角标彻底移除（唯一允许出现的 .dsh-mobile-tabbar 是「兜底摘除残留」那一句）。
+	const withoutCleanup = bundle.replace(/querySelectorAll\("\.dsh-mobile-tabbar"\)/g, "");
+	if (/dsh-mobile-tabbar/.test(withoutCleanup)) issues.push("仍残留底部 Tab 栏代码/样式（用户要求移除）");
+	if (/dsh-mobile-tab-badge/.test(withoutCleanup)) issues.push("残留页签角标元素/样式（随 Tab 栏一并移除）");
+	if (/id: "dock",\s*label: "(插件|\\u63D2\\u4EF6)"/.test(bundle)) issues.push("残留「插件」页签定义");
+	if (/id: "settings",\s*label: "(设置|\\u8BBE\\u7F6E)"/.test(bundle)) issues.push("残留「设置」页签定义");
+	if (!/querySelectorAll\("\.dsh-mobile-tabbar"\)/.test(bundle)) issues.push("Overlay 没有兜底摘除残留旧 Tab 栏（宿主旧注入会在页面里留一份）");
+	// 左上角汉堡菜单：存在、够大、贴左上安全区、三条横线、能展开抽屉。
+	if (!/\.dsh-mobile-burger\{/.test(bundle)) issues.push("缺少左上角汉堡菜单样式");
+	// ⚠️ 产物里中文会被转义成 \\uXXXX，且 className 是赋值而非 createElement 属性。
+	if (!/className = "dsh-mobile-burger"/.test(bundle)) issues.push("缺少汉堡按钮元素创建");
+	if (!/M4 7h16"\/><path d="M4 12h16"\/><path d="M4 17h16"/.test(bundle)) issues.push("汉堡图标不是三条横线");
+	if (!/\.dsh-mobile-burger\{[^}]*width:44px;height:44px/.test(bundle)) issues.push("汉堡按钮触控面积不足 44×44");
+	if (!/\.dsh-mobile-burger\{[^}]*left:calc\(env\(safe-area-inset-left,0px\) \+ 8px\)/.test(bundle)) issues.push("汉堡没有避让左侧安全区");
+	if (!/\.dsh-mobile-burger\{[^}]*top:calc\(env\(safe-area-inset-top,0px\) \+ 8px\)/.test(bundle)) issues.push("汉堡没有避让顶部安全区（刘海）");
+	if (!/aria-label", "\\u6253\\u5F00\\u4F1A\\u8BDD\\u5217\\u8868"/.test(bundle) && !/aria-label", "打开会话列表"/.test(bundle)) issues.push("汉堡没有无障碍标签");
+	if (!/aria-expanded/.test(bundle)) issues.push("汉堡没有维护展开态语义");
+	if (!/\\u6253\\u5F00\\u4FA7\\u8FB9\\u680F/.test(bundle) && !/打开侧边栏/.test(bundle)) issues.push("汉堡没有转发原生「打开侧边栏」（点它展不开抽屉）");
+	// 其余既有契约保持。
 	if (!/\[class\*="dockm-backdrop"\]\{z-index:2000 !important\}/.test(bundle)) issues.push("手机端没有把功能坞面板抬到原生弹层之上（z 2000）");
-	if (!/\/?dsh-dock\/runstate\/status/.test(bundle)) issues.push("「插件」页签角标没有轮询 runstate 路由");
-	if (!/dsh-mobile-tab-badge/.test(bundle)) issues.push("缺少页签角标元素/样式");
-	if (!/dsh-mobile-tab-badge wait/.test(bundle)) issues.push("角标缺少等待确认（红色脉冲）态");
-	if (!/querySelectorAll\("\.dsh-mobile-tabbar"\)/.test(bundle)) issues.push("Overlay 没有兜底摘除残留旧 Tab 栏");
 	if (!/dsh-dock-kbd/.test(bundle)) issues.push("缺少软键盘让位（dsh-dock-kbd）");
 	if (!/visualViewport/.test(bundle)) issues.push("软键盘判定没有用 visualViewport");
 	if (!/querySelector\('\[role="dialog"\]'\)\)\s*collapse\(\)/.test(bundle)) issues.push("侧栏入口点击后没有「面板弹出即收起抽屉」的探测（面板被抽屉盖住等于点了没反应）");
 	if (!/startsWith\(["']session:["']\)/.test(bundle)) issues.push("会话行识别没有按 data-row-key 的 session: 前缀（点工作区文件夹会被误收抽屉）");
 	if (issues.length) {
-		console.log(`✗ 手机端任务页签契约：${issues.join("；")}`);
+		console.log(`✗ 手机端汉堡菜单契约：${issues.join("；")}`);
 		process.exit(1);
 	}
-	console.log("✓ 手机端任务页签契约：任务/功能坞并入「插件」、等待确认角标红色脉冲、兜底摘除残留 Tab 栏、软键盘让位");
+	console.log("✓ 手机端汉堡菜单契约：底部 Tab 栏与角标已移除、左上角三条横线汉堡展开抽屉、软键盘让位、点击路由不变");
 }
 
 // ---------- 用例 12：客户端 fetch 一律用文档相对路径（反代子路径挂载契约） ----------

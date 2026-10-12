@@ -12110,103 +12110,19 @@ function mobileChrome() {
   scrim.className = "dsh-mobile-scrim";
   document.body.appendChild(scrim);
   document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
-  const tabbar = document.createElement("nav");
-  tabbar.className = "dsh-mobile-tabbar";
-  tabbar.setAttribute("aria-label", "\u5E95\u90E8\u5BFC\u822A");
-  let tasksActive = 0;
-  let tasksWaiting = 0;
-  const tabDefs = [
-    {
-      id: "sessions",
-      label: "\u4F1A\u8BDD",
-      icon: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>',
-      act: () => expand()
-    },
-    {
-      id: "dock",
-      label: "\u63D2\u4EF6",
-      icon: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
-      act: () => {
-        openPanel(tasksActive > 0 || tasksWaiting > 0 ? "runstate" : "home");
-      }
-    },
-    {
-      id: "settings",
-      label: "\u8BBE\u7F6E",
-      icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>',
-      act: () => {
-        const b = [...document.querySelectorAll("button")].find((x) => {
-          const a = x.getAttribute("aria-label") || "";
-          return a === "\u8BBE\u7F6E" || a === "Settings" || (x.textContent || "").trim() === "\u8BBE\u7F6E";
-        });
-        if (b) b.click();
-      }
-    }
-  ];
-  let tasksBadge = null;
-  const tabButtons = tabDefs.map((def) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "dsh-mobile-tab";
-    b.dataset.tab = def.id;
-    b.innerHTML = def.icon + "<span>" + def.label + "</span>";
-    b.addEventListener("click", () => def.act());
-    if (def.id === "dock") {
-      tasksBadge = document.createElement("span");
-      tasksBadge.className = "dsh-mobile-tab-badge";
-      tasksBadge.style.display = "none";
-      b.appendChild(tasksBadge);
-    }
-    tabbar.appendChild(b);
-    return b;
-  });
-  document.body.appendChild(tabbar);
-  const syncTabs = () => {
+  const burger = document.createElement("button");
+  burger.type = "button";
+  burger.className = "dsh-mobile-burger";
+  burger.setAttribute("aria-label", "\u6253\u5F00\u4F1A\u8BDD\u5217\u8868");
+  burger.setAttribute("aria-expanded", "false");
+  burger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>';
+  burger.addEventListener("click", () => expand());
+  document.body.appendChild(burger);
+  const syncBurger = () => {
     const expanded = !sidebarCollapsed();
-    const settingsOpen = dialogOpen();
-    for (const b of tabButtons) {
-      const id = b.dataset.tab;
-      const on = id === "sessions" && expanded || id === "dock" && panelNav.open || id === "settings" && settingsOpen;
-      b.classList.toggle("on", on);
-    }
+    burger.setAttribute("aria-expanded", expanded ? "true" : "false");
+    burger.classList.toggle("on", expanded);
   };
-  const unsubPanel = subscribePanel(syncTabs);
-  let runstateGone = false;
-  const pollTasks = () => {
-    if (runstateGone || !tasksBadge || !narrow() || document.visibilityState === "hidden" || !tabbar.isConnected) return;
-    fetch("dsh-dock/runstate/status", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}"
-    }).then(async (res) => {
-      if (res.status === 404 || res.status === 405) {
-        runstateGone = true;
-        tasksActive = 0;
-        tasksWaiting = 0;
-        tasksBadge.style.display = "none";
-        return null;
-      }
-      const body = await res.json().catch(() => null);
-      if (!body) return null;
-      const active = body.data && body.data.active || [];
-      const waiting = active.filter((t) => t.approvals && t.approvals.length).length;
-      tasksActive = active.length;
-      tasksWaiting = waiting;
-      if (waiting > 0) {
-        tasksBadge.textContent = String(waiting);
-        tasksBadge.className = "dsh-mobile-tab-badge wait";
-        tasksBadge.style.display = "";
-      } else if (active.length > 0) {
-        tasksBadge.textContent = String(active.length);
-        tasksBadge.className = "dsh-mobile-tab-badge";
-        tasksBadge.style.display = "";
-      } else {
-        tasksBadge.style.display = "none";
-      }
-    }).catch(() => {
-    });
-  };
-  const tasksTimer = setInterval(pollTasks, 3e3);
   const vv = window.visualViewport || null;
   const kbdSync = () => {
     if (!vv) return;
@@ -12215,18 +12131,15 @@ function mobileChrome() {
   };
   const sync = () => {
     kbdSync();
-    document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => {
-      if (el !== tabbar) el.remove();
-    });
+    document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
     const on = narrow() && !!frameEl() && !dialogOpen();
     const collapsed = sidebarCollapsed();
     const right = rightOpen();
     if (scrim) scrim.style.display = on && !collapsed ? "" : "none";
-    tabbar.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? "" : "none";
-    syncTabs();
+    burger.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? "" : "none";
+    syncBurger();
   };
   sync();
-  pollTasks();
   const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(sync) : null;
   if (observer) observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed"], subtree: true });
   const timer = setInterval(sync, 1500);
@@ -12235,15 +12148,11 @@ function mobileChrome() {
   else if (mq.addListener) mq.addListener(onMq);
   window.addEventListener("resize", kbdSync);
   if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
-  const onVisible = () => {
-    if (document.visibilityState === "visible") pollTasks();
-  };
-  document.addEventListener("visibilitychange", onVisible);
   const onClick = (e) => {
     if (!narrow()) return;
     const t = e.target;
     if (!t || !t.closest) return;
-    if (t.closest(".dsh-mobile-tabbar")) return;
+    if (t.closest(".dsh-mobile-burger")) return;
     const expanded = !!document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
     const col = document.querySelector('[class*="sidebarCol"]');
     const inSidebar = col && col.contains(t);
@@ -12274,16 +12183,13 @@ function mobileChrome() {
     document.removeEventListener("click", onClick, true);
     if (observer) observer.disconnect();
     clearInterval(timer);
-    clearInterval(tasksTimer);
-    unsubPanel();
     if (mq.removeEventListener) mq.removeEventListener("change", onMq);
     else if (mq.removeListener) mq.removeListener(onMq);
     window.removeEventListener("resize", kbdSync);
     if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
-    document.removeEventListener("visibilitychange", onVisible);
     document.documentElement.classList.remove("dsh-dock-kbd");
     if (scrim) scrim.remove();
-    tabbar.remove();
+    burger.remove();
     if (window.__dshDockMobileDrawer === "client") delete window.__dshDockMobileDrawer;
   };
 }
@@ -12352,7 +12258,7 @@ function MobileView() {
       import_react22.default.createElement(
         "span",
         { className: "dkmob-dim" },
-        "\u5E95\u90E8 Tab \u680F\uFF08\u4F1A\u8BDD / \u63D2\u4EF6 / \u8BBE\u7F6E\uFF09+ \u4FA7\u680F\u62BD\u5C49\u906E\u7F69 + \u8F6F\u952E\u76D8\u8BA9\u4F4D\uFF1B\u4F1A\u8BDD\u5165\u53E3\u5728\u5E95\u90E8\u300C\u4F1A\u8BDD\u300D\u9875\u7B7E\uFF0C\u4E0D\u8BBE\u5DE6\u7F18\u6D6E\u52A8\u6309\u94AE\u3002",
+        "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\uFF08\u5C55\u5F00\u5DE6\u4FA7\u4F1A\u8BDD\u62BD\u5C49\uFF09+ \u4FA7\u680F\u62BD\u5C49\u906E\u7F69 + \u8F6F\u952E\u76D8\u8BA9\u4F4D\uFF1B\u5E95\u90E8 Tab \u680F\u5DF2\u6309\u7528\u6237\u8981\u6C42\u79FB\u9664\uFF0C\u63D2\u4EF6/\u8BBE\u7F6E\u7B49\u5165\u53E3\u5728\u62BD\u5C49\u91CC\u3002",
         owner === "host" ? "\u5F53\u524D\u7531\u5BBF\u4E3B\u6CE8\u5165\u7248\u9A71\u52A8\uFF08\u91CD\u542F dsh web \u540E\u751F\u6548\u7684\u90A3\u5957\uFF09\u3002" : owner === "client" ? "\u5F53\u524D\u7531\u5BA2\u6237\u7AEF\u81EA\u5EFA\u7248\u9A71\u52A8\uFF08\u5237\u65B0\u5373\u751F\u6548\uFF09\u3002" : ""
       )
     ),
@@ -12369,7 +12275,7 @@ function MobileView() {
 function MobileStat() {
   const { active, chrome } = useMobileState();
   if (!active) return import_react22.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
-  return import_react22.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5E95\u90E8 Tab \u680F\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
+  return import_react22.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
 }
 var css6 = [
   // 输入类控件 16px：防 iOS 聚焦自动放大（<16px 的输入框聚焦时 Safari 强制缩放页面）
@@ -12378,7 +12284,7 @@ var css6 = [
   'body[data-dk-mobile="1"] :is(button, [role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
   // 纯图标按钮面积兜底：实测窄屏下一批 28×28 的工具钮很难点中；36px 是不引起行高剧变的上限。
   // 只收「唯一子元素是 svg」的按钮，避免撑坏带文字的行内控件；排除本模块 chrome 按钮。
-  'body[data-dk-mobile="1"] button:has(> svg:only-child):not(.dsh-mobile-tab){min-width:36px;min-height:36px;}',
+  'body[data-dk-mobile="1"] button:has(> svg:only-child):not(.dsh-mobile-burger){min-width:36px;min-height:36px;}',
   // 代码块横向滚动、行内代码换行：窄屏不撑破版面
   'body[data-dk-mobile="1"] pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}',
   'body[data-dk-mobile="1"] code{overflow-wrap:anywhere;}',
@@ -12395,19 +12301,16 @@ var css6 = [
   ".dkmob-state.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
   ".dkmob-dim{color:var(--dsw-alias-label-secondary);font-size:12px;}",
   ".dkmob-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
-  // 手机端 chrome：底部 Tab 栏 + 抽屉遮罩（窄屏 ≤700px；与宿主半部同款）
+  // 手机端 chrome：左上角汉堡菜单 + 抽屉遮罩（窄屏 ≤700px；与宿主半部同款）
   "@media (max-width:700px){",
   ".dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}",
-  ".dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:65;display:flex;align-items:stretch;justify-content:space-around;padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));touch-action:manipulation}",
-  ".dsh-mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;padding:4px 0;border:0;background:transparent;color:var(--dsw-alias-label-tertiary,#8b95ab);font:600 11px/1.2 inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;border-radius:10px;position:relative}",
-  ".dsh-mobile-tab svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}",
-  ".dsh-mobile-tab.on{color:var(--dsw-alias-label-primary,#e6eaf2)}",
-  ".dsh-mobile-tab.on svg{color:var(--dk-accent,#4d9fff)}",
-  ".dsh-mobile-tab:active{transform:scale(.94)}",
-  ".dsh-mobile-tab-badge{position:absolute;top:0;right:calc(50% - 26px);box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:#4d9fff;color:#fff;font-size:10px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none}",
-  ".dsh-mobile-tab-badge.wait{background:#ef4444;animation:dsh-badge-pulse 1.2s ease-in-out infinite}",
-  "@keyframes dsh-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}",
-  "@media (prefers-reduced-motion:reduce){.dsh-mobile-tab-badge.wait{animation:none}}",
+  // 左上角汉堡菜单（三条横线）：44×44 触控面积，避开刘海/圆角安全区；z 66 高于正文、
+  // 低于遮罩 75 / 抽屉 80——抽屉展开时被自然盖住。半透明底 + 模糊：它悬浮在会话内容之上，
+  // 无底会被正文「透」成模糊块。
+  ".dsh-mobile-burger{position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;box-shadow:0 2px 10px rgba(0,0,0,.28)}",
+  ".dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}",
+  ".dsh-mobile-burger.on{color:var(--dk-accent,#4d9fff)}",
+  ".dsh-mobile-burger:active{transform:scale(.94)}",
   // ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
   // 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
   // （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden
@@ -12415,19 +12318,21 @@ var css6 = [
   // 都不动。补 min-height:0 后 scrollTop 0 → 425。宿主半部 MOBILE_LAYOUT_CSS 同款；
   // 两处都写是因为宿主注入要重启 dsh web 才更新，而客户端样式刷新即生效，覆盖窗口期。
   '[role="dialog"][class*="panel"]>[class*="content"]{min-height:0!important}',
-  // 输入区吸附到 Tab 栏上方 + 滚动体留白（与宿主半部同款）。
+  // 输入区吸附到视口底部 + 滚动体留白（与宿主半部同款）。
+  // 底部 Tab 栏已移除，这里的留白是给「输入区贴底 + 安全区」用的呼吸位（原 72px 是
+  // Tab 栏高度 + 安全区，现收窄到 24px：没有常驻 Tab 栏后 72px 会白占一大条）。
   // ⚠️ 绝不能给滚动体加 justify-content:flex-end/center 贴底：内容会被挤到滚动体
   // 起点之外，Chrome 不把起点方向溢出算进 scrollHeight（手机视口实测
   // scrollHeight==clientHeight、maxScroll==0），会话记录彻底滚不动、首条消息永远看不到。
   // 宿主半部旧版注入里还留着那条 flex-end（要重启 dsh web 才消失），这里用更高优先级
   // 的选择器显式复位：刷新页面即修好，不必等重启。
-  '[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}',
-  'html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)) !important}',
+  '[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px)) !important}',
+  'html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px)) !important}',
   'html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}',
   '[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}',
   // 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
   // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
-  // 底部「插件」里看（用量/余额页信息更全）；桌面端不动。
+  // 功能坞（抽屉里进）看；桌面端不动。
   ".dockchip-row{display:none}",
   '[class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
   // ⚠️ 列级 visibility:hidden 在 dsh 0.2.0 上挡不住：工作区浏览器给自己的
@@ -12442,9 +12347,9 @@ var css6 = [
   // 设置/插件管理弹层挂在侧栏列内部：上面隐藏整列会把它连坐隐藏（空气弹层）。
   // visibility 可被后代覆盖，弹层关闭态整体卸载，所以只在真正打开时命中。
   '[class*="sidebarCol"]:has([class*="collapsed"]) [role="dialog"]{visibility:visible}',
-  "html.dsh-dock-kbd .dsh-mobile-tabbar{display:none !important}",
-  // 功能坞面板在手机端抬到原生弹层之上：从侧栏进的官方插件管理页等原生弹层 z 序高于
-  // 面板默认的 200，功能坞开在下面会被盖住——「插件」页签点了像没反应/露出原页面。
+  "html.dsh-dock-kbd .dsh-mobile-burger{display:none !important}",
+  // 功能坞面板在手机端抬到原生弹层之上：从抽屉进的官方插件管理页等原生弹层 z 序高于
+  // 面板默认的 200，功能坞开在下面会被盖住。抽屉展开时从侧栏 rail 点功能坞图标进入。
   '[class*="dockm-backdrop"]{z-index:2000 !important}',
   "}"
 ].join("\n");
@@ -12453,7 +12358,7 @@ var feature11 = {
   name: "\u624B\u673A\u9002\u914D",
   order: 170,
   accent: "#34d399",
-  description: "\u624B\u673A/\u7A84\u5C4F\u6392\u7248\u4E0E\u89E6\u63A7\u515C\u5E95\uFF1A\u5E95\u90E8 Tab \u680F + \u4FA7\u680F\u62BD\u5C49\u300116px \u8F93\u5165\u9632 iOS \u7F29\u653E\u3001\u56FE\u6807\u6309\u94AE\u89E6\u63A7\u9762\u79EF\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u6EDA\u52A8\u515C\u5E95",
+  description: "\u624B\u673A/\u7A84\u5C4F\u6392\u7248\u4E0E\u89E6\u63A7\u515C\u5E95\uFF1A\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355 + \u4FA7\u680F\u62BD\u5C49\u300116px \u8F93\u5165\u9632 iOS \u7F29\u653E\u3001\u56FE\u6807\u6309\u94AE\u89E6\u63A7\u9762\u79EF\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u6EDA\u52A8\u515C\u5E95",
   defaultEnabled: true,
   css: css6,
   Overlay: MobileOverlay,
