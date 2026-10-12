@@ -2,7 +2,7 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## 未发布
+## v0.15.0 — 2026-10-12
 
 ### 变更
 
@@ -48,6 +48,9 @@
     注册路由时置位、停用时摘除，与 `__dshDockMobileDrawer` 同风格）；
     即便如此仍收到 404/405（宿主旧版等）则置 `runstateGone` 闩锁静默停轮询。
     真实实例（该功能停用）实测：控制台不再出现 405。
+
+### 修复
+
 - **修复【用量记录】chip 在宿主停用该功能时无限轮询 405**（真实实例实测：chip 每 10s
   打一次 `POST /dsh-dock/tokenlog/query`，宿主没注册该路由就连续 405 刷控制台，
   直到页面关闭；根因是客户端认为功能开着——多设备开关/localStorage 与宿主 settings
