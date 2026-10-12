@@ -1717,3 +1717,68 @@ EasyTier 组网从外网访问）提出：手机端排版/交互要适配，且�
 - 宿主半部改动：升级 dsh-dock 后**重启 dsh web**；纯客户端改动刷新即生效。
 - 公司部署（`~/.dsh-web-company`，npm 拷贝安装）需把新版 dsh-dock 装进去再重启；
   开发机 `~/.dsh` link 安装自动跟随仓库。
+
+## 十七、续作会话（2026-10-12）· 手机端底部 Tab 栏 → 左上角汉堡菜单
+
+### 需求
+
+用户：「看下【手机适配】把底部的三个菜单入口去掉，因为太占用页面空间了，在左上角加三个横线那种
+折叠菜单，点击展开左侧会话。」
+
+### 决策与改动
+
+- **底部 Tab 栏整体移除**（会话 / 插件 / 设置三入口 + 「插件」页签运行状态角标 + runstate
+  3s 低频轮询）。理由：常驻占掉视口底部 `~48px + env(safe-area-inset-bottom)`，390×844 上
+  约 8% 纵向空间；且「会话」页签与抽屉本身语义重复。角标能力随栏一并去掉——任务/运行状态
+  入口在抽屉里进功能坞，不必在 chrome 里重复提供。
+- **新增左上角「三条横线」汉堡菜单** `.dsh-mobile-burger`：44×44 触控面积、
+  `left/top: calc(env(safe-area-inset-*) + 8px)` 避让刘海与圆角、z 66（低于遮罩 75 /
+  抽屉 80 / overlayLayer 90 / 功能坞面板 200，这些浮层打开时自然盖住它）、
+  半透明底 + backdrop-blur（它是悬浮在会话内容上的，无底会把正文透成模糊块）。
+  点击转发原生「打开侧边栏」按钮（与旧「会话」页签完全同一条链路，`expand()`）。
+  抽屉展开时 `aria-expanded="true"` + `.on` 高亮。
+- **滚动体底部留白 72px → 24px + 安全区**：原 72px 是「Tab 栏高度 + 安全区」，Tab 栏没了
+  之后 72px 会白占一大条。软键盘弹出时改为隐藏汉堡（原来隐藏 Tab 栏）。
+- **两半部同步改**（这是本模块最容易出事的地方——历史上出现过宿主注入版 + 客户端自建版
+  各建一套导致双 Tab 栏）：
+  - `features/mobile/view.js`（客户端，刷新即生效）；
+  - `features/mobile/host.js`（宿主 `tapIndex` 注入，**需重启 `dsh web`**）。
+  - 构建产物 `client.js` 里仍保留一句 `querySelectorAll(".dsh-mobile-tabbar")` 兜底摘除，
+    用来清掉宿主**旧注入**在页面里留下的历史 Tab 栏（刷新早于重启的窗口期）。
+- **契约测试同步改造**：
+  - `scripts/test-mobile-host.mjs`：Tab 栏断言 → 汉堡断言（`.dsh-mobile-burger` 样式存在、
+    三条横线 path、`className="dsh-mobile-burger"`、44×44、左/上安全区、`aria-expanded`、
+    转发「打开侧边栏」），并新增 `doesNotMatch` 钉死 `.dsh-mobile-tabbar{`、`.dsh-mobile-tab{`、
+    `dsh-mobile-tab-badge`、`TAB_DEFS` 必须为零。
+  - `scripts/test-client-views.mjs` 用例 10/11：用例 11 从「插件页签契约」改为
+    「汉堡契约」，先剥掉唯一的兜底摘除语句再断言 `dsh-mobile-tabbar` 不得出现。
+
+### 踩坑（写给下一次改这个模块的人）
+
+- **产物里中文会被转义成 `\uXXXX`**，且 `className` 是赋值而非 `createElement` 属性。
+  客户端契约测试跑在**构建产物**上，写断言时必须迁就产物形态（本次先用
+  `/className: "dsh-mobile-burger"/` 断言失败，实际产物是 `className = "dsh-mobile-burger"`）。
+  中文断言一律写成「`\uXXXX` 或原文」双匹配，避免依赖 esbuild 的转义策略。
+- **夹具页里别把原生侧栏开关放在左上角**：它和汉堡同坐标会拦截点击，Playwright 会一路
+  retry 到超时。真实 dsh 里该按钮位于侧栏窄轨内（收起时整列 display:none），夹具放到别处即可。
+
+### 验证
+
+- `npm run build:client`（779KB → 774KB，Tab 栏代码移除）+ `npm run test:client`（用例 10/11
+  改造后全绿）+ `npm run test:host`（7 套全绿）。
+- **Playwright + 缓存 Chromium 真实页面结构化验证 20/20 通过**（`/tmp/dsh-mobile/verify.mjs`，
+  复刻 dsh 窄屏骨架的夹具 + 真实注入两半部 chrome）：
+  - A 宿主版 390×844：`.dsh-mobile-tabbar`/`.dsh-mobile-tab`/`.dsh-mobile-tab-badge` 三者
+    计数均为 0、Tab 栏 CSS 已不在样式表里；汉堡 1 个、`x=8 y=8`、`44×44`、3 条 path、
+    `__dshDockMobileDrawer==='host'`；点汉堡 → 抽屉展开（`collapsed=false`、侧栏宽 320px、
+    遮罩 `display:block`、`aria-expanded=true`）；点会话行 → 收起；点工作区文件夹 → **不收**；
+    点抽屉外 → 收起；无页面异常。
+  - B 桌面 1440×900：汉堡 `display:none`（`@media (max-width:700px)` 之外不生效）。
+  - C 客户端产物：`client.js` 经 `__ModuleLoader__.load` 正常注册为 `dsh-dock`、无异常。
+  - 截图：`/tmp/dsh-mobile/host-closed.png`（左上角三条横线、底部干净无栏）、
+    `host-drawer-open.png`（抽屉展开盖住左侧 + 遮罩）。
+
+### 部署
+
+- 客户端半部已 build，刷新页面即生效。
+- 宿主半部改动**需重启 `dsh web`**；重启前页面里若残留旧 Tab 栏，由客户端那句兜底摘除清掉。
