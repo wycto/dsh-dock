@@ -93,6 +93,15 @@ try {
   assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]/, '滚动体留白没有区分键盘弹出态')
   assert.match(once1, /html\.dsh-dock-kbd \[class\*="scrollBody"\]/, '缺键盘弹出态的收窄留白规则')
 
+  // —— 底部留白只留安全区（用户要求：少留一点，多给会话区显示内容）——
+  // 底部 Tab 栏移除后，滚动体内边距与输入区内边距都成了纯浪费。真实实例 390×844
+  // 像素扫描实测：卡片下方空白带 51px，其中 30px 是这两条（24+6），收掉后降到 21px
+  // （剩下的 21px 是 dsh 自带的卡片下边距，保留作呼吸感）。钉死，别再把硬留白加回来。
+  assert.doesNotMatch(once1, /padding-bottom:calc\(\d+px \+ env\(safe-area-inset-bottom/, '滚动体底部不得有硬留白（Tab 栏时代的遗留，会白占会话区）')
+  // 宿主半部没有 data-conversation-scroll 复位规则（那条只存在于客户端半部），此处按本半部实际声明断言。
+  assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]\{padding-bottom:env\(safe-area-inset-bottom,0px\)!important\}/, '滚动体底部留白应只剩安全区')
+  assert.match(once1, /\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto;padding-bottom:0\}/, '输入区不应再自带底部内边距')
+
   // —— 输入区 chip 窄屏收起（28cqw 上限挤成「余..」）——
   assert.match(once1, /\.dockchip-row\{display:none\}/)
 
