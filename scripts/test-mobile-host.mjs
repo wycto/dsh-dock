@@ -58,10 +58,16 @@ try {
   // 三条横线（汉堡语义）：三个 path，y 递增且等距。
   assert.match(once1, /M4 7h16"\/><path d="M4 12h16"\/><path d="M4 17h16"/, '汉堡图标不是三条横线')
   assert.match(once1, /className="dsh-mobile-burger"/, '缺汉堡按钮元素创建')
-  // 按钮必须够大（触控面积）且停在左上角（安全区避让）。
+  // 按钮必须够大（触控面积）且**贴**左上角（安全区避让，但不再额外内缩 8px）。
   assert.match(once1, /\.dsh-mobile-burger\{[^}]*width:44px;height:44px/, '汉堡按钮触控面积不足 44×44')
-  assert.match(once1, /\.dsh-mobile-burger\{[^}]*left:calc\(env\(safe-area-inset-left,0px\) \+ 8px\)/, '汉堡没有避让左侧安全区')
-  assert.match(once1, /\.dsh-mobile-burger\{[^}]*top:calc\(env\(safe-area-inset-top,0px\) \+ 8px\)/, '汉堡没有避让顶部安全区（刘海）')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*left:env\(safe-area-inset-left,0px\)/, '汉堡没有避让左侧安全区')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*top:env\(safe-area-inset-top,0px\)/, '汉堡没有避让顶部安全区（刘海）')
+  // ⚠️ 视觉契约：页面左上角本来是空的，原生同类控件是**裸图标**。汉堡不得做成
+  // 白底圆角卡片 + 阴影 + 模糊（用户实测反馈「没有贴合边缘，很突兀」）。
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*background:transparent/, '汉堡不得有底色卡片（用户要求贴合原生裸图标，不悬浮）')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*border:0/, '汉堡不得有边框')
+  assert.doesNotMatch(once1, /\.dsh-mobile-burger\{[^}]*box-shadow/, '汉堡不得有投影（会显得像悬浮异物）')
+  assert.doesNotMatch(once1, /\.dsh-mobile-burger\{[^}]*backdrop-filter/, '汉堡不得有毛玻璃底')
   assert.match(once1, /打开侧边栏/, '汉堡没有转发原生「打开侧边栏」')
   assert.match(once1, /aria-expanded/, '汉堡没有维护展开态语义')
   assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')

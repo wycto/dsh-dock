@@ -62,11 +62,15 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}',
   // ── 左上角汉堡菜单（三条横线，44×44 触控面积，避让刘海/圆角安全区）。
   //    z 序 66：高于正文，低于遮罩 75 / 抽屉 80 / overlayLayer 90 / 功能坞面板 200，
-  //    这些浮层打开时自然盖住汉堡。半透明底 + 模糊：它悬浮在会话内容之上。
-  '  .dsh-mobile-burger{position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;box-shadow:0 2px 10px rgba(0,0,0,.28)}',
-  '  .dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}',
+  //    这些浮层打开时自然盖住汉堡。
+  //    ⚠️ 视觉上刻意「不贴合卡片」：页面左上角本来就是空的，原生同类控件（右上的侧栏开关）
+  //    是**裸图标**——无底色、无边框、无阴影。早期版本做成白底圆角卡片 + 阴影 + 模糊，
+  //    悬浮在白底页面上像一块贴上去的异物（用户实测反馈「没有贴合边缘，很突兀」）。
+  //    现在与原生同款：透明底、无边框无阴影，只留图标；点按才给极轻的底色反馈。
+  '  .dsh-mobile-burger{position:fixed;left:env(safe-area-inset-left,0px);top:env(safe-area-inset-top,0px);z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:0;background:transparent;color:var(--dsw-alias-label-primary,#e6eaf2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:color .15s ease}',
+  '  .dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}',
   '  .dsh-mobile-burger.on{color:#4d9fff}',
-  '  .dsh-mobile-burger:active{transform:scale(.94)}',
+  '  .dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent)}',
   // ── 输入区吸附到视口底部：欢迎内容原生是 justify-content:center 垂直居中，
   //    手机视口下输入卡片悬在中部、下方留出大片空白。改用「输入区 margin-top:auto」贴底。
   //    底部 Tab 栏已移除，滚动体留白从 72px（Tab 栏高度 + 安全区）收窄到 24px——
