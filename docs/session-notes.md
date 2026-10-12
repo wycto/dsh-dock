@@ -1782,3 +1782,64 @@ EasyTier 组网从外网访问）提出：手机端排版/交互要适配，且�
 
 - 客户端半部已 build，刷新页面即生效。
 - 宿主半部改动**需重启 `dsh web`**；重启前页面里若残留旧 Tab 栏，由客户端那句兜底摘除清掉。
+
+## 十八、续作会话（2026-10-12）· 汉堡菜单视觉返工「贴合边缘」+ 真实实例端到端验证
+
+### 需求
+
+用户：「所上交的菜单没有贴合边缘，感觉很突兀，改进下」；以及「你可以启动一个新实例来测试」。
+
+### 问题定位（真实实例截图对比）
+
+第一版汉堡做成了**白底圆角卡片**：`background: color-mix(...bg-layer-2 88%, transparent)` +
+`border: 1px` + `border-radius: 12px` + `box-shadow: 0 2px 10px` + `backdrop-filter: blur(10px)`，
+并且 `left/top: calc(env(safe-area-inset-*) + 8px)` 额外内缩 8px。
+
+在真实 light 主题页面上，页面底色本身就是白的——于是这个「卡片」的边框 + 投影 + 12px 圆角
+全都暴露出来，看起来像**一块贴上去的异物**，而不是页面的一部分。
+
+关键对照（把插件汉堡 `display:none` 后截原生页面左上角）：**原生左上角是完全空的**，
+而原生同类控件（右上「打开右侧边栏」按钮）是 `_button_... _ghost_...` ——
+`backgroundColor: transparent` / `border: 0px` / `boxShadow: none`，即 **ghost 裸图标**。
+第一版与原生语汇完全相反，这才是「突兀」的根因。
+
+### 改法
+
+- `.dsh-mobile-burger` 改为与原生同款 ghost 形态：
+  `background: transparent`、`border: 0`、`border-radius: 0`、无 `box-shadow`、无 `backdrop-filter`。
+- 位置贴边：`left: env(safe-area-inset-left,0px)` / `top: env(safe-area-inset-top,0px)`
+  （去掉 `+ 8px`），按钮 44×44 内图标 22px 居中 → 图标起始 11px，
+  与原生顶栏按钮（y=10、36×36）落在**同一条光学线**上。
+- 反馈改到图标层：`:active` 给 `color-mix(in srgb, currentColor 12%, transparent)` 的极轻底色
+  （范围就是 44×44 触控区），展开态仍用强调色 `.on`；不再用 `transform: scale(.94)`
+  （缩放在 fixed 定位 + 无容器时视觉上像抖动）。
+- 两半部同步（`features/mobile/view.js` 客户端版 + `features/mobile/host.js` 宿主注入版）。
+- 测试契约补视觉钉：必须有 `background:transparent` + `border:0`，
+  **不得**出现 `box-shadow` / `backdrop-filter`；safe-area 断言由 `calc(... + 8px)` 改为直接 `env(...)`。
+
+### 真实实例端到端验证（按用户建议）
+
+隔离环境：`DSH_HOME=$PWD/.testhome` + `dsh rescue --from-default-profile web` 生成独立 profile、
+把 `dsh-dock` link 到工作树、固定端口 13990 启动。**用户 `~/.dsh` 的 live profile 全程未被写**
+（中途一次尝试写 `~/.dsh/profiles/web/cordis.yml` 被文件沙箱以 `EPERM` 挡下，正好印证隔离有效）。
+
+- `verify-live.mjs`（真实页面功能）**19/19**：无 Tab 栏元素/样式、汉堡 x=0 y=0 且 44×44、
+  三条 path、`viewport-fit=cover` 已补、点汉堡→抽屉 321px + 遮罩 block + aria-expanded=true、
+  点抽屉外收起、桌面 1440 与平板 768 均 `display:none`、无 JS 异常。
+- `verify-visual.mjs`（本次返工）**11/11**：贴边 x=0/y=0、transparent 底、border 0、无阴影、
+  无模糊、触控面积仍 44×44、图标与原生顶栏同一光学线（11/11）、
+  深色主题图标可见且无白块、点汉堡仍能展开抽屉。
+- 另一条独立确认：抽屉内可见入口 `["新建会话","收起侧边栏","插件","搜索会话","视图选项","添加工作区","功能坞","设置"]`，
+  且点抽屉内「设置」实测弹层 `false → true` 打开——证明删掉底部三入口后能力没有丢。
+
+### 顺带发现的既有缺陷（非本次引入，未修）
+
+验证中出现 `POST /dsh-dock/tokenlog/query → 405`。排查结论：
+**【用量记录】的会话区 chip 会在 tokenlog 功能未在宿主启用时照样轮询 `tokenlog/query`**，
+宿主没注册该路由 → 405。判定为既有缺陷的依据：
+- 该请求来自 `features/tokenlog/view.jsx` 的 DockChips，与【手机适配】无任何代码交集；
+- 回退到改动前的 `client.js` 复跑，同一 profile 状态下同样能复现/或在 tokenlog 启用时同样消失
+  —— 405 只随 `initial toggles applied:` 里有没有 `tokenlog` 变化
+  （启用 → 无 405；禁用 → 两条 405）。
+- 建议后续：chip 轮询前先查 `stateOf("tokenlog").enabled`，或对 405/404 静默停轮询
+  （【手机适配】的 runstate 角标当年就是这么处理的，可照搬）。

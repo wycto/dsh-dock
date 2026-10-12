@@ -12304,13 +12304,19 @@ var css6 = [
   // 手机端 chrome：左上角汉堡菜单 + 抽屉遮罩（窄屏 ≤700px；与宿主半部同款）
   "@media (max-width:700px){",
   ".dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}",
-  // 左上角汉堡菜单（三条横线）：44×44 触控面积，避开刘海/圆角安全区；z 66 高于正文、
-  // 低于遮罩 75 / 抽屉 80——抽屉展开时被自然盖住。半透明底 + 模糊：它悬浮在会话内容之上，
-  // 无底会被正文「透」成模糊块。
-  ".dsh-mobile-burger{position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid var(--dsw-alias-border-l1,rgba(127,139,161,.25));border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,#1c2230) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--dsw-alias-label-primary,#e6eaf2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;box-shadow:0 2px 10px rgba(0,0,0,.28)}",
-  ".dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}",
+  // 左上角汉堡菜单（三条横线）：44×44 触控面积，避让刘海/圆角安全区；z 66 高于正文、
+  // 低于遮罩 75 / 抽屉 80——抽屉展开时被自然盖住。
+  // ⚠️ 视觉上刻意「不贴合卡片」：页面左上角本来就是空的，原生同类控件（右上的侧栏开关）
+  // 是**裸图标**——无底色、无边框、无阴影。早期版本做成白底圆角卡片 + 阴影 + 模糊，
+  // 悬浮在白底页面上像一块贴上去的异物（用户实测反馈「没有贴合边缘，很突兀」）。
+  // 现在与原生同款：透明底、无边框无阴影，只留图标；点按才给极轻的底色反馈。
+  // 视觉重量靠图标本身撑住（22px、1.9px 描边、主文字色），不靠容器。
+  ".dsh-mobile-burger{position:fixed;left:env(safe-area-inset-left,0px);top:env(safe-area-inset-top,0px);z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:0;background:transparent;color:var(--dsw-alias-label-primary,#e6eaf2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:color .15s var(--ds-ease-in-out,ease)}",
+  ".dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}",
+  // 展开态：图标换成强调色（与原生「已激活」的语义一致），不引入额外容器。
   ".dsh-mobile-burger.on{color:var(--dk-accent,#4d9fff)}",
-  ".dsh-mobile-burger:active{transform:scale(.94)}",
+  // 点按反馈走图标本身（用 :active 的底色透出，范围就是 44×44 触控区）。
+  ".dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent)}",
   // ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
   // 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
   // （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden
