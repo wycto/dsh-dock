@@ -70,6 +70,16 @@ try {
   assert.doesNotMatch(once1, /\.dsh-mobile-burger\{[^}]*backdrop-filter/, '汉堡不得有毛玻璃底')
   assert.match(once1, /打开侧边栏/, '汉堡没有转发原生「打开侧边栏」')
   assert.match(once1, /aria-expanded/, '汉堡没有维护展开态语义')
+  // —— 待确认任务角标：挂汉堡右上角（替代底部 Tab 栏「插件」页签上的角标）——
+  assert.match(once1, /dsh-mobile-burger-badge/, '汉堡没有待确认任务角标（底部 Tab 栏移除后该提醒丢失了）')
+  assert.match(once1, /dsh-mobile-burger-badge\.wait/, '角标缺少「等待确认」红色脉冲态')
+  assert.match(once1, /dsh-burger-badge-pulse/, '缺角标脉冲动画')
+  assert.match(once1, /dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
+  assert.match(once1, /badge\.hidden\s*=\s*true/, '角标没有在无任务时隐藏')
+  assert.match(once1, /runstateGone/, 'runstate 路由不存在时没有静默停轮询（会一直 405）')
+  // 功能停用时宿主根本不注册 runstate 路由 —— 必须看【运行状态】置的旗标再决定轮询，
+  // 否则会先打一次必然 405 的请求（控制台噪音，与用量记录 chip 当年同一个毛病）。
+  assert.match(once1, /__dshDockRunstate/, '角标轮询没有看 __dshDockRunstate 旗标（功能停用时会打一次无谓 405）')
   assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
 
   // —— 「哪都滑不动」回归钉（本轮核心修复）——
