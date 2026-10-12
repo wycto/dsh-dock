@@ -12449,7 +12449,7 @@ var feature11 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.14.0";
+var DOCK_VERSION = "0.15.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
