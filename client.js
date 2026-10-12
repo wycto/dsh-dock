@@ -2299,7 +2299,15 @@ function subscribePanel(fn) {
 // features/tokenlog/view.jsx
 var import_react2 = __toESM(require("react"), 1);
 var import_jsx_runtime = require("react/jsx-runtime");
+var routeGone = false;
+function isTokenlogRouteGone() {
+  return routeGone;
+}
+function routeGoneMessage() {
+  return "\u5BBF\u4E3B\u672A\u542F\u7528\u300C\u7528\u91CF\u8BB0\u5F55\u300D\u8DEF\u7531\uFF08\u6216\u5BBF\u4E3B\u8FDB\u7A0B\u662F\u65E7\u7248\u672C\uFF09\uFF0C\u8BF7\u5728\u529F\u80FD\u575E\u91CC\u542F\u7528\u8BE5\u529F\u80FD\u6216\u91CD\u542F dsh web";
+}
 function rpcCall(method, args) {
+  if (routeGone) return Promise.reject(new Error(routeGoneMessage()));
   return fetch("dsh-dock/tokenlog/" + method, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -2308,7 +2316,8 @@ function rpcCall(method, args) {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data && data.ok === true) return data.data;
     if (res.status === 405 || res.status === 404) {
-      throw new Error("\u5BBF\u4E3B\u8FDB\u7A0B\u662F\u65E7\u7248\u672C\uFF08\u6CA1\u6709\u7528\u91CF\u8BB0\u5F55\u8DEF\u7531\uFF09\uFF0C\u91CD\u542F dsh web \u540E\u91CD\u8BD5");
+      routeGone = true;
+      throw new Error(routeGoneMessage());
     }
     if (data && data.ok === false) throw new Error(data.error && data.error.message || "HTTP " + res.status);
     throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
@@ -3670,32 +3679,37 @@ function TokenLogChip(props) {
   (0, import_react2.useEffect)(() => {
     if (!sid) return;
     let cancel = false;
-    const load = () => rpcCall("query", { sessionId: sid }).then((d) => {
-      if (!cancel) setSnap({ totals: d && d.totals, rate: d && d.rateUsdCny || 7.2, err: "" });
-    }).catch((e) => {
-      if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String(e && e.message || e) }));
-    });
+    let timer = null;
+    const load = () => {
+      if (cancel || isTokenlogRouteGone()) return null;
+      return rpcCall("query", { sessionId: sid }).then((d) => {
+        if (!cancel) setSnap({ totals: d && d.totals, rate: d && d.rateUsdCny || 7.2, err: "" });
+      }).catch((e) => {
+        if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String(e && e.message || e) }));
+      });
+    };
     load();
-    const timer = setInterval(load, 1e4);
+    timer = setInterval(load, 1e4);
     return () => {
       cancel = true;
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
     };
   }, [sid]);
   if (!sid) return null;
   const t = snap.totals;
-  const label = snap.err && !t ? snap.err.includes("\u91CD\u542F") ? "\u7528\u91CF\xB7\u9700\u91CD\u542F\u5BBF\u4E3B" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCostCny(t.cost, snap.rate) : "") : "\u26C1 \u2026";
-  const title = t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCostCny(t.cost, snap.rate) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
+  const gone = isTokenlogRouteGone();
+  const label = gone ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : snap.err && !t ? snap.err.includes("\u91CD\u542F") || snap.err.includes("\u542F\u7528") ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCostCny(t.cost, snap.rate) : "") : "\u26C1 \u2026";
+  const title = gone ? routeGoneMessage() + "\n\uFF08\u53EF\u5728\u529F\u80FD\u575E\u91CC\u542F\u7528\u300C\u7528\u91CF\u8BB0\u5F55\u300D\uFF09" : t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCostCny(t.cost, snap.rate) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "button",
     {
       type: "button",
-      className: "dockchip" + (snap.err && !t ? " err" : ""),
+      className: "dockchip" + (snap.err && !t && !gone ? " err" : ""),
       title,
       "aria-label": "\u4F1A\u8BDD\u7528\u91CF",
       onClick: () => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() }),
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: "var(--dk-warn)" } }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" } }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: label })
       ]
     }
@@ -12115,7 +12129,7 @@ function mobileChrome() {
   burger.className = "dsh-mobile-burger";
   burger.setAttribute("aria-label", "\u6253\u5F00\u4F1A\u8BDD\u5217\u8868");
   burger.setAttribute("aria-expanded", "false");
-  burger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>';
+  burger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg><span class="dsh-mobile-burger-badge" hidden></span>';
   burger.addEventListener("click", () => expand());
   document.body.appendChild(burger);
   const syncBurger = () => {
@@ -12123,6 +12137,52 @@ function mobileChrome() {
     burger.setAttribute("aria-expanded", expanded ? "true" : "false");
     burger.classList.toggle("on", expanded);
   };
+  const badge = burger.querySelector(".dsh-mobile-burger-badge");
+  let runstateGone = false;
+  const pollTasks = () => {
+    if (runstateGone || !badge || !narrow() || document.visibilityState === "hidden" || !burger.isConnected) return;
+    const on = stateOf("runstate").enabled !== false;
+    if (!on && !window.__dshDockRunstate) {
+      badge.hidden = true;
+      return;
+    }
+    fetch("dsh-dock/runstate/status", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}"
+    }).then(async (res) => {
+      if (res.status === 404 || res.status === 405) {
+        runstateGone = true;
+        badge.hidden = true;
+        return null;
+      }
+      const body = await res.json().catch(() => null);
+      if (!body) return null;
+      const active = body.data && body.data.active || [];
+      const waiting = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
+      if (waiting > 0) {
+        badge.textContent = waiting > 99 ? "99+" : String(waiting);
+        badge.className = "dsh-mobile-burger-badge wait";
+        badge.hidden = false;
+        burger.setAttribute("title", waiting + " \u4E2A\u4EFB\u52A1\u7B49\u5F85\u4F60\u786E\u8BA4");
+      } else if (active.length > 0) {
+        badge.textContent = active.length > 99 ? "99+" : String(active.length);
+        badge.className = "dsh-mobile-burger-badge";
+        badge.hidden = false;
+        burger.setAttribute("title", active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D");
+      } else {
+        badge.hidden = true;
+        burger.removeAttribute("title");
+      }
+    }).catch(() => {
+    });
+  };
+  const tasksTimer = setInterval(pollTasks, 3e3);
+  const onVisible = () => {
+    if (document.visibilityState === "visible") pollTasks();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  pollTasks();
   const vv = window.visualViewport || null;
   const kbdSync = () => {
     if (!vv) return;
@@ -12183,6 +12243,8 @@ function mobileChrome() {
     document.removeEventListener("click", onClick, true);
     if (observer) observer.disconnect();
     clearInterval(timer);
+    clearInterval(tasksTimer);
+    document.removeEventListener("visibilitychange", onVisible);
     if (mq.removeEventListener) mq.removeEventListener("change", onMq);
     else if (mq.removeListener) mq.removeListener(onMq);
     window.removeEventListener("resize", kbdSync);
@@ -12317,6 +12379,15 @@ var css6 = [
   ".dsh-mobile-burger.on{color:var(--dk-accent,#4d9fff)}",
   // 点按反馈走图标本身（用 :active 的底色透出，范围就是 44×44 触控区）。
   ".dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent)}",
+  // 待确认任务角标：锚在按钮右上角的小圆点/数字。刻意做成「贴边小圆点」而不是
+  // 底部 Tab 栏那种带容器的页签角标——汉堡是裸图标，角标再带容器就又突兀了。
+  // 等待确认（要人介入）= 红点 + 脉冲；进行中 = 蓝色数字（弱一级，不抢注意力）。
+  ".dsh-mobile-burger-badge{position:absolute;top:4px;right:4px;box-sizing:border-box;min-width:8px;height:8px;padding:0;border-radius:999px;background:#4d9fff;font:700 9px/8px inherit;font-variant-numeric:tabular-nums;text-align:center;color:#fff;pointer-events:none;box-shadow:0 0 0 2px var(--dsw-alias-bg-layer-1,#12151b)}",
+  ".dsh-mobile-burger-badge[hidden]{display:none}",
+  ".dsh-mobile-burger-badge:not([hidden]){min-width:16px;height:16px;line-height:16px;padding:0 4px}",
+  ".dsh-mobile-burger-badge.wait{background:#ef4444;animation:dsh-burger-badge-pulse 1.2s ease-in-out infinite}",
+  "@keyframes dsh-burger-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}",
+  "@media (prefers-reduced-motion:reduce){.dsh-mobile-burger-badge.wait{animation:none}}",
   // ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
   // 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
   // （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden

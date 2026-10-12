@@ -274,7 +274,9 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 	const sandbox = {
 		console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
-		fetch: makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
+		// opts.fetch：替换默认桩，用于「宿主某路由未注册（405/404）」这类行为用例——
+		// 需要断言「收到 405 之后不再发请求」，只查字符串钉不住这个语义。
+		fetch: (opts && opts.fetch) || makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
 		// 视图的 fetch 用 AbortSignal.timeout 设超时；沙箱补一个最小替身（stub 忽略 signal）
 		AbortSignal: { timeout: () => ({}) },
 		localStorage: {
@@ -913,6 +915,17 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/aria-label", "\\u6253\\u5F00\\u4F1A\\u8BDD\\u5217\\u8868"/.test(bundle) && !/aria-label", "打开会话列表"/.test(bundle)) issues.push("汉堡没有无障碍标签");
 	if (!/aria-expanded/.test(bundle)) issues.push("汉堡没有维护展开态语义");
 	if (!/\\u6253\\u5F00\\u4FA7\\u8FB9\\u680F/.test(bundle) && !/打开侧边栏/.test(bundle)) issues.push("汉堡没有转发原生「打开侧边栏」（点它展不开抽屉）");
+	// 待确认任务角标：底部 Tab 栏移除前挂在「插件」页签上，现在必须挂在汉堡右上角，
+	// 保留「手机上一眼看到有任务卡住等人确认」的能力。钉住：元素 + 轮询 runstate +
+	// 等待确认=红点脉冲 / 进行中=蓝色数字 + 路由不存在时静默停。
+	if (!/dsh-mobile-burger-badge/.test(bundle)) issues.push("汉堡没有待确认任务角标（底部 Tab 栏移除后该提醒丢失了）");
+	if (!/dsh-dock\/runstate\/status/.test(bundle)) issues.push("汉堡角标没有轮询 runstate 路由");
+	if (!/dsh-mobile-burger-badge\.wait/.test(bundle)) issues.push("角标缺少「等待确认」红色脉冲态");
+	if (!/badge\.hidden\s*=\s*true/.test(bundle)) issues.push("角标没有在无任务时隐藏");
+	if (!/runstateGone/.test(bundle)) issues.push("runstate 路由不存在时没有静默停轮询（会一直 405）");
+	// 轮询前必须先看功能开关：【运行状态】停用时宿主不注册路由，无条件轮询会先打一次 405。
+	if (!/stateOf\("runstate"\)\.enabled/.test(bundle)) issues.push("角标轮询没有先看【运行状态】功能开关（停用时会打一次无谓的 405）");
+	if (!/__dshDockRunstate/.test(bundle)) issues.push("角标轮询没有看宿主侧 __dshDockRunstate 旗标（客户端开着、宿主没注册的情况仍会 405）");
 	// 底部留白只留安全区（用户要求：少留一点，多给会话区显示内容）。
 	// Tab 栏移除后，滚动体 24px + 输入区 6px 都是纯浪费（真实实例 390×844 像素扫描：
 	// 卡片下方空白带 51px → 收掉这 30px 后 21px，剩下的是 dsh 自带的卡片下边距）。
@@ -944,6 +957,66 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 客户端 fetch 路径契约：全部为文档相对路径（兼容反代子路径挂载）");
+}
+
+// ---------- 用例 13：用量记录路由不可用时停止轮询（405 契约） ----------
+// 真实问题（隔离实例实测）：【用量记录】的会话区 chip 每 10s 轮询 dsh-dock/tokenlog/query，
+// 但当该功能在**宿主侧没启用**时（多设备开关不一致 / localStorage 与宿主 settings 不同步，
+// 实测 `initial toggles applied:` 里没有 tokenlog），宿主根本没注册该路由 → 连续 405，
+// 一直重试到页面关闭。405/404 是**终态**（路由就是不存在，重试无用），必须置闩锁停轮询。
+{
+	const issues = [];
+	if (!/isTokenlogRouteGone/.test(bundle)) issues.push("缺少「路由不可用」闩锁（405/404 后会无限重试）");
+	if (!/routeGone\s*=\s*true/.test(bundle)) issues.push("收到 405/404 后没有置位闩锁");
+	// chip 的轮询必须先查闩锁再发请求（早退），而不是在 catch 里硬改定时器。
+	if (!/cancel \|\| isTokenlogRouteGone\(\)\)\s*return null/.test(bundle)) issues.push("chip 轮询没有在发请求前检查闩锁");
+	// ⚠️ 产物里中文被转义，且中间的「·」esbuild 用 \xB7（不是 \u00B7）——两种都认。
+	if (!/\\u7528\\u91CF(?:\\xB7|\\u00B7|\\uFF65)?\\u672A\\u542F\\u7528/.test(bundle) && !/用量·未启用/.test(bundle)) issues.push("路由不可用时 chip 没有显示「未启用」态（会误导成报错）");
+	if (/(tokenlog|TokenLog)[\s\S]{0,80}宿主进程是旧版本（没有用量记录路由）/.test(bundle)) issues.push("仍只提示「宿主旧版本」，漏了更常见的「功能未启用」成因");
+	if (issues.length) {
+		console.log(`✗ 用量记录路由闩锁契约：${issues.join("；")}`);
+		process.exit(1);
+	}
+	console.log("✓ 用量记录路由闩锁契约：405/404 置闩锁并停止轮询、chip 显示「未启用」而非报错、提示覆盖「功能未启用」成因");
+}
+
+// ---------- 用例 14：用量记录路由闩锁（行为级断言，不只查字符串） ----------
+// 真实问题（隔离实例实测）：宿主没注册 tokenlog 路由时（功能在宿主侧被停用），
+// 会话区 chip 每 10s 轮询一次、首页概要每 60s 一次，持续 405 并刷控制台，直到页面关闭。
+// 405/404 是**终态**（路由就是不存在，重试无用），必须置闩锁停掉后续调用。
+// 这里断言的是行为：第一次 405 之后，再次挂载视图**不得**再发出任何网络请求。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tokenlog";
+	const base = makeFetch(ANIMATION_STATUS, NOTIFY_STATUS, [], {}, undefined);
+	let calls = 0;
+	const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, {
+		fetch: (url, init) => {
+			if (String(url).includes("dsh-dock/tokenlog/")) {
+				calls++;
+				// 宿主未注册该路由：405（与真实场景一致，见 host register 的 405 分支）
+				return Promise.resolve({ ok: false, status: 405, json: async () => ({ ok: false }) });
+			}
+			return base(url, init);
+		},
+	});
+	const reg = regs.find((r) => r.def && r.def.name === "conversation.input.left" && r.def.id === "dsh-dock-chips");
+	if (!reg) { console.log("✗ 路由闩锁：没有注册 conversation.input.left（会话区 chips）"); process.exit(1); }
+
+	// 第一次挂载（会话 s1）：发出请求并拿到 405
+	await renderSettled(runtime, runtime.react.createElement(reg.comp, { sessionId: "s1" }));
+	const first = calls;
+	if (first < 1) { console.log(`✗ 路由闩锁：chip 首次挂载没有发出 tokenlog 请求（calls=${first}）`); process.exit(1); }
+
+	// 换到另一个会话（s2）→ chip 的 useEffect 依赖 [sid] 变化，**一定会重跑**并再次发请求；
+	// 闩锁生效时这次请求应被拦在 fetch 之前，一次都不该发出去。
+	await renderSettled(runtime, runtime.react.createElement(reg.comp, { sessionId: "s2" }));
+	const again = calls - first;
+	if (again !== 0) {
+		console.log(`✗ 路由闩锁：收到 405 后切会话仍又发出 ${again} 次请求（应立即停止轮询）`);
+		process.exit(1);
+	}
+	console.log(`✓ 用量记录路由闩锁（行为）：首次 405 后停止轮询（首挂载 ${first} 次、切会话新增 ${again} 次）`);
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。
