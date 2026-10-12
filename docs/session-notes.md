@@ -1717,3 +1717,240 @@ EasyTier 组网从外网访问）提出：手机端排版/交互要适配，且�
 - 宿主半部改动：升级 dsh-dock 后**重启 dsh web**；纯客户端改动刷新即生效。
 - 公司部署（`~/.dsh-web-company`，npm 拷贝安装）需把新版 dsh-dock 装进去再重启；
   开发机 `~/.dsh` link 安装自动跟随仓库。
+
+## 十七、续作会话（2026-10-12）· 手机端底部 Tab 栏 → 左上角汉堡菜单
+
+### 需求
+
+用户：「看下【手机适配】把底部的三个菜单入口去掉，因为太占用页面空间了，在左上角加三个横线那种
+折叠菜单，点击展开左侧会话。」
+
+### 决策与改动
+
+- **底部 Tab 栏整体移除**（会话 / 插件 / 设置三入口 + 「插件」页签运行状态角标 + runstate
+  3s 低频轮询）。理由：常驻占掉视口底部 `~48px + env(safe-area-inset-bottom)`，390×844 上
+  约 8% 纵向空间；且「会话」页签与抽屉本身语义重复。角标能力随栏一并去掉——任务/运行状态
+  入口在抽屉里进功能坞，不必在 chrome 里重复提供。
+- **新增左上角「三条横线」汉堡菜单** `.dsh-mobile-burger`：44×44 触控面积、
+  `left/top: calc(env(safe-area-inset-*) + 8px)` 避让刘海与圆角、z 66（低于遮罩 75 /
+  抽屉 80 / overlayLayer 90 / 功能坞面板 200，这些浮层打开时自然盖住它）、
+  半透明底 + backdrop-blur（它是悬浮在会话内容上的，无底会把正文透成模糊块）。
+  点击转发原生「打开侧边栏」按钮（与旧「会话」页签完全同一条链路，`expand()`）。
+  抽屉展开时 `aria-expanded="true"` + `.on` 高亮。
+- **滚动体底部留白 72px → 24px + 安全区**：原 72px 是「Tab 栏高度 + 安全区」，Tab 栏没了
+  之后 72px 会白占一大条。软键盘弹出时改为隐藏汉堡（原来隐藏 Tab 栏）。
+- **两半部同步改**（这是本模块最容易出事的地方——历史上出现过宿主注入版 + 客户端自建版
+  各建一套导致双 Tab 栏）：
+  - `features/mobile/view.js`（客户端，刷新即生效）；
+  - `features/mobile/host.js`（宿主 `tapIndex` 注入，**需重启 `dsh web`**）。
+  - 构建产物 `client.js` 里仍保留一句 `querySelectorAll(".dsh-mobile-tabbar")` 兜底摘除，
+    用来清掉宿主**旧注入**在页面里留下的历史 Tab 栏（刷新早于重启的窗口期）。
+- **契约测试同步改造**：
+  - `scripts/test-mobile-host.mjs`：Tab 栏断言 → 汉堡断言（`.dsh-mobile-burger` 样式存在、
+    三条横线 path、`className="dsh-mobile-burger"`、44×44、左/上安全区、`aria-expanded`、
+    转发「打开侧边栏」），并新增 `doesNotMatch` 钉死 `.dsh-mobile-tabbar{`、`.dsh-mobile-tab{`、
+    `dsh-mobile-tab-badge`、`TAB_DEFS` 必须为零。
+  - `scripts/test-client-views.mjs` 用例 10/11：用例 11 从「插件页签契约」改为
+    「汉堡契约」，先剥掉唯一的兜底摘除语句再断言 `dsh-mobile-tabbar` 不得出现。
+
+### 踩坑（写给下一次改这个模块的人）
+
+- **产物里中文会被转义成 `\uXXXX`**，且 `className` 是赋值而非 `createElement` 属性。
+  客户端契约测试跑在**构建产物**上，写断言时必须迁就产物形态（本次先用
+  `/className: "dsh-mobile-burger"/` 断言失败，实际产物是 `className = "dsh-mobile-burger"`）。
+  中文断言一律写成「`\uXXXX` 或原文」双匹配，避免依赖 esbuild 的转义策略。
+- **夹具页里别把原生侧栏开关放在左上角**：它和汉堡同坐标会拦截点击，Playwright 会一路
+  retry 到超时。真实 dsh 里该按钮位于侧栏窄轨内（收起时整列 display:none），夹具放到别处即可。
+
+### 验证
+
+- `npm run build:client`（779KB → 774KB，Tab 栏代码移除）+ `npm run test:client`（用例 10/11
+  改造后全绿）+ `npm run test:host`（7 套全绿）。
+- **Playwright + 缓存 Chromium 真实页面结构化验证 20/20 通过**（`/tmp/dsh-mobile/verify.mjs`，
+  复刻 dsh 窄屏骨架的夹具 + 真实注入两半部 chrome）：
+  - A 宿主版 390×844：`.dsh-mobile-tabbar`/`.dsh-mobile-tab`/`.dsh-mobile-tab-badge` 三者
+    计数均为 0、Tab 栏 CSS 已不在样式表里；汉堡 1 个、`x=8 y=8`、`44×44`、3 条 path、
+    `__dshDockMobileDrawer==='host'`；点汉堡 → 抽屉展开（`collapsed=false`、侧栏宽 320px、
+    遮罩 `display:block`、`aria-expanded=true`）；点会话行 → 收起；点工作区文件夹 → **不收**；
+    点抽屉外 → 收起；无页面异常。
+  - B 桌面 1440×900：汉堡 `display:none`（`@media (max-width:700px)` 之外不生效）。
+  - C 客户端产物：`client.js` 经 `__ModuleLoader__.load` 正常注册为 `dsh-dock`、无异常。
+  - 截图：`/tmp/dsh-mobile/host-closed.png`（左上角三条横线、底部干净无栏）、
+    `host-drawer-open.png`（抽屉展开盖住左侧 + 遮罩）。
+
+### 部署
+
+- 客户端半部已 build，刷新页面即生效。
+- 宿主半部改动**需重启 `dsh web`**；重启前页面里若残留旧 Tab 栏，由客户端那句兜底摘除清掉。
+
+## 十八、续作会话（2026-10-12）· 汉堡菜单视觉返工「贴合边缘」+ 真实实例端到端验证
+
+### 需求
+
+用户：「所上交的菜单没有贴合边缘，感觉很突兀，改进下」；以及「你可以启动一个新实例来测试」。
+
+### 问题定位（真实实例截图对比）
+
+第一版汉堡做成了**白底圆角卡片**：`background: color-mix(...bg-layer-2 88%, transparent)` +
+`border: 1px` + `border-radius: 12px` + `box-shadow: 0 2px 10px` + `backdrop-filter: blur(10px)`，
+并且 `left/top: calc(env(safe-area-inset-*) + 8px)` 额外内缩 8px。
+
+在真实 light 主题页面上，页面底色本身就是白的——于是这个「卡片」的边框 + 投影 + 12px 圆角
+全都暴露出来，看起来像**一块贴上去的异物**，而不是页面的一部分。
+
+关键对照（把插件汉堡 `display:none` 后截原生页面左上角）：**原生左上角是完全空的**，
+而原生同类控件（右上「打开右侧边栏」按钮）是 `_button_... _ghost_...` ——
+`backgroundColor: transparent` / `border: 0px` / `boxShadow: none`，即 **ghost 裸图标**。
+第一版与原生语汇完全相反，这才是「突兀」的根因。
+
+### 改法
+
+- `.dsh-mobile-burger` 改为与原生同款 ghost 形态：
+  `background: transparent`、`border: 0`、`border-radius: 0`、无 `box-shadow`、无 `backdrop-filter`。
+- 位置贴边：`left: env(safe-area-inset-left,0px)` / `top: env(safe-area-inset-top,0px)`
+  （去掉 `+ 8px`），按钮 44×44 内图标 22px 居中 → 图标起始 11px，
+  与原生顶栏按钮（y=10、36×36）落在**同一条光学线**上。
+- 反馈改到图标层：`:active` 给 `color-mix(in srgb, currentColor 12%, transparent)` 的极轻底色
+  （范围就是 44×44 触控区），展开态仍用强调色 `.on`；不再用 `transform: scale(.94)`
+  （缩放在 fixed 定位 + 无容器时视觉上像抖动）。
+- 两半部同步（`features/mobile/view.js` 客户端版 + `features/mobile/host.js` 宿主注入版）。
+- 测试契约补视觉钉：必须有 `background:transparent` + `border:0`，
+  **不得**出现 `box-shadow` / `backdrop-filter`；safe-area 断言由 `calc(... + 8px)` 改为直接 `env(...)`。
+
+### 真实实例端到端验证（按用户建议）
+
+隔离环境：`DSH_HOME=$PWD/.testhome` + `dsh rescue --from-default-profile web` 生成独立 profile、
+把 `dsh-dock` link 到工作树、固定端口 13990 启动。**用户 `~/.dsh` 的 live profile 全程未被写**
+（中途一次尝试写 `~/.dsh/profiles/web/cordis.yml` 被文件沙箱以 `EPERM` 挡下，正好印证隔离有效）。
+
+- `verify-live.mjs`（真实页面功能）**19/19**：无 Tab 栏元素/样式、汉堡 x=0 y=0 且 44×44、
+  三条 path、`viewport-fit=cover` 已补、点汉堡→抽屉 321px + 遮罩 block + aria-expanded=true、
+  点抽屉外收起、桌面 1440 与平板 768 均 `display:none`、无 JS 异常。
+- `verify-visual.mjs`（本次返工）**11/11**：贴边 x=0/y=0、transparent 底、border 0、无阴影、
+  无模糊、触控面积仍 44×44、图标与原生顶栏同一光学线（11/11）、
+  深色主题图标可见且无白块、点汉堡仍能展开抽屉。
+- 另一条独立确认：抽屉内可见入口 `["新建会话","收起侧边栏","插件","搜索会话","视图选项","添加工作区","功能坞","设置"]`，
+  且点抽屉内「设置」实测弹层 `false → true` 打开——证明删掉底部三入口后能力没有丢。
+
+### 顺带发现的既有缺陷（非本次引入，未修）
+
+验证中出现 `POST /dsh-dock/tokenlog/query → 405`。排查结论：
+**【用量记录】的会话区 chip 会在 tokenlog 功能未在宿主启用时照样轮询 `tokenlog/query`**，
+宿主没注册该路由 → 405。判定为既有缺陷的依据：
+- 该请求来自 `features/tokenlog/view.jsx` 的 DockChips，与【手机适配】无任何代码交集；
+- 回退到改动前的 `client.js` 复跑，同一 profile 状态下同样能复现/或在 tokenlog 启用时同样消失
+  —— 405 只随 `initial toggles applied:` 里有没有 `tokenlog` 变化
+  （启用 → 无 405；禁用 → 两条 405）。
+- 建议后续：chip 轮询前先查 `stateOf("tokenlog").enabled`，或对 405/404 静默停轮询
+  （【手机适配】的 runstate 角标当年就是这么处理的，可照搬）。
+
+## 十九、续作会话（2026-10-12）· 手机端底部留白收紧，把空间还给会话正文
+
+### 需求
+
+用户（对着上一轮交付的截图）：「感觉底部还有一段空的区域，少留一点，多给会话区域显示内容」。
+
+### 定位（不猜，用像素量）
+
+先在真实实例（隔离 DSH_HOME + rescue profile，端口 13990）上量，而不是对着截图目测：
+
+1. DOM 量：`scrollBody` padding-bottom = 24px、`composerSeat` padding-bottom = 6px，
+   两者都挂在输入卡片**下方**，全是 Tab 栏时代的遗留（Tab 栏没了之后没有任何东西需要让位）。
+2. 像素量（更可靠，DOM 量会漏掉 dsh 自带的 margin）：把 390×844 截图按 2x 缩放还原成 CSS px，
+   取页面底色，从底部往上扫中间列找最后一行非背景像素——
+   **卡片下沿 y=792.5，视口底 844 → 空白带 51px**。其中我们自己的 30px（24+6），
+   剩下 ~21px 是 dsh 自带的卡片下边距。
+
+⚠️ 踩坑：第一次 DOM 量算出「输入框下方 118px」，那是把**工具行**（`+`/模型选择/发送按钮，
+在卡片内部）也算进去了，不能直接当空白带。像素扫描才是「用户肉眼看到的空白」。
+
+### 改法
+
+- `html:not(.dsh-dock-kbd) [class*="scrollBody"]`、`html.dsh-dock-kbd` 同款：
+  `padding-bottom: calc(24px + env(...))` → **`env(safe-area-inset-bottom,0px)`**。
+  只保留 iPhone home indicator 的安全区（真机 standalone 下 ~34px，不能再省，否则压到小白条）。
+- `[class*="scrollBody"]>[class*="composerSeat"]`：`padding-bottom: 6px` → **`0`**。
+- 两半部同步（view.js + host.js）。
+
+效果：空白带 **51px → 21px**；输入区上沿 574 → 604，即**会话正文多出 30px 可显示高度**。
+
+### 验证
+
+- 像素扫描复核：51.0px → 21.0px。
+- `verify-spacing.mjs`（新增）**7/7**：滚动体与输入区留白均只剩安全区；贴底仍走
+  `margin-top:auto` 且 `justify-content` 仍是 `flex-start`（历史事故「哪都滑不动」的回归钉）；
+  **塞入 4000px 长内容后 scrollTop 3442 == maxScroll 3442**，起点溢出没有回来；
+  桌面 1440 下本插件媒体查询整体不生效（用「关掉注入 <style> 前后取值完全一致」证明，
+  而不是想当然断言桌面值非 0——桌面本来的值就是 0）。
+- 复跑既有套件：`verify-live` 19/19、`verify-visual` 11/11，无回归。
+- 契约测试补钉：`test-mobile-host.mjs` / `test-client-views.mjs` 新增
+  「不得再有 `padding-bottom:calc(Npx + env(...))` 硬留白」「输入区 padding-bottom 必须为 0」。
+  反向验证过：把值改回 24px/6px 后测试确实报红。
+
+### 经验
+
+- **看截图说「空」时，先分清是「我们的留白」还是「组件自带的 margin」**，否则容易
+  为了压视觉留白去动不该动的组件间距。这里正好相反：dsh 自带的 21px 应该留着，
+  该收的是我们自己的 30px。
+- 断言桌面行为时别写死期望值。桌面 padding 本来就是 0px，写「桌面应非 0」会得到一条
+  永远失败的假断言；正确写法是验证**我们的媒体块在该断点不生效**（开关样式前后对比）。
+
+## 二十、续作会话（2026-10-12）· 汉堡待确认任务角标 + 用量记录 405 修复
+
+两件事都是上一轮移除底部 Tab 栏引出/暴露的（用户：「两个都解决下」）：
+
+### 1. 汉堡上挂回「待确认任务」角标
+
+Tab 栏移除时把「插件」页签上的任务角标一起删了，「手机上一眼看到有任务卡住等人确认」
+这个能力丢了。方案：挂在汉堡右上角（`.dsh-mobile-burger-badge`）——
+等待确认 = 红色 `#ef4444` + 脉冲（要人介入），进行中 = 蓝色数字，`99+` 封顶，
+`box-shadow:0 0 0 2px` 同色环从三条横线上分出来，tooltip 同步。两半部同步实现
+（客户端 3s 轮询 / 宿主注入同参数），页面 hidden 时暂停，汉堡点开仍是抽屉不做跳转。
+
+**过程里的弯路**：第一版客户端 CSS 写了「8px 基础态 + 16px 显示态」两套尺寸，
+实际上基础态永远不可见（`[hidden]` 直接 display:none），是死代码——
+最后对齐成宿主那份单一 16px 形态。宿主半部最初也漏了在 `boot()` 里启动轮询。
+
+### 2. 用量记录 405：闩锁停轮询
+
+隔离实例（`initial toggles applied:` 里没有 tokenlog，即宿主侧停用）控制台连续
+`POST /dsh-dock/tokenlog/query → 405`。此前 stash 验证过它先于本轮改动存在：
+**客户端认为功能开着（多设备开关 / localStorage 与宿主 settings 不同步时沿用默认
+enabled），但宿主没注册路由**。chip 每 10s、面板首页每 60s，一直打到页面关闭。
+
+修法：`rpcCall` 收到 405/404 置 `routeGone` 闩锁——终态重试无用，后续所有调用
+（轮询、切会话重挂载）在**发网络请求之前**就被拦下。chip 改显「用量·未启用」
+灰点态，不是红色报错；错误文案把「宿主未启用路由」和「宿主旧版本」两种成因都讲清，
+不再误导。
+
+### 3. 连带发现并修掉：角标自己会制造 405
+
+`verify-live` 的 A15（控制台无异常）红了——这次是**新角标**在【运行状态】停用的实例上
+打了一次 `runstate/status → 405`。跟 tokenlog 一个毛病：不问路由存不存在就先打。
+修成两道闸：
+
+- 客户端：轮询前看 `stateOf("runstate").enabled`；
+- 宿主侧：`features/runstate/host.js` 注册路由时置 `window.__dshDockRunstate`
+  旗标（停用即摘，与 `__dshDockMobileDrawer` 同风格），注入脚本看它；
+- 仍收到 404/405（宿主旧版等）则 `runstateGone` 闩锁静默停。
+
+修后同一实例 `verify-live` 19/19，控制台干净。
+
+### 4. 测试怎么钉的
+
+- 汉堡契约（客户端 + 宿主两份）：角标元素、runstate 轮询、红色脉冲态、无任务隐藏、
+  `runstateGone` 闩锁、以及**两道闸**（`stateOf` + `__dshDockRunstate`）。
+- tokenlog 字符串契约：置闩锁、发请求前查闩锁、「用量·未启用」文案
+  （⚠️ 产物里中文被转义，`·` 是 `\xB7` 不是 `\u00B7`，断言两种都认）。
+- tokenlog **行为契约**（新增）：`loadDock` 加 `opts.fetch` 桩，让 tokenlog 固定 405，
+  断言首挂载 1 次请求、切会话（`[sid]` 依赖变化、effect 必然重跑）后零新增。
+  **用「临时拆掉闩锁再跑」反向验证过它有牙齿**：只拆 chip 早退时不够（`rpcCall`
+  顶部的短路也拦了一次），两道都拆才见红——行为测试的断言点必须对准真正拦截请求的那层。
+
+### 5. 其余
+
+- 插件半部的真实浏览器端到端（无会话时 chip 根本不挂载）测不出 tokenlog 405 场景，
+  两次尝试都是 0 请求——这类「宿主未注册路由」用例只能在沙箱桩里做，浏览器端
+  只验证角标三种状态（B1–B5 全过）。
+- 套件：`test:client` 全绿（含两条新契约）、`test:host` 7/7、
+  `verify-live` 19/19、`verify-visual` 11/11。
