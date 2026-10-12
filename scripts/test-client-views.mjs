@@ -913,6 +913,12 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/aria-label", "\\u6253\\u5F00\\u4F1A\\u8BDD\\u5217\\u8868"/.test(bundle) && !/aria-label", "打开会话列表"/.test(bundle)) issues.push("汉堡没有无障碍标签");
 	if (!/aria-expanded/.test(bundle)) issues.push("汉堡没有维护展开态语义");
 	if (!/\\u6253\\u5F00\\u4FA7\\u8FB9\\u680F/.test(bundle) && !/打开侧边栏/.test(bundle)) issues.push("汉堡没有转发原生「打开侧边栏」（点它展不开抽屉）");
+	// 底部留白只留安全区（用户要求：少留一点，多给会话区显示内容）。
+	// Tab 栏移除后，滚动体 24px + 输入区 6px 都是纯浪费（真实实例 390×844 像素扫描：
+	// 卡片下方空白带 51px → 收掉这 30px 后 21px，剩下的是 dsh 自带的卡片下边距）。
+	if (/padding-bottom:calc\(\d+px \+ env\(safe-area-inset-bottom/.test(bundle)) issues.push("滚动体底部仍有 Tab 栏时代的硬留白（白占会话区）");
+	if (!/\[class\*="scrollBody"\]\[data-conversation-scroll\]\{justify-content:flex-start !important;padding-bottom:env\(safe-area-inset-bottom,0px\) !important\}/.test(bundle)) issues.push("会话滚动体底部留白应只剩安全区");
+	if (!/\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto;padding-bottom:0\}/.test(bundle)) issues.push("输入区不应再自带底部内边距");
 	// 其余既有契约保持。
 	if (!/\[class\*="dockm-backdrop"\]\{z-index:2000 !important\}/.test(bundle)) issues.push("手机端没有把功能坞面板抬到原生弹层之上（z 2000）");
 	if (!/dsh-dock-kbd/.test(bundle)) issues.push("缺少软键盘让位（dsh-dock-kbd）");
