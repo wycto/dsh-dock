@@ -1843,3 +1843,54 @@ EasyTier 组网从外网访问）提出：手机端排版/交互要适配，且�
   （启用 → 无 405；禁用 → 两条 405）。
 - 建议后续：chip 轮询前先查 `stateOf("tokenlog").enabled`，或对 405/404 静默停轮询
   （【手机适配】的 runstate 角标当年就是这么处理的，可照搬）。
+
+## 十九、续作会话（2026-10-12）· 手机端底部留白收紧，把空间还给会话正文
+
+### 需求
+
+用户（对着上一轮交付的截图）：「感觉底部还有一段空的区域，少留一点，多给会话区域显示内容」。
+
+### 定位（不猜，用像素量）
+
+先在真实实例（隔离 DSH_HOME + rescue profile，端口 13990）上量，而不是对着截图目测：
+
+1. DOM 量：`scrollBody` padding-bottom = 24px、`composerSeat` padding-bottom = 6px，
+   两者都挂在输入卡片**下方**，全是 Tab 栏时代的遗留（Tab 栏没了之后没有任何东西需要让位）。
+2. 像素量（更可靠，DOM 量会漏掉 dsh 自带的 margin）：把 390×844 截图按 2x 缩放还原成 CSS px，
+   取页面底色，从底部往上扫中间列找最后一行非背景像素——
+   **卡片下沿 y=792.5，视口底 844 → 空白带 51px**。其中我们自己的 30px（24+6），
+   剩下 ~21px 是 dsh 自带的卡片下边距。
+
+⚠️ 踩坑：第一次 DOM 量算出「输入框下方 118px」，那是把**工具行**（`+`/模型选择/发送按钮，
+在卡片内部）也算进去了，不能直接当空白带。像素扫描才是「用户肉眼看到的空白」。
+
+### 改法
+
+- `html:not(.dsh-dock-kbd) [class*="scrollBody"]`、`html.dsh-dock-kbd` 同款：
+  `padding-bottom: calc(24px + env(...))` → **`env(safe-area-inset-bottom,0px)`**。
+  只保留 iPhone home indicator 的安全区（真机 standalone 下 ~34px，不能再省，否则压到小白条）。
+- `[class*="scrollBody"]>[class*="composerSeat"]`：`padding-bottom: 6px` → **`0`**。
+- 两半部同步（view.js + host.js）。
+
+效果：空白带 **51px → 21px**；输入区上沿 574 → 604，即**会话正文多出 30px 可显示高度**。
+
+### 验证
+
+- 像素扫描复核：51.0px → 21.0px。
+- `verify-spacing.mjs`（新增）**7/7**：滚动体与输入区留白均只剩安全区；贴底仍走
+  `margin-top:auto` 且 `justify-content` 仍是 `flex-start`（历史事故「哪都滑不动」的回归钉）；
+  **塞入 4000px 长内容后 scrollTop 3442 == maxScroll 3442**，起点溢出没有回来；
+  桌面 1440 下本插件媒体查询整体不生效（用「关掉注入 <style> 前后取值完全一致」证明，
+  而不是想当然断言桌面值非 0——桌面本来的值就是 0）。
+- 复跑既有套件：`verify-live` 19/19、`verify-visual` 11/11，无回归。
+- 契约测试补钉：`test-mobile-host.mjs` / `test-client-views.mjs` 新增
+  「不得再有 `padding-bottom:calc(Npx + env(...))` 硬留白」「输入区 padding-bottom 必须为 0」。
+  反向验证过：把值改回 24px/6px 后测试确实报红。
+
+### 经验
+
+- **看截图说「空」时，先分清是「我们的留白」还是「组件自带的 margin」**，否则容易
+  为了压视觉留白去动不该动的组件间距。这里正好相反：dsh 自带的 21px 应该留着，
+  该收的是我们自己的 30px。
+- 断言桌面行为时别写死期望值。桌面 padding 本来就是 0px，写「桌面应非 0」会得到一条
+  永远失败的假断言；正确写法是验证**我们的媒体块在该断点不生效**（开关样式前后对比）。

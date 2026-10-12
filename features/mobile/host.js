@@ -73,20 +73,22 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent)}',
   // ── 输入区吸附到视口底部：欢迎内容原生是 justify-content:center 垂直居中，
   //    手机视口下输入卡片悬在中部、下方留出大片空白。改用「输入区 margin-top:auto」贴底。
-  //    底部 Tab 栏已移除，滚动体留白从 72px（Tab 栏高度 + 安全区）收窄到 24px——
-  //    没有常驻 Tab 栏后 72px 会白占一大条。
+  //    底部 Tab 栏已移除，滚动体留白从 72px（Tab 栏高度 + 安全区）进一步收到
+  //    **只剩安全区**：真实实例 390×844 像素扫描实测，输入卡片下方还有 51px 空白带，
+  //    其中 24px 是下面这条滚动体内边距、6px 是 composerSeat 的内边距——都是 Tab 栏时代的
+  //    遗留，没有底栏后纯属浪费；收掉后这 30px 直接变成会话区可显示的正文。
+  //    dsh 自带的 ~21px 卡片下边距保留，视觉仍有呼吸感、不会贴死屏幕边缘。
   //
   //    ⚠️ 绝不能再给滚动体加 justify-content:flex-end/center 来贴底：那会把内容挤到
   //    滚动体起点之外，而 Chrome 不把起点方向的溢出算进 scrollHeight（手机视口实测
   //    scrollHeight==clientHeight、maxScroll==0），结果是会话记录完全滚不动、首条消息
   //    永远停在视口上方。auto 外边距只在有剩余空间时生效、不产生起点溢出。
   //
-  //    软键盘弹出（visualViewport 判定，行为脚本挂 html.dsh-dock-kbd）：汉堡让位，
-  //    滚动体留白收窄。
-  '  html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))!important}',
-  '  html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px!important}',
+  //    软键盘弹出（visualViewport 判定，行为脚本挂 html.dsh-dock-kbd）：汉堡让位。
+  '  html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px)!important}',
+  '  html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px)!important}',
   '  html.dsh-dock-kbd .dsh-mobile-burger{display:none!important}',
-  '  [class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}',
+  '  [class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:0}',
   // ── 滚动兜底（见文件头 a/b 两条根因）：所有纵向滚动体显式声明可纵向平移 + iOS 惯性滚动，
   //    避免祖先合成层/触控声明把触摸滚动吃掉；overscroll-behavior 防滚动穿透到外层。
   '  [class*="scrollBody"],[class*="sidebarCol"] [class*="list"],[role="dialog"] [class*="options"],[class*="dockm-content"]{-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y}',

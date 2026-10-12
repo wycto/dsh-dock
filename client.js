@@ -12325,17 +12325,22 @@ var css6 = [
   // 两处都写是因为宿主注入要重启 dsh web 才更新，而客户端样式刷新即生效，覆盖窗口期。
   '[role="dialog"][class*="panel"]>[class*="content"]{min-height:0!important}',
   // 输入区吸附到视口底部 + 滚动体留白（与宿主半部同款）。
-  // 底部 Tab 栏已移除，这里的留白是给「输入区贴底 + 安全区」用的呼吸位（原 72px 是
-  // Tab 栏高度 + 安全区，现收窄到 24px：没有常驻 Tab 栏后 72px 会白占一大条）。
+  // ⚠️ 底部留白只保留 iPhone home indicator 的安全区，不再额外留白。沿革：原 72px 是
+  // 「底部 Tab 栏高度 + 安全区」；Tab 栏移除后先收到 24px，但实测（真实实例 390×844
+  // 像素扫描）输入卡片下方仍有 **51px** 空白带，其中 24px 是这里的滚动体内边距、
+  // 6px 是下面 composerSeat 的内边距——两者都是 Tab 栏时代的遗留，在没有底栏的页面上
+  // 纯属浪费。收窄到「只有安全区」后卡片下沿更贴近视口底，这 30px 直接变成会话区
+  // 可显示的正文（滚动体内边距在 flex 容器里会把 composerSeat 连同消息区一起下移/增高）。
+  // dsh 自带的 ~21px 底部间距（卡片 margin）保留，视觉上仍有呼吸感，不会贴死屏幕边缘。
   // ⚠️ 绝不能给滚动体加 justify-content:flex-end/center 贴底：内容会被挤到滚动体
   // 起点之外，Chrome 不把起点方向溢出算进 scrollHeight（手机视口实测
   // scrollHeight==clientHeight、maxScroll==0），会话记录彻底滚不动、首条消息永远看不到。
   // 宿主半部旧版注入里还留着那条 flex-end（要重启 dsh web 才消失），这里用更高优先级
-  // 的选择器显式复位：刷新页面即修好，不必等重启。
-  '[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px)) !important}',
-  'html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px)) !important}',
-  'html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:12px !important}',
-  '[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:6px}',
+  // 的选择器显式复位：刷新页面即修好，不必等重启。贴底只能用输入区自己的 margin-top:auto。
+  '[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:env(safe-area-inset-bottom,0px) !important}',
+  'html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px) !important}',
+  'html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px) !important}',
+  '[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:0}',
   // 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
   // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
   // 功能坞（抽屉里进）看；桌面端不动。
