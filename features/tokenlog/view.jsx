@@ -13,7 +13,21 @@ import react, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { openPanel } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
+// 路由不可用（宿主没注册用量路由）的两种成因必须区分开，否则提示会误导人：
+//   - 404/405：宿主进程是旧版本，**或**本功能当前在宿主侧是停用的（多设备开关不一致、
+//     localStorage 与宿主 settings 不同步都会这样）。此时路由就是不存在，**重试无用**。
+//   - 其余状态码：网络/服务端错误，重试有意义。
+// 因此 404/405 会置 routeGone 闩锁：所有调用方据此**停止轮询**，既不再刷控制台报错，
+// 也不会每 10s 打一次无效请求（chip 原本会一直重试到页面关闭）。
+let routeGone = false;
+/** 路由是否已确认不可用（宿主未注册）。一旦为真，本次页面生命周期内不再重试。 */
+export function isTokenlogRouteGone() { return routeGone; }
+/** 把 404/405 的错误翻译成人能看懂、且不误导的提示。 */
+function routeGoneMessage() {
+	return "宿主未启用「用量记录」路由（或宿主进程是旧版本），请在功能坞里启用该功能或重启 dsh web";
+}
 function rpcCall(method, args) {
+	if (routeGone) return Promise.reject(new Error(routeGoneMessage()));
 	return fetch("dsh-dock/tokenlog/" + method, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
@@ -22,9 +36,13 @@ function rpcCall(method, args) {
 		.then(async (res) => {
 			const data = await res.json().catch(() => ({}));
 			if (res.ok && data && data.ok === true) return data.data;
-			// 旧宿主进程没有用量路由（405/404）：给出可操作提示而非裸状态码
+			// 宿主没注册用量路由（405/404）：置闩锁并给出可操作提示而非裸状态码。
+			// 注意这既可能是「宿主旧版本」，也可能是「功能在宿主侧被停用」——
+			// 实测后者更常见（多设备开关/localStorage 与宿主 settings 不一致），
+			// 所以文案两种都提到，且置闩锁后不再无谓重试。
 			if (res.status === 405 || res.status === 404) {
-				throw new Error("宿主进程是旧版本（没有用量记录路由），重启 dsh web 后重试");
+				routeGone = true;
+				throw new Error(routeGoneMessage());
 			}
 			if (data && data.ok === false) throw new Error((data.error && data.error.message) || ("HTTP " + res.status));
 			throw new Error("HTTP " + res.status + (data && data.error && data.error.message ? ": " + data.error.message : ""));
@@ -1377,27 +1395,39 @@ export function TokenLogChip(props) {
 	useEffect(() => {
 		if (!sid) return;
 		let cancel = false;
-		const load = () => rpcCall("query", { sessionId: sid })
-			.then((d) => { if (!cancel) setSnap({ totals: d && d.totals, rate: (d && d.rateUsdCny) || 7.2, err: "" }); })
-			.catch((e) => { if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String((e && e.message) || e) })); });
+		let timer = null;
+		const load = () => {
+			// 路由不可用是**终态**（宿主没注册该路由）：直接早退，不再每 10s 打一次
+			// 无效请求、不再刷控制台报错。此前会一直重试到页面关闭（实测控制台连续 405）。
+			if (cancel || isTokenlogRouteGone()) return null;
+			return rpcCall("query", { sessionId: sid })
+				.then((d) => { if (!cancel) setSnap({ totals: d && d.totals, rate: (d && d.rateUsdCny) || 7.2, err: "" }); })
+				.catch((e) => { if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String((e && e.message) || e) })); });
+		};
 		load();
-		const timer = setInterval(load, 10000);
-		return () => { cancel = true; clearInterval(timer); };
+		timer = setInterval(load, 10000);
+		return () => { cancel = true; if (timer) clearInterval(timer); };
 	}, [sid]);
 	if (!sid) return null;
 	const t = snap.totals;
+	const gone = isTokenlogRouteGone();
 	// chip 文案用紧凑人民币金额（2 位小数），避免撑爆输入卡工具行；
 	// 完整金额在 title 悬浮提示里。
-	const label = snap.err && !t
-		? (snap.err.includes("重启") ? "用量·需重启宿主" : "用量·失败")
+	const label = gone
+		? "用量·未启用"
+		: snap.err && !t
+		? (snap.err.includes("重启") || snap.err.includes("启用") ? "用量·未启用" : "用量·失败")
 		: (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · " + fmtCostCny(t.cost, snap.rate) : "") : "⛁ …");
-	const title = t
+	const title = gone
+		? routeGoneMessage() + "\n（可在功能坞里启用「用量记录」）"
+		: t
 		? "本会话 " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCostCny(t.cost, snap.rate) + "（估算）\n点击在功能坞查看用量记录"
 		: (snap.err ? snap.err + "\n" : "") + "点击在功能坞查看用量记录";
+	// 路由不可用时不做成报错态（红色），它不是错误，是「这个功能当前没开」。
 	return (
-		<button type="button" className={"dockchip" + (snap.err && !t ? " err" : "")} title={title} aria-label="会话用量"
+		<button type="button" className={"dockchip" + (snap.err && !t && !gone ? " err" : "")} title={title} aria-label="会话用量"
 			onClick={() => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() })}>
-			<span className="dockchip-dot" style={{ background: "var(--dk-warn)" }} />
+			<span className="dockchip-dot" style={{ background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" }} />
 			<span>{label}</span>
 		</button>
 	);

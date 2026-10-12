@@ -6,7 +6,8 @@ import { feature } from '../features/mobile/host.js'
 // 手机端排版/行为从【远程访问】整体迁到本模块——远程访问只保留远程入口。
 // 本测试钉住 tapIndex 注入页必须含有的窄屏 chrome（布局样式 + 行为脚本）、
 // 滚动兜底（设置弹层 min-height:0、滚动体 touch-action:pan-y）、
-// 无左缘浮动抽屉按钮、以及「点文件夹不收抽屉」的点击路由。
+// 无底部 Tab 栏 / 无左缘浮动抽屉按钮（会话入口 = 左上角汉堡菜单）、
+// 以及「点文件夹不收抽屉」的点击路由。
 // 客户端半部（features/mobile/view.js）的同款契约见 scripts/test-client-views.mjs。
 
 const indexTransforms = []
@@ -41,18 +42,44 @@ try {
   // —— 与【远程访问】解耦：注入页只含窄屏 chrome，不含 LAN crypto 兜底（那归远程访问）——
   assert.doesNotMatch(once1, /data-dsh-lan-compat/, '手机适配不应注入 LAN crypto 兜底（归远程访问）')
 
-  // —— 不得有左缘浮动抽屉把手：会话入口统一走底部 Tab 栏「会话」页签 ——
+  // —— 不得有底部 Tab 栏、不得有左缘浮动抽屉把手 ——
+  // 用户要求：底部常驻三入口（会话/插件/设置）太占页面空间，改为左上角汉堡菜单。
+  // 会话入口 = 汉堡按钮（转发原生「打开侧边栏」）；插件/设置等入口在抽屉里，不重复提供。
+  assert.doesNotMatch(once1, /\.dsh-mobile-tabbar\s*\{/, '底部 Tab 栏样式必须移除（用户要求改为左上角汉堡菜单）')
+  assert.doesNotMatch(once1, /\.dsh-mobile-tab\s*\{/, '底部 Tab 页签样式必须移除')
+  assert.doesNotMatch(once1, /dsh-mobile-tab-badge/, '「插件」页签角标必须随 Tab 栏一并移除')
+  assert.doesNotMatch(once1, /TAB_DEFS/, '不得残留 Tab 定义表')
   assert.doesNotMatch(once1, /dsh-mobile-drawer-btn/)
   assert.doesNotMatch(once1, /dsh-dock-drawer-top|dsh-dock-drawer-off|dkmob-fab/, '不得残留浮动侧栏按钮')
 
-  // —— 抽屉遮罩 + 底部 Tab 栏（会话/插件/设置）——
+  // —— 左上角汉堡菜单 + 抽屉遮罩 ——
   assert.match(once1, /dsh-mobile-scrim/, '缺抽屉遮罩')
-  assert.match(once1, /dsh-mobile-tabbar/, '缺底部 Tab 栏样式')
-  assert.match(once1, /打开侧边栏/, 'Tab 栏「会话」页签没有转发原生打开侧边栏')
-  assert.match(once1, /\{id:"dock",label:"插件"/, 'Tab 栏缺「插件」页签')
-  assert.doesNotMatch(once1, /\{id:"tasks"/, '不应再有独立「任务」页签（应并入「插件」）')
-  assert.match(once1, /dsh-mobile-tab-badge/, '缺「插件」页签任务角标样式/元素')
-  assert.match(once1, /\/?dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
+  assert.match(once1, /\.dsh-mobile-burger\{/, '缺左上角汉堡菜单样式')
+  // 三条横线（汉堡语义）：三个 path，y 递增且等距。
+  assert.match(once1, /M4 7h16"\/><path d="M4 12h16"\/><path d="M4 17h16"/, '汉堡图标不是三条横线')
+  assert.match(once1, /className="dsh-mobile-burger"/, '缺汉堡按钮元素创建')
+  // 按钮必须够大（触控面积）且**贴**左上角（安全区避让，但不再额外内缩 8px）。
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*width:44px;height:44px/, '汉堡按钮触控面积不足 44×44')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*left:env\(safe-area-inset-left,0px\)/, '汉堡没有避让左侧安全区')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*top:env\(safe-area-inset-top,0px\)/, '汉堡没有避让顶部安全区（刘海）')
+  // ⚠️ 视觉契约：页面左上角本来是空的，原生同类控件是**裸图标**。汉堡不得做成
+  // 白底圆角卡片 + 阴影 + 模糊（用户实测反馈「没有贴合边缘，很突兀」）。
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*background:transparent/, '汉堡不得有底色卡片（用户要求贴合原生裸图标，不悬浮）')
+  assert.match(once1, /\.dsh-mobile-burger\{[^}]*border:0/, '汉堡不得有边框')
+  assert.doesNotMatch(once1, /\.dsh-mobile-burger\{[^}]*box-shadow/, '汉堡不得有投影（会显得像悬浮异物）')
+  assert.doesNotMatch(once1, /\.dsh-mobile-burger\{[^}]*backdrop-filter/, '汉堡不得有毛玻璃底')
+  assert.match(once1, /打开侧边栏/, '汉堡没有转发原生「打开侧边栏」')
+  assert.match(once1, /aria-expanded/, '汉堡没有维护展开态语义')
+  // —— 待确认任务角标：挂汉堡右上角（替代底部 Tab 栏「插件」页签上的角标）——
+  assert.match(once1, /dsh-mobile-burger-badge/, '汉堡没有待确认任务角标（底部 Tab 栏移除后该提醒丢失了）')
+  assert.match(once1, /dsh-mobile-burger-badge\.wait/, '角标缺少「等待确认」红色脉冲态')
+  assert.match(once1, /dsh-burger-badge-pulse/, '缺角标脉冲动画')
+  assert.match(once1, /dsh-dock\/runstate\/status/, '角标没有轮询 runstate 路由')
+  assert.match(once1, /badge\.hidden\s*=\s*true/, '角标没有在无任务时隐藏')
+  assert.match(once1, /runstateGone/, 'runstate 路由不存在时没有静默停轮询（会一直 405）')
+  // 功能停用时宿主根本不注册 runstate 路由 —— 必须看【运行状态】置的旗标再决定轮询，
+  // 否则会先打一次必然 405 的请求（控制台噪音，与用量记录 chip 当年同一个毛病）。
+  assert.match(once1, /__dshDockRunstate/, '角标轮询没有看 __dshDockRunstate 旗标（功能停用时会打一次无谓 405）')
   assert.match(once1, /visualViewport/, '软键盘判定没有用 visualViewport')
 
   // —— 「哪都滑不动」回归钉（本轮核心修复）——
@@ -75,6 +102,15 @@ try {
   assert.match(once1, /\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/, '输入区贴底必须走 margin-top:auto')
   assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]/, '滚动体留白没有区分键盘弹出态')
   assert.match(once1, /html\.dsh-dock-kbd \[class\*="scrollBody"\]/, '缺键盘弹出态的收窄留白规则')
+
+  // —— 底部留白只留安全区（用户要求：少留一点，多给会话区显示内容）——
+  // 底部 Tab 栏移除后，滚动体内边距与输入区内边距都成了纯浪费。真实实例 390×844
+  // 像素扫描实测：卡片下方空白带 51px，其中 30px 是这两条（24+6），收掉后降到 21px
+  // （剩下的 21px 是 dsh 自带的卡片下边距，保留作呼吸感）。钉死，别再把硬留白加回来。
+  assert.doesNotMatch(once1, /padding-bottom:calc\(\d+px \+ env\(safe-area-inset-bottom/, '滚动体底部不得有硬留白（Tab 栏时代的遗留，会白占会话区）')
+  // 宿主半部没有 data-conversation-scroll 复位规则（那条只存在于客户端半部），此处按本半部实际声明断言。
+  assert.match(once1, /html:not\(\.dsh-dock-kbd\) \[class\*="scrollBody"\]\{padding-bottom:env\(safe-area-inset-bottom,0px\)!important\}/, '滚动体底部留白应只剩安全区')
+  assert.match(once1, /\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto;padding-bottom:0\}/, '输入区不应再自带底部内边距')
 
   // —— 输入区 chip 窄屏收起（28cqw 上限挤成「余..」）——
   assert.match(once1, /\.dockchip-row\{display:none\}/)
