@@ -71,6 +71,14 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}',
   '  .dsh-mobile-burger.on{color:#4d9fff}',
   '  .dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent)}',
+  // 待确认任务角标：挂在汉堡右上角。底部 Tab 栏移除前这个提醒挂在「插件」页签上，
+  // 现在改挂汉堡——小圆点/数字锚在按钮右上角，不占布局、不破坏裸图标观感。
+  // 等待确认（要人介入）= 红点 + 脉冲；进行中 = 蓝色数字（弱一级）。
+  '  .dsh-mobile-burger-badge{position:absolute;top:4px;right:4px;box-sizing:border-box;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#4d9fff;color:#fff;font:700 9px/16px inherit;font-variant-numeric:tabular-nums;text-align:center;pointer-events:none;box-shadow:0 0 0 2px var(--dsw-alias-bg-layer-1,#12151b)}',
+  '  .dsh-mobile-burger-badge[hidden]{display:none}',
+  '  .dsh-mobile-burger-badge.wait{background:#ef4444;animation:dsh-burger-badge-pulse 1.2s ease-in-out infinite}',
+  '  @keyframes dsh-burger-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}',
+  '  @media (prefers-reduced-motion:reduce){.dsh-mobile-burger-badge.wait{animation:none}}',
   // ── 输入区吸附到视口底部：欢迎内容原生是 justify-content:center 垂直居中，
   //    手机视口下输入卡片悬在中部、下方留出大片空白。改用「输入区 margin-top:auto」贴底。
   //    底部 Tab 栏已移除，滚动体留白从 72px（Tab 栏高度 + 安全区）进一步收到
@@ -145,7 +153,7 @@ const MOBILE_BEHAVIOR_JS = [
   'function collapse(){var b=document.querySelector(\'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]\');if(b)b.click()}',
   'function expand(){var b=document.querySelector(\'button[aria-label="打开侧边栏"],button[aria-label="Open sidebar"]\');if(b)b.click()}',
   'function closeDetails(){var d=document.querySelector(\'[data-sidebar-right-panel][data-sidebar-right-open]\');if(!d)return;var c=d.querySelector(\'[data-sidebar-right-toggle]\');if(c)c.click()}',
-  'var scrim=null,burger=null;',
+  'var scrim=null,burger=null,badge=null,runstateGone=false;',
   // 左上角汉堡菜单：语义上就是原「会话」页签——点开左侧会话抽屉。插件/设置/运行状态等
   // 入口本来就在抽屉里（原生侧栏 rail），展开即可达，不重复提供。
   'function ensureChrome(){',
@@ -155,7 +163,8 @@ const MOBILE_BEHAVIOR_JS = [
   '  if(!burger){',
   '    burger=document.createElement("button");burger.type="button";burger.className="dsh-mobile-burger";',
   '    burger.setAttribute("aria-label","打开会话列表");burger.setAttribute("aria-expanded","false");',
-  '    burger.innerHTML=\'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>\';',
+  '    burger.innerHTML=\'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg><span class="dsh-mobile-burger-badge" hidden></span>\';',
+  '    badge=burger.querySelector(".dsh-mobile-burger-badge");',
   '    burger.addEventListener("click",function(){expand()});',
   '    document.body.appendChild(burger);',
   '  }',
@@ -165,6 +174,27 @@ const MOBILE_BEHAVIOR_JS = [
   '  var expanded=!sidebarCollapsed();',
   '  burger.setAttribute("aria-expanded",expanded?"true":"false");',
   '  if(expanded)burger.classList.add("on");else burger.classList.remove("on");',
+  '}',
+  // 待确认任务角标：挂汉堡右上角（替代底部 Tab 栏「插件」页签上那个角标）。
+  // 等待确认=红点脉冲（要人介入），进行中=蓝色数字。runstate 路由不存在时静默停轮询。
+  // ⚠️ 宿主注入脚本拿不到客户端的功能开关，因此靠【运行状态】注册路由时置的旗标
+  // window.__dshDockRunstate（features/runstate/host.js）判断：功能停用时宿主根本不注册
+  // 该路由，无条件轮询会先打一次必然 405/404 的请求（控制台一条噪音），
+  // 与【用量记录】chip 当年同一个毛病。旗标缺失/为假就完全不轮询。
+  'function pollTasks(){',
+  '  if(runstateGone||!badge||!narrow()||document.visibilityState==="hidden"||!burger||!burger.isConnected)return;',
+  '  if(!window.__dshDockRunstate){badge.hidden=true;return}',
+  '  fetch("dsh-dock/runstate/status",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(function(r){',
+  '    if(r.status===404||r.status===405){runstateGone=true;badge.hidden=true;return null}',
+  '    return r.json()',
+  '  }).then(function(body){',
+  '    if(!body||!badge)return;',
+  '    var active=(body.data&&body.data.active)||[],wait=0;',
+  '    for(var i=0;i<active.length;i++){var ap=active[i].approvals;if(ap&&ap.length)wait+=ap.length}',
+  '    if(wait>0){badge.textContent=wait>99?"99+":String(wait);badge.className="dsh-mobile-burger-badge wait";badge.hidden=false;burger.setAttribute("title",wait+" 个任务等待你确认")}',
+  '    else if(active.length>0){badge.textContent=active.length>99?"99+":String(active.length);badge.className="dsh-mobile-burger-badge";badge.hidden=false;burger.setAttribute("title",active.length+" 个任务进行中")}',
+  '    else{badge.hidden=true;burger.removeAttribute("title")}',
+  '  }).catch(function(){})',
   '}',
   // 软键盘判定：visualViewport 与布局视口高度差超阈值视为键盘弹出（挂 html.dsh-dock-kbd，
   // 样式表隐藏汉堡并收窄滚动体留白）。
@@ -195,6 +225,9 @@ const MOBILE_BEHAVIOR_JS = [
   '  ensureChrome();syncChrome();',
   '  if(typeof MutationObserver!=="undefined"){new MutationObserver(function(){syncChrome()}).observe(document.documentElement,{attributes:true,attributeFilter:["data-sidebar-collapsed"],subtree:true})}',
   '  setInterval(syncChrome,1500);',
+  // 角标轮询：低频 3s，仅窄屏 + 页面可见时发；路由不存在则静默停。
+  '  setInterval(pollTasks,3000);pollTasks();',
+  '  document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")pollTasks()});',
   '  var onMq=function(){syncChrome()};',
   '  if(mq.addEventListener)mq.addEventListener("change",onMq);else if(mq.addListener)mq.addListener(onMq);',
   '  if(vv&&vv.addEventListener)vv.addEventListener("resize",kbdSync);',
