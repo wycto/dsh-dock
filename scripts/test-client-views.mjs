@@ -901,8 +901,15 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/className = "dsh-mobile-burger"/.test(bundle)) issues.push("缺少汉堡按钮元素创建");
 	if (!/M4 7h16"\/><path d="M4 12h16"\/><path d="M4 17h16"/.test(bundle)) issues.push("汉堡图标不是三条横线");
 	if (!/\.dsh-mobile-burger\{[^}]*width:44px;height:44px/.test(bundle)) issues.push("汉堡按钮触控面积不足 44×44");
-	if (!/\.dsh-mobile-burger\{[^}]*left:calc\(env\(safe-area-inset-left,0px\) \+ 8px\)/.test(bundle)) issues.push("汉堡没有避让左侧安全区");
-	if (!/\.dsh-mobile-burger\{[^}]*top:calc\(env\(safe-area-inset-top,0px\) \+ 8px\)/.test(bundle)) issues.push("汉堡没有避让顶部安全区（刘海）");
+	if (!/\.dsh-mobile-burger\{[^}]*left:env\(safe-area-inset-left,0px\)/.test(bundle)) issues.push("汉堡没有避让左侧安全区");
+	if (!/\.dsh-mobile-burger\{[^}]*top:env\(safe-area-inset-top,0px\)/.test(bundle)) issues.push("汉堡没有避让顶部安全区（刘海）");
+	// ⚠️ 视觉契约：页面左上角本来是空的，原生同类控件（右上侧栏开关）是**裸图标**
+	// （transparent 底 / border:0 / 无阴影）。汉堡不得做成白底圆角卡片 + 阴影 + 模糊，
+	// 否则在白底页面上像一块贴上去的异物（用户实测反馈「没有贴合边缘，很突兀」）。
+	if (!/\.dsh-mobile-burger\{[^}]*background:transparent/.test(bundle)) issues.push("汉堡有底色卡片（应贴合原生裸图标，不悬浮）");
+	if (!/\.dsh-mobile-burger\{[^}]*border:0/.test(bundle)) issues.push("汉堡有边框");
+	if (/\.dsh-mobile-burger\{[^}]*box-shadow/.test(bundle)) issues.push("汉堡有投影（会显得像悬浮异物）");
+	if (/\.dsh-mobile-burger\{[^}]*backdrop-filter/.test(bundle)) issues.push("汉堡有毛玻璃底");
 	if (!/aria-label", "\\u6253\\u5F00\\u4F1A\\u8BDD\\u5217\\u8868"/.test(bundle) && !/aria-label", "打开会话列表"/.test(bundle)) issues.push("汉堡没有无障碍标签");
 	if (!/aria-expanded/.test(bundle)) issues.push("汉堡没有维护展开态语义");
 	if (!/\\u6253\\u5F00\\u4FA7\\u8FB9\\u680F/.test(bundle) && !/打开侧边栏/.test(bundle)) issues.push("汉堡没有转发原生「打开侧边栏」（点它展不开抽屉）");

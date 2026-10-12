@@ -12,6 +12,11 @@
   - **左上角新增「三条横线」折叠菜单**（`.dsh-mobile-burger`，44×44 触控面积，
     避让 `env(safe-area-inset-*)` 刘海/圆角安全区，z 66 低于遮罩 75 / 抽屉 80），
     点击展开左侧会话抽屉；抽屉展开时 `aria-expanded="true"` 且按钮高亮。
+    **视觉上与页面原生控件同款**：透明底、无边框、无阴影、无毛玻璃，只是裸图标
+    （页面左上角本来就是空的，原生右上的侧栏开关也是这种 ghost 形态）；
+    按钮贴到 `left/top: env(safe-area-inset-*)` 边缘，不再额外内缩 8px。
+    ⚠️ 早期版本把它做成「白底圆角卡片 + 投影 + 模糊」，白底页面上像一块贴上去的
+    异物（用户实测反馈「没有贴合边缘，很突兀」），已改掉并用测试钉死。
   - **底部 Tab 栏与「插件」页签任务角标整体移除**（`TAB_DEFS` / `.dsh-mobile-tabbar` /
     `.dsh-mobile-tab` / `.dsh-mobile-tab-badge` / runstate 角标轮询全部删掉）。
     插件 / 设置 / 运行状态等入口本来就在抽屉里（原生侧栏 rail），展开抽屉即可达，
@@ -23,7 +28,9 @@
     `features/mobile/host.js`（宿主注入，**需重启 `dsh web`**）。
   - 契约测试同步：`scripts/test-mobile-host.mjs` 与 `scripts/test-client-views.mjs`
     用例 10/11 由「Tab 栏契约」改为「汉堡契约」——钉死 Tab 栏/角标必须为零、
-    汉堡存在且为三条横线/≥44×44/贴左上安全区/能转发原生「打开侧边栏」。
+    汉堡存在且为三条横线/≥44×44/贴左上安全区/能转发原生「打开侧边栏」，
+    并新增视觉契约（必须有 `background:transparent` + `border:0`，
+    不得有 `box-shadow` / `backdrop-filter`）。
 
 ## v0.14.0 — 2026-10-10
 
