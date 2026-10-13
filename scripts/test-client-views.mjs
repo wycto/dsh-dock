@@ -914,6 +914,14 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (/\.dsh-mobile-burger\{[^}]*backdrop-filter/.test(bundle)) issues.push("汉堡有毛玻璃底");
 	if (!/aria-label", "\\u6253\\u5F00\\u4F1A\\u8BDD\\u5217\\u8868"/.test(bundle) && !/aria-label", "打开会话列表"/.test(bundle)) issues.push("汉堡没有无障碍标签");
 	if (!/aria-expanded/.test(bundle)) issues.push("汉堡没有维护展开态语义");
+	// 给标题让出汉堡宽度（用户实测：标题首字叠在三条横线上）。
+	// 汉堡 fixed 定位、不占布局，原生标题从头部 padding-left:20px 起排 → 真实实例 390×844
+	// 逐字实测重叠 16px（会话标题首字 x=28 vs 汉堡右缘 44）；插件页/自动化任务页页头
+	// （padding-left:0、靠外层容器给 24px）首字 x=24 → 重叠 20px。
+	// 契约：会话页头补到 44px（= 汉堡宽度）；两条原生页头各补 28px（首字落 x=52、留 8px），
+	// 并把 gap 从 16px 收到 4px 补回被内边距吃掉的内容宽度（否则「添加插件」按钮会换行）。
+	if (!/body\[data-dk-mobile="1"\] header:has\(\[class\*="titleRow"\]\)\{padding-left:calc\(44px \+ env\(safe-area-inset-left,0px\)\)\}/.test(bundle)) issues.push("会话页头没有给汉堡让出宽度（标题会被压住）");
+	if (!/body\[data-dk-mobile="1"\] \[class\$="_pageHead"\],body\[data-dk-mobile="1"\] \[class\$="_pageHeading"\]\{padding-left:calc\(28px \+ env\(safe-area-inset-left,0px\)\);gap:4px\}/.test(bundle)) issues.push("插件页/任务页页头没有给汉堡让出宽度（标题会被压住）");
 	if (!/\\u6253\\u5F00\\u4FA7\\u8FB9\\u680F/.test(bundle) && !/打开侧边栏/.test(bundle)) issues.push("汉堡没有转发原生「打开侧边栏」（点它展不开抽屉）");
 	// 待确认任务角标：底部 Tab 栏移除前挂在「插件」页签上，现在必须挂在汉堡右上角，
 	// 保留「手机上一眼看到有任务卡住等人确认」的能力。钉住：元素 + 轮询 runstate +

@@ -2,6 +2,47 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## 未发布
+
+### 修复
+
+- **【手机适配】手机端左上角标题被汉堡菜单压住**（用户实测截图：「更新所有仓库代码」
+  的首字直接叠在三条横线上，红框圈出）：汉堡是 `position:fixed`（贴 `env(safe-area-inset-*)`、
+  44×44），**完全不占布局**，而原生标题仍从头部自己的 `padding-left:20px` 起排。
+  真实实例（390×844）逐字（Range 逐字符取矩形）实测三处的重叠量：
+  - **会话页头**（`header:has([class*="titleRow"])`）：标题首字 x=28，汉堡右缘 x=44
+    → **重叠 16px**；
+  - **插件页头**（plugin-manager 的 `ZVcBiW_pageHead`）：`padding-left:0`（靠外层
+    `.page` 的 `padding:0 24px` 给 24px），首字 x=24 → **重叠 20px**；
+  - **自动化任务页头**（schedule 的 `CxUija_pageHeading`，同样 `padding-left:0`）：
+    首字 x=24 → **重叠 20px**。
+  - 改法照原生排版习惯走——**给容器补内边距**，而不是给汉堡加底色或加宽（那只是把问题
+    搬到视觉上，还会破坏「与原生 ghost 控件同款」的既定形态）：
+    会话页头 `padding-left` 20px → **44px**（正好等于汉堡宽度，标题自带 8px 内边距 →
+    首字落 x=52，与汉堡留 8px 间隔）；两条原生页头各补 **28px**（首字同样落 x=52）。
+  - ⚠️ **两条页头是 flex + `gap:16px`**（标题块 | 工具栏），直接补内边距会压缩内容宽度：
+    实测 430/390/360/320px 下描述文案与「添加插件」按钮被挤到换行（按钮从单行变两行）。
+    因此同时把 `gap` 收到 **4px** 补回 12px；四个宽度逐字实测**行数零回归、无横向溢出**。
+  - 选择器用 `[class$="_pageHead"]`（**语义后缀**）而非 `[class*=…]`：DSH 类名是
+    「哈希前缀 + 语义后缀」，后缀稳定、前缀随版本变（本机 0.2.0-rc.2 实测为
+    `ZVcBiW_pageHead` / `CxUija_pageHeading`）；`$=` 也顺带避开 `pageHeadActions`
+    这类同前缀的无关元素。
+  - 两半部同步改：`features/mobile/view.js`（客户端，刷新即生效；规则挂
+    `body[data-dk-mobile="1"]`，停用本功能即摘属性、原生排版还原）与
+    `features/mobile/host.js`（宿主注入，**需重启 `dsh web`**）。
+  - 契约测试同步：`scripts/test-mobile-host.mjs` 与 `scripts/test-client-views.mjs`
+    用例 11 各补两条断言，钉死这三条内边距与 `gap:4px`。
+
+### 验证
+
+- 真实实例（隔离 `DSH_HOME` + rescue profile + `dsh-dock` link 到工作树，Playwright
+  + 缓存 Chromium）**四个视口 × 三个页面共 12 组**：修前各自有 1–2 处文字侵入汉堡的
+  44×44 方框（会话页 16px、插件/任务页 20px），修后**全部零侵入、无横向溢出、行数零回归**。
+- 另在**交付产物**（重建后的 `client.js`）上复验：规则确实经
+  `style[data-plugin-css="dsh-dock"]` 注入，390/320px 会话页均零侵入。
+- `npm run build:client` + `npm run test:client`（11 个内置功能渲染 + 全部契约全绿）
+  + `npm run test:host`（7 套全绿）。
+
 ## v0.15.0 — 2026-10-12
 
 ### 变更
