@@ -79,6 +79,15 @@ const MOBILE_LAYOUT_CSS = [
   '  .dsh-mobile-burger-badge.wait{background:#ef4444;animation:dsh-burger-badge-pulse 1.2s ease-in-out infinite}',
   '  @keyframes dsh-burger-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}',
   '  @media (prefers-reduced-motion:reduce){.dsh-mobile-burger-badge.wait{animation:none}}',
+  // ── 给标题让出汉堡宽度（用户实测：标题被汉堡压住——截图里「更新所有仓库代码」的首字
+  //    直接叠在三条横线上）。汉堡是 fixed 定位（贴安全区、44×44），**不占布局**，而原生
+  //    标题从头部的 padding-left:20px 起排——真实实例 390×844 逐字实测：会话标题首字
+  //    x=28、汉堡右缘 44 → **重叠 16px**；插件页/自动化任务页的页头（自身 padding-left:0，
+  //    靠外层容器给 24px）首字 x=24 → 重叠 20px。
+  //    改法照原生排版习惯走：**给容器补内边距**，而不是给汉堡加底色/加宽（那是把问题搬到
+  //    视觉上）。与客户端半部（features/mobile/view.js）逐字同款，改一处必须同步另一处。
+  '  header:has([class*="titleRow"]){padding-left:calc(44px + env(safe-area-inset-left,0px))}',
+  '  [class$="_pageHead"],[class$="_pageHeading"]{padding-left:calc(28px + env(safe-area-inset-left,0px));gap:4px}',
   // ── 输入区吸附到视口底部：欢迎内容原生是 justify-content:center 垂直居中，
   //    手机视口下输入卡片悬在中部、下方留出大片空白。改用「输入区 margin-top:auto」贴底。
   //    底部 Tab 栏已移除，滚动体留白从 72px（Tab 栏高度 + 安全区）进一步收到
