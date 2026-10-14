@@ -10,7 +10,7 @@
 //
 // 配置模型（schemastery schema 见 src/host-core.js DockConfig.animation）：
 //   animationEnabled / effectMode / robotScale
-import { ANIMATION_MODES, sendJson, readBody, readDockRoot, mutateDockSection } from '../../src/host-core.js'
+import { ANIMATION_MODES, sendJson, readBody, rejectUntrustedRequest, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 import { acquireTaskTracker } from '../../src/task-track.js'
 
 // 默认配置（schema 默认值一致；settings 未挂载时的兜底）
@@ -63,6 +63,7 @@ export const feature = {
         kind: 'prefix',
         path: '/dsh-dock/animation',
         async handler(req, res) {
+          if (rejectUntrustedRequest(ctx, req, res)) return
           try {
             const url = new URL(req.url || '/', 'http://dsh.internal')
             const method = url.pathname.replace(/^\/dsh-dock\/animation\/?/, '').split('/')[0] || ''

@@ -28,7 +28,7 @@
 // 分时段价支持多段（start>end 跨零点、start=end 全天、小数小时表示半点）；旧单段 peak 自动归一。
 // 每段可带 days=all|workday|nonworkday：workday=非周末且非 holidays；nonworkday=周末或节假日。
 // 费用在查询/导出时按当前单价即时重算，因此改价无需重扫历史。
-import { sendJson, readBody, readDockRoot, mutateDockSection } from '../../src/host-core.js'
+import { sendJson, readBody, rejectUntrustedRequest, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 
 export const feature = {
   id: 'tokenlog',
@@ -866,6 +866,7 @@ export const feature = {
         kind: 'prefix',
         path: '/dsh-dock/tokenlog',
         async handler(req, res) {
+          if (rejectUntrustedRequest(ctx, req, res)) return
           try {
             const url = new URL(req.url || '/', 'http://dsh.internal')
             const method = url.pathname.replace(/^\/dsh-dock\/tokenlog\/?/, '').split('/')[0] || ''

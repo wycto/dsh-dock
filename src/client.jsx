@@ -20,6 +20,7 @@ import {
 } from "./shared.js";
 import { feature as fTokenlog } from "../features/tokenlog/view.jsx";
 import { feature as fModelconfig } from "../features/modelconfig/view.js";
+import { feature as fProviderConfig } from "../features/providerconfig/view.js";
 import { feature as fHeartbeat } from "../features/heartbeat/view.js";
 import { feature as fTheme } from "../features/theme/view.js";
 import { feature as fBalance } from "../features/balance/view.js";
@@ -34,7 +35,7 @@ const name = "dsh-dock";
 const DOCK_VERSION = "0.15.0";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fGames, fMobileRelay, fMobile];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fGames, fMobileRelay, fMobile];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
