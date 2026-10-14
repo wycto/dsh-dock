@@ -181,6 +181,10 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		if (String(url).includes("dsh-dock/models")) {
 			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
 		}
+		// 模型提供商：与模型目录同一份目录数据（真实宿主额外补 apiKeyConfigured，fixture 已含）
+		if (String(url).includes("dsh-dock/providerconfig")) {
+			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
+		}
 		let data = {};
 		// 用量记录 query 的正常响应。此前该分支缺失 → TokenLogView 渲染时读 data.counts 抛错、
 		// 被错误边界降级为一行提示，而断言用的 marker「用量」恰好能在卡片描述里命中，于是
@@ -403,6 +407,7 @@ const FEATURES = [
 	{ id: "tokenlog", name: "用量记录", marker: "调用明细", deep: true },
 	{ id: "balance", name: "模型余额", marker: "余额", deep: true },
 	{ id: "modelconfig", name: "模型设置", marker: "模型", deep: true },
+	{ id: "providerconfig", name: "模型提供商", marker: "模型提供商", deep: true },
 	{ id: "heartbeat", name: "心跳监视", marker: "心跳", deep: true },
 	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
@@ -446,21 +451,28 @@ for (const f of FEATURES) {
 			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
 		}
 	}
-	// 模型设置：主页只剩「模型提供商」入口卡——提供商列表/表单已搬进独立子页面（见用例 1.4b）。
-	// 这里断言入口卡真的渲染（含自定义路由计数与「管理」按钮），防止子页面入口被误删成死路。
+	// 模型设置：只应出现模型目录编辑相关内容；Provider 的增删改入口已拆成独立功能【模型提供商】。
+	// 这里断言主页真的渲染出模型编辑器与图片代理面板，且不再有「模型提供商」入口卡（防拆分回退）。
 	if (f.id === "modelconfig" && !error) {
-		for (const needle of ["模型提供商", "个自定义路由", "管理"]) {
-			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置主页缺少「${needle}」（提供商子页面入口卡未渲染）`); }
+		for (const needle of ["图片理解代理", "保存写回官方配置", "刷新模型目录"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置主页缺少「${needle}」（模型编辑器/图片代理面板未渲染）`); }
+		}
+		if (html.includes("个自定义路由")) { failed++; console.log("✗ 模型设置主页仍渲染「模型提供商」入口卡（应已拆成独立功能）"); }
+	}
+	// 模型提供商：独立的 Provider 管理页（行卡片 + 编辑/删除 + 新增入口）
+	if (f.id === "providerconfig" && !error) {
+		for (const needle of ["魔搭 ModelScope", "编辑", "删除", "＋ 新增 Provider"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型提供商页缺少「${needle}」（Provider 列表/新增入口未渲染）`); }
 		}
 	}
 }
 
-// ---------- 用例 1.4：模型设置「新增 Provider」表单（params.openProviderForm 直达子页面并展开表单）----------
-// 提供商管理已从主页搬进独立子页面；openProviderForm 深链既要落到子页面，又要直接展开新增表单。
+// ---------- 用例 1.4：模型提供商「新增 Provider」表单（params.openProviderForm 直接展开）----------
+// Provider 管理已是独立功能模块；openProviderForm 深链要直接展开新增表单。
 // 用全新 runtime 避免与主页渲染共享组件实例状态。
 {
 	const enabled = {};
-	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	for (const other of FEATURES) enabled[other.id] = other.id === "providerconfig";
 	let detail = "";
 	try {
 		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
@@ -469,7 +481,7 @@ for (const f of FEATURES) {
 		else {
 			const formHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { openProviderForm: true } }));
 			// 沙箱只序列化文本节点（不含 input 的 placeholder 属性），故用表单特有的文本断言：
-			// 子页面标题 + api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
+			// 页面标题 + api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
 			for (const needle of ["模型提供商", "新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
 				if (!formHtml.includes(needle)) { detail = "新增 Provider 表单缺少「" + needle + "」"; break; }
 			}
@@ -478,34 +490,33 @@ for (const f of FEATURES) {
 		detail = "Provider 表单渲染抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { failed++; console.log("✗ " + detail); }
-	else console.log("✓ 模型设置 Provider 表单：params.openProviderForm 直达子页面「新增 Provider」表单（路由/api/baseURL/key/模型行）");
+	else console.log("✓ 模型提供商 Provider 表单：params.openProviderForm 直接展开「新增 Provider」表单（路由/api/baseURL/key/模型行）");
 }
 
-// ---------- 用例 1.4b：模型设置「模型提供商」子页面（params.page 直达）----------
-// 用户反馈：提供商管理挤在模型设置主页里又长又丑。现在它是独立子页面，按官方「模型」设置页排版：
-// 返回入口 + 标题/说明 + 行卡片（名称/路由/模型数/密钥状态 + 编辑/删除）+ 底部虚线新增。
-// 这条断言锁住「子页面自己就能渲染出整张列表」，避免入口卡指向一个空页面。
+// ---------- 用例 1.4b：模型提供商页（独立功能，行卡片列表）----------
+// Provider 管理从【模型设置】拆成独立功能模块后，本页自己就要渲染出整张列表：
+// 标题/说明 + 行卡片（名称/路由/模型数/密钥状态 + 编辑/删除）+ 底部虚线新增。
 {
 	const enabled = {};
-	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	for (const other of FEATURES) enabled[other.id] = other.id === "providerconfig";
 	let detail = "";
 	try {
 		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
 		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
 		if (!reg) detail = "没有注册 settings.section";
 		else {
-			const pageHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { page: "providers" } }));
-			for (const needle of ["← 模型设置", "模型提供商", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
-				if (!pageHtml.includes(needle)) { detail = "模型提供商子页面缺少「" + needle + "」"; break; }
+			const pageHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
+			for (const needle of ["模型提供商", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
+				if (!pageHtml.includes(needle)) { detail = "模型提供商页缺少「" + needle + "」"; break; }
 			}
-			// 主业内容（图片理解代理 / 模型目录编辑器）不该跟着出现在子页面里
-			if (!detail && pageHtml.includes("图片理解代理")) detail = "模型提供商子页面串进了主页内容（图片理解代理）";
+			// 模型设置页的内容（图片理解代理 / 模型目录编辑器）不该串进来——两个功能各自独立
+			if (!detail && pageHtml.includes("图片理解代理")) detail = "模型提供商页串进了模型设置页内容（图片理解代理）";
 		}
 	} catch (e) {
-		detail = "模型提供商子页面渲染抛错：" + ((e && e.message) || e);
+		detail = "模型提供商页渲染抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { failed++; console.log("✗ " + detail); }
-	else console.log("✓ 模型设置「模型提供商」子页面：params.page=\"providers\" 直达行卡片列表（密钥状态/模型数/编辑/删除/新增）");
+	else console.log("✓ 模型提供商页：独立功能渲染行卡片列表（密钥状态/模型数/编辑/删除/新增）");
 }
 
 	if (failed) {

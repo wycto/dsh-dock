@@ -448,6 +448,60 @@ export function sendJson(res, status, value) {
   res.end(JSON.stringify(value))
 }
 
+/** 「信任栅栏缺失」只告警一次，避免每个请求刷一条日志。 */
+let warnedNoTrustSurface = false
+
+/**
+ * 浏览器信任栅栏：**每个自行注册的 `webServer` 路由都必须先调它**。
+ *
+ * 为什么必须：`webServer` 的命名路由由载体直接派发给 handler（见 dsh 的
+ * `packages/host/webserver` —— 匹配到路由就 `route.handler(req, res)`），载体本身
+ * 「不拥有认证或 Origin 策略」；`/api` 的 Host/Origin 校验与会话认证由 Connection 在
+ * 它自己的 FetchHandler 上做，**管不到插件注册的命名路由**。所以不检查的插件路由就是
+ * 一扇对任何能连到端口的人都敞开的门，dsh-access 这类门禁插件也拦不到（它只有
+ * exact 表 / fallback / connection-request / upgrades 四个缝）。
+ *
+ * 做法与官方插件一致：`dsh-host-open-in-app`、`dsh-experimental-inspector` 都在自己的
+ * 路由入口调 `connection.requestRejection(req)`，值即 401（Host 可信但无会话）或
+ * 403（Host/Origin 栅栏拒绝）。Connection 不可用时按 fail-closed 处理——dsh-dock 的
+ * 路由本身就是 web 专用的。
+ *
+ * @returns {boolean} true = 已拒绝并写完响应，调用方必须立即 return。
+ */
+export function rejectUntrustedRequest(ctx, req, res) {
+  const connection = ctx && typeof ctx.get === 'function' ? ctx.get('connection') : null
+  const requestRejection = connection && typeof connection.requestRejection === 'function'
+    ? connection.requestRejection.bind(connection)
+    : null
+  if (requestRejection === null) {
+    if (!warnedNoTrustSurface) {
+      warnedNoTrustSurface = true
+      console.warn('[dsh-dock] connection 服务不可用：/dsh-dock 路由将按未受信请求一律拒绝（401）')
+    }
+    sendJson(res, 401, { ok: false, error: { code: 'untrusted', message: '浏览器信任栅栏不可用，已拒绝请求' } })
+    return true
+  }
+  let rejection
+  try {
+    rejection = requestRejection(req)
+  } catch (error) {
+    // 栅栏自身异常：宁可拒绝，也不放行一个身份未知的请求。
+    console.warn('[dsh-dock] 浏览器信任栅栏判定异常，已按拒绝处理:', (error && error.message) || String(error))
+    sendJson(res, 403, { ok: false, error: { code: 'untrusted', message: '请求来源无法判定，已拒绝' } })
+    return true
+  }
+  if (rejection === undefined) return false
+  sendJson(res, rejection, {
+    ok: false,
+    error: {
+      code: 'untrusted',
+      message: rejection === 401 ? '未登录或浏览器会话已失效' : '请求来源不被信任',
+    },
+  })
+  if (typeof req.resume === 'function') req.resume()
+  return true
+}
+
 /** 解析 POST 请求体 JSON（限长 2MB）。 */
 export function readBody(req) {
   return new Promise((resolve, reject) => {
