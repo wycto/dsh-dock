@@ -4,6 +4,44 @@
 
 ## 未发布
 
+### 安全
+
+- **插件路由全部挂上 DSH 的浏览器信任栅栏**（任何能连到端口的人都能直接调用插件路由）。
+  根因：`webServer` 的命名路由由载体直接派发给 handler，载体本身「不拥有认证或 Origin 策略」；
+  `/api` 的 Host/Origin 校验与会话认证由 Connection 在它自己的 FetchHandler 上做，**管不到插件
+  注册的命名路由**——这不是 dsh-dock 独有，但不挂守卫的路由与登录门禁（如 dsh-access）完全无关，
+  谁都能调。实际可被利用的至少有两条：
+  - `POST /dsh-dock/mobile-relay {method:'auth/set'|'lan/start'}`：未认证即可改远程访问账号、
+    开启 `0.0.0.0` 网关（网关还会用 `connection.authenticatedUrl` 兑换 dsh 自己的会话 Cookie）；
+  - `POST /dsh-dock/models {action:'listModels', baseURL:'<任意地址>', apiKeyEnv:'DEEPSEEK_API_KEY'}`：
+    宿主拿**本机凭据库里的真 Key** 去请求调用方给的地址 → 模型 API Key 外带 + 任意 URL 出站（SSRF）。
+  改法：`src/host-core.js` 新增 `rejectUntrustedRequest(ctx, req, res)`，内部走
+  `connection.requestRejection(req)`（与官方 `dsh-host-open-in-app`、`dsh-experimental-inspector`
+  同款做法），回 401（Host 可信但无会话）/ 403（Host/Origin 栅栏拒绝）；Connection 不可用时
+  fail-closed 按 401 拒绝。**9 处 `webServer.register`（`index.js` 的功能开关路由 + 8 个功能模块）
+  全部在入口第一行调用**，被拒绝的请求不进入任何业务逻辑。
+  测试：新增 `scripts/test-route-trust-host.mjs`——静态检查每处注册都挂守卫（防新路由漏挂），
+  行为验证 401 / 403 / 栅栏缺失 fail-closed 三条路径，并覆盖模型提供商路由的拒绝与 4xx 不落盘；
+  现有宿主测试桩补上 `connection` 服务。
+
+### 变更
+
+- **【模型设置】拆分出独立功能【模型提供商】**（可单独启停）：Provider 自身的增删改、API Key
+  写入、拉取上游模型列表，从「模型设置」拆成一个独立菜单项与独立模块
+  （`features/providerconfig/`，路由 `/dsh-dock/providerconfig`）；**「模型设置」从此只管模型条目
+  自身的属性**——输入模态（文本/图片/标注）与思考强度档位。
+  - 为什么要拆：Provider 增删改是**配置面**操作（写官方 settings、写本机凭据库、按调用方给的
+    baseURL 发起出站请求），与「调模型的模态类型/思考强度」不是一回事。拆开后不需要改 Provider 的
+    部署可以把它整个停用，那三条路由随功能一起卸载。
+  - 共享逻辑上提：宿主侧新增 `src/model-directory.js`（目录归一化 + 条目整形，模型设置/模型提供商/
+    图片理解代理三处共用），客户端新增 `src/model-draft.js`（草稿常量与纯函数），避免两份实现漂移。
+  - 客户端：「模型设置」页去掉 Provider 入口卡与 `params.page="providers"` 子页面；新模块自带
+    页面（排版与官方「设置 → 模型」一致，深链 `params.openProviderForm` 仍可直达新增表单）。
+  - 兼容性：`/dsh-dock/models` 的 GET 不再附带 `apiKeyConfigured`（移到模型提供商路由），
+    模型设置页也不再显示「缺密钥」提示（该提示属于 Provider 配置，已随功能迁走）。
+  - ⚠️ 截图 `screenshots/dock-modelconfig.png` 仍是拆分前的（带「模型提供商」入口卡），
+    下次发版前重拍；`dock-modelconfig-providers*.png` 三张表现不变。
+
 ### 修复
 
 - **【手机适配】手机端左上角标题被汉堡菜单压住**（用户实测截图：「更新所有仓库代码」

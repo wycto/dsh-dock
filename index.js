@@ -15,11 +15,14 @@
 //   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效配置持久化（参照 @wycto/dsh-task-pulse）
 //   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
 //   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
+//   - modelconfig 模型设置：模型目录的输入模态与思考强度（写回官方配置）
+//   - providerconfig 模型提供商：Provider 增删改 + API Key + 拉取上游模型列表
 //   - mobile      手机适配：窄屏排版/Tab 栏/抽屉/遮罩/键盘（宿主经 tapIndex 注入 index.html）
 //   - mobile-relay 远程访问：账号密码登录的远程入口（网关 + 账号 + 浏览模式目录选择器）
-import { DockConfig, sendJson, readBody, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
+import { DockConfig, sendJson, readBody, rejectUntrustedRequest, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
 import { injectWelcomeAck } from './src/welcome-ack.js'
 import { feature as fModels } from './features/modelconfig/host.js'
+import { feature as fProviderConfig } from './features/providerconfig/host.js'
 import { feature as fVisionProxy } from './features/visionproxy/host.js'
 import { feature as fBalance } from './features/balance/host.js'
 import { feature as fTokenlog } from './features/tokenlog/host.js'
@@ -62,6 +65,7 @@ export function apply(ctx, config) {
   // 规划中的功能缺省 false，等实现后移除 roadmap 并打开。
   const FEATURES = [
     fModels,
+    fProviderConfig,
     fVisionProxy,
     fBalance,
     fTokenlog,
@@ -193,6 +197,7 @@ export function apply(ctx, config) {
         kind: 'exact',
         path: '/dsh-dock/features',
         handler: async (req, res) => {
+          if (rejectUntrustedRequest(ctx, req, res)) return
           try {
             if (req.method === 'POST') {
               const body = await readBody(req)

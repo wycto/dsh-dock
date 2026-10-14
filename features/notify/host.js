@@ -14,7 +14,7 @@
 //   systemNotify / soundNotify / soundEffect / dingtalkEnabled / dingtalkWebhook /
 //   feishuEnabled / feishuWebhook
 // 模块启停由功能坞的 features.notify 开关负责（独立菜单项），本模块不再有第二个总开关。
-import { SOUND_EFFECTS, sendJson, readBody, readDockRoot, mutateDockSection } from '../../src/host-core.js'
+import { SOUND_EFFECTS, sendJson, readBody, rejectUntrustedRequest, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 import { acquireTaskTracker } from '../../src/task-track.js'
 
 // 默认配置（schema 默认值一致；settings 未挂载时的兜底）
@@ -244,6 +244,7 @@ export const feature = {
         kind: 'prefix',
         path: '/dsh-dock/notify',
         async handler(req, res) {
+          if (rejectUntrustedRequest(ctx, req, res)) return
           try {
             const url = new URL(req.url || '/', 'http://dsh.internal')
             const method = url.pathname.replace(/^\/dsh-dock\/notify\/?/, '').split('/')[0] || ''

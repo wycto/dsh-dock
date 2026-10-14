@@ -71,7 +71,13 @@ const settingsService = {
 }
 const mockCtx = {
   inject: injectMock,
-  get(key) { return key === 'settings' ? settingsService : undefined },
+  get(key) {
+    if (key === 'settings') return settingsService
+    // 浏览器信任栅栏：webServer 路由入口的守卫（rejectUntrustedRequest）先问它；
+    // undefined = 放行（测试桩一律视为「受信且已登录」）。
+    if (key === 'connection') return { requestRejection: () => undefined }
+    return undefined
+  },
 }
 function injectMock(keys, callback) {
   if (keys.includes('settings')) {

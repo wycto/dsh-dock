@@ -17,7 +17,8 @@
 | 功能 | 说明 |
 |---|---|
 | **用量记录** | 记录全部 LLM API 调用：秒级时间筛选、Token/费用统计（**可配置各模型单价、持久保存并按自填单价计费**，支持多段分时价与周末/节假日谷价，内置峰谷计价 + 官网价目自动同步作兜底）、分组汇总、明细检索与 CSV 导出 |
-| **模型设置** | 编辑各 Provider 模型目录：输入类型（文本/图片 + 标注）与思考强度档位；自定义 Provider 的增删改在「模型提供商」子页面（排版同官方模型管理），图片能力可由你手动声明，新增 Provider 自动刷新加载，写回官方配置热生效 |
+| **模型设置** | 编辑各 Provider 模型目录：输入类型（文本/图片 + 标注）与思考强度档位；图片能力可由你手动声明，新增 Provider 后进入页面自动重读目录，写回官方配置热生效 |
+| **模型提供商** | 管理自定义模型 Provider 本身：新增 / 编辑 / 删除（OpenAI 兼容、Anthropic Messages 等）、API Key 写入本机凭据库、拉取上游 `{baseURL}/models` 列表；排版同官方模型管理页。**独立功能，可单独停用**——停用后写配置与出站拉取的路由一并关闭 |
 | **模型余额** | 展示所有模型 Provider 账户余额（5 分钟自动刷新） |
 | **任务动画** | 19 种任务运行动画（含星际远征、星云潮汐、曲速航道、量子雷达、星座网络、深海脉动、神经电路等），速度随任务活动联动，配置全部持久化 |
 | **任务通知** | 任务完成 / 异常 / 需确认通知：页内卡片、6 种提示音、浏览器系统通知、钉钉/飞书群机器人推送（宿主直发，浏览器关着也能推）；与动画互相独立、各自启停 |
@@ -207,29 +208,28 @@ dsh plugin --profile web add dsh-dock     # 换回 npm 版
 
 **模型设置**
 
-![模型设置：模型提供商入口卡 + 各 Provider 模型目录编辑器（输入类型 / 思考强度 / 图片能力声明）](screenshots/dock-modelconfig.png)
+![模型设置：各 Provider 模型目录编辑器（输入类型 / 思考强度 / 图片能力声明）](screenshots/dock-modelconfig.png)
 
 1. 打开功能坞 → 模型设置
-2. 编辑各 Provider 的模型目录：输入类型（文本 / 图片）、思考强度档位；新建 Provider 后进入页面会自动重读目录，顶部和底部都可手动刷新
+2. 编辑各 Provider 的模型目录：输入类型（文本 / 图片）、思考强度档位；Provider 增删改后在别的页签回来会自动重读目录，顶部和底部都可手动刷新
 3. 是否可直接识图以你勾选的「图片」能力为准；运行时候选仅作辅助提示
 4. 保存后写回官方配置，即时生效（无需重启）
-5. **模型提供商**：主页「模型提供商」卡片点右侧「管理」进入子页面（见下）
+5. Provider 自身的增删改在独立功能「模型提供商」里（下方），本页不再有入口卡与子页面
 
-**模型提供商（模型设置的子页面）**
+**模型提供商**（独立功能，与「模型设置」各自启停）
 
-主页不再挤着长长的 Provider 列表——「模型提供商」是一张入口卡（自定义路由数 + 密钥状态圆点 + 「管理」），点进去的子页面排版与官方「设置 → 模型」一致：
-
-![模型提供商子页面：每个 Provider 一行卡片（显示名称 / 路由 key / 模型数 / 密钥状态徽标 + 编辑 / 删除），底部虚线新增](screenshots/dock-modelconfig-providers.png)
+![模型提供商：每个 Provider 一行卡片（显示名称 / 路由 key / 模型数 / 密钥状态徽标 + 编辑 / 删除），底部虚线新增](screenshots/dock-modelconfig-providers.png)
 
 ![编辑 Provider：一行一字段（路由 key / 显示名称 / baseURL / API 协议 / API Key），模型清单沿用官方模型行样式](screenshots/dock-modelconfig-provider-edit.png)
 
 ![新增 Provider：底部虚线入口展开的创建卡片，可「获取模型列表」勾选上游模型后批量加入](screenshots/dock-modelconfig-provider-create.png)
 
-- **新增 / 编辑 / 删除**自定义模型 Provider（OpenAI 兼容、Anthropic Messages 等），写入官方配置并热生效；内置 DeepSeek 官方 Provider 在该页只读，其模型目录仍在主页编辑
-- **API Key** 存本机凭据库（文件仅 root 可读），输入框永不回显；留空则不改动已存密钥
+- **新增 / 编辑 / 删除**自定义模型 Provider（OpenAI 兼容、Anthropic Messages 等），写入官方配置并热生效；内置 DeepSeek 官方 Provider 在该页只读，其模型目录在「模型设置」里编辑
+- **API Key** 存本机凭据库（文件仅 root 可读），输入框永不回显；留空则不改动已存密钥；凭据库条目名留空时按路由 key 自动推导
 - **获取模型列表**：宿主代打 `GET {baseURL}/models`，结果按可勾选清单展示（全选 / 清空 / 已选计数），勾上哪个加哪个
-- 删除仍是两段式确认（点一次变「确认删除？」，再点才真删）；编辑/新增卡片都是行内展开，返回主页即卸载、草稿不留后台
-- 深链 `params.page === "providers"` 或 `params.openProviderForm`（后者直接展开新增表单）可直达该页
+- 删除仍是两段式确认（点一次变「确认删除？」，再点才真删）；编辑/新增卡片都是行内展开
+- 深链 `params.openProviderForm` 可直接展开新增表单
+- **可停用**：不需要改 Provider 的部署（例如只用官方 DeepSeek 端点）把它关掉，写官方配置、写凭据库、发起出站拉取的那三条路由会随功能一起卸载
 
 **图片理解代理（visionproxy）**
 - 用于图片内容识别等场景。原图直发候选默认折叠，模型设置中勾选「图片」输入类型的模型即可走该通道；请按实际 Provider 能力选择，端点不支持时取消该标记即可恢复代理识别。
@@ -313,6 +313,25 @@ export const feature = {
 外壳只做组装：宿主半部在 `index.js` 注册，客户端在外壳 `src/client.jsx` 装配。
 每个模块可整体拎出单独打包发布（`scripts/extract-feature.mjs` 生成独立包骨架，
 独立包装回后经 **dockBridge** 注册回功能坞菜单）。
+
+### 硬约定：路由入口必须先过浏览器信任栅栏
+
+`webServer` 的命名路由由载体直接派发给 handler，载体本身**不拥有认证或 Origin 策略**；
+`/api` 的 Host/Origin 校验与会话认证由 Connection 在自己的 FetchHandler 上做，**管不到
+插件注册的命名路由**。所以任何自行注册的路由，第一件事必须是：
+
+```js
+import { rejectUntrustedRequest } from '../../src/host-core.js'
+// …
+async handler(req, res) {
+  if (rejectUntrustedRequest(ctx, req, res)) return   // 401 无会话 / 403 来源不可信
+  // …业务逻辑
+}
+```
+
+不挂守卫 = 任何能连到端口的人都能直接调用它（可写配置、写凭据库、发起带着本机密钥的出站请求）。
+`node scripts/test-route-trust-host.mjs` 会静态检查每一处 `webServer.register` 都挂了守卫，
+并行为验证 401/403/栅栏缺失（fail-closed）三条路径——新增路由务必让这条用例继续绿。
 
 ## 许可
 
