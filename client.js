@@ -7299,7 +7299,6 @@ function useNotify() {
   (0, import_react10.useEffect)(() => notifyStore.subscribe(() => setSnap(notifyStore.snap)), []);
   return snap;
 }
-var CONFIRM_LINGER_MS = 8e3;
 function pageVisible() {
   return typeof document === "undefined" || document.visibilityState === "visible";
 }
@@ -7341,7 +7340,6 @@ function Toast(props) {
   const close = (0, import_react10.useCallback)(() => {
     setClosing(true);
   }, []);
-  const hoveringRef = (0, import_react10.useRef)(false);
   const jump = (0, import_react10.useCallback)(() => {
     if (!t.sessionTitle) return;
     if (openSessionByTitle(t.sessionTitle) && t.kind !== "confirm") setClosing(true);
@@ -7349,37 +7347,6 @@ function Toast(props) {
   (0, import_react10.useEffect)(() => {
     if (t.closing && !closing) setClosing(true);
   }, [t.closing, closing]);
-  const lingerRef = (0, import_react10.useRef)(null);
-  (0, import_react10.useEffect)(() => {
-    if (!t.lingerMs) return;
-    let timer = null;
-    const stop = () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    };
-    const start = () => {
-      if (timer || hoveringRef.current || !pageVisible()) return;
-      timer = setTimeout(close, t.lingerMs);
-    };
-    const resume = () => {
-      stop();
-      start();
-    };
-    const onVisibility = () => {
-      if (pageVisible()) start();
-      else stop();
-    };
-    lingerRef.current = { stop, resume };
-    start();
-    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      stop();
-      lingerRef.current = null;
-      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
   (0, import_react10.useEffect)(() => {
     if (!closing) return;
     const timer = setTimeout(() => props.onClose(t.id), 240);
@@ -7391,16 +7358,6 @@ function Toast(props) {
     {
       className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (t.sessionTitle ? " clickable" : "") + (props.collapsed ? " collapsed" : "") + (closing ? " out" : ""),
       onClick: t.sessionTitle ? jump : void 0,
-      onMouseEnter: () => {
-        hoveringRef.current = true;
-        const l = lingerRef.current;
-        if (l) l.stop();
-      },
-      onMouseLeave: () => {
-        hoveringRef.current = false;
-        const l = lingerRef.current;
-        if (l) l.resume();
-      },
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
@@ -7509,9 +7466,7 @@ function NotifyOverlay(props) {
         sessionTitle: task.title || "",
         // 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
         // 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
-        approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id),
-        // 在前台看见它超过 8 秒就自动收起，不用手动点 ✕
-        lingerMs: CONFIRM_LINGER_MS
+        approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id)
       });
       if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
       if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -7788,7 +7743,7 @@ function NotifyView(props) {
                 children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF08\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF1B\u5728\u524D\u53F0\u770B\u5230 8 \u79D2\u540E\u4E5F\u81EA\u52A8\u6536\u8D77\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF1B\u5BA1\u6279\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF0C\u6CA1\u5904\u7406\u5B8C\u5C31\u4E00\u76F4\u663E\u793A\uFF08\u70B9\u5361\u7247\u76F4\u8FBE\u4F1A\u8BDD\uFF09" })
           ] })
         ] })
       ] }, "events"),
@@ -7800,7 +7755,7 @@ function NotifyView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u6536\u7EB3" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7ED3\u675F\u5361\u7247\u4E0D\u518D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF08\u540E\u53F0\u8DD1\u5B8C\u7684\u5207\u56DE\u6765\u4E5F\u5728\uFF09\uFF1B\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD\uFF0C\u6216\u70B9\u8FDB\u8BE5\u4F1A\u8BDD\uFF0C\u5361\u7247\u81EA\u52A8\u6536\u8D77\u3002\u8D85\u8FC7 2 \u5F20\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00\u3002\u9700\u786E\u8BA4\u5361\u7247\u4E0D\u8D70\u8FD9\u5957\uFF08\u5904\u7406\u5B8C/\u524D\u53F0\u770B\u5230 8 \u79D2\u5373\u6536\uFF0C\u89C1\u4E0A\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u6240\u6709\u5361\u7247\u90FD\u4E0D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u7ED3\u675F\u5361\u7247\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF08\u540E\u53F0\u8DD1\u5B8C\u7684\u5207\u56DE\u6765\u4E5F\u5728\uFF09\uFF0C\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD\uFF0C\u6216\u70B9\u8FDB\u8BE5\u4F1A\u8BDD\uFF0C\u5361\u7247\u81EA\u52A8\u6536\u8D77\uFF1B\u9700\u786E\u8BA4\u5361\u7247\u6302\u5230\u5BA1\u6279\u5904\u7406\u5B8C\u30023 \u5F20\u53CA\u4EE5\u4E0A\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
