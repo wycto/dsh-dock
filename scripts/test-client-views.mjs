@@ -26,6 +26,7 @@ function createRuntime() {
 	const Fragment = Symbol.for("dsh-dock-test.Fragment");
 	const instances = new Map();
 	const pending = [];
+	const elements = []; // 宿主元素事件句柄（render 时收集，用例触发交互用）
 	const noop = () => {};
 	let currentPath = "root";
 	let currentInst = null;
@@ -105,8 +106,7 @@ function createRuntime() {
 		const type = node.type;
 		const props = node.props || {};
 		if (type === Fragment) { render(props.children, out, key); return; }
-		if (typeof type === "function") {
-			const path = currentPath + "/" + key + "#" + (type.name || "anon");
+		if (typeof type === "function") {			const path = currentPath + "/" + key + "#" + (type.name || "anon");
 			const prevPath = currentPath, prevInst = currentInst, prevCursor = cursor;
 			currentPath = path;
 			currentInst = instanceOf(path);
@@ -140,12 +140,20 @@ function createRuntime() {
 			}
 			return;
 		}
+		// 宿主元素：记录带事件句柄的节点，供用例触发 onClick / onMouseEnter 等
+		if (typeof type === "string") {
+			const cls = String(props.className || "");
+			for (const ev of ["onClick", "onMouseEnter", "onMouseLeave"]) {
+				if (typeof props[ev] === "function") elements.push({ tag: type, className: cls, event: ev, handler: props[ev] });
+			}
+			out.push("<" + type + (cls ? ' class="' + cls + '"' : "") + ">");
+		}
 		render(props.children, out, key);
 	}
 	// render 挂在返回对象上，避免外部重复实现
 	return {
-		react, jsxRuntime,
-		beginPass() { pending.length = 0; cursor = 0; },
+		react, jsxRuntime, elements,
+		beginPass() { pending.length = 0; elements.length = 0; cursor = 0; },
 		isDirty: () => dirty,
 		clearDirty() { dirty = false; },
 		runEffects() {
@@ -746,6 +754,269 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 需确认卡自动收起：审批处理完（approvals 清空）后卡片自动淡出，不用手动点 ✕");
+}
+
+// ---------- 用例 5c：完成卡没人看过就不会消失（后台弹的、前台弹的都常驻）----------
+// 真实问题（用户实测）：任务在后台跑完，切回页面时右上角什么都没有。根因（历史）：
+// 完成卡带 stayMs 倒计时，从弹卡那一刻就开始走，后台标签页里浏览器把轮询节流，
+// 卡片在没人看的地方默默走完时间消失——通知等于丢了。修法（最终形态）：结束卡
+// **没有任何自动消失**——没点开看过就一直挂着，多了靠叠放收纳。本用例 hidden
+// 弹卡等 3 秒断言仍在；切回 visible 再等 3 秒仍断言在（旧实现这里早已超时消失）。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		active: [Object.assign({}, NOTIFY_STATUS.active[0])],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	const listeners = {};
+	const doc = {
+		visibilityState: "hidden",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+		removeEventListener(type, fn) {
+			const arr = listeners[type] || [];
+			const i = arr.indexOf(fn);
+			if (i >= 0) arr.splice(i, 1);
+		},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		// 任务在后台结束：活跃清空、最近完成出现
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等一轮轮询（任务中 850ms）
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) throw new Error("后台任务结束没有弹出完成卡（前置条件不成立）");
+		// 后台等超过旧 stayMs（8s 的节流轮询场景按 3s 计），卡片必须还在
+		await new Promise((resolve) => setTimeout(resolve, 3000));
+		html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) detail = "页面在后台时完成卡自己消失了（用户切回来什么都看不到）";
+		else {
+			// 切回前台：没看过，仍然挂着（旧实现在这里重新计满 stayMs 后收起——已废弃）
+			doc.visibilityState = "visible";
+			for (const fn of (listeners.visibilitychange || []).slice()) fn();
+			await new Promise((resolve) => setTimeout(resolve, 3000));
+			html = await renderSettled(runtime, node);
+			if (!html.includes("任务完成")) detail = "切回前台后完成卡超时消失（应常驻到看过）";
+		}
+	} catch (e) {
+		detail = "完成卡常驻用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 完成卡常驻不白丢：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 完成卡常驻不白丢：后台、前台都没看过就一直挂着，不超时自毁");
+}
+
+// ---------- 用例 5d：点进完成的会话，完成卡跟着自动收起 ----------
+// 用户诉求：完成卡该弹还得弹（前台完成也要有通知），但点进那个会话看过结果后，
+// 卡片就该自己消失，不用手动点 ✕。判定与【任务动画】同款：侧栏高亮行
+// （role=treeitem + aria-selected）标题与卡片 sessionTitle 对上即收起。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		active: [Object.assign({}, NOTIFY_STATUS.active[0])],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	// 侧栏选中态可变桩：selectedTitle 非空即模拟"用户点进了该会话"
+	let selectedTitle = "";
+	const doc = {
+		visibilityState: "visible",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		querySelectorAll(sel) {
+			if (sel === '[role="treeitem"][aria-selected="true"]' && selectedTitle) {
+				return [{ textContent: selectedTitle, getBoundingClientRect: () => ({ width: 200, height: 32, top: 100, bottom: 132, right: 200, left: 8 }) }];
+			}
+			return [];
+		},
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener() {}, removeEventListener() {},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		// 前台任务结束 → 弹完成卡
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等一轮轮询
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) throw new Error("前台任务结束没有弹出完成卡（前置条件不成立）");
+		// 用户点进那个会话（recent[0].title =「上一个任务」）→ 巡检（500ms）应收起卡片
+		selectedTitle = NOTIFY_STATUS.recent[0].title;
+		await new Promise((resolve) => setTimeout(resolve, 700));
+		html = await renderSettled(runtime, node);
+		await new Promise((resolve) => setTimeout(resolve, 300)); // 240ms 淡出
+		html = await renderSettled(runtime, node);
+		if (html.includes("任务完成")) detail = "点进完成的会话后完成卡仍在（未随会话选中自动收起）";
+	} catch (e) {
+		detail = "点进会话收起完成卡用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 点进会话收起完成卡：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 点进会话收起完成卡：侧栏选中该会话即视为看到结果，完成卡自动淡出");
+}
+
+// ---------- 用例 5e：点通知卡片跳转到对应会话并收起 ----------
+// 用户诉求：点卡片直达对应会话。结束卡跳转成功就地淡出；找不到可见会话行
+// （抽屉收起/手机端）不跳转也不收起。侧栏行桩：role=treeitem、标题对上、内含可点 button。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		// approvals 置空：本用例只测结束卡，别把共享 fixture 里的需确认项也弹出来抢句柄
+		active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	let clicked = 0;
+	let rowsVisible = true;
+	const doc = {
+		visibilityState: "visible",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		querySelectorAll(sel) {
+			if (sel === '[role="treeitem"]' && rowsVisible) {
+				return [{
+					textContent: NOTIFY_STATUS.recent[0].title,
+					getBoundingClientRect: () => ({ width: 200, height: 32, top: 100, bottom: 132, right: 200, left: 8 }),
+					querySelector: () => ({ click: () => { clicked += 1; } }),
+				}];
+			}
+			return [];
+		},
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener() {}, removeEventListener() {},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等一轮轮询弹卡
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) throw new Error("任务结束没有弹出完成卡（前置条件不成立）");
+		// 行不可见时点卡片：不跳转也不收起（选择器精确到卡片本体，别吃进 ✕ 按钮）
+		rowsVisible = false;
+		const isCard = (el) => el.event === "onClick" && /(^|\s)dknt-toast(\s|$)/.test(el.className) && !el.className.includes("close");
+		const card = runtime.elements.find(isCard);
+		if (!card) throw new Error("完成卡没有挂 onClick 跳转句柄（不是可点击卡片）");
+		card.handler({});
+		await new Promise((resolve) => setTimeout(resolve, 400));
+		html = await renderSettled(runtime, node);
+		if (clicked !== 0) detail = "会话行不可见时仍触发了点击";
+		else if (!html.includes("任务完成")) detail = "跳转失败时完成卡被误收起（没看到结果不该消失）";
+		else {
+			// 行可见时点卡片：跳转一次 + 卡片淡出收起
+			rowsVisible = true;
+			const card2 = runtime.elements.find(isCard);
+			card2.handler({});
+			if (clicked !== 1) detail = "点卡片没有调用会话行的 click（未跳转，clicked=" + clicked + "）";
+			await new Promise((resolve) => setTimeout(resolve, 600)); // 240ms 淡出 + 余量
+			html = await renderSettled(runtime, node);
+			await new Promise((resolve) => setTimeout(resolve, 300)); // 淡出定时器在渲染趟内才排上，再等一拍
+			html = await renderSettled(runtime, node);
+			if (!detail && html.includes("任务完成")) detail = "跳转成功后完成卡没有收起";
+		}
+	} catch (e) {
+		detail = "点卡片跳转会话用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 点卡片跳转会话：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 点卡片跳转会话：结束卡可点击直达会话，跳转成功即收起；行不可见时不跳不收");
+}
+
+// ---------- 用例 5f：卡片多了叠放收纳（≥3 张收成标题条，悬停展开）----------
+// 用户诉求：通知卡片过多时叠放、只露标题，鼠标放上去展开。实现：NotifyOverlay 在
+// toasts.length ≥ 3 且未悬停卡片栈时给栈加 .stacked、给除最新外的卡片加
+// .collapsed（只渲染标题条、不渲染正文）；悬停 onMouseEnter 整体展开。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	// 三个不同会话先后结束 → 三张完成卡
+	const sessions = [
+		{ sessionId: "s-a", title: "会话甲的任务" },
+		{ sessionId: "s-b", title: "会话乙的任务" },
+		{ sessionId: "s-c", title: "会话丙的任务" },
+	];
+	const live = { active: [], recent: [], config: NOTIFY_STATUS.config };
+	for (const s of sessions) {
+		// approvals 置空：本用例只看结束卡的叠放，别让共享 fixture 的需确认项混进来
+		live.active.push(Object.assign({}, NOTIFY_STATUS.active[0], { sessionId: s.sessionId, title: s.title, approvals: [] }));
+	}
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	const doc = {
+		visibilityState: "visible",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		querySelectorAll() { return []; },
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener() {}, removeEventListener() {},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		// 三个会话依次结束（active 清空、recent 补三条同 id 记录）
+		live.recent = sessions.map((s) => Object.assign({}, NOTIFY_STATUS.recent[0], s));
+		live.active = [];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 一轮轮询全部判结束
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("class=\"dknt-toasts stacked\"")) detail = "三张卡片没有进入叠放态（栈缺 .stacked 类）";
+		else {
+			const collapsedCount = (html.match(/dknt-toast[^"]*\scollapsed/g) || []).length;
+			const bodyCount = (html.match(/dknt-toast-body/g) || []).length;
+			// 叠放态：3 张里最新一张完整展开（1 个正文），其余 2 张只剩标题条
+			if (collapsedCount !== 2) detail = "叠放时应只展开最新一张（期望 2 张 .collapsed，实际 " + collapsedCount + "）";
+			else if (bodyCount !== 1) detail = "叠放态正文数不对（期望 1，实际 " + bodyCount + "；收起态不应渲染正文）";
+			else {
+				// 悬停卡片栈 → 整体展开
+				const stackEl = runtime.elements.find((el) => el.className.includes("dknt-toasts") && el.event === "onMouseEnter");
+				if (!stackEl) throw new Error("卡片栈没有 onMouseEnter 展开句柄");
+				stackEl.handler({});
+				html = await renderSettled(runtime, node);
+				if (html.includes("class=\"dknt-toasts stacked\"")) detail = "悬停卡片栈后没有展开（仍带 .stacked）";
+				else if ((html.match(/dknt-toast-body/g) || []).length !== 3) detail = "展开后没有恢复全部正文（期望 3）";
+			}
+		}
+	} catch (e) {
+		detail = "卡片叠放用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 卡片叠放收纳：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 卡片叠放收纳：≥3 张只展开最新、其余收成标题条，悬停卡片栈整体展开");
 }
 
 // ---------- 用例 6：开关补推（浏览器已表态、宿主从未收到过该功能） ----------

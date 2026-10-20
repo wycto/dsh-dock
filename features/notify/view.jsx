@@ -5,6 +5,7 @@
 //  2. HomeStat  —— 首页总揽概要（当前通知事件与推送通道）；
 //  3. Overlay   —— 全局浮层（shell.overlay 常驻，功能启用即挂载）：轮询 Host 状态，
 //                  任务结束弹通知卡片（可选提示音与浏览器系统通知），工具等待确认时弹常驻提醒卡。
+//                  结束卡常驻到「看过」（点卡直达会话 / 点进会话 / 手动 ✕），≥3 张叠放收纳。
 //
 // 与【任务动画】【运行状态】完全独立：动效在 features/animation/、任务状态一览在
 // features/runstate/，本模块只管通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书群机器人推送）。
@@ -173,21 +174,62 @@ function pageVisible() {
 	return typeof document === "undefined" || document.visibilityState === "visible";
 }
 
+// 当前正在看的会话标题（侧栏高亮行）。与【任务动画】的 currentSessionTitle 同款判定：
+// dsh 会话树行 = role="treeitem" + aria-selected，行文本即标题；侧栏在左，
+// 跳过正文区可能出现的同名高亮节点（右上搜索结果等）。
+function currentSelectedSessionTitle() {
+	if (typeof document === "undefined" || typeof window === "undefined") return "";
+	if (typeof document.querySelectorAll !== "function") return "";
+	for (const el of document.querySelectorAll('[role="treeitem"][aria-selected="true"]')) {
+		const r = el.getBoundingClientRect();
+		if (r.width > 0 && r.height > 0 && r.right <= window.innerWidth * .35) {
+			const text = (el.textContent || "").trim();
+			if (text) return text;
+		}
+	}
+	return "";
+}
+// 标题模糊对齐（与任务动画 taskOnScreen 同规则）：相等或互为子串即算同一会话
+function titleMatches(a, b) {
+	return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
+}
+
+// 点卡片跳转会话：在侧栏会话树里找标题对上的一行，点它（优先行内的 a/button）。
+// 判定与 currentSelectedSessionTitle 同口径（左缘 35vw 内、可见）；找不到可见行
+// （抽屉收起 / 手机端 / 会话被删）返回 false，调用方保持卡片不收起。
+function openSessionByTitle(title) {
+	if (typeof document === "undefined" || typeof window === "undefined") return false;
+	if (typeof document.querySelectorAll !== "function" || !title) return false;
+	for (const el of document.querySelectorAll('[role="treeitem"]')) {
+		const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+		if (!r || r.width <= 0 || r.height <= 0 || r.right > window.innerWidth * .35) continue;
+		if (!titleMatches((el.textContent || "").trim(), title)) continue;
+		const link = typeof el.querySelector === "function" ? el.querySelector("a,button") : null;
+		const target = link || el;
+		if (typeof target.click === "function") { target.click(); return true; }
+		return false;
+	}
+	return false;
+}
+
 function Toast(props) {
 	const t = props.t;
 	const [closing, setClosing] = useState(!!t.closing);
 	const close = useCallback(() => { setClosing(true); }, []);
 	const hoveringRef = useRef(false);
-	// 外部要求收起（审批已处理 / 任务已结束）走同一套淡出动画
+	// 点卡片 = 跳转到对应会话。结束卡跳成功就地收起（这一看就把通知的活干完了）；
+	// 需确认卡只跳转不收——审批没处理完它就该在。找不到可见会话行（抽屉收起/
+	// 手机端/会话已删）不收起，卡片原样保留。
+	const jump = useCallback(() => {
+		if (!t.sessionTitle) return;
+		if (openSessionByTitle(t.sessionTitle) && t.kind !== "confirm") setClosing(true);
+	}, [t.sessionTitle, t.kind]);
+	// 外部要求收起（审批已处理 / 已点进会话）走同一套淡出动画
 	useEffect(() => { if (t.closing && !closing) setClosing(true); }, [t.closing, closing]);
-	// 停留时长（stayMs=0 不倒计时，靠"看过"计时或外部收起）
-	useEffect(() => {
-		if (!t.stayMs) return;
-		const timer = setTimeout(close, t.stayMs);
-		return () => clearTimeout(timer);
-	}, []);
-	// "看过"计时：前台可见 + 没在悬停，连续看满 lingerMs 就自动收起。
-	// 计时器句柄放进 ref，供悬停 / 切前后台随时暂停与恢复（离开卡片后重新从 0 算）。
+	// 结束卡没有任何自动消失：没点开看过就一直挂着（后台弹的同样挂着），
+	// 多了靠叠放收纳（.stacked 样式），不靠丢。
+	// 需确认卡保留「看过计时」（lingerMs，前台可见 + 没悬停才走）：审批处理完
+	// 会由对账收起，人在前台看过 8 秒也收——只有它维持"看过即消失"。
 	const lingerRef = useRef(null);
 	useEffect(() => {
 		if (!t.lingerMs) return;
@@ -218,16 +260,25 @@ function Toast(props) {
 		: t.kind === "error"
 			? "var(--dk-err)"
 			: "var(--dk-warn)";
+	// 叠放收起态（collapsed）：只留标题条，正文隐藏；悬停卡片栈时整体展开
 	return (
-		<div className={"dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : "")}
+		<div className={"dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "")
+				+ (t.sessionTitle ? " clickable" : "")
+				+ (props.collapsed ? " collapsed" : "")
+				+ (closing ? " out" : "")}
+			onClick={t.sessionTitle ? jump : undefined}
 			onMouseEnter={() => { hoveringRef.current = true; const l = lingerRef.current; if (l) l.stop(); }}
 			onMouseLeave={() => { hoveringRef.current = false; const l = lingerRef.current; if (l) l.resume(); }}>
 			<div className="dknt-toast-head">
 				<span className="dknt-toast-mark" style={{ background: markColor }} />
-				<span className="dknt-toast-title" title={t.title}>{t.kind === "confirm" ? "✋ " : ""}{t.title}</span>
-				<button type="button" className="dknt-toast-close" aria-label="关闭" onClick={close}>✕</button>
+				<span className="dknt-toast-title" title={t.sessionTitle || t.title}>
+					{t.kind === "confirm" ? "✋ " : ""}{props.collapsed ? (t.sessionTitle || t.title) : t.title}
+					{!props.collapsed && t.sessionTitle && t.kind !== "confirm" ? " · " + t.sessionTitle : ""}
+				</span>
+				<button type="button" className="dknt-toast-close" aria-label="关闭"
+					onClick={(e) => { if (e && e.stopPropagation) e.stopPropagation(); close(); }}>✕</button>
 			</div>
-			{t.body ? <div className="dknt-toast-body">{t.body}</div> : null}
+			{!props.collapsed && t.body ? <div className="dknt-toast-body">{t.body}</div> : null}
 		</div>
 	);
 }
@@ -236,12 +287,14 @@ function Toast(props) {
 export function NotifyOverlay(props) {
 	const snap = useNotify();
 	const [toasts, setToasts] = useState([]);
+	const [stackHover, setStackHover] = useState(false); // 卡片栈被悬停（叠放时整体展开）
 	const prevActiveRef = useRef(null);
 	const remindedApprovalsRef = useRef(new Map()); // sessionId -> 提醒过的 approvalId 集合
 	const toastSeqRef = useRef(0);
 
 	const pushToast = useCallback((toast) => {
-		setToasts((prev) => prev.concat([toast]).slice(-4));
+		// 上限 12：结束卡现在常驻到看过才收，4 张容易见底；多了靠叠放收纳而不是丢弃。
+		setToasts((prev) => prev.concat([toast]).slice(-12));
 	}, []);
 
 	// 轮询：任务中 850ms，实时捕捉结束/待确认；空闲 6s / 出错 15s；页面切回立即刷新。
@@ -312,11 +365,11 @@ export function NotifyOverlay(props) {
 				kind: "confirm",
 				title: "任务需要确认",
 				body: lines.join("\n"),
+				// 点卡片直达该会话去处理审批（需确认卡跳转后不收起——审批没处理完它就该在）
+				sessionTitle: task.title || "",
 				// 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
 				// 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
 				approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id),
-				// 不倒计时：审批一处理完立即自动收起；人在后台没看见时也不会消失
-				stayMs: 0,
 				// 在前台看见它超过 8 秒就自动收起，不用手动点 ✕
 				lingerMs: CONFIRM_LINGER_MS,
 			});
@@ -357,6 +410,30 @@ export function NotifyOverlay(props) {
 		});
 	}, [snap.status]);
 
+	// 结束卡（完成/异常）的"看过即收"：用户点进那个会话（侧栏高亮行标题与卡片
+	// 绑定的 sessionTitle 对上）就视为已看到结果，卡片自动收起。结束卡没有超时
+	// 自毁——没看过就一直挂着；这条巡检是它唯一的自动出口（另有手动 ✕ 与点卡跳转）。
+	// 侧栏选中没有事件可订阅，用轻量轮询（500ms 一次 querySelectorAll）；页面在
+	// 后台不检查（回来时若仍停在该会话，收起发生在切回后）。
+	useEffect(() => {
+		const timer = setInterval(() => {
+			if (!pageVisible()) return;
+			const current = currentSelectedSessionTitle();
+			if (!current) return;
+			setToasts((prev) => {
+				let changed = false;
+				const next = prev.map((x) => {
+					if (x.kind === "confirm" || x.closing || !x.sessionTitle) return x;
+					if (!titleMatches(x.sessionTitle, current)) return x;
+					changed = true;
+					return Object.assign({}, x, { closing: true });
+				});
+				return changed ? next : prev;
+			});
+		}, 500);
+		return () => clearInterval(timer);
+	}, []);
+
 	const handleTaskEnd = (task, record, cfg) => {
 		const reason = (record && record.endReason) || "";
 		const success = isSuccessReason(reason);
@@ -387,7 +464,9 @@ export function NotifyOverlay(props) {
 			kind: success ? "success" : (info.cls === "err" ? "error" : "warn"),
 			title,
 			body: lines.join("\n"),
-			stayMs: typeof cfg.notifyStayMs === "number" ? cfg.notifyStayMs : 8000,
+			// 绑定会话标题：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
+			// 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
+			sessionTitle: (record && record.title) || task.title || "",
 		});
 		// 提示音：任务结束时播放（完成/异常配套音）；与系统通知独立开关
 		if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
@@ -406,9 +485,17 @@ export function NotifyOverlay(props) {
 	// Host 不可用（旧宿主未重启等）：浮层整体静默，面板页会给提示
 	if (!snap.status) return null;
 	if (toasts.length === 0) return null;
+	// 卡片多了叠放收纳：≥3 张时只完整展开最新一张，其余收成"只剩标题条"；
+	// 鼠标移到卡片栈上整体展开，移开收回。跳转/收起对每张卡照常可用。
+	const stack = toasts.length >= 3 && !stackHover;
 	return (
-		<div className="dknt-toasts">
-			{toasts.map((t) => <Toast key={t.id} t={t} onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />)}
+		<div className={"dknt-toasts" + (stack ? " stacked" : "")}
+			onMouseEnter={() => setStackHover(true)}
+			onMouseLeave={() => setStackHover(false)}>
+			{toasts.map((t, i) => (
+				<Toast key={t.id} t={t} collapsed={stack && i < toasts.length - 1}
+					onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />
+			))}
 		</div>
 	);
 }
@@ -591,16 +678,8 @@ function NotifyView(props) {
 				</div>
 				<div className="dknt-rows-narrow">
 					<div className="dknt-row">
-						<span className="dknt-row-label">停留时长</span>
-						<select className="dknt-select" value={String(cfg.notifyStayMs)}
-							onChange={(e) => patch({ notifyStayMs: Number(e.target.value) })}>
-							<option value="4000">4 秒</option>
-							<option value="8000">8 秒</option>
-							<option value="15000">15 秒</option>
-							<option value="30000">30 秒</option>
-							<option value="0">常驻（手动关闭）</option>
-						</select>
-						<span className="dknt-row-sub">卡片自动消失的时间（需确认卡片不走这个值，见上）</span>
+						<span className="dknt-row-label">卡片收纳</span>
+						<span className="dknt-row-sub">结束卡片不再超时自动消失：没看过就一直挂着（后台跑完的切回来也在）；点卡片直达对应会话，或点进该会话，卡片自动收起。超过 2 张自动叠放成标题条，鼠标移上去整体展开。需确认卡片不走这套（处理完/前台看到 8 秒即收，见上）</span>
 					</div>
 					<div className="dknt-row">
 						<span className="dknt-row-label">系统通知</span>
@@ -764,6 +843,13 @@ const css = [
 	".dknt-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dknt-toast-in .32s var(--ds-ease-in-out),dknt-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
 	"@keyframes dknt-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
 	"@media (prefers-reduced-motion:reduce){.dknt-toast,.dknt-toast-confirm{animation:none}}",
+	// 可跳转卡片：指针 + 悬停提亮（点卡片直达对应会话）
+	".dknt-toast.clickable{cursor:pointer;}",
+	".dknt-toast.clickable:hover{border-color:var(--dk-accent);}",
+	// 叠放收纳：≥3 张时旧卡收成"只剩标题条"，悬停卡片栈整体展开
+	".dknt-toasts.stacked{gap:4px;}",
+	".dknt-toast.collapsed{padding:6px 14px;opacity:.85;margin-left:14px;}",
+	".dknt-toast.collapsed .dknt-toast-head{margin-bottom:0;}",
 	// 面板页布局
 	".dknt-root{display:flex;flex-direction:column;gap:10px;}",
 	".dknt-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
@@ -783,7 +869,6 @@ const css = [
 	".dknt-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
 	".dknt-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
 	".dknt-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-	".dknt-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
 	// 音效选择卡（名称 + 播放键；选中态描边）
 	".dknt-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
 	".dknt-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
