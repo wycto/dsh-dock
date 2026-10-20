@@ -713,11 +713,13 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 任务通知浮层：任务结束时弹出通知卡片（轮询 → 检测 → 卡片）");
 }
 
-// ---------- 用例 5b：审批处理完，需确认卡片自动收起（不用一张张点 ✕）----------
-// 真实问题（用户实测截图）：一个任务连续触发 4 次审批，右上角堆了 4 张「任务需要确认」，
-// 因为需确认卡恒为常驻（stayMs:0），只能手动点 ✕ 挨个关。现在卡片与审批项绑定
-// （approvalKeys = sessionId|approvalId）：approval/decided 后宿主把审批项移出
-// active[].approvals，浮层对账到「绑定的审批项都不在了」就把卡片标记 closing 淡出。
+// ---------- 用例 5b：需确认卡挂到审批处理完才收，前台多久都不自毁 ----------
+// 两代真实问题：①（用户截图）一个任务连弹 4 张需确认卡，只能挨个点 ✕——修法是
+// 卡片与审批项绑定（approvalKeys = sessionId|approvalId），approval/decided 后
+// 浮层对账到「绑定的审批项都不在了」就把卡片标记 closing 淡出；②（用户实测漏
+// 提醒）曾经的「前台看过 8 秒也收」（lingerMs）会在审批还挂着等人批的时候先把
+// 提醒弄丢——已彻底移除计时器。本用例先在前台放 9 秒（>旧 8 秒 linger）断言卡片
+// 仍在，再把 approvals 换空断言对账收起。
 {
 	const enabled = {};
 	for (const f of FEATURES) enabled[f.id] = true;
@@ -736,6 +738,11 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		const node = runtime.react.createElement(overlays.comp, null);
 		const before = await renderSettled(runtime, node);
 		if (!before.includes("任务需要确认")) throw new Error("审批等待时没有弹出需确认卡（前置条件不成立）");
+		// 前台放 9 秒（旧 linger 是 8 秒自毁）：审批没处理完，卡片必须还挂着
+		await new Promise((resolve) => setTimeout(resolve, 9200));
+		const still = await renderSettled(runtime, node);
+		if (!still.includes("任务需要确认")) detail = "审批还挂着时前台放满 9 秒，需确认卡自己消失了（计时器没删干净）";
+		if (!detail && /lingerMs/.test(bundle)) detail = "产物里仍有 lingerMs（前台看过计时未移除，会提前弄丢待审批提醒）";
 		// 用户确认/拒绝 → 宿主把审批项移出 approvals（任务本身还在跑）
 		live.active = [Object.assign({}, live.active[0], { approvals: [] })];
 		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等下一轮轮询（任务中 850ms）
@@ -745,15 +752,15 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			html = await renderSettled(runtime, node);
 		}
-		if (html.includes("任务需要确认")) detail = "审批已处理，需确认卡没有自动收起（仍渲染在页面上）";
+		if (!detail && html.includes("任务需要确认")) detail = "审批已处理，需确认卡没有自动收起（仍渲染在页面上）";
 	} catch (e) {
 		detail = "需确认卡自动收起用例抛错：" + ((e && e.message) || e);
 	}
 	if (detail) {
-		console.log(`✗ 需确认卡自动收起：${detail}`);
+		console.log(`✗ 需确认卡挂到处理完：${detail}`);
 		process.exit(1);
 	}
-	console.log("✓ 需确认卡自动收起：审批处理完（approvals 清空）后卡片自动淡出，不用手动点 ✕");
+	console.log("✓ 需确认卡挂到处理完：前台 9 秒不自毁（无计时器），审批处理完对账自动淡出");
 }
 
 // ---------- 用例 5c：完成卡没人看过就不会消失（后台弹的、前台弹的都常驻）----------

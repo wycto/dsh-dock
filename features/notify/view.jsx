@@ -166,10 +166,9 @@ function useNotify() {
 }
 
 // ---------- 通知卡片 ----------
-// 需确认卡片的"看过"计时：页面在前台被看到这么久就自动收起。
-// 提醒的意义是"把人叫回来"，人已经在页面上看见它就算送达；一直堆着得一个个点 ✕ 反而是骚扰。
-// 页面在后台时不倒计时（回来后才开始算），鼠标停在卡片上也算"正在看"，暂停计时。
-const CONFIRM_LINGER_MS = 8000;
+// 需确认卡片没有任何计时器：审批没处理完它就一直在（处理完由 approvalKeys
+// 对账自动收起，也可手动 ✕）。曾经的「前台看过 8 秒也收」害死人：审批还挂着
+// 等人批，提醒先没了（2026-10-20 实测漏提醒）。堆叠问题交给叠放收纳解决。
 function pageVisible() {
 	return typeof document === "undefined" || document.visibilityState === "visible";
 }
@@ -216,7 +215,6 @@ function Toast(props) {
 	const t = props.t;
 	const [closing, setClosing] = useState(!!t.closing);
 	const close = useCallback(() => { setClosing(true); }, []);
-	const hoveringRef = useRef(false);
 	// 点卡片 = 跳转到对应会话。结束卡跳成功就地收起（这一看就把通知的活干完了）；
 	// 需确认卡只跳转不收——审批没处理完它就该在。找不到可见会话行（抽屉收起/
 	// 手机端/会话已删）不收起，卡片原样保留。
@@ -226,30 +224,10 @@ function Toast(props) {
 	}, [t.sessionTitle, t.kind]);
 	// 外部要求收起（审批已处理 / 已点进会话）走同一套淡出动画
 	useEffect(() => { if (t.closing && !closing) setClosing(true); }, [t.closing, closing]);
-	// 结束卡没有任何自动消失：没点开看过就一直挂着（后台弹的同样挂着），
-	// 多了靠叠放收纳（.stacked 样式），不靠丢。
-	// 需确认卡保留「看过计时」（lingerMs，前台可见 + 没悬停才走）：审批处理完
-	// 会由对账收起，人在前台看过 8 秒也收——只有它维持"看过即消失"。
-	const lingerRef = useRef(null);
-	useEffect(() => {
-		if (!t.lingerMs) return;
-		let timer = null;
-		const stop = () => { if (timer) { clearTimeout(timer); timer = null; } };
-		const start = () => {
-			if (timer || hoveringRef.current || !pageVisible()) return;
-			timer = setTimeout(close, t.lingerMs);
-		};
-		const resume = () => { stop(); start(); };
-		const onVisibility = () => { if (pageVisible()) start(); else stop(); };
-		lingerRef.current = { stop, resume };
-		start();
-		if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
-		return () => {
-			stop();
-			lingerRef.current = null;
-			if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
-		};
-	}, []);
+	// 所有卡片都没有计时器：结束卡常驻到「看过」（点卡跳转 / 点进会话 / 手动 ✕），
+	// 需确认卡常驻到审批处理完（approvalKeys 对账收起，或手动 ✕）。
+	// 曾经的 lingerMs「前台看过 8 秒也收」实测会把还挂着的审批提醒先弄丢，已移除；
+	// 卡片多了靠叠放收纳（.stacked 样式），不靠丢。
 	useEffect(() => {
 		if (!closing) return;
 		const timer = setTimeout(() => props.onClose(t.id), 240);
@@ -266,9 +244,7 @@ function Toast(props) {
 				+ (t.sessionTitle ? " clickable" : "")
 				+ (props.collapsed ? " collapsed" : "")
 				+ (closing ? " out" : "")}
-			onClick={t.sessionTitle ? jump : undefined}
-			onMouseEnter={() => { hoveringRef.current = true; const l = lingerRef.current; if (l) l.stop(); }}
-			onMouseLeave={() => { hoveringRef.current = false; const l = lingerRef.current; if (l) l.resume(); }}>
+			onClick={t.sessionTitle ? jump : undefined}>
 			<div className="dknt-toast-head">
 				<span className="dknt-toast-mark" style={{ background: markColor }} />
 				<span className="dknt-toast-title" title={t.sessionTitle || t.title}>
@@ -370,8 +346,6 @@ export function NotifyOverlay(props) {
 				// 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
 				// 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
 				approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id),
-				// 在前台看见它超过 8 秒就自动收起，不用手动点 ✕
-				lingerMs: CONFIRM_LINGER_MS,
 			});
 			if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
 			if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
@@ -667,7 +641,7 @@ function NotifyView(props) {
 							onClick={() => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false })}>
 							{cfg.notifyOnConfirm !== false ? "开" : "关"}
 						</button>
-						<span className="dknt-row-sub">工具等待你批准时弹卡片并响确认音（处理完自动收起；在前台看到 8 秒后也自动收起）</span>
+						<span className="dknt-row-sub">工具等待你批准时弹卡片并响确认音；审批处理完自动收起，没处理完就一直显示（点卡片直达会话）</span>
 					</div>
 				</div>
 			</div>,
@@ -679,7 +653,7 @@ function NotifyView(props) {
 				<div className="dknt-rows-narrow">
 					<div className="dknt-row">
 						<span className="dknt-row-label">卡片收纳</span>
-						<span className="dknt-row-sub">结束卡片不再超时自动消失：没看过就一直挂着（后台跑完的切回来也在）；点卡片直达对应会话，或点进该会话，卡片自动收起。超过 2 张自动叠放成标题条，鼠标移上去整体展开。需确认卡片不走这套（处理完/前台看到 8 秒即收，见上）</span>
+						<span className="dknt-row-sub">所有卡片都不超时自动消失：结束卡片没看过就一直挂着（后台跑完的切回来也在），点卡片直达对应会话，或点进该会话，卡片自动收起；需确认卡片挂到审批处理完。3 张及以上自动叠放成标题条，鼠标移上去整体展开</span>
 					</div>
 					<div className="dknt-row">
 						<span className="dknt-row-label">系统通知</span>
