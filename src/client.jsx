@@ -32,7 +32,7 @@ import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 import { feature as fMobile } from "../features/mobile/view.js";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.15.2";
+const DOCK_VERSION = "0.15.3";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fGames, fMobileRelay, fMobile];
