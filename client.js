@@ -12,11 +12,7 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __commonJS = (cb, mod) => function __require() {
-  try {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-  } catch (e) {
-    throw mod = 0, e;
-  }
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -40,18 +36,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// node_modules/qrcode/lib/can-promise.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/utils.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  "node_modules/qrcode/lib/core/utils.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -128,9 +124,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-level.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -173,9 +169,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-buffer.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -208,9 +204,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-matrix.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -237,9 +233,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alignment-pattern.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -272,9 +268,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/finder-pattern.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -291,9 +287,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mask-pattern.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -433,9 +429,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-code.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -794,9 +790,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/galois-field.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -827,9 +823,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/polynomial.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -863,9 +859,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -895,18 +891,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version-check.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  "node_modules/qrcode/lib/core/version-check.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/regex.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  "node_modules/qrcode/lib/core/regex.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -932,9 +928,9 @@ var require_regex = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mode.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  "node_modules/qrcode/lib/core/mode.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1013,9 +1009,9 @@ var require_mode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  "node_modules/qrcode/lib/core/version.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1108,9 +1104,9 @@ var require_version = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/format-info.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  "node_modules/qrcode/lib/core/format-info.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1126,9 +1122,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/numeric-data.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1161,9 +1157,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alphanumeric-data.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1240,9 +1236,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/byte-data.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1270,9 +1266,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/kanji-data.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1309,9 +1305,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// node_modules/dijkstrajs/dijkstra.js
+// node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  "node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1410,9 +1406,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/segments.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  "node_modules/qrcode/lib/core/segments.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1596,9 +1592,9 @@ var require_segments = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/qrcode.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1857,9 +1853,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/utils.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1937,9 +1933,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/canvas.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1990,9 +1986,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/svg-tag.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2048,9 +2044,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/browser.js
+// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  "node_modules/qrcode/lib/browser.js"(exports) {
+  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -7307,6 +7303,38 @@ var CONFIRM_LINGER_MS = 8e3;
 function pageVisible() {
   return typeof document === "undefined" || document.visibilityState === "visible";
 }
+function currentSelectedSessionTitle() {
+  if (typeof document === "undefined" || typeof window === "undefined") return "";
+  if (typeof document.querySelectorAll !== "function") return "";
+  for (const el of document.querySelectorAll('[role="treeitem"][aria-selected="true"]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0 && r.right <= window.innerWidth * 0.35) {
+      const text = (el.textContent || "").trim();
+      if (text) return text;
+    }
+  }
+  return "";
+}
+function titleMatches(a, b) {
+  return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
+}
+function openSessionByTitle(title) {
+  if (typeof document === "undefined" || typeof window === "undefined") return false;
+  if (typeof document.querySelectorAll !== "function" || !title) return false;
+  for (const el of document.querySelectorAll('[role="treeitem"]')) {
+    const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+    if (!r || r.width <= 0 || r.height <= 0 || r.right > window.innerWidth * 0.35) continue;
+    if (!titleMatches((el.textContent || "").trim(), title)) continue;
+    const link = typeof el.querySelector === "function" ? el.querySelector("a,button") : null;
+    const target = link || el;
+    if (typeof target.click === "function") {
+      target.click();
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
 function Toast(props) {
   const t = props.t;
   const [closing, setClosing] = (0, import_react10.useState)(!!t.closing);
@@ -7314,14 +7342,13 @@ function Toast(props) {
     setClosing(true);
   }, []);
   const hoveringRef = (0, import_react10.useRef)(false);
+  const jump = (0, import_react10.useCallback)(() => {
+    if (!t.sessionTitle) return;
+    if (openSessionByTitle(t.sessionTitle) && t.kind !== "confirm") setClosing(true);
+  }, [t.sessionTitle, t.kind]);
   (0, import_react10.useEffect)(() => {
     if (t.closing && !closing) setClosing(true);
   }, [t.closing, closing]);
-  (0, import_react10.useEffect)(() => {
-    if (!t.stayMs) return;
-    const timer = setTimeout(close, t.stayMs);
-    return () => clearTimeout(timer);
-  }, []);
   const lingerRef = (0, import_react10.useRef)(null);
   (0, import_react10.useEffect)(() => {
     if (!t.lingerMs) return;
@@ -7362,7 +7389,8 @@ function Toast(props) {
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
     "div",
     {
-      className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : ""),
+      className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (t.sessionTitle ? " clickable" : "") + (props.collapsed ? " collapsed" : "") + (closing ? " out" : ""),
+      onClick: t.sessionTitle ? jump : void 0,
       onMouseEnter: () => {
         hoveringRef.current = true;
         const l = lingerRef.current;
@@ -7376,13 +7404,26 @@ function Toast(props) {
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.title, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.sessionTitle || t.title, children: [
             t.kind === "confirm" ? "\u270B " : "",
-            t.title
+            props.collapsed ? t.sessionTitle || t.title : t.title,
+            !props.collapsed && t.sessionTitle && t.kind !== "confirm" ? " \xB7 " + t.sessionTitle : ""
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dknt-toast-close",
+              "aria-label": "\u5173\u95ED",
+              onClick: (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                close();
+              },
+              children: "\u2715"
+            }
+          )
         ] }),
-        t.body ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toast-body", children: t.body }) : null
+        !props.collapsed && t.body ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toast-body", children: t.body }) : null
       ]
     }
   );
@@ -7390,11 +7431,12 @@ function Toast(props) {
 function NotifyOverlay(props) {
   const snap = useNotify();
   const [toasts, setToasts] = (0, import_react10.useState)([]);
+  const [stackHover, setStackHover] = (0, import_react10.useState)(false);
   const prevActiveRef = (0, import_react10.useRef)(null);
   const remindedApprovalsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
   const toastSeqRef = (0, import_react10.useRef)(0);
   const pushToast = (0, import_react10.useCallback)((toast) => {
-    setToasts((prev) => prev.concat([toast]).slice(-4));
+    setToasts((prev) => prev.concat([toast]).slice(-12));
   }, []);
   (0, import_react10.useEffect)(() => {
     let stopped = false;
@@ -7463,11 +7505,11 @@ function NotifyOverlay(props) {
         kind: "confirm",
         title: "\u4EFB\u52A1\u9700\u8981\u786E\u8BA4",
         body: lines.join("\n"),
+        // 点卡片直达该会话去处理审批（需确认卡跳转后不收起——审批没处理完它就该在）
+        sessionTitle: task.title || "",
         // 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
         // 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
         approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id),
-        // 不倒计时：审批一处理完立即自动收起；人在后台没看见时也不会消失
-        stayMs: 0,
         // 在前台看见它超过 8 秒就自动收起，不用手动点 ✕
         lingerMs: CONFIRM_LINGER_MS
       });
@@ -7503,6 +7545,24 @@ function NotifyOverlay(props) {
       return changed ? next : prev;
     });
   }, [snap.status]);
+  (0, import_react10.useEffect)(() => {
+    const timer = setInterval(() => {
+      if (!pageVisible()) return;
+      const current = currentSelectedSessionTitle();
+      if (!current) return;
+      setToasts((prev) => {
+        let changed = false;
+        const next = prev.map((x) => {
+          if (x.kind === "confirm" || x.closing || !x.sessionTitle) return x;
+          if (!titleMatches(x.sessionTitle, current)) return x;
+          changed = true;
+          return Object.assign({}, x, { closing: true });
+        });
+        return changed ? next : prev;
+      });
+    }, 500);
+    return () => clearInterval(timer);
+  }, []);
   const handleTaskEnd = (task, record, cfg) => {
     const reason = record && record.endReason || "";
     const success = isSuccessReason2(reason);
@@ -7528,7 +7588,9 @@ function NotifyOverlay(props) {
       kind: success ? "success" : info.cls === "err" ? "error" : "warn",
       title,
       body: lines.join("\n"),
-      stayMs: typeof cfg.notifyStayMs === "number" ? cfg.notifyStayMs : 8e3
+      // 绑定会话标题：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
+      // 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
+      sessionTitle: record && record.title || task.title || ""
     });
     if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
     if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -7543,7 +7605,24 @@ function NotifyOverlay(props) {
   };
   if (!snap.status) return null;
   if (toasts.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toasts", children: toasts.map((t) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Toast, { t, onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id)) }, t.id)) });
+  const stack = toasts.length >= 3 && !stackHover;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+    "div",
+    {
+      className: "dknt-toasts" + (stack ? " stacked" : ""),
+      onMouseEnter: () => setStackHover(true),
+      onMouseLeave: () => setStackHover(false),
+      children: toasts.map((t, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        Toast,
+        {
+          t,
+          collapsed: stack && i < toasts.length - 1,
+          onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id))
+        },
+        t.id
+      ))
+    }
+  );
 }
 function NotifyView(props) {
   const snap = useNotify();
@@ -7720,23 +7799,8 @@ function NotifyView(props) {
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u505C\u7559\u65F6\u957F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-              "select",
-              {
-                className: "dknt-select",
-                value: String(cfg.notifyStayMs),
-                onChange: (e) => patch({ notifyStayMs: Number(e.target.value) }),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "4000", children: "4 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "8000", children: "8 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "15000", children: "15 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "30000", children: "30 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "0", children: "\u5E38\u9A7B\uFF08\u624B\u52A8\u5173\u95ED\uFF09" })
-                ]
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5361\u7247\u81EA\u52A8\u6D88\u5931\u7684\u65F6\u95F4\uFF08\u9700\u786E\u8BA4\u5361\u7247\u4E0D\u8D70\u8FD9\u4E2A\u503C\uFF0C\u89C1\u4E0A\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u6536\u7EB3" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7ED3\u675F\u5361\u7247\u4E0D\u518D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF08\u540E\u53F0\u8DD1\u5B8C\u7684\u5207\u56DE\u6765\u4E5F\u5728\uFF09\uFF1B\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD\uFF0C\u6216\u70B9\u8FDB\u8BE5\u4F1A\u8BDD\uFF0C\u5361\u7247\u81EA\u52A8\u6536\u8D77\u3002\u8D85\u8FC7 2 \u5F20\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00\u3002\u9700\u786E\u8BA4\u5361\u7247\u4E0D\u8D70\u8FD9\u5957\uFF08\u5904\u7406\u5B8C/\u524D\u53F0\u770B\u5230 8 \u79D2\u5373\u6536\uFF0C\u89C1\u4E0A\uFF09" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
@@ -7955,6 +8019,13 @@ var css3 = [
   ".dknt-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dknt-toast-in .32s var(--ds-ease-in-out),dknt-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
   "@keyframes dknt-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
   "@media (prefers-reduced-motion:reduce){.dknt-toast,.dknt-toast-confirm{animation:none}}",
+  // 可跳转卡片：指针 + 悬停提亮（点卡片直达对应会话）
+  ".dknt-toast.clickable{cursor:pointer;}",
+  ".dknt-toast.clickable:hover{border-color:var(--dk-accent);}",
+  // 叠放收纳：≥3 张时旧卡收成"只剩标题条"，悬停卡片栈整体展开
+  ".dknt-toasts.stacked{gap:4px;}",
+  ".dknt-toast.collapsed{padding:6px 14px;opacity:.85;margin-left:14px;}",
+  ".dknt-toast.collapsed .dknt-toast-head{margin-bottom:0;}",
   // 面板页布局
   ".dknt-root{display:flex;flex-direction:column;gap:10px;}",
   ".dknt-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
@@ -7974,7 +8045,6 @@ var css3 = [
   ".dknt-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
   ".dknt-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
   ".dknt-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-  ".dknt-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
   // 音效选择卡（名称 + 播放键；选中态描边）
   ".dknt-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
   ".dknt-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
