@@ -165,15 +165,48 @@ function useNotify() {
 }
 
 // ---------- 通知卡片 ----------
+// 需确认卡片的"看过"计时：页面在前台被看到这么久就自动收起。
+// 提醒的意义是"把人叫回来"，人已经在页面上看见它就算送达；一直堆着得一个个点 ✕ 反而是骚扰。
+// 页面在后台时不倒计时（回来后才开始算），鼠标停在卡片上也算"正在看"，暂停计时。
+const CONFIRM_LINGER_MS = 8000;
+function pageVisible() {
+	return typeof document === "undefined" || document.visibilityState === "visible";
+}
+
 function Toast(props) {
 	const t = props.t;
-	const [closing, setClosing] = useState(false);
-	const close = useCallback(() => { if (!closing) setClosing(true); }, [closing]);
-	// 停留时长（stayMs=0 常驻，仅手动关闭）
+	const [closing, setClosing] = useState(!!t.closing);
+	const close = useCallback(() => { setClosing(true); }, []);
+	const hoveringRef = useRef(false);
+	// 外部要求收起（审批已处理 / 任务已结束）走同一套淡出动画
+	useEffect(() => { if (t.closing && !closing) setClosing(true); }, [t.closing, closing]);
+	// 停留时长（stayMs=0 不倒计时，靠"看过"计时或外部收起）
 	useEffect(() => {
 		if (!t.stayMs) return;
 		const timer = setTimeout(close, t.stayMs);
 		return () => clearTimeout(timer);
+	}, []);
+	// "看过"计时：前台可见 + 没在悬停，连续看满 lingerMs 就自动收起。
+	// 计时器句柄放进 ref，供悬停 / 切前后台随时暂停与恢复（离开卡片后重新从 0 算）。
+	const lingerRef = useRef(null);
+	useEffect(() => {
+		if (!t.lingerMs) return;
+		let timer = null;
+		const stop = () => { if (timer) { clearTimeout(timer); timer = null; } };
+		const start = () => {
+			if (timer || hoveringRef.current || !pageVisible()) return;
+			timer = setTimeout(close, t.lingerMs);
+		};
+		const resume = () => { stop(); start(); };
+		const onVisibility = () => { if (pageVisible()) start(); else stop(); };
+		lingerRef.current = { stop, resume };
+		start();
+		if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+		return () => {
+			stop();
+			lingerRef.current = null;
+			if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
+		};
 	}, []);
 	useEffect(() => {
 		if (!closing) return;
@@ -186,7 +219,9 @@ function Toast(props) {
 			? "var(--dk-err)"
 			: "var(--dk-warn)";
 	return (
-		<div className={"dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : "")}>
+		<div className={"dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : "")}
+			onMouseEnter={() => { hoveringRef.current = true; const l = lingerRef.current; if (l) l.stop(); }}
+			onMouseLeave={() => { hoveringRef.current = false; const l = lingerRef.current; if (l) l.resume(); }}>
 			<div className="dknt-toast-head">
 				<span className="dknt-toast-mark" style={{ background: markColor }} />
 				<span className="dknt-toast-title" title={t.title}>{t.kind === "confirm" ? "✋ " : ""}{t.title}</span>
@@ -277,8 +312,13 @@ export function NotifyOverlay(props) {
 				kind: "confirm",
 				title: "任务需要确认",
 				body: lines.join("\n"),
-				// 需确认常驻到用户处理（notifyStayMs=0 同款语义），不会自动消失
+				// 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
+				// 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
+				approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id),
+				// 不倒计时：审批一处理完立即自动收起；人在后台没看见时也不会消失
 				stayMs: 0,
+				// 在前台看见它超过 8 秒就自动收起，不用手动点 ✕
+				lingerMs: CONFIRM_LINGER_MS,
 			});
 			if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
 			if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
@@ -291,6 +331,30 @@ export function NotifyOverlay(props) {
 				} catch { /* 系统通知失败不影响页面内通知 */ }
 			}
 		}
+	}, [snap.status]);
+
+	// 审批项消失（approval/decided 后宿主把它移出 approvals）→ 对应需确认卡自动收起。
+	// 只标记 closing 走淡出，不直接删：与手动点 ✕ 的退场一致。
+	// 卡片绑定的 approvalKeys 全部不在仍待确认的集合里才收；空 keys（老数据）不动。
+	useEffect(() => {
+		const st = snap.status;
+		if (!st || !st.active) return;
+		const live = new Set();
+		for (const task of st.active) {
+			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+			for (const a of approvals) if (a && a.id) live.add(task.sessionId + "|" + a.id);
+		}
+		setToasts((prev) => {
+			let changed = false;
+			const next = prev.map((x) => {
+				if (x.kind !== "confirm" || x.closing) return x;
+				const keys = Array.isArray(x.approvalKeys) ? x.approvalKeys : [];
+				if (keys.length === 0 || keys.some((k) => live.has(k))) return x;
+				changed = true;
+				return Object.assign({}, x, { closing: true });
+			});
+			return changed ? next : prev;
+		});
 	}, [snap.status]);
 
 	const handleTaskEnd = (task, record, cfg) => {
@@ -516,7 +580,7 @@ function NotifyView(props) {
 							onClick={() => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false })}>
 							{cfg.notifyOnConfirm !== false ? "开" : "关"}
 						</button>
-						<span className="dknt-row-sub">工具等待你批准时弹卡片并响确认音（常驻不自动消失）</span>
+						<span className="dknt-row-sub">工具等待你批准时弹卡片并响确认音（处理完自动收起；在前台看到 8 秒后也自动收起）</span>
 					</div>
 				</div>
 			</div>,
@@ -536,7 +600,7 @@ function NotifyView(props) {
 							<option value="30000">30 秒</option>
 							<option value="0">常驻（手动关闭）</option>
 						</select>
-						<span className="dknt-row-sub">卡片自动消失的时间（需确认提醒恒为常驻）</span>
+						<span className="dknt-row-sub">卡片自动消失的时间（需确认卡片不走这个值，见上）</span>
 					</div>
 					<div className="dknt-row">
 						<span className="dknt-row-label">系统通知</span>
