@@ -12,7 +12,11 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  try {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  } catch (e) {
+    throw mod = 0, e;
+  }
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -36,18 +40,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js
+// node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js
+// node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js"(exports) {
+  "node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -124,9 +128,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js
+// node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -169,9 +173,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js
+// node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -204,9 +208,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js
+// node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -233,9 +237,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js
+// node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -268,9 +272,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js
+// node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -287,9 +291,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js
+// node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -429,9 +433,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js
+// node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -790,9 +794,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js
+// node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -823,9 +827,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js
+// node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -859,9 +863,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -891,18 +895,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js
+// node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js"(exports) {
+  "node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js
+// node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js"(exports) {
+  "node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -928,9 +932,9 @@ var require_regex = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js
+// node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js"(exports) {
+  "node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1009,9 +1013,9 @@ var require_mode = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js
+// node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js"(exports) {
+  "node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1104,9 +1108,9 @@ var require_version = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js
+// node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js"(exports) {
+  "node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1122,9 +1126,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js
+// node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1157,9 +1161,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js
+// node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1236,9 +1240,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js
+// node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1266,9 +1270,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js
+// node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1305,9 +1309,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js
+// node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  "node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1406,9 +1410,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js
+// node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js"(exports) {
+  "node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1592,9 +1596,9 @@ var require_segments = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js
+// node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1853,9 +1857,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js
+// node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1933,9 +1937,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js
+// node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1986,9 +1990,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js
+// node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2044,9 +2048,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js
+// node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  "node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js"(exports) {
+  "node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -7299,16 +7303,55 @@ function useNotify() {
   (0, import_react10.useEffect)(() => notifyStore.subscribe(() => setSnap(notifyStore.snap)), []);
   return snap;
 }
+var CONFIRM_LINGER_MS = 8e3;
+function pageVisible() {
+  return typeof document === "undefined" || document.visibilityState === "visible";
+}
 function Toast(props) {
   const t = props.t;
-  const [closing, setClosing] = (0, import_react10.useState)(false);
+  const [closing, setClosing] = (0, import_react10.useState)(!!t.closing);
   const close = (0, import_react10.useCallback)(() => {
-    if (!closing) setClosing(true);
-  }, [closing]);
+    setClosing(true);
+  }, []);
+  const hoveringRef = (0, import_react10.useRef)(false);
+  (0, import_react10.useEffect)(() => {
+    if (t.closing && !closing) setClosing(true);
+  }, [t.closing, closing]);
   (0, import_react10.useEffect)(() => {
     if (!t.stayMs) return;
     const timer = setTimeout(close, t.stayMs);
     return () => clearTimeout(timer);
+  }, []);
+  const lingerRef = (0, import_react10.useRef)(null);
+  (0, import_react10.useEffect)(() => {
+    if (!t.lingerMs) return;
+    let timer = null;
+    const stop = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+    const start = () => {
+      if (timer || hoveringRef.current || !pageVisible()) return;
+      timer = setTimeout(close, t.lingerMs);
+    };
+    const resume = () => {
+      stop();
+      start();
+    };
+    const onVisibility = () => {
+      if (pageVisible()) start();
+      else stop();
+    };
+    lingerRef.current = { stop, resume };
+    start();
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      lingerRef.current = null;
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
   (0, import_react10.useEffect)(() => {
     if (!closing) return;
@@ -7316,17 +7359,33 @@ function Toast(props) {
     return () => clearTimeout(timer);
   }, [closing]);
   const markColor = t.kind === "success" ? "var(--dk-ok)" : t.kind === "error" ? "var(--dk-err)" : "var(--dk-warn)";
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : ""), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.title, children: [
-        t.kind === "confirm" ? "\u270B " : "",
-        t.title
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
-    ] }),
-    t.body ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toast-body", children: t.body }) : null
-  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+    "div",
+    {
+      className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : ""),
+      onMouseEnter: () => {
+        hoveringRef.current = true;
+        const l = lingerRef.current;
+        if (l) l.stop();
+      },
+      onMouseLeave: () => {
+        hoveringRef.current = false;
+        const l = lingerRef.current;
+        if (l) l.resume();
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.title, children: [
+            t.kind === "confirm" ? "\u270B " : "",
+            t.title
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
+        ] }),
+        t.body ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toast-body", children: t.body }) : null
+      ]
+    }
+  );
 }
 function NotifyOverlay(props) {
   const snap = useNotify();
@@ -7404,8 +7463,13 @@ function NotifyOverlay(props) {
         kind: "confirm",
         title: "\u4EFB\u52A1\u9700\u8981\u786E\u8BA4",
         body: lines.join("\n"),
-        // 需确认常驻到用户处理（notifyStayMs=0 同款语义），不会自动消失
-        stayMs: 0
+        // 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
+        // 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
+        approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id),
+        // 不倒计时：审批一处理完立即自动收起；人在后台没看见时也不会消失
+        stayMs: 0,
+        // 在前台看见它超过 8 秒就自动收起，不用手动点 ✕
+        lingerMs: CONFIRM_LINGER_MS
       });
       if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
       if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -7418,6 +7482,26 @@ function NotifyOverlay(props) {
         }
       }
     }
+  }, [snap.status]);
+  (0, import_react10.useEffect)(() => {
+    const st = snap.status;
+    if (!st || !st.active) return;
+    const live = /* @__PURE__ */ new Set();
+    for (const task of st.active) {
+      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+      for (const a of approvals) if (a && a.id) live.add(task.sessionId + "|" + a.id);
+    }
+    setToasts((prev) => {
+      let changed = false;
+      const next = prev.map((x) => {
+        if (x.kind !== "confirm" || x.closing) return x;
+        const keys = Array.isArray(x.approvalKeys) ? x.approvalKeys : [];
+        if (keys.length === 0 || keys.some((k) => live.has(k))) return x;
+        changed = true;
+        return Object.assign({}, x, { closing: true });
+      });
+      return changed ? next : prev;
+    });
   }, [snap.status]);
   const handleTaskEnd = (task, record, cfg) => {
     const reason = record && record.endReason || "";
@@ -7625,7 +7709,7 @@ function NotifyView(props) {
                 children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF08\u5E38\u9A7B\u4E0D\u81EA\u52A8\u6D88\u5931\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF08\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF1B\u5728\u524D\u53F0\u770B\u5230 8 \u79D2\u540E\u4E5F\u81EA\u52A8\u6536\u8D77\uFF09" })
           ] })
         ] })
       ] }, "events"),
@@ -7652,7 +7736,7 @@ function NotifyView(props) {
                 ]
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5361\u7247\u81EA\u52A8\u6D88\u5931\u7684\u65F6\u95F4\uFF08\u9700\u786E\u8BA4\u63D0\u9192\u6052\u4E3A\u5E38\u9A7B\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5361\u7247\u81EA\u52A8\u6D88\u5931\u7684\u65F6\u95F4\uFF08\u9700\u786E\u8BA4\u5361\u7247\u4E0D\u8D70\u8FD9\u4E2A\u503C\uFF0C\u89C1\u4E0A\uFF09" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),

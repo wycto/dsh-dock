@@ -705,6 +705,49 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 任务通知浮层：任务结束时弹出通知卡片（轮询 → 检测 → 卡片）");
 }
 
+// ---------- 用例 5b：审批处理完，需确认卡片自动收起（不用一张张点 ✕）----------
+// 真实问题（用户实测截图）：一个任务连续触发 4 次审批，右上角堆了 4 张「任务需要确认」，
+// 因为需确认卡恒为常驻（stayMs:0），只能手动点 ✕ 挨个关。现在卡片与审批项绑定
+// （approvalKeys = sessionId|approvalId）：approval/decided 后宿主把审批项移出
+// active[].approvals，浮层对账到「绑定的审批项都不在了」就把卡片标记 closing 淡出。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		active: [Object.assign({}, NOTIFY_STATUS.active[0], {
+			approvals: [{ id: "ap-1", toolName: "pwsh", reason: "需要提权执行命令" }],
+		})],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus);
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		const before = await renderSettled(runtime, node);
+		if (!before.includes("任务需要确认")) throw new Error("审批等待时没有弹出需确认卡（前置条件不成立）");
+		// 用户确认/拒绝 → 宿主把审批项移出 approvals（任务本身还在跑）
+		live.active = [Object.assign({}, live.active[0], { approvals: [] })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等下一轮轮询（任务中 850ms）
+		let html = await renderSettled(runtime, node);
+		// 收起是 240ms 的淡出：多等几拍，断言最终真的从 DOM 里消失
+		for (let i = 0; i < 4 && html.includes("任务需要确认"); i++) {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			html = await renderSettled(runtime, node);
+		}
+		if (html.includes("任务需要确认")) detail = "审批已处理，需确认卡没有自动收起（仍渲染在页面上）";
+	} catch (e) {
+		detail = "需确认卡自动收起用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 需确认卡自动收起：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 需确认卡自动收起：审批处理完（approvals 清空）后卡片自动淡出，不用手动点 ✕");
+}
+
 // ---------- 用例 6：开关补推（浏览器已表态、宿主从未收到过该功能） ----------
 // 真实事故：点【任务通知】开关时宿主还是旧进程 → POST 404 → 开关只留在浏览器
 // 本地；宿主重启后 persisted 里没有 notify → 宿主从不 setup → 路由整片 404，面板还误报
