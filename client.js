@@ -12648,15 +12648,16 @@ var SHELL_CSS = [
   ".dock-switch.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
   ".dock-badge{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 10px;font-size:12px;}",
   ".dock-body{border-top:1px solid var(--dsw-alias-border-l1);padding-top:8px;color:var(--dsw-alias-label-secondary);display:flex;flex-direction:column;gap:4px;}",
-  // 侧栏入口按钮（docke2- 前缀）+ 功能坞弹出面板（dockm- 前缀，仿 dsh 设置的居中模态：遮罩 + 对话框，左导航 + 右内容）
-  // 侧栏入口按钮（docke2- 前缀）：与 dsh 设置按钮（.VOzbGW_trigger）几何逐条对齐——
-  // 宽栏同为整宽左对齐行按钮（高 42、margin 4/-2、padding 0 10px 0 8px、圆角 12），窄栏同为 36 圆钮居中，
-  // 使两按钮上下成列、左右边缘完全对齐（此前右对齐/叠放都会错位）。
-  ".docke2-btn{box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;border:none;background:transparent;color:var(--dsw-alias-label-primary);border-radius:12px;width:calc(100% + 4px);height:42px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
-  ".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-  ".docke2-btn.docke2-on{color:var(--dk-accent);background:var(--dk-accent-soft);}",
-  ".docke2-btn.docke2-rail{width:36px;height:36px;margin:8px 0 10px;padding:0;border-radius:50%;justify-content:center;gap:0;}",
-  ".docke2-label{white-space:nowrap;overflow:hidden;}",
+  // 「··· 更多」菜单里的功能坞菜单项（docke2-mi- 前缀）+ 功能坞弹出面板（dockm- 前缀，仿 dsh 设置的居中模态：遮罩 + 对话框，左导航 + 右内容）
+  // 菜单行指标仿宿主内置菜单项（ui-primitives Menu.module.css 的 .item/.itemIcon/.itemLabel）：
+  // 整宽块级行（按钮直接落在菜单视口的 flex 列里）、gap 6、min-height 34、padding 6px 8px、
+  // 圆角 --dsw-radius-md、字号 13/行高 20；悬停与键盘聚焦（宿主菜单走真实焦点）同款高亮背景。
+  ".docke2-mi-item{display:flex;align-items:center;gap:6px;box-sizing:border-box;width:100%;min-height:34px;padding:6px 8px;border:none;border-radius:var(--dsw-radius-md);background:transparent;cursor:pointer;font-family:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);text-align:left;}",
+  ".docke2-mi-item:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+  ".docke2-mi-item:focus-visible{background:var(--dsw-alias-interactive-bg-hover);outline:none;}",
+  ".docke2-mi-icon{display:inline-flex;flex:none;width:14px;height:14px;align-items:center;justify-content:center;color:var(--dsw-alias-menu-icon);}",
+  ".docke2-mi-icon svg{width:14px;height:14px;}",
+  ".docke2-mi-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
   // 遮罩固定用深色半透明：亮色主题下宿主 bg-layer-1 是纯白，白底遮罩会让弹窗与页面完全无层次
   ".dockm-backdrop{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(15,17,21,.45);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
   "@keyframes dockm-fade{from{opacity:0}to{opacity:1}}",
@@ -12800,18 +12801,27 @@ function DockIcon(props) {
     import_react25.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
-function DockEntry(props) {
-  const wide = !!props.wide;
+function DockMenuItem(props) {
   const [open, setOpen] = import_react25.default.useState(panelNav.open);
   import_react25.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react25.default.createElement("button", {
-    type: "button",
-    className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
-    title: "\u529F\u80FD\u575E",
-    "aria-label": "\u529F\u80FD\u575E",
-    "aria-expanded": open,
-    onClick: () => setPanelOpen(!open)
-  }, import_react25.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react25.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  return import_react25.default.createElement(
+    "button",
+    {
+      type: "button",
+      role: "menuitem",
+      className: "docke2-mi-item",
+      onClick: () => {
+        if (typeof props.dismiss === "function") props.dismiss();
+        setPanelOpen(!open);
+      }
+    },
+    import_react25.default.createElement(
+      "span",
+      { className: "docke2-mi-icon" },
+      import_react25.default.createElement(DockIcon, { size: 14 })
+    ),
+    import_react25.default.createElement("span", { className: "docke2-mi-label" }, "\u529F\u80FD\u575E")
+  );
 }
 function DockModal() {
   const [nav, setNav] = import_react25.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
@@ -13211,9 +13221,9 @@ function apply(ctx) {
   initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
   const slots = ctx.get("slots");
   if (slots === void 0) return;
-  slots.inject("sidebar.footer.action", () => slots.register(
-    { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react25.default.createElement(DockEntry, props)
+  slots.inject("settings.launcher.menu.item", () => slots.register(
+    { name: "settings.launcher.menu.item", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
+    (props) => import_react25.default.createElement(DockMenuItem, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
