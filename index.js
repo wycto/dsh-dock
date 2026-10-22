@@ -15,6 +15,7 @@
 //   - animation   任务动画（v0.5.0）：会话任务追踪 + 动效配置持久化（参照 @wycto/dsh-task-pulse）
 //   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
 //   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
+//   - tts         语音朗读：把会话回复读出来（浏览器 TTS；宿主半部只管配置 + 共享任务追踪）
 //   - modelconfig 模型设置：模型目录的输入模态与思考强度（写回官方配置）
 //   - providerconfig 模型提供商：Provider 增删改 + API Key + 拉取上游模型列表
 //   - mobile      手机适配：窄屏排版/Tab 栏/抽屉/遮罩/键盘（宿主经 tapIndex 注入 index.html）
@@ -29,6 +30,7 @@ import { feature as fTokenlog } from './features/tokenlog/host.js'
 import { feature as fAnimation } from './features/animation/host.js'
 import { feature as fNotify } from './features/notify/host.js'
 import { feature as fRunState } from './features/runstate/host.js'
+import { feature as fTts } from './features/tts/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 import { feature as fMobile } from './features/mobile/host.js'
 
@@ -72,6 +74,7 @@ export function apply(ctx, config) {
     fAnimation,
     fNotify,
     fRunState,
+    fTts,
     fMobileRelay,
     fMobile,
   ]

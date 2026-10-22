@@ -2282,5 +2282,66 @@ v0.15.2 上线后用户实测：另一会话（dsh-gate 打包）的提权审批
 - **删功能要连测试语义一起翻面**：旧 5b 断言"8 秒后消失"，新 5b 断言
   "9 秒后仍在"——同一个用例名，方向完全相反，注释必须写清是哪代问题。
 
+## 二十七、续作会话（2026-10-22）· 新功能【语音朗读】：回复下方喇叭 + 自动朗读
+
+### 需求
+
+用户：「dsh 有语音转文字，我现在需要文字转语音——会话结束后把文字读出来我听，
+不想看了，眼睛不舒服。在插件 dsh-dock 里加一个功能模块：会话结束后，会话下方
+增加一个喇叭图标，点击就播放，也可以设置结束后自动播放。」
+
+### 改法
+
+- **纯浏览器实现**：Web Speech API（`speechSynthesis` + `SpeechSynthesisUtterance`），
+  声音从用户这台设备出，零 token、零新依赖、不过服务器。宿主半部只管配置持久化
+  （`DockConfig.tts` 段 + `/dsh-dock/tts/status|config` 路由，入口挂信任栅栏，
+  `/config` 白名单增量合并 + 数值钳制）。
+- **喇叭按钮**：挂宿主 ui-chat 的 `conversation.chat.turnTail` list 座位（官方
+  计划卡/交付物卡/日程卡同一挂点，只对已完成回合渲染）。外壳加 `FeatureTurnTail`
+  装配 + 模块描述符可选 `TurnTail` 组件；按钮 28×28、配色对齐宿主
+  MessageIconActions `.action`。正文从 `owner.turn.data.get('turn-tail').closing.blocks`
+  里取 `kind === 'text'` 块（reasoning 永不读）。
+- **自动朗读走宿主任务追踪**（`src/task-track.js`，与【任务通知】同一份），不在
+  turnTail 节点里判断「回合刚结束」：冷读历史会话时那个节点同样挂载，只能靠
+  turn/end 时间差猜，会误播、也读不到后台会话。浮层轮询 `/dsh-dock/tts/status`，
+  **首帧只登记不朗读**（页面刚打开时 recent 全是历史），之后新出现的结束记录读其
+  lastText。
+- **Markdown 清洗**（`plainForSpeech`）：围栏代码块/表格整段跳过（可关）、行内代码
+  与链接只留文字、结构符号全去、压成单段；`maxSentences`/`maxChars` 截断补
+  「以下略」。长文本按句分片（≤180 字）顺序播——Chrome 对超长 utterance 会静默
+  停住，分片是标准解法；`onend`/`onerror` 都推进，index 在 speak 前自增。
+- **音色是设备相关的**：voiceURI 存宿主持久化，但使用前必须拿本机 `getVoices()`
+  校验，取不到按 `lang` 前缀回落、再回落中文音色；Chrome 音色表异步到位，面板
+  订阅 `voiceschanged`。
+
+### 踩坑
+
+- **沙箱 ReferenceError**：`test-client-views.mjs` 在 node:vm 里跑构建产物，没有
+  speechSynthesis 全局——裸引用 `speechSynthesis.xxx` 直接抛。一律经 `synth()`
+  取（globalThis/window 属性读 undefined 安全）。契约用例 17 用正则把「裸引用」
+  钉死。测试桩同时挂 `sandbox.speechSynthesis` 与 `win.speechSynthesis`。
+- **不用 useSyncExternalStore**：极简 React 替身没有这个 hook。引擎状态跨组件共享
+  走模块级单例 + useState + 订阅（useEngineState/useConfig）。
+- **readBody 的空请求体**：测试桩对无 body 的 POST 也会喂一个 `data('')` 事件 →
+  `JSON.parse('')` 抛「请求体不是合法 JSON」500。桩里 payload===undefined 时只喂
+  end 不喂 data（与 runstate 测试同款语义）。
+- **括号配平**：面板 JSX 一段多写一个 `)` 让 esbuild 报「Expected ";"」——构建失败
+  信息只指到最后一行，肉眼数括号比重读结构便宜；改完大段 JSX 先 build 再测。
+
+### 验证
+
+- `npm run build:client`（823KB）；`test:client` 全绿（13 内置视图 + 新用例 15/16/17：
+  喇叭渲染与点击朗读+清洗断言、自动朗读首屏不补读/新结束才读、契约静态断言）。
+- `npm run test:host` 全绿（新增 `test-tts-host.mjs` 三组：401/403/fail-closed 不落盘、
+  合并白名单+钳制+取整+trim、/status 带 config 与追踪快照且 /config 只写 tts 段）。
+- 本机运行实例（13082，dsh 0.2.1-rc.2）路由 405 属预期——宿主进程还没有 tts 路由，
+  重启 `dsh web` + 面板开启功能即注册；客户端 routeGone 闩锁保证重启前也只是
+  「配置暂存本浏览器」，不刷 405。
+
+### 部署
+
+- 客户端已 build，刷新页面即得喇叭（功能需先在功能坞开启，默认停用）。
+- 宿主半部改动（tts 段 + 路由）**需重启 dsh web**（或 4b 的宿主 HMR）。
+
 
 
