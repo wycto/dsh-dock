@@ -27,6 +27,7 @@ import { feature as fBalance } from "../features/balance/view.js";
 import { feature as fAnimation } from "../features/animation/view.jsx";
 import { feature as fNotify } from "../features/notify/view.jsx";
 import { feature as fRunState } from "../features/runstate/view.jsx";
+import { feature as fTts } from "../features/tts/view.jsx";
 import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 import { feature as fMobile } from "../features/mobile/view.js";
@@ -35,7 +36,7 @@ const name = "dsh-dock";
 const DOCK_VERSION = "0.15.3";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fGames, fMobileRelay, fMobile];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay, fMobile];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
@@ -659,6 +660,23 @@ function FeatureOverlays() {
 	return react.createElement(react.Fragment, null, items);
 }
 
+// ---- 回合尾（会话每条回复下方）：已启用功能挂在这儿的组件（如【语音朗读】的喇叭按钮） ----
+// 宿主 ui-chat 的 conversation.chat.turnTail 是 list 座位，只对「已完成回合」渲染，
+// 每个条目收到 { turn, seq, openFile } + 会话标准 kit（sessionId / useChat ...）。
+// 组件自己判断有没有内容可渲染，没内容返回 null（宿主不会留空隙）。
+function FeatureTurnTail(props) {
+	const [, force] = react.useReducer((n) => n + 1, 0);
+	react.useEffect(() => subscribeFeatureState(() => force()), []);
+	const items = [];
+	for (const f of allModules()) {
+		if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
+		items.push(react.createElement(FeatureBoundary, { key: f.id, label: f.name },
+			react.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))));
+	}
+	if (items.length === 0) return null;
+	return react.createElement(react.Fragment, null, items);
+}
+
 // ---- 插件应用：注册四处 UI（入口按钮 / 弹层 / 设置页 / 会话区 chips），注入样式 ----
 // ctx 以 ref 供视图组件使用（timer/theme 等服务按需自取；重装/HMR 时更新）
 const ctxRef = { current: null };
@@ -690,6 +708,10 @@ export function apply(ctx) {
 	slots.inject("conversation.input.left", () => slots.register(
 		{ name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "功能坞" },
 		(zone) => react.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))));
+	// 已完成回合的下方（回复动作区之前）：已启用功能挂的组件（【语音朗读】的喇叭）
+	slots.inject("conversation.chat.turnTail", () => slots.register(
+		{ name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "功能坞" },
+		(owner) => react.createElement(FeatureTurnTail, owner)));
 }
 
 export const inject = ["timer"];

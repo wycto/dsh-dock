@@ -118,6 +118,36 @@ export const DockConfig = z.object({
     // 一次性迁移标记：animation 段的旧通知配置已搬到本段（搬完置 true，避免每次启动重复写）
     migratedFromAnimation: z.boolean().default(false),
   }).default({}).volatile(),
+  // 【语音朗读】模块：把会话回复用浏览器语音合成（TTS）读出来。
+  // 行为配置（是否自动朗读、朗读哪些内容）放这里跨设备共享；
+  // 音色（voiceURI）虽然也存这一份，但**音色列表是每台设备/浏览器各自的**，
+  // 客户端用之前会拿本机 getVoices() 校验，取不到就按语言回落默认音色（见 features/tts/view.jsx）。
+  tts: z.object({
+    /** 会话（回合）结束后自动朗读最后一条回复。 */
+    autoPlay: z.boolean().default(false),
+    /** 任务以出错/中止结束时是否也朗读（默认读，方便不看屏幕也知道挂了）。 */
+    autoPlayOnFinish: z.boolean().default(true),
+    /** 新任务结束时打断正在读的内容，改读新的。 */
+    interruptOnNew: z.boolean().default(true),
+    /** 语速（0.5~2.0）。 */
+    rate: z.number().default(1),
+    /** 音调（0~2）。 */
+    pitch: z.number().default(1),
+    /** 音量（0~1）。 */
+    volume: z.number().default(1),
+    /** 指定音色（speechSynthesis voiceURI；空 = 按语言自动挑）。 */
+    voiceURI: z.string().default(''),
+    /** 强制朗读语言（如 zh-CN / en-US；空 = 按文本自动判定）。 */
+    lang: z.string().default(''),
+    /** 朗读时跳过代码块（``` 围栏与 `行内代码` 只留文字）。 */
+    skipCode: z.boolean().default(true),
+    /** 朗读时跳过 Markdown 表格（逐格念出来没有意义）。 */
+    skipTables: z.boolean().default(true),
+    /** 单次朗读字数上限（0 = 不限；自动朗读建议设限，手动点喇叭一般读全文）。 */
+    maxChars: z.number().default(0),
+    /** 自动朗读时只读回复的前 N 句（0 = 不限）。眼睛不舒服想听结论的人通常只要前几句。 */
+    maxSentences: z.number().default(0),
+  }).default({}).volatile(),
 })
 
 // ── 本地配置镜像（替代已移除的 settings.get） ─────────────────────────────

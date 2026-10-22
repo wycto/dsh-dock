@@ -2122,7 +2122,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react25 = __toESM(require("react"), 1);
+var import_react26 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -8251,11 +8251,894 @@ var feature9 = {
   HomeStat: RunStateStat
 };
 
+// features/tts/view.jsx
+var import_react12 = __toESM(require("react"), 1);
+function synth() {
+  try {
+    const g = typeof globalThis !== "undefined" ? globalThis : null;
+    if (g && g.speechSynthesis) return g.speechSynthesis;
+    if (typeof window !== "undefined" && window.speechSynthesis) return window.speechSynthesis;
+  } catch {
+  }
+  return null;
+}
+function ttsSupported() {
+  return synth() !== null && typeof globalThis.SpeechSynthesisUtterance === "function";
+}
+function makeUtterance(text) {
+  try {
+    const Ctor = typeof globalThis !== "undefined" && globalThis.SpeechSynthesisUtterance ? globalThis.SpeechSynthesisUtterance : typeof window !== "undefined" ? window.SpeechSynthesisUtterance : null;
+    return Ctor ? new Ctor(text) : null;
+  } catch {
+    return null;
+  }
+}
+function localVoices() {
+  const s = synth();
+  if (!s) return [];
+  try {
+    return (typeof s.getVoices === "function" ? s.getVoices() : []) || [];
+  } catch {
+    return [];
+  }
+}
+var CONFIG_STORE_KEY = "dsh-dock/tts/v1";
+var CONFIG_DEFAULTS = {
+  autoPlay: false,
+  autoPlayOnFinish: true,
+  interruptOnNew: true,
+  rate: 1,
+  pitch: 1,
+  volume: 1,
+  voiceURI: "",
+  lang: "",
+  skipCode: true,
+  skipTables: true,
+  maxChars: 0,
+  maxSentences: 0
+};
+var NUMERIC_RANGE = { rate: [0.1, 10], pitch: [0, 2], volume: [0, 1], maxChars: [0, 2e5], maxSentences: [0, 200] };
+var BOOL_KEYS = ["autoPlay", "autoPlayOnFinish", "interruptOnNew", "skipCode", "skipTables"];
+var NUM_KEYS = Object.keys(NUMERIC_RANGE);
+var STR_KEYS = ["voiceURI", "lang"];
+function normalizeConfig(raw) {
+  const out = Object.assign({}, CONFIG_DEFAULTS);
+  const src = raw && typeof raw === "object" ? raw : {};
+  for (const k of BOOL_KEYS) if (typeof src[k] === "boolean") out[k] = src[k];
+  for (const k of STR_KEYS) if (typeof src[k] === "string") out[k] = src[k].slice(0, 200);
+  for (const k of NUM_KEYS) {
+    if (typeof src[k] === "number" && Number.isFinite(src[k])) {
+      const [lo, hi] = NUMERIC_RANGE[k];
+      const step4 = k === "maxChars" || k === "maxSentences" ? Math.round(src[k]) : src[k];
+      out[k] = Math.min(hi, Math.max(lo, step4));
+    }
+  }
+  return out;
+}
+function readLocalConfig() {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const raw = localStorage.getItem(CONFIG_STORE_KEY);
+    return raw ? normalizeConfig(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+function writeLocalConfig(cfg) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(CONFIG_STORE_KEY, JSON.stringify(cfg));
+  } catch {
+  }
+}
+var configStore = {
+  value: readLocalConfig() || normalizeConfig({}),
+  loaded: false,
+  routeGone: false,
+  note: "",
+  listeners: /* @__PURE__ */ new Set()
+};
+function notifyConfig() {
+  for (const fn of Array.from(configStore.listeners)) {
+    try {
+      fn();
+    } catch {
+    }
+  }
+}
+function subscribeConfig(fn) {
+  configStore.listeners.add(fn);
+  return () => {
+    configStore.listeners.delete(fn);
+  };
+}
+function useConfig() {
+  const [, force] = (0, import_react12.useState)(0);
+  (0, import_react12.useEffect)(() => subscribeConfig(() => force((n) => n + 1)), []);
+  return configStore.value;
+}
+function setConfig(patch, opts) {
+  const next = normalizeConfig(Object.assign({}, configStore.value, patch && typeof patch === "object" ? patch : {}));
+  configStore.value = next;
+  writeLocalConfig(next);
+  notifyConfig();
+  if (opts && opts.skipHost) return Promise.resolve(next);
+  if (configStore.routeGone) return Promise.resolve(next);
+  return fetch("dsh-dock/tts/config", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch && typeof patch === "object" ? patch : {})
+  }).then(async (res) => {
+    if (res.status === 404 || res.status === 405) {
+      configStore.routeGone = true;
+      configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
+      notifyConfig();
+      return next;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data && data.ok === false) {
+      configStore.note = "\u4FDD\u5B58\u914D\u7F6E\u5931\u8D25\uFF1A" + (data && data.error && data.error.message || "HTTP " + res.status);
+      notifyConfig();
+      return next;
+    }
+    configStore.note = "";
+    if (data && data.data && data.data.config) {
+      const merged = normalizeConfig(data.data.config);
+      configStore.value = merged;
+      writeLocalConfig(merged);
+    }
+    notifyConfig();
+    return configStore.value;
+  }).catch(() => {
+    configStore.note = "\u4FDD\u5B58\u914D\u7F6E\u5931\u8D25\uFF1A\u7F51\u7EDC\u4E0D\u53EF\u8FBE\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
+    notifyConfig();
+    return next;
+  });
+}
+var hostConfigRequested = false;
+function ensureConfigLoaded() {
+  if (hostConfigRequested || configStore.routeGone) return;
+  hostConfigRequested = true;
+  fetch("dsh-dock/tts/status", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}"
+  }).then(async (res) => {
+    if (res.status === 404 || res.status === 405) {
+      configStore.routeGone = true;
+      configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
+      notifyConfig();
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (data && data.ok && data.data && data.data.config) {
+      const local = readLocalConfig();
+      const fromHost = normalizeConfig(data.data.config);
+      configStore.value = local ? normalizeConfig(Object.assign({}, CONFIG_DEFAULTS, fromHost, local)) : fromHost;
+      writeLocalConfig(configStore.value);
+    }
+    configStore.loaded = true;
+    notifyConfig();
+  }).catch(() => {
+  });
+}
+function plainForSpeech(md, cfg) {
+  let t = String(md == null ? "" : md);
+  if (!t.trim()) return "";
+  t = t.replace(/\r\n?/g, "\n");
+  t = t.replace(/```[\w+-]*(?:[^\n]*)\n([\s\S]*?)```/g, (_m, body) => {
+    if (cfg && cfg.skipCode === false) return " " + String(body).replace(/[#*_`>]/g, " ") + " ";
+    return " \uFF08\u6B64\u5904\u6709\u4EE3\u7801\uFF0C\u7565\uFF09 ";
+  });
+  t = t.replace(/^(?: {4}|\t)(.*)$/gm, (_m, body) => cfg && cfg.skipCode === false ? " " + body : " ");
+  t = t.replace(/`([^`\n]*)`/g, "$1");
+  t = t.replace(/!\[([^\]]*)\]\([^)]*\)/g, " $1 ");
+  t = t.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  t = t.replace(/<((?:https?|ftp|mailto):[^>\s]+)>/gi, " ");
+  t = t.replace(/(^\s*\|.+\|[ \t]*(?:\n|$))+/gm, (block) => {
+    if (cfg && cfg.skipTables === false) return block.replace(/\|/g, "\uFF0C").replace(/[-:，]{2,}/g, "\uFF0C");
+    return " \uFF08\u6B64\u5904\u6709\u8868\u683C\uFF0C\u7565\uFF09 ";
+  });
+  t = t.replace(/^\s{0,3}#{1,6}\s+/gm, " ");
+  t = t.replace(/^\s{0,3}>+\s?/gm, " ");
+  t = t.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, " ");
+  t = t.replace(/^\s*(?:={3,}|-{3,}|\*{3,}|_{3,})\s*$/gm, " ");
+  t = t.replace(/(\*\*|__|~~|\*|_)/g, " ");
+  t = t.replace(/<[^>\n]{1,200}>/g, " ");
+  t = t.replace(/\s*\n+\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
+  return t;
+}
+function capSpeechText(text, cfg) {
+  let t = String(text || "");
+  const sentences = cfg && typeof cfg.maxSentences === "number" && cfg.maxSentences > 0 ? Math.round(cfg.maxSentences) : 0;
+  if (sentences > 0) {
+    const parts = splitSentences(t);
+    if (parts.length > sentences) t = parts.slice(0, sentences).join("") + "\uFF08\u540E\u9762\u7684\u5185\u5BB9\u7565\uFF09";
+  }
+  const max = cfg && typeof cfg.maxChars === "number" && cfg.maxChars > 0 ? Math.round(cfg.maxChars) : 0;
+  if (max > 0 && t.length > max) t = t.slice(0, max) + "\u2026\uFF08\u4EE5\u4E0B\u7565\uFF09";
+  return t.trim();
+}
+function splitSentences(text) {
+  const out = [];
+  let cur = "";
+  const re = /[^。！？；.!?;\n]+|[。！？；.!?;\n]+/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (/[。！？；.!?;\n]/.test(m[0])) {
+      cur += m[0];
+      if (cur.trim()) out.push(cur);
+      cur = "";
+    } else {
+      cur += m[0];
+    }
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+function chunkForSpeech(text, limit) {
+  const cap = limit && limit > 0 ? limit : 180;
+  const sentences = splitSentences(String(text || ""));
+  const chunks = [];
+  let buf = "";
+  for (const s of sentences) {
+    if (s.length > cap) {
+      if (buf) {
+        chunks.push(buf);
+        buf = "";
+      }
+      for (let i = 0; i < s.length; i += cap) chunks.push(s.slice(i, i + cap));
+      continue;
+    }
+    if ((buf + s).length > cap && buf) {
+      chunks.push(buf);
+      buf = s;
+    } else buf += s;
+  }
+  if (buf.trim()) chunks.push(buf);
+  return chunks;
+}
+function pickVoice(cfg) {
+  const voices = localVoices();
+  if (voices.length === 0) return null;
+  const want = String(cfg && cfg.voiceURI || "");
+  if (want) {
+    const hit = voices.find((v) => v && v.voiceURI === want);
+    if (hit) return hit;
+  }
+  const lang = String(cfg && cfg.lang || "");
+  if (lang) {
+    const base = lang.split("-")[0].toLowerCase();
+    return voices.find((v) => String(v.lang || "").toLowerCase() === lang.toLowerCase()) || voices.find((v) => String(v.lang || "").toLowerCase().startsWith(base)) || null;
+  }
+  const zh = voices.find((v) => /^zh/i.test(String(v.lang || "")));
+  return zh || null;
+}
+var engine = {
+  state: { playing: false, key: "", label: "" },
+  listeners: /* @__PURE__ */ new Set(),
+  queue: [],
+  epoch: 0
+};
+function notifyEngine() {
+  for (const fn of Array.from(engine.listeners)) {
+    try {
+      fn();
+    } catch {
+    }
+  }
+}
+function engineSnapshot() {
+  return engine.state;
+}
+function subscribeEngine(fn) {
+  engine.listeners.add(fn);
+  return () => {
+    engine.listeners.delete(fn);
+  };
+}
+function useEngineState() {
+  const [snap, setSnap] = (0, import_react12.useState)(engineSnapshot());
+  (0, import_react12.useEffect)(() => subscribeEngine(() => setSnap(engineSnapshot())), []);
+  return snap;
+}
+function setEngineState(next) {
+  engine.state = Object.assign({}, engine.state, next);
+  notifyEngine();
+}
+function stopSpeech() {
+  engine.queue = [];
+  engine.epoch += 1;
+  const s = synth();
+  if (s) {
+    try {
+      s.cancel();
+    } catch {
+    }
+  }
+  setEngineState({ playing: false, key: "", label: "" });
+}
+function speak(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const text = String(o.text || "").trim();
+  if (!text) return false;
+  if (!ttsSupported()) return false;
+  const cfg = normalizeConfig(o.cfg || configStore.value);
+  const key = String(o.key || "k" + Date.now());
+  if (engine.state.playing && engine.state.key === key) return false;
+  if (!cfg.interruptOnNew && engine.state.playing) {
+    engine.queue = [{ key, text, label: String(o.label || ""), cfg }];
+    return false;
+  }
+  if (engine.state.playing) stopSpeech();
+  const chunks = chunkForSpeech(text, 180);
+  if (chunks.length === 0) return false;
+  const epoch = ++engine.epoch;
+  const voice = pickVoice(cfg);
+  setEngineState({ playing: true, key, label: String(o.label || "") });
+  const s = synth();
+  let index = 0;
+  const speakNext = () => {
+    if (epoch !== engine.epoch) return;
+    if (index >= chunks.length) {
+      setEngineState({ playing: false, key: "", label: "" });
+      drainQueue();
+      return;
+    }
+    const text2 = chunks[index];
+    index += 1;
+    const utt = makeUtterance(text2);
+    if (!utt) {
+      setEngineState({ playing: false, key: "", label: "" });
+      return;
+    }
+    utt.rate = cfg.rate;
+    utt.pitch = cfg.pitch;
+    utt.volume = cfg.volume;
+    if (voice) {
+      utt.voice = voice;
+      if (voice.lang) utt.lang = voice.lang;
+    } else if (cfg.lang) utt.lang = cfg.lang;
+    utt.onend = () => {
+      if (epoch !== engine.epoch) return;
+      speakNext();
+    };
+    utt.onerror = () => {
+      if (epoch !== engine.epoch) return;
+      speakNext();
+    };
+    try {
+      s.speak(utt);
+    } catch {
+      setEngineState({ playing: false, key: "", label: "" });
+    }
+  };
+  speakNext();
+  return true;
+}
+function drainQueue() {
+  const next = engine.queue.shift();
+  engine.queue = [];
+  if (next) speak({ key: next.key, text: next.text, label: next.label, cfg: Object.assign({}, next.cfg, { interruptOnNew: true }) });
+}
+function closingMarkdown(owner) {
+  const turn = owner && owner.turn;
+  const store = turn && turn.data;
+  if (!store || typeof store.get !== "function") return "";
+  let tail = null;
+  try {
+    tail = store.get("turn-tail");
+  } catch {
+    return "";
+  }
+  const closing = tail && tail.closing;
+  const blocks = closing && Array.isArray(closing.blocks) ? closing.blocks : null;
+  if (!blocks) return "";
+  const parts = [];
+  for (const b of blocks) if (b && b.kind === "text" && typeof b.text === "string") parts.push(b.text);
+  return parts.join("");
+}
+var ICON_SPEAKER = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M11 5 6 9H3v6h3l5 4z" }),
+  import_react12.default.createElement("path", { d: "M15.5 8.5a5 5 0 0 1 0 7" }),
+  import_react12.default.createElement("path", { d: "M18.5 5.5a9 9 0 0 1 0 13" })
+);
+var ICON_STOP = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("rect", { x: "6.5", y: "6.5", width: "11", height: "11", rx: "2" })
+);
+function TtsTurnTail(props) {
+  const owner = props || {};
+  const cfg = useConfig();
+  const eng = useEngineState();
+  const md = closingMarkdown(owner);
+  const turn = owner.turn;
+  const turnNo = turn && typeof turn.turn === "number" ? turn.turn : -1;
+  const key = String(owner && owner.sessionId || "") + ":" + turnNo + ":" + (owner.seq || 0);
+  const hasText = Boolean(md && md.trim());
+  const supported = ttsSupported();
+  const speaking = hasText && eng.playing && eng.key === key;
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+  }, []);
+  if (!hasText) return null;
+  const title = !supported ? "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08Web Speech API\uFF09" : speaking ? "\u505C\u6B62\u6717\u8BFB" : "\u6717\u8BFB\u8FD9\u6761\u56DE\u590D";
+  return import_react12.default.createElement(
+    "div",
+    { className: "dktts-tail" },
+    import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn" + (speaking ? " on" : "") + (supported ? "" : " off"),
+      "aria-label": title,
+      "aria-pressed": speaking,
+      title,
+      onClick: () => {
+        if (!supported) return;
+        ensureConfigLoaded();
+        if (speaking) {
+          stopSpeech();
+          return;
+        }
+        const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
+        speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
+      }
+    }, speaking ? ICON_STOP : ICON_SPEAKER),
+    speaking ? import_react12.default.createElement("span", { className: "dktts-hint" }, "\u6B63\u5728\u6717\u8BFB\u672C\u56DE\u5408 \xB7 \u518D\u70B9\u4E00\u4E0B\u505C\u6B62") : null
+  );
+}
+var BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
+function TtsOverlay() {
+  const cfg = useConfig();
+  const seenRef = (0, import_react12.useRef)(null);
+  const primedRef = (0, import_react12.useRef)(false);
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+  }, []);
+  (0, import_react12.useEffect)(() => {
+    if (!cfg.autoPlay) return void 0;
+    if (!ttsSupported()) return void 0;
+    if (seenRef.current === null) seenRef.current = /* @__PURE__ */ new Set();
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled || configStore.routeGone) return;
+      fetch("dsh-dock/tts/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      }).then(async (res) => {
+        if (res.status === 404 || res.status === 405) {
+          configStore.routeGone = true;
+          configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u81EA\u52A8\u6717\u8BFB\u6682\u4E0D\u53EF\u7528";
+          notifyConfig();
+          return;
+        }
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !data || !data.ok || !data.data) return;
+        const recent = Array.isArray(data.data.recent) ? data.data.recent : [];
+        const seen = seenRef.current;
+        if (!primedRef.current) {
+          for (const r2 of recent) seen.add(String(r2.sessionId) + "|" + String(r2.endTime));
+          primedRef.current = true;
+          return;
+        }
+        const fresh = [];
+        for (const r2 of recent) {
+          const k = String(r2.sessionId) + "|" + String(r2.endTime);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          fresh.push(r2);
+        }
+        if (fresh.length === 0) return;
+        if (seen.size > 500) seenRef.current = new Set([].concat(Array.from(seen).slice(-200)));
+        const r = fresh[fresh.length - 1];
+        const bad = BAD_END[String(r.endReason || "")] === 1;
+        if (bad && configStore.value.autoPlayOnFinish === false) return;
+        const text = String(r.lastText || "");
+        if (!text.trim()) return;
+        const plain = capSpeechText(plainForSpeech(text, configStore.value), configStore.value);
+        speak({
+          key: "auto:" + String(r.sessionId) + "|" + String(r.endTime),
+          text: plain,
+          cfg: configStore.value,
+          label: (r.title || "\u4EFB\u52A1") + (bad ? "\uFF08" + String(r.endReason) + "\uFF09" : "\uFF08\u5DF2\u5B8C\u6210\uFF09")
+        });
+      }).catch(() => {
+      });
+    };
+    tick();
+    const timer = setInterval(tick, 1e3);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [cfg.autoPlay]);
+  return null;
+}
+function TtsRow(props) {
+  return import_react12.default.createElement(
+    "label",
+    { className: "dktts-row" },
+    import_react12.default.createElement("span", { className: "dktts-label" }, props.label),
+    import_react12.default.createElement("span", { className: "dktts-ctl" }, props.children),
+    props.note ? import_react12.default.createElement("span", { className: "dktts-note" }, props.note) : null
+  );
+}
+function TtsSwitch(props) {
+  const on = props.value === true;
+  return import_react12.default.createElement("button", {
+    type: "button",
+    className: "dock-sw" + (on ? " on" : ""),
+    role: "switch",
+    "aria-checked": on,
+    "aria-label": (on ? "\u505C\u7528" : "\u542F\u7528") + props.label,
+    title: on ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09",
+    onClick: () => props.onChange(!on)
+  }, on ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528");
+}
+function TtsView() {
+  const cfg = useConfig();
+  const eng = useEngineState();
+  const [, force] = (0, import_react12.useState)(0);
+  const [saved, setSaved] = (0, import_react12.useState)("");
+  const voices = (0, import_react12.useRef)(localVoices());
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+    const s = synth();
+    if (!s || typeof s.addEventListener !== "function") return;
+    const onChange = () => {
+      voices.current = localVoices();
+      force((n) => n + 1);
+    };
+    try {
+      s.addEventListener("voiceschanged", onChange);
+    } catch {
+      return;
+    }
+    return () => {
+      try {
+        s.removeEventListener("voiceschanged", onChange);
+      } catch {
+      }
+    };
+  }, []);
+  (0, import_react12.useEffect)(() => {
+    if (voices.current.length === 0) {
+      voices.current = localVoices();
+      force((n) => n + 1);
+    }
+  }, []);
+  const list = voices.current;
+  const supported = ttsSupported();
+  const sample = "\u597D\u7684\uFF0C\u6211\u73B0\u5728\u628A\u8FD9\u6761\u56DE\u590D\u8BFB\u7ED9\u4F60\u542C\u3002\u8BED\u901F\u548C\u97F3\u8272\u53EF\u4EE5\u5728\u8FD9\u91CC\u8C03\uFF0C\u70B9\u300C\u8BD5\u542C\u300D\u5C31\u80FD\u7ACB\u523B\u542C\u5230\u6548\u679C\u3002";
+  const patch = (p) => {
+    setConfig(p);
+    setSaved("\u5DF2\u4FDD\u5B58");
+    setTimeout(() => setSaved(""), 1500);
+  };
+  const preview = () => {
+    stopSpeech();
+    speak({
+      key: "preview:" + Date.now(),
+      text: sample,
+      cfg: configStore.value,
+      label: "\u8BD5\u542C"
+    });
+  };
+  const grouped = [];
+  {
+    const zh = [], other = [];
+    for (const v of list) {
+      if (!v || !v.voiceURI) continue;
+      if (/^zh/i.test(String(v.lang || ""))) zh.push(v);
+      else other.push(v);
+    }
+    if (zh.length) grouped.push(["\u4E2D\u6587\u97F3\u8272", zh]);
+    if (other.length) grouped.push(["\u5176\u4ED6\u97F3\u8272", other]);
+  }
+  return import_react12.default.createElement(
+    "div",
+    { className: "dktts-root" },
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-intro" },
+      "\u773C\u775B\u4E0D\u8212\u670D\u65F6\u8BA9 dsh \u628A\u56DE\u590D\u8BFB\u51FA\u6765\u3002\u7528\u7684\u662F",
+      import_react12.default.createElement("b", null, "\u6D4F\u89C8\u5668\u81EA\u5E26\u7684\u8BED\u97F3\u5408\u6210"),
+      "\uFF08Web Speech API\uFF09\uFF0C\u58F0\u97F3\u4ECE\u4F60\u5F53\u524D\u8FD9\u53F0\u8BBE\u5907\u7684\u626C\u58F0\u5668\u51FA\u6765\uFF0C\u4E0D\u6D88\u8017 token\u3001\u4E0D\u7ECF\u8FC7\u670D\u52A1\u5668\u3002",
+      "\u6BCF\u6761\u56DE\u590D\u4E0B\u65B9\u4F1A\u51FA\u73B0\u4E00\u4E2A",
+      import_react12.default.createElement("b", null, " \u{1F50A} \u5587\u53ED"),
+      "\uFF0C\u70B9\u4E00\u4E0B\u5C31\u8BFB\u8FD9\u6761\uFF1B\u4E5F\u53EF\u4EE5\u6253\u5F00\u300C\u81EA\u52A8\u6717\u8BFB\u300D\uFF0C\u56DE\u5408\u7ED3\u675F\u540E\u76F4\u63A5\u8BFB\u6700\u540E\u4E00\u6761\u56DE\u590D\u3002"
+    ),
+    !supported ? import_react12.default.createElement(
+      "div",
+      { className: "dktts-warn" },
+      "\u8FD9\u4E2A\u6D4F\u89C8\u5668\u4E0D\u63D0\u4F9B\u8BED\u97F3\u5408\u6210\u80FD\u529B\uFF08speechSynthesis \u4E0D\u53EF\u7528\uFF09\u3002\u6362 Chrome / Edge / Safari \u5373\u53EF\uFF1BLinux \u4E0A\u7684 Chromium \u9700\u8981\u88C5\u8BED\u97F3\u5305\uFF08\u5982 espeak-ng\uFF09\uFF0C\u6216\u5728\u7CFB\u7EDF\u8BBE\u7F6E\u91CC\u6DFB\u52A0\u8BED\u97F3\u3002"
+    ) : null,
+    supported && list.length === 0 ? import_react12.default.createElement(
+      "div",
+      { className: "dktts-warn" },
+      "\u672C\u673A\u6682\u65F6\u8BFB\u4E0D\u5230\u4EFB\u4F55\u97F3\u8272\u3002\u901A\u5E38\u662F\u7CFB\u7EDF\u8FD8\u6CA1\u88C5/\u6CA1\u542F\u7528\u8BED\u97F3\uFF1AWindows \u5230\u300C\u8BBE\u7F6E \u2192 \u65F6\u95F4\u548C\u8BED\u8A00 \u2192 \u8BED\u97F3\u300D\u6DFB\u52A0\u4E2D\u6587\u8BED\u97F3\uFF0CmacOS \u5230\u300C\u7CFB\u7EDF\u8BBE\u7F6E \u2192 \u65E0\u969C\u788D \u2192 \u6717\u8BFB\u5185\u5BB9\u300D\u6DFB\u52A0\u97F3\u8272\uFF0C\u7136\u540E\u5237\u65B0\u9875\u9762\u3002"
+    ) : null,
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u6717\u8BFB\u65F6\u673A"),
+      import_react12.default.createElement(TtsRow, {
+        label: "\u81EA\u52A8\u6717\u8BFB",
+        note: "\u56DE\u5408\u7ED3\u675F\u540E\u81EA\u52A8\u8BFB\u6700\u540E\u4E00\u6761\u56DE\u590D\uFF1B\u4F60\u6B63\u5728\u770B\u7684\u8FD9\u6761\u4F1A\u8BDD\u624D\u8BFB\uFF0C\u540E\u53F0\u4F1A\u8BDD\u4E0D\u8BFB\u3002"
+      }, import_react12.default.createElement(TtsSwitch, {
+        label: "\u81EA\u52A8\u6717\u8BFB",
+        value: cfg.autoPlay,
+        onChange: (v) => patch({ autoPlay: v })
+      })),
+      import_react12.default.createElement(TtsRow, {
+        label: "\u51FA\u9519 / \u4E2D\u6B62\u4E5F\u8BFB",
+        note: "\u5173\u95ED\u540E\u53EA\u5728\u6B63\u5E38\u5B8C\u6210\u65F6\u8BFB\u3002"
+      }, import_react12.default.createElement(TtsSwitch, {
+        label: "\u51FA\u9519\u4E5F\u8BFB",
+        value: cfg.autoPlayOnFinish,
+        onChange: (v) => patch({ autoPlayOnFinish: v })
+      })),
+      import_react12.default.createElement(TtsRow, {
+        label: "\u65B0\u5185\u5BB9\u6253\u65AD\u5F53\u524D\u6717\u8BFB",
+        note: "\u5173\u95ED\u5219\u6392\u961F\uFF1A\u65B0\u7684\u90A3\u6761\u7B49\u5F53\u524D\u8BFB\u5B8C\u518D\u8BFB\uFF08\u53EA\u4FDD\u7559\u6700\u65B0\u4E00\u6761\uFF09\u3002"
+      }, import_react12.default.createElement(TtsSwitch, {
+        label: "\u6253\u65AD",
+        value: cfg.interruptOnNew,
+        onChange: (v) => patch({ interruptOnNew: v })
+      }))
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u58F0\u97F3"),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u97F3\u8272", note: "\u97F3\u8272\u662F\u672C\u673A\u6D4F\u89C8\u5668\u7ED9\u7684\uFF0C\u6362\u8BBE\u5907\u53EF\u80FD\u8981\u91CD\u9009\u3002" },
+        import_react12.default.createElement(
+          "select",
+          {
+            className: "dktts-select",
+            value: cfg.voiceURI,
+            onChange: (e) => patch({ voiceURI: e.target.value })
+          },
+          import_react12.default.createElement("option", { value: "" }, "\u81EA\u52A8\uFF08\u6309\u8BED\u8A00\u6311\uFF09"),
+          grouped.map(([gname, vs]) => import_react12.default.createElement(
+            "optgroup",
+            { key: gname, label: gname },
+            vs.map((v) => import_react12.default.createElement("option", {
+              key: v.voiceURI,
+              value: v.voiceURI
+            }, (v.name || v.voiceURI) + "\uFF08" + (v.lang || "?") + "\uFF09"))
+          ))
+        )
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u5F3A\u5236\u8BED\u8A00", note: "\u7559\u7A7A\u5219\u4E2D\u6587\u6587\u672C\u4F18\u5148\u6311\u4E2D\u6587\u97F3\u8272\u3002" },
+        import_react12.default.createElement(
+          "select",
+          {
+            className: "dktts-select",
+            value: cfg.lang,
+            onChange: (e) => patch({ lang: e.target.value })
+          },
+          import_react12.default.createElement("option", { value: "" }, "\u81EA\u52A8"),
+          ["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => import_react12.default.createElement("option", {
+            key: l,
+            value: l
+          }, l))
+        )
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u8BED\u901F " + cfg.rate.toFixed(2) + "\xD7" },
+        import_react12.default.createElement("input", {
+          type: "range",
+          min: "0.5",
+          max: "2",
+          step: "0.05",
+          value: String(cfg.rate),
+          "aria-label": "\u8BED\u901F",
+          onChange: (e) => patch({ rate: Number(e.target.value) || 1 })
+        })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u97F3\u8C03 " + cfg.pitch.toFixed(2) },
+        import_react12.default.createElement("input", {
+          type: "range",
+          min: "0",
+          max: "2",
+          step: "0.1",
+          value: String(cfg.pitch),
+          "aria-label": "\u97F3\u8C03",
+          onChange: (e) => patch({ pitch: Number(e.target.value) })
+        })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u97F3\u91CF " + Math.round(cfg.volume * 100) + "%" },
+        import_react12.default.createElement("input", {
+          type: "range",
+          min: "0",
+          max: "1",
+          step: "0.05",
+          value: String(cfg.volume),
+          "aria-label": "\u97F3\u91CF",
+          onChange: (e) => patch({ volume: Number(e.target.value) })
+        })
+      ),
+      import_react12.default.createElement(
+        "div",
+        { className: "dktts-actions" },
+        import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-primary",
+          onClick: preview,
+          disabled: !supported
+        }, "\u8BD5\u542C"),
+        import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-ghost",
+          onClick: () => stopSpeech()
+        }, "\u505C\u6B62"),
+        eng.playing ? import_react12.default.createElement("span", { className: "dktts-playing" }, "\u6B63\u5728\u6717\u8BFB\uFF1A" + (eng.label || "\u5185\u5BB9")) : null,
+        saved ? import_react12.default.createElement("span", { className: "dktts-saved" }, "\u2713 " + saved) : null
+      )
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u5FF5\u4EC0\u4E48\uFF08\u56DE\u590D\u6B63\u6587\u7684\u6E05\u6D17\uFF09"),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u8DF3\u8FC7\u4EE3\u7801\u5757", note: "\u5173\u95ED\u5219\u8FDE\u4EE3\u7801\u4E00\u8D77\u5FF5\uFF08\u53EA\u53BB\u7B26\u53F7\uFF09\u3002" },
+        import_react12.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u4EE3\u7801\u5757", value: cfg.skipCode, onChange: (v) => patch({ skipCode: v }) })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u8DF3\u8FC7\u8868\u683C", note: "\u8868\u683C\u9010\u683C\u5FF5\u51FA\u6765\u6CA1\u6709\u610F\u4E49\uFF0C\u9ED8\u8BA4\u8DF3\u8FC7\u3002" },
+        import_react12.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u8868\u683C", value: cfg.skipTables, onChange: (v) => patch({ skipTables: v }) })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u53EA\u8BFB\u524D N \u53E5", note: "0 = \u4E0D\u9650\u3002\u60F3\u53EA\u542C\u7ED3\u8BBA\u65F6\u8BBE 3~5 \u53E5\u3002" },
+        import_react12.default.createElement("input", {
+          type: "number",
+          className: "dktts-num",
+          min: "0",
+          max: "200",
+          step: "1",
+          "aria-label": "\u53EA\u8BFB\u524D\u51E0\u53E5",
+          value: String(cfg.maxSentences),
+          onChange: (e) => patch({ maxSentences: Math.max(0, Math.round(Number(e.target.value) || 0)) })
+        })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u5B57\u6570\u4E0A\u9650", note: "0 = \u4E0D\u9650\uFF1B\u8D85\u51FA\u90E8\u5206\u5FF5\u300C\u4EE5\u4E0B\u7565\u300D\u3002" },
+        import_react12.default.createElement("input", {
+          type: "number",
+          className: "dktts-num",
+          min: "0",
+          max: "200000",
+          step: "100",
+          "aria-label": "\u5B57\u6570\u4E0A\u9650",
+          value: String(cfg.maxChars),
+          onChange: (e) => patch({ maxChars: Math.max(0, Math.round(Number(e.target.value) || 0)) })
+        })
+      )
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-note-line" },
+      "\u63D0\u793A\uFF1A\u6D4F\u89C8\u5668\u8981\u6C42\u300C\u5148\u6709\u7528\u6237\u624B\u52BF\u624D\u5141\u8BB8\u51FA\u58F0\u300D\u3002\u521A\u6253\u5F00\u9875\u9762\u5C31\u81EA\u52A8\u6717\u8BFB\u53EF\u80FD\u88AB\u6D4F\u89C8\u5668\u62E6\u6389\u2014\u2014",
+      "\u70B9\u4E00\u4E0B\u9875\u9762\u4E0A\u4EFB\u610F\u4F4D\u7F6E\uFF0C\u6216\u76F4\u63A5\u7528\u56DE\u590D\u4E0B\u65B9\u7684\u5587\u53ED\u6309\u94AE\u3002"
+    ),
+    configStore.note ? import_react12.default.createElement("div", { className: "dktts-warn" }, configStore.note) : null,
+    configStore.routeGone ? import_react12.default.createElement(
+      "div",
+      { className: "dktts-links" },
+      import_react12.default.createElement("button", {
+        type: "button",
+        className: "dktts-ghost",
+        onClick: () => {
+          configStore.routeGone = false;
+          hostConfigRequested = false;
+          ensureConfigLoaded();
+          force((n) => n + 1);
+        }
+      }, "\u91CD\u8BD5\u8FDE\u63A5\u5BBF\u4E3B")
+    ) : null
+  );
+}
+function TtsStat() {
+  const cfg = useConfig();
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+  }, []);
+  return import_react12.default.createElement(
+    "span",
+    null,
+    "\u81EA\u52A8\u6717\u8BFB\uFF1A",
+    cfg.autoPlay ? "\u5F00" : "\u5173",
+    " \xB7 \u8BED\u901F ",
+    cfg.rate.toFixed(2),
+    "\xD7",
+    cfg.autoPlay ? "" : "\uFF08\u56DE\u590D\u4E0B\u65B9\u70B9\u5587\u53ED\u53EF\u624B\u52A8\u8BFB\uFF09"
+  );
+}
+var CSS = [
+  ".dktts-root{display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);font-size:13px;}",
+  ".dktts-intro{color:var(--dsw-alias-label-secondary);line-height:1.7;}",
+  ".dktts-intro b{color:var(--dsw-alias-label-primary);}",
+  ".dktts-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}",
+  ".dktts-card-h{font-weight:600;color:var(--dsw-alias-label-primary);padding-bottom:2px;border-bottom:1px solid var(--dsw-alias-border-l1);margin-bottom:2px;}",
+  ".dktts-row{display:grid;grid-template-columns:132px minmax(120px,220px) 1fr;align-items:center;gap:10px;padding:3px 0;}",
+  ".dktts-label{color:var(--dsw-alias-label-primary);}",
+  ".dktts-ctl{display:flex;align-items:center;gap:8px;min-width:0;}",
+  ".dktts-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
+  ".dktts-select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
+  ".dktts-num{width:110px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
+  ".dktts-row input[type='range']{width:100%;accent-color:var(--dk-accent);}",
+  ".dktts-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:2px;}",
+  ".dktts-primary,.dktts-ghost{border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
+  ".dktts-primary{border-color:var(--dk-accent);color:var(--dk-accent);}",
+  ".dktts-primary:disabled{opacity:.45;cursor:default;}",
+  ".dktts-playing{color:var(--dk-accent);font-size:12px;}",
+  ".dktts-saved{color:var(--dk-ok);font-size:12px;}",
+  ".dktts-warn{border:1px solid var(--dk-warn);color:var(--dk-warn);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;}",
+  ".dktts-note-line{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
+  ".dktts-links{display:flex;gap:8px;}",
+  // —— 回合下方的喇叭按钮：尺寸/配色对齐宿主消息动作行（ui-chat MessageIconActions .action）——
+  ".dktts-tail{display:flex;align-items:center;gap:8px;margin-top:4px;}",
+  ".dktts-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:6px;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;}",
+  ".dktts-btn svg{width:17px;height:17px;}",
+  ".dktts-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary);}",
+  ".dktts-btn.on{color:var(--dk-accent);}",
+  ".dktts-btn.off{opacity:.4;cursor:default;}",
+  ".dktts-btn.off:hover{background:transparent;color:var(--dsw-alias-label-tertiary);}",
+  ".dktts-hint{color:var(--dsw-alias-label-secondary);font-size:12px;}"
+].join("\n");
+var feature10 = {
+  id: "tts",
+  name: "\u8BED\u97F3\u6717\u8BFB",
+  order: 160,
+  accent: "#0ea5e9",
+  description: "\u628A\u4F1A\u8BDD\u56DE\u590D\u8BFB\u51FA\u6765\uFF08\u6D4F\u89C8\u5668\u8BED\u97F3\u5408\u6210\uFF09\uFF1A\u56DE\u590D\u4E0B\u65B9\u70B9\u5587\u53ED\u64AD\u653E\uFF0C\u6216\u8BBE\u7F6E\u56DE\u5408\u7ED3\u675F\u81EA\u52A8\u6717\u8BFB",
+  defaultEnabled: false,
+  css: CSS,
+  View: TtsView,
+  HomeStat: TtsStat,
+  // 回合下方的喇叭按钮（宿主 conversation.chat.turnTail 座位，见 src/client.jsx 的装配）
+  TurnTail: TtsTurnTail,
+  // 自动朗读的触发器（无 UI，只在功能启用时常驻挂载）
+  Overlay: TtsOverlay
+};
+
 // features/games/view.jsx
-var import_react21 = require("react");
+var import_react22 = require("react");
 
 // features/games/games/shared.jsx
-var import_react12 = require("react");
+var import_react13 = require("react");
 function isTypingTarget(event) {
   const tag = event.target && event.target.tagName || "";
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
@@ -8263,9 +9146,9 @@ function isTypingTarget(event) {
   return false;
 }
 function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
-  const pausedRef = (0, import_react12.useRef)(!!paused);
+  const pausedRef = (0, import_react13.useRef)(!!paused);
   pausedRef.current = !!paused;
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     if (pausedRef.current) return;
     const el = stageRef && stageRef.current;
     if (!el) return;
@@ -8277,7 +9160,7 @@ function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
     }, 60);
     return () => clearTimeout(t);
   }, [paused]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const inStage = (event) => {
       const el = stageRef && stageRef.current;
       return !!el && (el === event.target || el.contains(event.target));
@@ -8370,7 +9253,7 @@ function playSfx(name) {
 }
 
 // features/games/games/tetris.jsx
-var import_react13 = require("react");
+var import_react14 = require("react");
 var import_jsx_runtime5 = require("react/jsx-runtime");
 var COLS = 10;
 var ROWS = 20;
@@ -8531,12 +9414,12 @@ var KEY_ACTIONS = {
   "Enter": "drop"
 };
 function TetrisGame(props) {
-  const [state, setState] = (0, import_react13.useState)(initial);
-  const [manualPause, setManualPause] = (0, import_react13.useState)(false);
-  const pausedRef = (0, import_react13.useRef)(!!(props && props.paused));
+  const [state, setState] = (0, import_react14.useState)(initial);
+  const [manualPause, setManualPause] = (0, import_react14.useState)(false);
+  const pausedRef = (0, import_react14.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused) || manualPause;
-  const stageRef = (0, import_react13.useRef)(null);
-  const act = (0, import_react13.useCallback)((action) => setState((s) => {
+  const stageRef = (0, import_react14.useRef)(null);
+  const act = (0, import_react14.useCallback)((action) => setState((s) => {
     if (pausedRef.current) return s;
     if (action === "left") {
       playSfx("move");
@@ -8558,21 +9441,21 @@ function TetrisGame(props) {
     }
     return s;
   }), []);
-  const softRef = (0, import_react13.useRef)(null);
-  const stateRef = (0, import_react13.useRef)(state);
+  const softRef = (0, import_react14.useRef)(null);
+  const stateRef = (0, import_react14.useRef)(state);
   stateRef.current = state;
-  const holdIdRef = (0, import_react13.useRef)(null);
-  const stopSoft = (0, import_react13.useCallback)(() => {
+  const holdIdRef = (0, import_react14.useRef)(null);
+  const stopSoft = (0, import_react14.useCallback)(() => {
     if (softRef.current) {
       clearInterval(softRef.current);
       softRef.current = null;
     }
   }, []);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (state.over || manualPause || props.paused) stopSoft();
     return stopSoft;
   }, [state.over, manualPause, props.paused, stopSoft]);
-  const onKeyDown = (0, import_react13.useCallback)((event) => {
+  const onKeyDown = (0, import_react14.useCallback)((event) => {
     const action = KEY_ACTIONS[event.key];
     if (action) {
       event.preventDefault();
@@ -8604,13 +9487,13 @@ function TetrisGame(props) {
       setManualPause(false);
     }
   }, [act, stopSoft]);
-  const onKeyUp = (0, import_react13.useCallback)((event) => {
+  const onKeyUp = (0, import_react14.useCallback)((event) => {
     if (KEY_ACTIONS[event.key] === "down") stopSoft();
   }, [stopSoft]);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (pausedRef.current || state.over) return;
     const speed = Math.max(80, 720 - (state.level - 1) * 70);
     const timer = setInterval(() => act("down"), speed);
@@ -8716,7 +9599,7 @@ var tetrisGame = { Game: TetrisGame, Preview: TetrisPreview, css: `
 ` };
 
 // features/games/games/sokoban.jsx
-var import_react14 = require("react");
+var import_react15 = require("react");
 var import_jsx_runtime6 = require("react/jsx-runtime");
 var LEVELS = [
   ["######", "#    #", "#@$ .#", "#    #", "######"],
@@ -8811,28 +9694,28 @@ function undo(state) {
 }
 var DIRS = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
 function SokobanGame(props) {
-  const [level, setLevel] = (0, import_react14.useState)(0);
-  const [state, setState] = (0, import_react14.useState)(() => makeInitial(0));
-  const stageRef = (0, import_react14.useRef)(null);
-  const levelRef = (0, import_react14.useRef)(level);
+  const [level, setLevel] = (0, import_react15.useState)(0);
+  const [state, setState] = (0, import_react15.useState)(() => makeInitial(0));
+  const stageRef = (0, import_react15.useRef)(null);
+  const levelRef = (0, import_react15.useRef)(level);
   levelRef.current = level;
-  const move = (0, import_react14.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
-  const prevWon = (0, import_react14.useRef)(false);
-  (0, import_react14.useEffect)(() => {
+  const move = (0, import_react15.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
+  const prevWon = (0, import_react15.useRef)(false);
+  (0, import_react15.useEffect)(() => {
     if (state.wonNew && !prevWon.current) playSfx("win");
     prevWon.current = state.wonNew;
   }, [state.wonNew]);
-  const nextLevel = (0, import_react14.useCallback)(() => {
+  const nextLevel = (0, import_react15.useCallback)(() => {
     const n = (levelRef.current + 1) % LEVELS.length;
     setLevel(n);
     setState(makeInitial(n));
   }, []);
-  const pickLevel = (0, import_react14.useCallback)((i) => {
+  const pickLevel = (0, import_react15.useCallback)((i) => {
     setLevel(i);
     setState(makeInitial(i));
   }, []);
-  const reset = (0, import_react14.useCallback)(() => setState(makeInitial(levelRef.current)), []);
-  const onKeyDown = (0, import_react14.useCallback)((event) => {
+  const reset = (0, import_react15.useCallback)(() => setState(makeInitial(levelRef.current)), []);
+  const onKeyDown = (0, import_react15.useCallback)((event) => {
     const d = DIRS[event.key];
     if (d) {
       event.preventDefault();
@@ -8917,7 +9800,7 @@ var sokobanGame = { Game: SokobanGame, Preview: SokobanPreview, css: `
 ` };
 
 // features/games/games/gomoku.jsx
-var import_react15 = require("react");
+var import_react16 = require("react");
 var import_jsx_runtime7 = require("react/jsx-runtime");
 var GOMOKU_LINES = (() => {
   const P = (n) => n * 100 + 50;
@@ -9034,22 +9917,22 @@ function aiMove(board) {
   return best || [7, 7];
 }
 function GomokuGame(props) {
-  const [board, setBoard] = (0, import_react15.useState)(emptyBoard2);
-  const [turn, setTurn] = (0, import_react15.useState)("b");
-  const [winner, setWinner] = (0, import_react15.useState)(null);
-  const [winCells, setWinCells] = (0, import_react15.useState)(null);
-  const [showResult, setShowResult] = (0, import_react15.useState)(false);
-  const [last, setLast] = (0, import_react15.useState)(null);
-  const [history, setHistory] = (0, import_react15.useState)([]);
-  const [thinking, setThinking] = (0, import_react15.useState)(false);
-  const boardRef = (0, import_react15.useRef)(board);
-  const stageRef = (0, import_react15.useRef)(null);
+  const [board, setBoard] = (0, import_react16.useState)(emptyBoard2);
+  const [turn, setTurn] = (0, import_react16.useState)("b");
+  const [winner, setWinner] = (0, import_react16.useState)(null);
+  const [winCells, setWinCells] = (0, import_react16.useState)(null);
+  const [showResult, setShowResult] = (0, import_react16.useState)(false);
+  const [last, setLast] = (0, import_react16.useState)(null);
+  const [history, setHistory] = (0, import_react16.useState)([]);
+  const [thinking, setThinking] = (0, import_react16.useState)(false);
+  const boardRef = (0, import_react16.useRef)(board);
+  const stageRef = (0, import_react16.useRef)(null);
   boardRef.current = board;
-  const turnRef = (0, import_react15.useRef)(turn);
+  const turnRef = (0, import_react16.useRef)(turn);
   turnRef.current = turn;
-  const winRef = (0, import_react15.useRef)(winner);
+  const winRef = (0, import_react16.useRef)(winner);
   winRef.current = winner;
-  const finish = (0, import_react15.useCallback)((b, r, c, color) => {
+  const finish = (0, import_react16.useCallback)((b, r, c, color) => {
     const line = winLine(b, r, c, color);
     if (line) {
       setWinner(color);
@@ -9063,7 +9946,7 @@ function GomokuGame(props) {
       playSfx("clear");
     } else playSfx("stone");
   }, []);
-  const place = (0, import_react15.useCallback)((r, c, color) => {
+  const place = (0, import_react16.useCallback)((r, c, color) => {
     if (boardRef.current[r][c]) return false;
     const next = boardRef.current.map((row) => row.slice());
     next[r][c] = color;
@@ -9074,7 +9957,7 @@ function GomokuGame(props) {
     finish(next, r, c, color);
     return true;
   }, [finish]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     if (turn !== "w" || winner || props.paused) return;
     setThinking(true);
     const t = setTimeout(() => {
@@ -9085,12 +9968,12 @@ function GomokuGame(props) {
     }, 260);
     return () => clearTimeout(t);
   }, [turn, winner, props.paused, place]);
-  const onCell = (0, import_react15.useCallback)((r, c) => {
+  const onCell = (0, import_react16.useCallback)((r, c) => {
     if (winRef.current || turnRef.current !== "b" || thinking || boardRef.current[r][c]) return;
     place(r, c, "b");
     setTurn("w");
   }, [thinking, place]);
-  const reset = (0, import_react15.useCallback)(() => {
+  const reset = (0, import_react16.useCallback)(() => {
     setBoard(emptyBoard2());
     setTurn("b");
     setWinner(null);
@@ -9100,7 +9983,7 @@ function GomokuGame(props) {
     setHistory([]);
     setThinking(false);
   }, []);
-  const undo2 = (0, import_react15.useCallback)(() => {
+  const undo2 = (0, import_react16.useCallback)(() => {
     if (thinking || history.length < 2) return;
     const h = history.slice(0, -2);
     const next = emptyBoard2();
@@ -9114,7 +9997,7 @@ function GomokuGame(props) {
     setShowResult(false);
     setLast(h.length ? h[h.length - 1] : null);
   }, [history, thinking]);
-  const onKeyDown = (0, import_react15.useCallback)((event) => {
+  const onKeyDown = (0, import_react16.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       reset();
@@ -9213,7 +10096,7 @@ var gomokuGame = { Game: GomokuGame, Preview: GomokuPreview, css: `
 ` };
 
 // features/games/games/xiangqi.jsx
-var import_react16 = require("react");
+var import_react17 = require("react");
 
 // features/games/xiangqi-core.js
 var ROWS2 = 10;
@@ -9578,35 +10461,35 @@ function moveNotation(board, fr, fc, tr, tc) {
   return pieceChar(p) + num(file(fc)) + verb + num(to);
 }
 function XiangqiGame(props) {
-  const [board, setBoard] = (0, import_react16.useState)(initialBoard);
-  const [turn, setTurn] = (0, import_react16.useState)("r");
-  const [sel, setSel] = (0, import_react16.useState)(null);
-  const [targets, setTargets] = (0, import_react16.useState)([]);
-  const [over, setOver] = (0, import_react16.useState)(null);
-  const [check, setCheck] = (0, import_react16.useState)(false);
-  const [last, setLast] = (0, import_react16.useState)(null);
-  const [lastMove, setLastMove] = (0, import_react16.useState)(null);
-  const [moveLog, setMoveLog] = (0, import_react16.useState)([]);
-  const [moving, setMoving] = (0, import_react16.useState)(null);
-  const [thinking, setThinking] = (0, import_react16.useState)(false);
-  const [history, setHistory] = (0, import_react16.useState)([]);
-  const [repKeys, setRepKeys] = (0, import_react16.useState)(() => [posKey(initialBoard())]);
-  const pushKey = (0, import_react16.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
-  const stageRef = (0, import_react16.useRef)(null);
-  const boardRef = (0, import_react16.useRef)(board);
+  const [board, setBoard] = (0, import_react17.useState)(initialBoard);
+  const [turn, setTurn] = (0, import_react17.useState)("r");
+  const [sel, setSel] = (0, import_react17.useState)(null);
+  const [targets, setTargets] = (0, import_react17.useState)([]);
+  const [over, setOver] = (0, import_react17.useState)(null);
+  const [check, setCheck] = (0, import_react17.useState)(false);
+  const [last, setLast] = (0, import_react17.useState)(null);
+  const [lastMove, setLastMove] = (0, import_react17.useState)(null);
+  const [moveLog, setMoveLog] = (0, import_react17.useState)([]);
+  const [moving, setMoving] = (0, import_react17.useState)(null);
+  const [thinking, setThinking] = (0, import_react17.useState)(false);
+  const [history, setHistory] = (0, import_react17.useState)([]);
+  const [repKeys, setRepKeys] = (0, import_react17.useState)(() => [posKey(initialBoard())]);
+  const pushKey = (0, import_react17.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
+  const stageRef = (0, import_react17.useRef)(null);
+  const boardRef = (0, import_react17.useRef)(board);
   boardRef.current = board;
-  const turnRef = (0, import_react16.useRef)(turn);
+  const turnRef = (0, import_react17.useRef)(turn);
   turnRef.current = turn;
-  const overRef = (0, import_react16.useRef)(over);
+  const overRef = (0, import_react17.useRef)(over);
   overRef.current = over;
-  const thinkingRef = (0, import_react16.useRef)(thinking);
+  const thinkingRef = (0, import_react17.useRef)(thinking);
   thinkingRef.current = thinking;
-  const historyRef = (0, import_react16.useRef)(history);
+  const historyRef = (0, import_react17.useRef)(history);
   historyRef.current = history;
-  const movingRef = (0, import_react16.useRef)(false);
-  const pendingRef = (0, import_react16.useRef)(null);
-  const animTimerRef = (0, import_react16.useRef)(null);
-  const animateMove = (0, import_react16.useCallback)((b, fr, fc, tr, tc, after) => {
+  const movingRef = (0, import_react17.useRef)(false);
+  const pendingRef = (0, import_react17.useRef)(null);
+  const animTimerRef = (0, import_react17.useRef)(null);
+  const animateMove = (0, import_react17.useCallback)((b, fr, fc, tr, tc, after) => {
     const piece = boardRef.current[fr][fc];
     const capture = !!boardRef.current[tr][tc];
     pendingRef.current = { board: b, after };
@@ -9633,7 +10516,7 @@ function XiangqiGame(props) {
       }
     }, 260);
   }, []);
-  const restart = (0, import_react16.useCallback)(() => {
+  const restart = (0, import_react17.useCallback)(() => {
     if (animTimerRef.current) {
       clearTimeout(animTimerRef.current);
       animTimerRef.current = null;
@@ -9656,7 +10539,7 @@ function XiangqiGame(props) {
     setMoving(null);
     setRepKeys([posKey(b)]);
   }, []);
-  const undo2 = (0, import_react16.useCallback)(() => {
+  const undo2 = (0, import_react17.useCallback)(() => {
     if (thinkingRef.current || overRef.current || turnRef.current !== "r" || movingRef.current) return;
     const h = historyRef.current;
     if (h.length < 2) return;
@@ -9674,7 +10557,7 @@ function XiangqiGame(props) {
     setCheck(inCheck(b, "r"));
     setRepKeys(hist.map(posKey).concat(posKey(b)));
   }, []);
-  const moveRed = (0, import_react16.useCallback)((tr, tc) => {
+  const moveRed = (0, import_react17.useCallback)((tr, tc) => {
     if (turnRef.current !== "r" || overRef.current || !sel || movingRef.current) return;
     const fr = sel[0], fc = sel[1];
     const nb = applyMove(boardRef.current, fr, fc, tr, tc);
@@ -9688,7 +10571,7 @@ function XiangqiGame(props) {
       } else setCheck(inCheck(nb, "b"));
     });
   }, [sel, pushKey, animateMove]);
-  const select = (0, import_react16.useCallback)((r, c) => {
+  const select = (0, import_react17.useCallback)((r, c) => {
     if (overRef.current || turnRef.current !== "r" || thinkingRef.current || movingRef.current) return;
     const p = boardRef.current[r][c];
     if (p && p.c === "r") {
@@ -9704,7 +10587,7 @@ function XiangqiGame(props) {
     setSel(null);
     setTargets([]);
   }, [sel, targets, moveRed]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (turn !== "b" || over || props.paused || movingRef.current) return;
     const t = setTimeout(() => {
       const seenCounts = /* @__PURE__ */ new Map();
@@ -9728,7 +10611,7 @@ function XiangqiGame(props) {
     setThinking(true);
     return () => clearTimeout(t);
   }, [turn, over, props.paused, repKeys, pushKey, animateMove]);
-  const onKeyDown = (0, import_react16.useCallback)((event) => {
+  const onKeyDown = (0, import_react17.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       restart();
@@ -9739,14 +10622,14 @@ function XiangqiGame(props) {
   }, [restart, undo2]);
   useGameControls(stageRef, props.paused, onKeyDown);
   const status = over === "r" ? "\u7EA2\u65B9\u80DC \xB7 \u606D\u559C" : over === "b" ? "\u9ED1\u65B9\u80DC \xB7 AI \u8D62" : moving ? moving.piece.c === "r" ? "\u7EA2\u65B9\u8D70\u5B50\u2026" : "AI \u8D70\u5B50\u2026" : thinking ? "AI \u601D\u8003\u4E2D\u2026" : check ? "\u5C06\u519B\uFF01" : turn === "r" ? "\u8F6E\u5230\u4F60\uFF08\u7EA2\u65B9\uFF09" : "\u8F6E\u5230 AI\uFF08\u9ED1\u65B9\uFF09";
-  const prevCheck = (0, import_react16.useRef)(false);
-  (0, import_react16.useEffect)(() => {
+  const prevCheck = (0, import_react17.useRef)(false);
+  (0, import_react17.useEffect)(() => {
     if (over === "r") playSfx("win");
     else if (over === "b") playSfx("over");
     else if (!thinking && check && !prevCheck.current) playSfx("check");
     prevCheck.current = !thinking && check;
   }, [check, thinking, over]);
-  (0, import_react16.useEffect)(() => () => {
+  (0, import_react17.useEffect)(() => () => {
     if (animTimerRef.current) clearTimeout(animTimerRef.current);
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "dgame-game", "aria-label": "\u8C61\u68CB", children: [
@@ -9851,7 +10734,7 @@ var xiangqiGame = { Game: XiangqiGame, Preview: XiangqiPreview, css: `
 ` };
 
 // features/games/games/snake.jsx
-var import_react17 = require("react");
+var import_react18 = require("react");
 var import_jsx_runtime9 = require("react/jsx-runtime");
 var SIZE2 = 16;
 var DIRS3 = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
@@ -9896,26 +10779,26 @@ function step2(state, dir) {
   return Object.assign({}, state, { snake });
 }
 function SnakeGame(props) {
-  const [state, setState] = (0, import_react17.useState)(initial2);
-  const [paused, setPaused] = (0, import_react17.useState)(false);
-  const [speedMode, setSpeedMode] = (0, import_react17.useState)(loadSpeedMode);
-  const stageRef = (0, import_react17.useRef)(null);
-  const dirRef = (0, import_react17.useRef)(state.dir);
-  const overRef = (0, import_react17.useRef)(state.over);
+  const [state, setState] = (0, import_react18.useState)(initial2);
+  const [paused, setPaused] = (0, import_react18.useState)(false);
+  const [speedMode, setSpeedMode] = (0, import_react18.useState)(loadSpeedMode);
+  const stageRef = (0, import_react18.useRef)(null);
+  const dirRef = (0, import_react18.useRef)(state.dir);
+  const overRef = (0, import_react18.useRef)(state.over);
   overRef.current = state.over;
-  const pausedRef = (0, import_react17.useRef)(!!(props && props.paused) || paused);
+  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused) || paused);
   pausedRef.current = !!(props && props.paused) || paused;
-  const start = (0, import_react17.useCallback)(() => {
+  const start = (0, import_react18.useCallback)(() => {
     const init = initial2();
     init.started = true;
     dirRef.current = init.dir;
     setState(init);
     setPaused(false);
   }, []);
-  const begin = (0, import_react17.useCallback)(() => {
+  const begin = (0, import_react18.useCallback)(() => {
     setState((s) => s.started || s.over ? s : Object.assign({}, s, { started: true }));
   }, []);
-  const changeDir = (0, import_react17.useCallback)((nv) => {
+  const changeDir = (0, import_react18.useCallback)((nv) => {
     if (overRef.current || pausedRef.current) return;
     const cur = dirRef.current;
     const opp = OPPOSITE[cur[0] + "," + cur[1]];
@@ -9923,24 +10806,24 @@ function SnakeGame(props) {
     dirRef.current = nv;
     begin();
   }, [begin]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     if (!state.started || state.over || pausedRef.current) return;
     const mode = SPEED_MODES[speedMode] || SPEED_MODES.slow;
     const speed = Math.max(mode.min, mode.base - state.score * mode.stepMs);
     const timer = setInterval(() => setState((s) => s.over || !s.started || pausedRef.current ? s : step2(s, dirRef.current)), speed);
     return () => clearInterval(timer);
   }, [state.started, state.over, state.score, props.paused, paused, speedMode]);
-  const pickSpeed = (0, import_react17.useCallback)((m) => {
+  const pickSpeed = (0, import_react18.useCallback)((m) => {
     setSpeedMode(m);
     try {
       localStorage.setItem("dsh-dock.snake.speed", m);
     } catch {
     }
   }, []);
-  const onKeyDown = (0, import_react17.useCallback)((event) => {
+  const onKeyDown = (0, import_react18.useCallback)((event) => {
     const d = DIRS3[event.key];
     if (d) {
       event.preventDefault();
@@ -10040,7 +10923,7 @@ var snakeGame = { Game: SnakeGame, Preview: SnakePreview, css: `
 ` };
 
 // features/games/games/breakout.jsx
-var import_react18 = require("react");
+var import_react19 = require("react");
 var import_jsx_runtime10 = require("react/jsx-runtime");
 var W = 320;
 var H = 360;
@@ -10120,22 +11003,22 @@ function collideRect(x, y, r, bx, by, bw, bh) {
   return dx * dx + dy * dy < r * r;
 }
 function BreakoutGame(props) {
-  const canvasRef = (0, import_react18.useRef)(null);
-  const [score, setScore] = (0, import_react18.useState)(0);
-  const [lives, setLives] = (0, import_react18.useState)(3);
-  const [level, setLevel] = (0, import_react18.useState)(1);
-  const [status, setStatus] = (0, import_react18.useState)("play");
-  const keys = (0, import_react18.useRef)({});
-  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused));
+  const canvasRef = (0, import_react19.useRef)(null);
+  const [score, setScore] = (0, import_react19.useState)(0);
+  const [lives, setLives] = (0, import_react19.useState)(3);
+  const [level, setLevel] = (0, import_react19.useState)(1);
+  const [status, setStatus] = (0, import_react19.useState)("play");
+  const keys = (0, import_react19.useRef)({});
+  const pausedRef = (0, import_react19.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const game = (0, import_react18.useRef)(null);
-  const scoreRef = (0, import_react18.useRef)(0);
+  const game = (0, import_react19.useRef)(null);
+  const scoreRef = (0, import_react19.useRef)(0);
   scoreRef.current = score;
-  const statusRef = (0, import_react18.useRef)("play");
+  const statusRef = (0, import_react19.useRef)("play");
   statusRef.current = status;
-  const livesRef = (0, import_react18.useRef)(3);
+  const livesRef = (0, import_react19.useRef)(3);
   livesRef.current = lives;
-  const start = (0, import_react18.useCallback)((lvl) => {
+  const start = (0, import_react19.useCallback)((lvl) => {
     const bricks = makeBricks(lvl);
     game.current = {
       stars: Array.from({ length: 46 }, () => ({ x: Math.random() * W, y: Math.random() * H, a: 0.25 + Math.random() * 0.5 })),
@@ -10145,20 +11028,20 @@ function BreakoutGame(props) {
       speed: SPEED * (1 + (lvl - 1) * 0.09)
     };
   }, []);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     start(1);
     setScore(0);
     setLives(3);
     setStatus("play");
   }, [start]);
-  const launchBall = (0, import_react18.useCallback)(() => {
+  const launchBall = (0, import_react19.useCallback)(() => {
     const g = game.current;
     if (!g) return;
     g.ball.vx = (Math.random() > 0.5 ? 1 : -1) * SPEED;
     g.ball.vy = -SPEED;
     g.launched = true;
   }, []);
-  const resetBall = (0, import_react18.useCallback)(() => {
+  const resetBall = (0, import_react19.useCallback)(() => {
     const g = game.current;
     if (g) {
       g.ball.x = W / 2;
@@ -10168,7 +11051,7 @@ function BreakoutGame(props) {
       g.launched = false;
     }
   }, []);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     const frame = () => {
       const g = game.current;
       const ctx = canvasRef.current && canvasRef.current.getContext("2d");
@@ -10254,7 +11137,7 @@ function BreakoutGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, [resetBall]);
-  const onKeyDown = (0, import_react18.useCallback)((event) => {
+  const onKeyDown = (0, import_react19.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -10275,11 +11158,11 @@ function BreakoutGame(props) {
       livesRef.current = 3;
     }
   }, [launchBall, start]);
-  const onKeyUp = (0, import_react18.useCallback)((event) => {
+  const onKeyUp = (0, import_react19.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react18.useCallback)((e) => {
+  const onPointerMove = (0, import_react19.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect2 = cv.getBoundingClientRect();
@@ -10371,7 +11254,7 @@ var breakoutGame = { Game: BreakoutGame, Preview: BreakoutPreview, css: `
 ` };
 
 // features/games/games/racer.jsx
-var import_react19 = require("react");
+var import_react20 = require("react");
 var import_jsx_runtime11 = require("react/jsx-runtime");
 var W2 = 300;
 var H2 = 420;
@@ -10398,15 +11281,15 @@ function rect(ctx, x, y, w, h, r, fill) {
   ctx.fill();
 }
 function RacerGame(props) {
-  const canvasRef = (0, import_react19.useRef)(null);
-  const [status, setStatus] = (0, import_react19.useState)("play");
-  const game = (0, import_react19.useRef)(null);
-  const keys = (0, import_react19.useRef)({});
-  const statusRef = (0, import_react19.useRef)("play");
+  const canvasRef = (0, import_react20.useRef)(null);
+  const [status, setStatus] = (0, import_react20.useState)("play");
+  const game = (0, import_react20.useRef)(null);
+  const keys = (0, import_react20.useRef)({});
+  const statusRef = (0, import_react20.useRef)("play");
   statusRef.current = status;
-  const pausedRef = (0, import_react19.useRef)(!!(props && props.paused));
+  const pausedRef = (0, import_react20.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const reset = (0, import_react19.useCallback)(() => {
+  const reset = (0, import_react20.useCallback)(() => {
     game.current = {
       stars: Array.from({ length: 50 }, () => ({ x: Math.random() * W2, y: Math.random() * H2, a: 0.2 + Math.random() * 0.5 })),
       player: { x: laneX(1), y: H2 - CAR_H - 16, w: CAR_W, h: CAR_H },
@@ -10420,15 +11303,15 @@ function RacerGame(props) {
       over: false
     };
   }, []);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  const launch = (0, import_react19.useCallback)(() => {
+  const launch = (0, import_react20.useCallback)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     const draw2 = () => {
       const g = game.current, ctx = canvasRef.current && canvasRef.current.getContext("2d");
       if (!g || !ctx) return;
@@ -10530,7 +11413,7 @@ function RacerGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, []);
-  const onKeyDown = (0, import_react19.useCallback)((event) => {
+  const onKeyDown = (0, import_react20.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -10543,11 +11426,11 @@ function RacerGame(props) {
       launch();
     }
   }, [launch]);
-  const onKeyUp = (0, import_react19.useCallback)((event) => {
+  const onKeyUp = (0, import_react20.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react19.useCallback)((e) => {
+  const onPointerMove = (0, import_react20.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect0 = cv.getBoundingClientRect();
@@ -10608,7 +11491,7 @@ var racerGame = { Game: RacerGame, Preview: RacerPreview, css: `
 ` };
 
 // features/games/games/tank.jsx
-var import_react20 = require("react");
+var import_react21 = require("react");
 
 // features/games/tank-core.js
 var GRID = 15;
@@ -10816,27 +11699,27 @@ var import_jsx_runtime12 = require("react/jsx-runtime");
 var DIR_ANGLE = { up: 0, right: 90, down: 180, left: 270 };
 var ENEMY_COLORS = ["#f87171", "#fb923c", "#c084fc", "#4ade80", "#38bdf8"];
 function TankGame(props) {
-  const [snap, setSnap] = (0, import_react20.useState)(initialState);
-  const [status, setStatus] = (0, import_react20.useState)("play");
-  const snapRef = (0, import_react20.useRef)(snap);
+  const [snap, setSnap] = (0, import_react21.useState)(initialState);
+  const [status, setStatus] = (0, import_react21.useState)("play");
+  const snapRef = (0, import_react21.useRef)(snap);
   snapRef.current = snap;
-  const keys = (0, import_react20.useRef)({ dir: null, shoot: false });
-  const pausedRef = (0, import_react20.useRef)(!!(props && props.paused));
+  const keys = (0, import_react21.useRef)({ dir: null, shoot: false });
+  const pausedRef = (0, import_react21.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const statusRef = (0, import_react20.useRef)("play");
+  const statusRef = (0, import_react21.useRef)("play");
   statusRef.current = status;
-  const boardRef = (0, import_react20.useRef)(null);
-  const start = (0, import_react20.useCallback)(() => {
+  const boardRef = (0, import_react21.useRef)(null);
+  const start = (0, import_react21.useCallback)(() => {
     setSnap(initialState());
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  const nextLvl = (0, import_react20.useCallback)(() => {
+  const nextLvl = (0, import_react21.useCallback)(() => {
     setSnap((s) => nextWave(s));
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  (0, import_react20.useEffect)(() => {
+  (0, import_react21.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current) return;
       setSnap((s) => {
@@ -10855,8 +11738,8 @@ function TankGame(props) {
     }, 120);
     return () => clearInterval(timer);
   }, []);
-  const stageRef = (0, import_react20.useRef)(null);
-  const onKeyDown = (0, import_react20.useCallback)((event) => {
+  const stageRef = (0, import_react21.useRef)(null);
+  const onKeyDown = (0, import_react21.useCallback)((event) => {
     if (pausedRef.current) return;
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
@@ -10873,7 +11756,7 @@ function TankGame(props) {
       start();
     }
   }, [start]);
-  const onKeyUp = (0, import_react20.useCallback)((event) => {
+  const onKeyUp = (0, import_react21.useCallback)((event) => {
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
     if (dir && keys.current.dir === dir) keys.current.dir = null;
@@ -11015,8 +11898,8 @@ function initialDash() {
   return { lane: 1, rocks: [], score: 0, shield: 3, running: true, nextId: 1 };
 }
 function useTaskPulse() {
-  const [status, setStatus] = (0, import_react21.useState)({ loading: true, active: [], error: false });
-  const refresh = (0, import_react21.useCallback)(() => fetch("dsh-dock/animation/status", {
+  const [status, setStatus] = (0, import_react22.useState)({ loading: true, active: [], error: false });
+  const refresh = (0, import_react22.useCallback)(() => fetch("dsh-dock/animation/status", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}"
@@ -11024,7 +11907,7 @@ function useTaskPulse() {
     if (!payload || !payload.ok) throw new Error("status unavailable");
     setStatus({ loading: false, active: Array.isArray(payload.data && payload.data.active) ? payload.data.active : [], error: false });
   }).catch(() => setStatus((current) => ({ loading: false, active: current.active || [], error: true }))), []);
-  (0, import_react21.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 2600);
     return () => clearInterval(timer);
@@ -11032,14 +11915,14 @@ function useTaskPulse() {
   return status;
 }
 function DashGame(props) {
-  const [dash, setDash] = (0, import_react21.useState)(initialDash);
-  const pausedRef = (0, import_react21.useRef)(!!(props && props.paused));
+  const [dash, setDash] = (0, import_react22.useState)(initialDash);
+  const pausedRef = (0, import_react22.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const move = (0, import_react21.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
+  const move = (0, import_react22.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
     lane: Math.max(0, Math.min(LANES - 1, current.lane + delta))
   })), []);
-  const stageRef = (0, import_react21.useRef)(null);
-  const onKeyDown = (0, import_react21.useCallback)((event) => {
+  const stageRef = (0, import_react22.useRef)(null);
+  const onKeyDown = (0, import_react22.useCallback)((event) => {
     if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
       event.preventDefault();
       move(-1);
@@ -11052,7 +11935,7 @@ function DashGame(props) {
     }
   }, [move, dash.running]);
   useGameControls(stageRef, props.paused, onKeyDown);
-  (0, import_react21.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current || typeof document !== "undefined" && document.hidden) return;
       setDash((current) => {
@@ -11129,10 +12012,10 @@ function DashGame(props) {
   ] });
 }
 function ReactorGame(props) {
-  const [cells, setCells] = (0, import_react21.useState)(makeReactor);
-  const [moves, setMoves] = (0, import_react21.useState)(0);
-  const [cursor, setCursor] = (0, import_react21.useState)(4);
-  const gridRef = (0, import_react21.useRef)(null);
+  const [cells, setCells] = (0, import_react22.useState)(makeReactor);
+  const [moves, setMoves] = (0, import_react22.useState)(0);
+  const [cursor, setCursor] = (0, import_react22.useState)(4);
+  const gridRef = (0, import_react22.useRef)(null);
   const solved = cells.every(Boolean);
   const toggle = (index) => {
     if (solved) return;
@@ -11342,8 +12225,8 @@ var gamesBus = {
   }
 };
 function useGameWin() {
-  const [state, setState] = (0, import_react21.useState)(gamesBus.state);
-  (0, import_react21.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
+  const [state, setState] = (0, import_react22.useState)(gamesBus.state);
+  (0, import_react22.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
   return state;
 }
 var CATS = [
@@ -11459,12 +12342,12 @@ function snapFabX(side) {
 function GameWindow(props) {
   const game = props.game;
   const status = useTaskPulse();
-  const [win, setWin] = (0, import_react21.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
-  const winRef = (0, import_react21.useRef)(win);
+  const [win, setWin] = (0, import_react22.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
+  const winRef = (0, import_react22.useRef)(win);
   winRef.current = win;
-  const pickerRef = (0, import_react21.useRef)(props.picker);
+  const pickerRef = (0, import_react22.useRef)(props.picker);
   pickerRef.current = props.picker;
-  (0, import_react21.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (pickerRef.current) gamesBus.closePicker();
@@ -11552,12 +12435,12 @@ function GameWindow(props) {
   ] });
 }
 function GameFab(props) {
-  const [pos, setPos] = (0, import_react21.useState)(null);
-  const [dragging, setDragging] = (0, import_react21.useState)(false);
-  const dragRef = (0, import_react21.useRef)(null);
-  const clickBlockRef = (0, import_react21.useRef)(false);
-  const sideRef = (0, import_react21.useRef)("left");
-  (0, import_react21.useEffect)(() => {
+  const [pos, setPos] = (0, import_react22.useState)(null);
+  const [dragging, setDragging] = (0, import_react22.useState)(false);
+  const dragRef = (0, import_react22.useRef)(null);
+  const clickBlockRef = (0, import_react22.useRef)(false);
+  const sideRef = (0, import_react22.useRef)("left");
+  (0, import_react22.useEffect)(() => {
     if (typeof window === "undefined") return;
     let next = { side: "left", y: Math.round(window.innerHeight * 0.34) };
     try {
@@ -11572,7 +12455,7 @@ function GameFab(props) {
       y: Math.min(Math.max(8, next.y), Math.max(8, window.innerHeight - FAB_H - 8))
     });
   }, []);
-  (0, import_react21.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     if (typeof window === "undefined") return;
     const update = () => {
       if (dragRef.current) return;
@@ -11667,8 +12550,8 @@ function GamepadIcon(props) {
 }
 function GamesOverlay() {
   const winState = useGameWin();
-  const [panelOpen, setPanelOpen2] = (0, import_react21.useState)(panelNav.open);
-  (0, import_react21.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react22.useState)(panelNav.open);
+  (0, import_react22.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
@@ -11771,7 +12654,7 @@ var dgcovGroupCss = `
 
 `;
 var css5 = [baseCss, tetrisGame.css, sokobanGame.css, gomokuGame.css, xiangqiGame.css, snakeGame.css, breakoutGame.css, racerGame.css, tankGame.css, dgcovGroupCss].filter(Boolean).join("\n");
-var feature10 = {
+var feature11 = {
   id: "games",
   name: "\u8DA3\u5473\u6E38\u620F",
   order: 135,
@@ -11785,7 +12668,7 @@ var feature10 = {
 };
 
 // features/mobile-relay/view.jsx
-var import_react22 = require("react");
+var import_react23 = require("react");
 var import_qrcode = __toESM(require_browser(), 1);
 var import_jsx_runtime14 = require("react/jsx-runtime");
 function rpc(method, payload) {
@@ -11822,8 +12705,8 @@ function RelayIcon({ name, size = 18 }) {
   ] });
 }
 function useCompact() {
-  const [compact, setCompact] = (0, import_react22.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
-  (0, import_react22.useEffect)(() => {
+  const [compact, setCompact] = (0, import_react23.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
+  (0, import_react23.useEffect)(() => {
     const media = window.matchMedia("(max-width: 680px)");
     const update = () => setCompact(media.matches);
     update();
@@ -11834,23 +12717,23 @@ function useCompact() {
 }
 function RemoteCard() {
   const compact = useCompact();
-  const [lan, setLan] = (0, import_react22.useState)(null);
-  const [username, setUsername] = (0, import_react22.useState)("");
-  const [password, setPassword] = (0, import_react22.useState)("");
-  const [newPassword, setNewPassword] = (0, import_react22.useState)("");
-  const [port, setPort] = (0, import_react22.useState)("");
-  const [address, setAddress] = (0, import_react22.useState)("");
-  const [qr, setQr] = (0, import_react22.useState)("");
-  const [busy, setBusy] = (0, import_react22.useState)("");
-  const [message, setMessage] = (0, import_react22.useState)("");
-  const [messageKind, setMessageKind] = (0, import_react22.useState)("error");
-  const [changing, setChanging] = (0, import_react22.useState)(false);
-  const [remote, setRemote] = (0, import_react22.useState)(false);
-  const notify = (0, import_react22.useCallback)((text, kind) => {
+  const [lan, setLan] = (0, import_react23.useState)(null);
+  const [username, setUsername] = (0, import_react23.useState)("");
+  const [password, setPassword] = (0, import_react23.useState)("");
+  const [newPassword, setNewPassword] = (0, import_react23.useState)("");
+  const [port, setPort] = (0, import_react23.useState)("");
+  const [address, setAddress] = (0, import_react23.useState)("");
+  const [qr, setQr] = (0, import_react23.useState)("");
+  const [busy, setBusy] = (0, import_react23.useState)("");
+  const [message, setMessage] = (0, import_react23.useState)("");
+  const [messageKind, setMessageKind] = (0, import_react23.useState)("error");
+  const [changing, setChanging] = (0, import_react23.useState)(false);
+  const [remote, setRemote] = (0, import_react23.useState)(false);
+  const notify = (0, import_react23.useCallback)((text, kind) => {
     setMessage(text);
     setMessageKind(kind || "error");
   }, []);
-  const refresh = (0, import_react22.useCallback)(async () => {
+  const refresh = (0, import_react23.useCallback)(async () => {
     try {
       const data = await rpc("lan");
       setLan(data);
@@ -11860,19 +12743,19 @@ function RemoteCard() {
       notify(e && e.message ? e.message : String(e));
     }
   }, [notify]);
-  (0, import_react22.useEffect)(() => {
+  (0, import_react23.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 3e3);
     return () => clearInterval(timer);
   }, [refresh]);
-  (0, import_react22.useEffect)(() => {
+  (0, import_react23.useEffect)(() => {
     fetch("/__dsh_auth/health", { method: "POST" }).then((r) => setRemote(Boolean(r.ok))).catch(() => setRemote(false));
   }, []);
   const active = Boolean(lan && lan.gatewayActive);
   const gatewayPort = lan && lan.gatewayPort ? lan.gatewayPort : 3081;
   const suggestedPort = lan && lan.mainPort ? lan.mainPort + 1 : gatewayPort;
-  const lanLink = (0, import_react22.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
-  (0, import_react22.useEffect)(() => {
+  const lanLink = (0, import_react23.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
+  (0, import_react23.useEffect)(() => {
     let live = true;
     if (!lanLink) {
       setQr("");
@@ -12089,8 +12972,8 @@ function MobileRelayView() {
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(RemoteCard, {});
 }
 function MobileRelayHomeStat() {
-  const [summary, setSummary] = (0, import_react22.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
-  (0, import_react22.useEffect)(() => {
+  const [summary, setSummary] = (0, import_react23.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
+  (0, import_react23.useEffect)(() => {
     const refresh = () => {
       rpc("lan").then((data) => {
         const devices = typeof data.devices === "number" && data.devices > 0 ? " \xB7 " + data.devices + " \u53F0\u8BBE\u5907\u5728\u7EBF" : "";
@@ -12104,7 +12987,7 @@ function MobileRelayHomeStat() {
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: summary });
 }
-var feature11 = {
+var feature12 = {
   id: "mobile-relay",
   name: "\u8FDC\u7A0B\u8BBF\u95EE",
   order: 80,
@@ -12119,8 +13002,8 @@ var feature11 = {
 };
 
 // features/mobile/view.js
-var import_react23 = __toESM(require("react"), 1);
-var import_react24 = require("react");
+var import_react24 = __toESM(require("react"), 1);
+var import_react25 = require("react");
 var MOBILE_QUERY_NARROW = "(max-width: 820px)";
 var MOBILE_QUERY_COARSE = "(pointer: coarse) and (hover: none)";
 var MOBILE_QUERY_CHROME = "(max-width: 700px)";
@@ -12152,8 +13035,8 @@ function watchQuery(query, onChange) {
   };
 }
 function MobileOverlay() {
-  const [active, setActive] = (0, import_react24.useState)(() => mobileActive());
-  (0, import_react24.useEffect)(() => {
+  const [active, setActive] = (0, import_react25.useState)(() => mobileActive());
+  (0, import_react25.useEffect)(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
     let mqs = [];
     try {
@@ -12174,7 +13057,7 @@ function MobileOverlay() {
       }
     };
   }, []);
-  (0, import_react24.useEffect)(() => {
+  (0, import_react25.useEffect)(() => {
     if (typeof document === "undefined") return void 0;
     if (active) {
       document.body.setAttribute("data-dk-mobile", "1");
@@ -12192,7 +13075,7 @@ function MobileOverlay() {
       document.body.removeAttribute("data-dk-mobile");
     };
   }, [active]);
-  (0, import_react24.useEffect)(() => mobileChrome(), []);
+  (0, import_react25.useEffect)(() => mobileChrome(), []);
   return null;
 }
 function mobileChrome() {
@@ -12359,8 +13242,8 @@ function mobileChrome() {
   };
 }
 function useViewportSize() {
-  const [size, setSize] = (0, import_react24.useState)(() => typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight });
-  (0, import_react24.useEffect)(() => {
+  const [size, setSize] = (0, import_react25.useState)(() => typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight });
+  (0, import_react25.useEffect)(() => {
     if (typeof window === "undefined") return void 0;
     const update = () => setSize({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener("resize", update);
@@ -12369,10 +13252,10 @@ function useViewportSize() {
   return size;
 }
 function useMobileState() {
-  const [active, setActive] = (0, import_react24.useState)(() => mobileActive());
-  const [chrome, setChrome] = (0, import_react24.useState)(() => typeof window === "undefined" || typeof window.matchMedia !== "function" ? false : window.matchMedia(MOBILE_QUERY_CHROME).matches);
-  const [owner, setOwner] = (0, import_react24.useState)(() => typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null);
-  (0, import_react24.useEffect)(() => {
+  const [active, setActive] = (0, import_react25.useState)(() => mobileActive());
+  const [chrome, setChrome] = (0, import_react25.useState)(() => typeof window === "undefined" || typeof window.matchMedia !== "function" ? false : window.matchMedia(MOBILE_QUERY_CHROME).matches);
+  const [owner, setOwner] = (0, import_react25.useState)(() => typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null);
+  (0, import_react25.useEffect)(() => {
     const offChrome = watchQuery(MOBILE_QUERY_CHROME, setChrome);
     let mqs = [];
     try {
@@ -12400,34 +13283,34 @@ function useMobileState() {
 function MobileView() {
   const { active, chrome, owner } = useMobileState();
   const size = useViewportSize();
-  return import_react23.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dkmob-root" },
-    import_react23.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dkmob-row" },
-      import_react23.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
-      import_react23.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
-      import_react23.default.createElement(
+      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
+      import_react24.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
+      import_react24.default.createElement(
         "span",
         { className: "dkmob-dim" },
         size ? size.w + "\xD7" + size.h + "px" : "",
         "\uFF08\u2264820px \u5BBD\uFF0C\u6216\u4E3B\u6307\u9488\u4E3A\u89E6\u5C4F\u65E0\u60AC\u505C\u65F6\u547D\u4E2D\uFF1B\u684C\u9762\u628A\u7A97\u53E3\u62D6\u7A84\u4E5F\u4F1A\u547D\u4E2D\uFF0C\u65B9\u4FBF\u8C03\u8BD5\uFF09"
       )
     ),
-    import_react23.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dkmob-row" },
-      import_react23.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u7AEF chrome"),
-      import_react23.default.createElement("span", { className: "dkmob-state" + (chrome ? " on" : "") }, chrome ? "\u2264700px\uFF0C\u751F\u6548\u4E2D" : "\u672A\u547D\u4E2D"),
-      import_react23.default.createElement(
+      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u7AEF chrome"),
+      import_react24.default.createElement("span", { className: "dkmob-state" + (chrome ? " on" : "") }, chrome ? "\u2264700px\uFF0C\u751F\u6548\u4E2D" : "\u672A\u547D\u4E2D"),
+      import_react24.default.createElement(
         "span",
         { className: "dkmob-dim" },
         "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\uFF08\u5C55\u5F00\u5DE6\u4FA7\u4F1A\u8BDD\u62BD\u5C49\uFF09+ \u4FA7\u680F\u62BD\u5C49\u906E\u7F69 + \u8F6F\u952E\u76D8\u8BA9\u4F4D\uFF1B\u5E95\u90E8 Tab \u680F\u5DF2\u6309\u7528\u6237\u8981\u6C42\u79FB\u9664\uFF0C\u63D2\u4EF6/\u8BBE\u7F6E\u7B49\u5165\u53E3\u5728\u62BD\u5C49\u91CC\u3002",
         owner === "host" ? "\u5F53\u524D\u7531\u5BBF\u4E3B\u6CE8\u5165\u7248\u9A71\u52A8\uFF08\u91CD\u542F dsh web \u540E\u751F\u6548\u7684\u90A3\u5957\uFF09\u3002" : owner === "client" ? "\u5F53\u524D\u7531\u5BA2\u6237\u7AEF\u81EA\u5EFA\u7248\u9A71\u52A8\uFF08\u5237\u65B0\u5373\u751F\u6548\uFF09\u3002" : ""
       )
     ),
-    import_react23.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dkmob-note" },
       "\u751F\u6548\u4E2D\u7684\u4F18\u5316\uFF1A\u8F93\u5165\u7C7B\u63A7\u4EF6\u5B57\u53F7\u62C9\u5230 16px\uFF08\u907F\u514D iOS \u805A\u7126\u7F29\u653E\u6574\u9875\uFF09\xB7 \u7EAF\u56FE\u6807\u6309\u94AE\u9762\u79EF\u515C\u5E95 \u226536px \xB7 ",
@@ -12439,8 +13322,8 @@ function MobileView() {
 }
 function MobileStat() {
   const { active, chrome } = useMobileState();
-  if (!active) return import_react23.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
-  return import_react23.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
+  if (!active) return import_react24.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
+  return import_react24.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
 }
 var css6 = [
   // 输入类控件 16px：防 iOS 聚焦自动放大（<16px 的输入框聚焦时 Safari 强制缩放页面）
@@ -12558,7 +13441,7 @@ var css6 = [
   '[class*="dockm-backdrop"]{z-index:2000 !important}',
   "}"
 ].join("\n");
-var feature12 = {
+var feature13 = {
   id: "mobile",
   name: "\u624B\u673A\u9002\u914D",
   order: 170,
@@ -12573,7 +13456,7 @@ var feature12 = {
 
 // src/client.jsx
 var DOCK_VERSION = "0.15.3";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12];
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12, feature13];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -12781,8 +13664,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react25.default.useReducer((n) => n + 1, 0);
-  import_react25.default.useEffect(() => {
+  const [, bump] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -12792,19 +13675,19 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react25.default.createElement(
+  return import_react26.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react25.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react25.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react25.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react25.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react26.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockMenuItem(props) {
-  const [open, setOpen] = import_react25.default.useState(panelNav.open);
-  import_react25.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react25.default.createElement(
+  const [open, setOpen] = import_react26.default.useState(panelNav.open);
+  import_react26.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react26.default.createElement(
     "button",
     {
       type: "button",
@@ -12815,30 +13698,30 @@ function DockMenuItem(props) {
         setPanelOpen(!open);
       }
     },
-    import_react25.default.createElement(
+    import_react26.default.createElement(
       "span",
       { className: "docke2-mi-icon" },
-      import_react25.default.createElement(DockIcon, { size: 14 })
+      import_react26.default.createElement(DockIcon, { size: 14 })
     ),
-    import_react25.default.createElement("span", { className: "docke2-mi-label" }, "\u529F\u80FD\u575E")
+    import_react26.default.createElement("span", { className: "docke2-mi-label" }, "\u529F\u80FD\u575E")
   );
 }
 function DockModal() {
-  const [nav, setNav] = import_react25.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react25.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react26.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react26.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react25.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react25.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react25.default.useRef(null);
-  const contentRef = import_react25.default.useRef(null);
-  import_react25.default.useEffect(() => {
+  const [win, setWin] = import_react26.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react26.default.useRef(null);
+  const contentRef = import_react26.default.useRef(null);
+  import_react26.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react25.default.useEffect(() => {
+  import_react26.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -12876,13 +13759,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react25.default.createElement(
+  const viewNode = mod && View ? import_react26.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react25.default.createElement(
+    import_react26.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react25.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react26.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -12896,10 +13779,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react25.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react25.default.createElement(
+    import_react26.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -12907,41 +13790,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react25.default.createElement(
+      import_react26.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react25.default.createElement(DockIcon, null),
-        import_react25.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react25.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react25.default.createElement(
+        import_react26.default.createElement(DockIcon, null),
+        import_react26.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react26.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react26.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react25.default.createElement("button", {
+          import_react26.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react25.default.createElement("button", {
+          import_react26.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react25.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react26.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react25.default.createElement(
+      import_react26.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react25.default.createElement(
+        import_react26.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react25.default.createElement(
+          import_react26.default.createElement(
             "button",
             {
               type: "button",
@@ -12949,10 +13832,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react25.default.createElement("span", { className: "dockm-navhome" }, import_react25.default.createElement(DockIcon, null)),
-            import_react25.default.createElement("span", null, "\u9996\u9875")
+            import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)),
+            import_react26.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react25.default.createElement(
+          MODULES.map((m) => import_react26.default.createElement(
             "button",
             {
               type: "button",
@@ -12960,42 +13843,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react25.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react25.default.createElement("span", null, m.name),
-            m.planned ? import_react25.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react25.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react26.default.createElement("span", null, m.name),
+            m.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react25.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react25.default.createElement(
+          import_react26.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react25.default.createElement(
+            import_react26.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react25.default.createElement("span", { className: "dockm-navhome" }, import_react25.default.createElement(DockIcon, null)) : import_react25.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)) : import_react26.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react25.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react25.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react25.default.createElement(
+            import_react26.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react25.default.createElement("div", { className: "dockm-view" }, import_react25.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react25.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react25.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react25.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react25.default.createElement(
+          isHome ? import_react26.default.createElement("div", { className: "dockm-view" }, import_react26.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react26.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react26.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react26.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react26.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react25.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react25.default.createElement(
+            import_react26.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react26.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react25.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react25.default.createElement("button", {
+              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react26.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -13008,11 +13891,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react25.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react26.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react25.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react25.default.createElement("button", {
+              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react26.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -13028,30 +13911,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react25.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react26.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react25.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react25.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react25.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react25.default.createElement(
+      const statNode = m.planned ? import_react26.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react26.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react25.default.createElement(Stat, { ctx })
-      ) : import_react25.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react25.default.createElement(
+        import_react26.default.createElement(Stat, { ctx })
+      ) : import_react26.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react26.default.createElement(
         "div",
         {
           key: m.id,
@@ -13066,21 +13949,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react25.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react25.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react25.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react25.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react26.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react26.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react25.default.createElement(
+          import_react26.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react25.default.createElement("span", { className: "dockh-sdot" }),
-            import_react25.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react26.default.createElement("span", { className: "dockh-sdot" }),
+            import_react26.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react25.default.createElement("button", {
+          m.planned ? null : import_react26.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -13095,12 +13978,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react25.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react25.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react25.default.createElement(
+        import_react26.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react26.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react26.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react25.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react26.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -13108,16 +13991,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react25.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react25.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react25.default.createElement(
+    import_react26.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -13126,25 +14009,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react25.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react26.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react25.default.createElement(
+        import_react26.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react25.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react26.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react25.default.createElement(
+      return import_react26.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react25.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react25.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react25.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react25.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react25.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react25.default.createElement("button", {
+          import_react26.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react26.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react26.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react26.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react26.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -13153,11 +14036,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react25.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react26.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react25.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react25.default.createElement("button", {
+            import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react26.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -13171,22 +14054,22 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react25.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react25.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react26.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react26.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react25.default.useReducer((n) => n + 1, 0);
-  import_react25.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react25.default.createElement(
+    items.push(import_react26.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react25.default.createElement(f.Chip, {
+      import_react26.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -13196,23 +14079,38 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react25.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react26.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react25.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react25.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react25.default.createElement(
+    items.push(import_react26.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react25.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react26.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react25.default.createElement(import_react25.default.Fragment, null, items);
+  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
+}
+function FeatureTurnTail(props) {
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const items = [];
+  for (const f of allModules()) {
+    if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
+    items.push(import_react26.default.createElement(
+      FeatureBoundary,
+      { key: f.id, label: f.name },
+      import_react26.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
+    ));
+  }
+  if (items.length === 0) return null;
+  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -13223,23 +14121,27 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("settings.launcher.menu.item", () => slots.register(
     { name: "settings.launcher.menu.item", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react25.default.createElement(DockMenuItem, props)
+    (props) => import_react26.default.createElement(DockMenuItem, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react25.default.createElement(DockModal, null)
+    () => import_react26.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react25.default.createElement(FeatureOverlays, null)
+    () => import_react26.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react25.default.createElement(DockPanel, props)
+    (props) => import_react26.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react25.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react26.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+  ));
+  slots.inject("conversation.chat.turnTail", () => slots.register(
+    { name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "\u529F\u80FD\u575E" },
+    (owner) => import_react26.default.createElement(FeatureTurnTail, owner)
   ));
 }
 var inject = ["timer"];
