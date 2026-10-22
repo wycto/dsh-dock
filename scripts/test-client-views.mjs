@@ -177,7 +177,7 @@ function createRuntime() {
 // 覆盖「轮询到新快照 → 触发任务结束检测」这类按引用变化才生效的分支）。
 // posts 记录所有 POST /dsh-dock/features（开关同步断言用）。
 function resolveStatus(s) { return typeof s === "function" ? s() : s; }
-function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus) {
+function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus, ttsStatus) {
 	return (url, init) => {
 		// 只拦截功能开关的同步 POST；功能自己的 RPC 也是 POST，不能一起吃掉
 		if (init && init.method === "POST" && String(url).includes("dsh-dock/features")) {
@@ -237,6 +237,7 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		if (url.includes("dsh-dock/animation/status")) data = resolveStatus(animationStatus);
 		else if (url.includes("dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
 		else if (url.includes("dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
+		else if (url.includes("dsh-dock/tts/status")) data = resolveStatus(ttsStatus || TTS_STATUS);
 		else if (url.includes("dsh-dock/features")) data = { persisted: persisted || {} };
 		return Promise.resolve({
 			ok: true,
@@ -257,12 +258,35 @@ function makeWindow() {
 		localStorage: null,
 	};
 }
+// ---------- 语音合成桩：记录 speak 出去的内容，供【语音朗读】行为断言 ----------
+function makeSpeechStub() {
+	const spoken = [];
+	const utterCtor = function (text) { this.text = text; this.onend = null; this.onerror = null; };
+	const voices = [
+		{ name: "Microsoft Xiaoxiao", lang: "zh-CN", voiceURI: "zh-CN-Xiaoxiao" },
+		{ name: "Google US English", lang: "en-US", voiceURI: "en-US-Google" },
+	];
+	const synth = {
+		getVoices: () => voices,
+		speak(utt) {
+			spoken.push(utt);
+			// 立即收尾：引擎按 onend 推进下一片（真实浏览器是异步的，桩里同步即可测到分片顺序）
+			try { if (typeof utt.onend === "function") utt.onend(); } catch { /* 用例自己负责断言 */ }
+		},
+		cancel() { synth.__cancelled = (synth.__cancelled || 0) + 1; },
+		addEventListener() {}, removeEventListener() {},
+		paused: false, speaking: false, pending: false,
+		pause() {}, resume() {},
+	};
+	return { spoken, utterCtor, synth, voices };
+}
 let loaded = null;
 
-function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus, opts) {
+function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus, opts, ttsStatus) {
 	const runtime = createRuntime();
 	const posts = [];
-	const store = { "dsh-dock/features/v1": JSON.stringify(enabled) };
+	const store = Object.assign({}, opts && opts.store ? opts.store : null);
+	if (!("dsh-dock/features/v1" in store)) store["dsh-dock/features/v1"] = JSON.stringify(enabled);
 	const win = makeWindow();
 	// opts.body：提供最小 document 桩（body + head + createPortal 捕获），用于覆盖
 	// 「单价子弹窗 portal 到 document.body」这一真实浏览器分支。默认 document 仍为 undefined
@@ -288,7 +312,7 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
 		// opts.fetch：替换默认桩，用于「宿主某路由未注册（405/404）」这类行为用例——
 		// 需要断言「收到 405 之后不再发请求」，只查字符串钉不住这个语义。
-		fetch: (opts && opts.fetch) || makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
+		fetch: (opts && opts.fetch) || makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus, ttsStatus),
 		// 视图的 fetch 用 AbortSignal.timeout 设超时；沙箱补一个最小替身（stub 忽略 signal）
 		AbortSignal: { timeout: () => ({}) },
 		localStorage: {
@@ -303,6 +327,14 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 	};
 	sandbox.globalThis = sandbox;
 	win.localStorage = sandbox.localStorage;
+	// opts.speech：装一个 speechSynthesis 桩（同时挂 globalThis 与 window，
+	// 视图两条路径都会读；不装时视图按「本浏览器不支持」降级，正是默认沙箱形态）。
+	if (opts && opts.speech) {
+		sandbox.speechSynthesis = opts.speech.synth;
+		sandbox.SpeechSynthesisUtterance = opts.speech.utterCtor;
+		win.speechSynthesis = opts.speech.synth;
+		win.SpeechSynthesisUtterance = opts.speech.utterCtor;
+	}
 	vm.createContext(sandbox);
 	loaded = null;
 	vm.runInContext(bundle, sandbox, { filename: "client.js" });
@@ -368,6 +400,17 @@ const RUNSTATE_STATUS = {
 	recent: ANIMATION_STATUS.recent,
 };
 
+// 语音朗读的 /status：追踪快照 + tts 配置段（宿主 readTtsConfig 下发）
+const TTS_STATUS = {
+	active: ANIMATION_STATUS.active,
+	recent: ANIMATION_STATUS.recent,
+	config: {
+		autoPlay: false, autoPlayOnFinish: true, interruptOnNew: true,
+		rate: 1, pitch: 1, volume: 1, voiceURI: "", lang: "",
+		skipCode: true, skipTables: true, maxChars: 0, maxSentences: 0,
+	},
+};
+
 // 模型设置 /dsh-dock/models：视图把 json() 结果直接当目录用（不包 ok/data），
 // 与真实宿主 sendJson(res, 200, payload) 一致。给一个含 pi-ai 路由的目录，
 // 覆盖 Provider 管理列表 + 新增表单 + 选中 Provider 编辑器三条渲染分支。
@@ -410,6 +453,7 @@ const FEATURES = [
 	{ id: "animation", name: "任务动画", marker: "运行动画", deep: true },
 	{ id: "notify", name: "任务通知", marker: "通知事件", deep: true },
 	{ id: "runstate", name: "运行状态", marker: "运行状态", deep: true },
+	{ id: "tts", name: "语音朗读", marker: "朗读时机", deep: true },
 	// tokenlog 的 marker 用「调用明细」而非「用量」：后者能在卡片描述里命中，
 	// 会让「视图抛错降级为一行提示」也被判为渲染正常（曾实际发生，见下方 tokenlog 断言）。
 	{ id: "tokenlog", name: "用量记录", marker: "调用明细", deep: true },
@@ -1357,6 +1401,127 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log(`✓ 用量记录路由闩锁（行为）：首次 405 后停止轮询（首挂载 ${first} 次、切会话新增 ${again} 次）`);
+}
+
+// ---------- 用例 15：【语音朗读】回合尾喇叭按钮渲染 + 点击朗读（含 Markdown 清洗） ----------
+// 用户诉求：会话结束后在回复下方点喇叭听，不想看了。这里锁三件事：
+//   ① 功能启用后确实注册了 conversation.chat.turnTail 座位，且对「有正文的已完成回合」渲染出按钮；
+//   ② 点按钮 → speechSynthesis.speak 收到朗读文本；
+//   ③ 朗读的是清洗过的纯文本（Markdown 符号、代码块、表格不能念出来）。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail（回复下方不会出现喇叭按钮）");
+		const blocks = [
+			{ kind: "reasoning", text: "这段是思考过程，不该念" },
+			{ kind: "text", text: "结论如下：**共 3 处**修改。\n\n```js\nconst a = 1;\n```\n\n| 列 | 值 |\n| --- | --- |\n| a | 1 |\n\n详见 [工作流](docs/workflow.md)。" },
+		];
+		const owner = {
+			sessionId: "s-1",
+			seq: 42,
+			openFile() {},
+			turn: {
+				turn: 2,
+				status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks } } : undefined) },
+			},
+		};
+		const html = await renderSettled(runtime, runtime.react.createElement(reg.comp, owner));
+		if (!/dktts-btn/.test(html)) detail = "回合下方没有渲染朗读按钮（dktts-btn）";
+		else if (html.includes("思考过程")) detail = "思考过程被念出来了（只应读 text 块）";
+		else {
+			const btn = runtime.elements.find((el) => el.event === "onClick" && /dktts-btn/.test(el.className));
+			if (!btn) throw new Error("朗读按钮没有挂 onClick 句柄");
+			btn.handler({});
+			if (speech.spoken.length === 0) throw new Error("点喇叭没有任何 speak 调用");
+			const text = speech.spoken.map((u) => u.text).join("");
+			if (!text.includes("结论如下")) detail = "朗读文本缺少正文（实际：" + text.slice(0, 60) + "）";
+			else if (text.includes("const a")) detail = "代码块内容被念出来了（skipCode 默认应跳过）";
+			else if (text.includes("| a |")) detail = "表格原样被念出来了（skipTables 默认应跳过）";
+			else if (text.includes("**")) detail = "Markdown 加粗符号没清掉";
+			else if (text.includes("docs/workflow.md")) detail = "链接地址没清掉（只应留锚文字）";
+			else if (!text.includes("工作流")) detail = "链接锚文字丢了";
+			else if (speech.spoken.some((u) => typeof u.rate !== "number")) detail = "utterance 没带语速等参数";
+		}
+	} catch (e) {
+		detail = "回合尾朗读用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 回合尾朗读按钮：${detail}`); process.exit(1); }
+	console.log("✓ 回合尾朗读按钮：回复下方渲染喇叭，点击朗读清洗后的正文（代码块/表格/思考过程不念）");
+}
+
+// ---------- 用例 16：【语音朗读】自动朗读由宿主任务追踪驱动，且首屏历史不补读 ----------
+// 自动朗读的触发源是宿主侧会话级追踪（与【任务通知】同一机制），不是「回合节点刚挂载」——
+// 后者在冷读历史会话时也会命中，会莫名其妙把老回复念出来。这里锁两条：
+//   ① 首份快照里的「最近完成」只登记不朗读（页面刚打开保持安静）；
+//   ② 之后新出现的结束记录才朗读，且读的是那条记录的 lastText。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	const live = {
+		active: [],
+		recent: [Object.assign({}, NOTIFY_STATUS.recent[0], { lastText: "这是打开页面之前就完成的老回复" })],
+		config: Object.assign({}, TTS_STATUS.config, { autoPlay: true }),
+	};
+	const ttsStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech }, ttsStatus);
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		if (!overlays) throw new Error("没有注册功能全局浮层");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		await new Promise((resolve) => setTimeout(resolve, 1600)); // 宿主配置回来 + 轮询起 + 首帧登记
+		await renderSettled(runtime, node);
+		if (speech.spoken.length > 0) detail = "页面刚打开就把历史「最近完成」补读了（应保持安静）";
+		else {
+			// 新任务结束：出现一条新的结束记录（endTime 不同）
+			live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], {
+				lastText: "新回复：三个仓库都已更新完毕。", endTime: Date.now() + 5000,
+			})].concat(live.recent);
+			await new Promise((resolve) => setTimeout(resolve, 1600)); // 等一轮轮询
+			await renderSettled(runtime, node);
+			if (speech.spoken.length === 0) detail = "新任务结束没有自动朗读（浮层没读到宿主追踪快照？）";
+			else {
+				const text = speech.spoken.map((u) => u.text).join("");
+				if (!text.includes("三个仓库都已更新完毕")) detail = "自动朗读的内容不是本回合回复（实际：" + text.slice(0, 40) + "）";
+			}
+		}
+	} catch (e) {
+		detail = "自动朗读用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 自动朗读：${detail}`); process.exit(1); }
+	console.log("✓ 自动朗读：首屏历史不补读，新任务结束时朗读其回复正文");
+}
+
+// ---------- 用例 17：【语音朗读】配置页与契约（音色设备相关 / 长度上限 / 不支持时的提示） ----------
+{
+	const issues = [];
+	// 音色是浏览器/设备本地的：使用前必须拿本机 getVoices 校验，取不到按语言回落
+	if (!/voiceURI/.test(bundle)) issues.push("产物里没有 voiceURI（音色选择未持久化）");
+	if (!/getVoices/.test(bundle)) issues.push("没有读本机音色表（换设备会挑到不存在的音色）");
+	// 沙箱兼容：不得裸引用全局 speechSynthesis（node:vm 里会 ReferenceError）
+	if (!/speechSynthesis/.test(bundle)) issues.push("产物里没有 speechSynthesis 引用");
+	if (/[^.\w"']speechSynthesis\s*\./.test(bundle)) issues.push("裸引用 speechSynthesis.xxx（沙箱/旧内核会抛）");
+	// 不支持时要给出可读原因，而不是静默失效
+	if (!/本浏览器不支持语音合成|不提供语音合成能力/.test(bundle) && !/\\u672C\\u6D4F\\u89C8\\u5668\\u4E0D\\u652F\\u6301/.test(bundle)) {
+		issues.push("浏览器不支持时没有可读提示（静默失效）");
+	}
+	// 长文本分片：Chrome 长句合成会静默停住
+	if (!/chunkForSpeech/.test(bundle)) issues.push("没有分片逻辑（长回复在 Chrome 上会中途哑掉）");
+	// 长度上限（只读前 N 句 / 字数上限）
+	if (!/maxSentences/.test(bundle) || !/maxChars/.test(bundle)) issues.push("缺少朗读长度上限设置");
+	// 功能默认关闭（新功能的仓库约定）
+	if (!/id: "tts"[\s\S]{0,400}defaultEnabled: false/.test(bundle)) issues.push("【语音朗读】未遵循「新功能默认停用」约定");
+	if (issues.length) { console.log(`✗ 语音朗读契约：${issues.join("；")}`); process.exit(1); }
+	console.log("✓ 语音朗读契约：音色按本机校验、无裸引用、不支持有提示、长文本分片、长度上限、默认停用");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。
