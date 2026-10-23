@@ -1588,5 +1588,60 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 朗读暂停/继续：播放中再点=暂停（不 cancel）、再点=就地继续、「重新朗读」才回第一句");
 }
 
+// ---------- 用例 19：切换朗读内容时等 Chrome 异步清队，不排旧队列后面 ----------
+// 用户实测：会话 A 正在朗读时点会话 B 的喇叭，前几秒读的还是 A 的剩余内容。
+// 根因：Chrome 的 speechSynthesis.cancel() 是异步冲刷的——cancel 后同一 tick speak()，
+// 新语音排进还没清空的旧队列。修法：轮询 speaking/pending 直到队列真空再开播。
+// 桩模拟这个异步：cancel() 后 speaking 仍挂 30ms 才落。断言：
+//   ① 点 B 的瞬间**不得**立即 speak（否则就是排进了 A 的旧队列）；
+//   ② 队列真空后 B 的文本才 speak 出去，且内容确实是 B 的。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	// 覆盖桩：speak 置忙；cancel 后延迟 30ms 才真空（真实 Chrome 语义）
+	speech.synth.speak = (utt) => { speech.spoken.push(utt); speech.synth.speaking = true; };
+	speech.synth.cancel = () => {
+		speech.synth.cancelCount += 1;
+		setTimeout(() => { speech.synth.speaking = false; }, 30);
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const ownerFor = (turnNo, text) => ({
+			sessionId: "s-19", seq: 100 + turnNo, openFile() {},
+			turn: {
+				turn: turnNo, status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text }] } } : undefined) },
+			},
+		});
+		const nodeA = runtime.react.createElement(reg.comp, ownerFor(1, "会话甲的内容，正在被朗读。"));
+		await renderSettled(runtime, nodeA);
+		const btn = () => runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className))[0];
+		btn().handler({}); // A 开读
+		await renderSettled(runtime, nodeA);
+		if (speech.spoken.length !== 1) throw new Error("A 没有开始朗读（前置条件不成立）");
+		// 切到 B（模拟点另一会话的喇叭）
+		const nodeB = runtime.react.createElement(reg.comp, ownerFor(2, "会话乙的内容，应当立刻顶替甲。"));
+		await renderSettled(runtime, nodeB);
+		btn().handler({});
+		// 此刻 cancel 还没冲刷完（speaking 仍 true）：B 不得已经 speak
+		if (speech.spoken.length !== 1) detail = "cancel 尚未冲刷就 speak 了新内容（会排进旧队列，先听完上一条）";
+		else {
+			await new Promise((resolve) => setTimeout(resolve, 150)); // 等队列真空 + 轮询追上
+			await renderSettled(runtime, nodeB);
+			if (speech.spoken.length < 2) detail = "队列真空后 B 的内容始终没有开播";
+			else if (!String(speech.spoken[1].text).includes("会话乙")) detail = "真空后读的不是 B 的内容：" + String(speech.spoken[1].text).slice(0, 20);
+		}
+	} catch (e) {
+		detail = "切换清队用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 切换朗读清队：${detail}`); process.exit(1); }
+	console.log("✓ 切换朗读清队：cancel 未冲刷完不 speak，队列真空后立即播新内容（不排旧队列后面）");
+}
+
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。
 process.exit(0);
