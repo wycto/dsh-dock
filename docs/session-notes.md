@@ -2458,3 +2458,43 @@ routeGone 闩锁 → 自动朗读唯一触发源（轮询宿主追踪的浮层�
 
 
 
+
+## 二十八、续作会话（2026-10-23）· v0.16.0 发版：模型设置截图按拆分后界面重拍
+
+### 背景
+
+v0.15.0 拆出「模型提供商」独立功能时遗留一条 ⚠️：`screenshots/dock-modelconfig.png`
+仍是拆分前旧图（内容区带可点击的「模型提供商」入口卡），注明「下次发版前重拍」。
+0.15.1–0.15.3 三次补丁都没重拍，本次 v0.16.0 发版前清掉这笔债。
+
+### 截图重拍配方（macOS 本机，可复用）
+
+1. **隔离实例**：`DSH_HOME=/tmp/dsh-dock-shot-home`（`profiles/web` 从 `~/.dsh/profiles/web`
+   拷贝，`.credentials.yaml` 同拷并 chmod 600）。两个坑：
+   - profile 里的 `dsh-dock` / `dsh-evolution` 软链是**相对路径**，拷到 /tmp 就断，
+     要改成指向本仓库的**绝对软链**再起；
+   - 用 npx 缓存闭包起实例：`node <npx闭包>/node_modules/@deepseek-ai/dsh/lib/bin.js
+     --profile web --no-open --host 127.0.0.1 --port 3999`。web profile 的 bundles 里
+     一堆 `dsh-experimental-*`，旧闭包（0.1.5-rc.x）没有这些包会 resolve 失败，
+     0.2.1-rc.2 闭包齐全。
+2. **认证 Cookie 手签**（不用 ?token= 引导，避免地址栏 token 泄进截图/历史）：
+   `dsh-client-connection` 的算法——name = `dsh-auth-` + base64url(sha256(authority))，
+   value = `v1.` + base64url(JSON{version:1,authority,issuedAt,expiresAt}) + `.` +
+   base64url(HMAC-SHA256(secret, body))；secret 取隔离 home `.credentials.yaml` 里
+   `records: client-connection/browser-session` 的 43 字符 base64url；authority
+   就是 `Host` 头（`127.0.0.1:3999`）。签好后 Playwright `context.addCookies` 注入。
+3. **驱动路径**：账号菜单 → 设置 → 功能坞（面板注册在 settings.section，比走
+   「··· 更多」菜单稳）→ 左菜单「模型设置」，等 2.5s 模型目录拉完。
+4. **断言防拍错**：`dkm-*` 元素 ≥20、`.dkm-prov` ≥2、内容区**无可点击**的
+   「模型提供商」入口卡（该字样允许出现在功能描述文案与左菜单功能项里——probe 时
+   两个命中分别就是这两处，`clickable=false`）。1280px 宽下【手机适配】的汉堡按钮
+   `display:none`（narrow()=false），桌面截图不受影响。
+5. **整窗截图 1280×720**：本环境 `tab.screenshot({clip})` 会平铺错位（2026-09-10 记过），
+   Playwright 整窗 + `deviceScaleFactor:1` 与旧图格式一致。
+
+### 其它发版动作
+
+- 版本号两处 0.15.3 → 0.16.0（`package.json` + `src/client.jsx` 的 `DOCK_VERSION`），
+  `npm run build:client` 重建产物；
+- CHANGELOG「未发布」整段改名 `## v0.16.0 — 2026-10-23`，截图条目从 ⚠️ 遗留改为「已重拍」；
+- `npm run test:client`（42 用例）+ `npm run test:host`（9 套）全绿。
