@@ -2498,3 +2498,50 @@ v0.15.0 拆出「模型提供商」独立功能时遗留一条 ⚠️：`screens
   `npm run build:client` 重建产物；
 - CHANGELOG「未发布」整段改名 `## v0.16.0 — 2026-10-23`，截图条目从 ⚠️ 遗留改为「已重拍」；
 - `npm run test:client`（42 用例）+ `npm run test:host`（9 套）全绿。
+
+## 二十九、续作会话（2026-10-23）· 侧栏入口「没进更多」：槽位在宿主里根本不存在
+
+### 现象
+
+用户发来侧栏截图（「▦ 功能坞」在上、「⋯ 更多」在下），反馈 v0.16.0 里功能坞入口没有进
+「更多」菜单，并记得自己开发过这次迁移（要求核对本地提交）。
+
+### 排查与根因
+
+1. **提交在**：`c125245`（10-21）「改进：功能坞入口迁到宿主「··· 更多」菜单」，本地与
+   `origin/main` 都有。它把注册从 `sidebar.footer.action` 改成 `settings.launcher.menu.item`。
+2. **槽位是空号**：宿主源码检出（0.2.1-rc.2，= npm latest）全仓 **0 处** `launcher.menu`；
+   宿主槽位目录共 100 个槽，入口类只有 `sidebar.footer.action`（`slot-catalog.ts:3589`）。
+   侧栏那个「⋯ 更多」是**未登录态账号菜单按钮的文案**（`AccountMenu.tsx:72`：
+   `signedIn ? label : t('more')`），点开的菜单项是硬编码的设置/意见反馈/登录，没有扩展位。
+   → 注册到不存在的槽被宿主静默丢弃，这次迁移**从未在真实宿主上渲染过**（当年只跑了
+   `test-client-views`，槽名只是字符串，单测测不出宿主没有该槽）。
+3. **为什么用户还看得到入口**：线上实例是 10-17 启动的 `dsh web`（PID 60014，
+   `172.18.98.20:12080`），浏览器拿的是迁移前旧产物——DOM 证据
+   `data-slot="sidebar.footer.action"` + `class="docke2-btn"` + `aria-expanded`。
+   仓库当前 `client.js` 里 `sidebar.footer.action` 早已 0 次出现。
+4. **真实风险**：隔离实例（0.2.1-rc.2 + 0.16.0 产物）里全页**没有任何功能坞按钮**——
+   重启实例或新装 0.16.0 的用户，侧栏入口会直接消失。
+
+### 改法
+
+`git revert c125245`（`client.js` 构建产物冲突后保留 HEAD 版本，由 `npm run build:client`
+重建），入口恢复为宿主正式支持的 `sidebar.footer.action`；`DockEntry` 组件、`docke2-*`
+几何、`aria-expanded` 披露语义一并还原。文档（CHANGELOG / 本文件 / workflow）同步修正。
+
+### 验证（真机，不再只跑单测）
+
+隔离 `DSH_HOME=/tmp/dsh-dock-shot-home`（拷贝 web profile、修软链、拷 credentials）起
+dsh 0.2.1-rc.2 实例（端口 3999），Playwright 注手签 Cookie：
+- `[data-slot="sidebar.footer.action"] button` 存在：`class="docke2-btn"`、
+  `aria-label="功能坞"`、可见（x=10 y=696 260×42）；
+- 点击后功能坞弹层打开（`dockm-backdrop` + 对话框均命中）；
+- 旧槽位 `settings.launcher.menu.item` 零占用。
+
+### 教训
+
+- **注册宿主槽位前必须核对宿主 `slot-catalog`**（或源码里 `renderSlot(...)` 的真实槽名），
+  不要凭命名直觉写 `xxx.yyy.item`——不存在的槽会被静默丢弃，不报错。
+- **槽位/嵌入式 UI 改动必须真机点验**：单测只能证明注册调用发生，证明不了宿主认不认这个槽。
+  已把「发版前真机点验侧栏入口」写进 `docs/workflow.md` 发版流程。
+- 判断「用户看到的界面是哪个产物」要看运行进程启动时间 + 实际 DOM 特征类名，别只看仓库代码。

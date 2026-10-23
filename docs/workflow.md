@@ -63,6 +63,17 @@
 - `client.js` 是**构建产物**（提交进仓库、随包发布），改完客户端源码必须重建，不要手改产物。
 - 宿主半部的改动要**重启 `dsh web`** 才生效；纯客户端改动刷新页面即可。
 
+### 宿主槽位（slots）改动必读
+
+注册任何宿主槽位前，**先核对宿主真实的槽名**，不要凭命名直觉猜
+（例：`settings.launcher.menu.item` 这种名字在宿主里并不存在）：
+
+- 权威清单：dsh 源码检出的 `packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`
+  （每个槽的 key / kind / 注册选项 / 占用者都在里面）；npm 安装版对应
+  `<闭包>/@deepseek-ai/dsh-client-*` 里 `renderSlot("<槽名>")` 出现的名字。
+- **注册到不存在的槽会被宿主静默丢弃**（不报错、不告警），单测也测不出来——所以
+  「槽位 / 嵌入式 UI」改动必须**真实实例点验**（见下）。
+
 ### 线上自检（宿主改动后）
 
 ```powershell
@@ -79,18 +90,22 @@ Invoke-WebRequest http://127.0.0.1:3080/dsh-dock/<feature>/status -Method POST `
 3. **`CHANGELOG.md`**：把 `## 未发布（下一版）— 开发中` 改成 `## vX.Y.Z — YYYY-MM-DD`。
 4. **重建产物**：`npm run build:client`（版本号会进 `client.js`）。
 5. **全量测试**：`npm run test:client` + `npm run test:host` 全绿，无跳过。
-6. **复查文档**：README 里版本相关描述、`package.json` 的 description、功能一览表。
-7. **提交并推 `origin`**：备注写 `发版 vX.Y.Z：<一句话要点>`，正文列本版变更（从 CHANGELOG
-   未发布段提炼），保存成 message 文件（如 `.git/RELEASE_MSG.txt`）——第 8 步还要用；
+6. **真机点验入口与关键界面**（单测替代不了）：用隔离 `DSH_HOME` + `link:` 本仓库起一个
+   `dsh web`（端口 3999），浏览器打开后确认**侧栏入口按钮真的渲染出来**（DOM 里查
+   `[data-slot="sidebar.footer.action"] button`）、点击能打开面板、设置 → 功能坞 可达。
+   0.16.0 的入口消失事故就是因为只跑了单测、没做这步。
+7. **复查文档**：README 里版本相关描述、`package.json` 的 description、功能一览表。
+8. **提交并推 `origin`**：备注写 `发版 vX.Y.Z：<一句话要点>`，正文列本版变更（从 CHANGELOG
+   未发布段提炼），保存成 message 文件（如 `.git/RELEASE_MSG.txt`）——第 9 步还要用；
    `git push origin main`（开发库收全部提交：开发提交 + 这条发版提交）。
-8. **同步发版库（一条提交，不分批）**：GitHub 不收开发提交——
+9. **同步发版库（一条提交，不分批）**：GitHub 不收开发提交——
    `./scripts/push-github-release.sh <message-file>` 把 main 的**整棵树**压成一条
-   「发版 vX.Y.Z」提交：父提交是上一次发版提交，正文汇总本版功能内容（可直接复用第 7 步的
+   「发版 vX.Y.Z」提交：父提交是上一次发版提交，正文汇总本版功能内容（可直接复用第 8 步的
    message 文件），写入本地 `release` 分支，然后**快进同步到 GitHub 本地仓库**
    `/Users/weiyi/develop/github/wycto/dsh-dock`（可用 `DSH_DOCK_GITHUB_REPO` 覆盖）并
    由它执行 `push origin main`。正常发版是快进，不需要 force；开发库本身没有 github 远端。
    只想同步不推送时加 `--no-push`（人工检查后自己推）。
-9. **打 tag 并推送**（tag 指向开发库的发版提交；在 GitHub 上它不在 main 线上，但树一致）：
+10. **打 tag 并推送**（tag 指向开发库的发版提交；在 GitHub 上它不在 main 线上，但树一致）：
    ```bash
    git tag -a vX.Y.Z -m "dsh-dock vX.Y.Z"
    git push origin vX.Y.Z
@@ -99,11 +114,11 @@ Invoke-WebRequest http://127.0.0.1:3080/dsh-dock/<feature>/status -Method POST `
    git -C "$GH_REPO" fetch "$(git rev-parse --show-toplevel)" "vX.Y.Z:refs/tags/vX.Y.Z"
    git -C "$GH_REPO" push origin vX.Y.Z
    ```
-10. **发布 npm**：`./scripts/publish.sh`（先 `npm pack --dry-run` 预览、检查登录态，再 `npm publish`）。
+11. **发布 npm**：`./scripts/publish.sh`（先 `npm pack --dry-run` 预览、检查登录态，再 `npm publish`）。
     本机 `bash` 会解析到 WSL，请用 Git Bash：`& "D:\Program Files\Git\bin\bash.exe" ./scripts/publish.sh`。
     若遇到 npm 缓存目录属主导致的 `EPERM`：`CACHE_DIR=/tmp/dsh-dock-npm-cache ./scripts/publish.sh`。
-11. **确认**：npm 页面版本、GitHub Release（可选）、本地 `git status` 干净。
-12. 发版后**不要**顺手改版本号回开发态——下一次开发提交按第 2 节走，直到下次发版。
+12. **确认**：npm 页面版本、GitHub Release（可选）、本地 `git status` 干净。
+13. 发版后**不要**顺手改版本号回开发态——下一次开发提交按第 2 节走，直到下次发版。
 
 ## 4. 模块架构约定（改代码前先看）
 
