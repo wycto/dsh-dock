@@ -8514,7 +8514,8 @@ function pickVoice(cfg) {
   return zh || null;
 }
 var engine = {
-  state: { playing: false, key: "", label: "" },
+  state: { phase: "idle", key: "", label: "" },
+  session: null,
   listeners: /* @__PURE__ */ new Set(),
   queue: [],
   epoch: 0
@@ -8547,6 +8548,7 @@ function setEngineState(next) {
 }
 function stopSpeech() {
   engine.queue = [];
+  engine.session = null;
   engine.epoch += 1;
   const s = synth();
   if (s) {
@@ -8555,40 +8557,68 @@ function stopSpeech() {
     } catch {
     }
   }
-  setEngineState({ playing: false, key: "", label: "" });
+  setEngineState({ phase: "idle", key: "", label: "" });
 }
-function speak(opts) {
+function pauseSpeech() {
+  if (engine.state.phase !== "playing") return false;
+  const s = synth();
+  if (s) {
+    try {
+      s.pause();
+    } catch {
+    }
+  }
+  setEngineState({ phase: "paused" });
+  return true;
+}
+function resumeSpeech() {
+  if (engine.state.phase !== "paused") return false;
+  const s = synth();
+  if (s) {
+    try {
+      s.resume();
+    } catch {
+    }
+  }
+  setEngineState({ phase: "playing" });
+  return true;
+}
+function restartSpeech() {
+  const session = engine.session;
+  if (!session) return false;
+  const { key, raw, label, cfg } = session;
+  stopSpeech();
+  return startSession({ key, text: raw, label, cfg });
+}
+function startSession(opts) {
   const o = opts && typeof opts === "object" ? opts : {};
   const text = String(o.text || "").trim();
   if (!text) return false;
   if (!ttsSupported()) return false;
   const cfg = normalizeConfig(o.cfg || configStore.value);
   const key = String(o.key || "k" + Date.now());
-  if (engine.state.playing && engine.state.key === key) return false;
-  if (!cfg.interruptOnNew && engine.state.playing) {
-    engine.queue = [{ key, text, label: String(o.label || ""), cfg }];
-    return false;
-  }
-  if (engine.state.playing) stopSpeech();
   const chunks = chunkForSpeech(text, 180);
   if (chunks.length === 0) return false;
   const epoch = ++engine.epoch;
   const voice = pickVoice(cfg);
-  setEngineState({ playing: true, key, label: String(o.label || "") });
+  const session = { key, raw: text, chunks, index: 0, epoch, cfg, label: String(o.label || "") };
+  engine.session = session;
+  setEngineState({ phase: "playing", key, label: session.label });
   const s = synth();
-  let index = 0;
   const speakNext = () => {
     if (epoch !== engine.epoch) return;
-    if (index >= chunks.length) {
-      setEngineState({ playing: false, key: "", label: "" });
+    if (session.index >= session.chunks.length) {
+      engine.session = null;
+      setEngineState({ phase: "idle", key: "", label: "" });
       drainQueue();
       return;
     }
-    const text2 = chunks[index];
-    index += 1;
-    const utt = makeUtterance(text2);
+    const piece = session.chunks[session.index];
+    session.index += 1;
+    const utt = makeUtterance(piece);
     if (!utt) {
-      setEngineState({ playing: false, key: "", label: "" });
+      engine.session = null;
+      setEngineState({ phase: "idle", key: "", label: "" });
       return;
     }
     utt.rate = cfg.rate;
@@ -8609,11 +8639,27 @@ function speak(opts) {
     try {
       s.speak(utt);
     } catch {
-      setEngineState({ playing: false, key: "", label: "" });
+      engine.session = null;
+      setEngineState({ phase: "idle", key: "", label: "" });
     }
   };
   speakNext();
   return true;
+}
+function speak(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const text = String(o.text || "").trim();
+  if (!text) return false;
+  if (!ttsSupported()) return false;
+  const cfg = normalizeConfig(o.cfg || configStore.value);
+  const key = String(o.key || "k" + Date.now());
+  if (engine.state.phase !== "idle" && engine.state.key === key) return false;
+  if (engine.state.phase !== "idle" && !cfg.interruptOnNew) {
+    engine.queue = [{ key, text, label: String(o.label || ""), cfg }];
+    return false;
+  }
+  if (engine.state.phase !== "idle") stopSpeech();
+  return startSession({ key, text, label: o.label, cfg });
 }
 function drainQueue() {
   const next = engine.queue.shift();
@@ -8652,6 +8698,47 @@ var ICON_SPEAKER = import_react12.default.createElement(
   import_react12.default.createElement("path", { d: "M15.5 8.5a5 5 0 0 1 0 7" }),
   import_react12.default.createElement("path", { d: "M18.5 5.5a9 9 0 0 1 0 13" })
 );
+var ICON_PAUSE = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.2",
+    strokeLinecap: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M9 6v12" }),
+  import_react12.default.createElement("path", { d: "M15 6v12" })
+);
+var ICON_RESUME = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M8 5.5v13l11-6.5z" })
+);
+var ICON_RESTART = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M3.5 8.5V4.5" }),
+  import_react12.default.createElement("path", { d: "M3.5 8.5h4" }),
+  import_react12.default.createElement("path", { d: "M5.6 5.1a8.5 8.5 0 1 1-2.1 5.4" })
+);
 var ICON_STOP = import_react12.default.createElement(
   "svg",
   {
@@ -8674,33 +8761,65 @@ function TtsTurnTail(props) {
   const key = String(owner && owner.sessionId || "") + ":" + turnNo + ":" + (owner.seq || 0);
   const hasText = Boolean(md && md.trim());
   const supported = ttsSupported();
-  const speaking = hasText && eng.playing && eng.key === key;
+  const active = hasText && eng.phase !== "idle" && eng.key === key;
+  const paused = active && eng.phase === "paused";
+  const playing = active && eng.phase === "playing";
   (0, import_react12.useEffect)(() => {
     ensureConfigLoaded();
   }, []);
   if (!hasText) return null;
-  const title = !supported ? "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08Web Speech API\uFF09" : speaking ? "\u505C\u6B62\u6717\u8BFB" : "\u6717\u8BFB\u8FD9\u6761\u56DE\u590D";
+  const startThis = () => {
+    ensureConfigLoaded();
+    const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
+    speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
+  };
+  const mainTitle = !supported ? "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08Web Speech API\uFF09" : playing ? "\u6682\u505C\uFF08\u518D\u70B9\u7EE7\u7EED\uFF0C\u4E0D\u91CD\u5934\uFF09" : paused ? "\u7EE7\u7EED\u6717\u8BFB" : "\u6717\u8BFB\u8FD9\u6761\u56DE\u590D";
+  const onMain = () => {
+    if (!supported) return;
+    if (playing) {
+      pauseSpeech();
+      return;
+    }
+    if (paused) {
+      resumeSpeech();
+      return;
+    }
+    startThis();
+  };
   return import_react12.default.createElement(
     "div",
     { className: "dktts-tail" },
     import_react12.default.createElement("button", {
       type: "button",
-      className: "dktts-btn" + (speaking ? " on" : "") + (supported ? "" : " off"),
-      "aria-label": title,
-      "aria-pressed": speaking,
-      title,
+      className: "dktts-btn" + (active ? " on" : "") + (supported ? "" : " off"),
+      "aria-label": mainTitle,
+      "aria-pressed": active,
+      title: mainTitle,
+      onClick: onMain
+    }, playing ? ICON_PAUSE : paused ? ICON_RESUME : ICON_SPEAKER),
+    active ? import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn",
+      "aria-label": "\u91CD\u65B0\u6717\u8BFB",
+      title: "\u91CD\u65B0\u6717\u8BFB\uFF08\u4ECE\u5934\u8BFB\uFF09",
       onClick: () => {
-        if (!supported) return;
-        ensureConfigLoaded();
-        if (speaking) {
-          stopSpeech();
-          return;
-        }
-        const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
-        speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
+        restartSpeech();
       }
-    }, speaking ? ICON_STOP : ICON_SPEAKER),
-    speaking ? import_react12.default.createElement("span", { className: "dktts-hint" }, "\u6B63\u5728\u6717\u8BFB\u672C\u56DE\u5408 \xB7 \u518D\u70B9\u4E00\u4E0B\u505C\u6B62") : null
+    }, ICON_RESTART) : null,
+    active ? import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn",
+      "aria-label": "\u505C\u6B62",
+      title: "\u505C\u6B62\u6717\u8BFB",
+      onClick: () => {
+        stopSpeech();
+      }
+    }, ICON_STOP) : null,
+    import_react12.default.createElement(
+      "span",
+      { className: "dktts-state" + (active ? " on" : "") },
+      playing ? "\u6B63\u5728\u6717\u8BFB\u672C\u56DE\u5408" : paused ? "\u5DF2\u6682\u505C \xB7 \u70B9 \u25B6 \u7EE7\u7EED\uFF0C\u4E0D\u91CD\u5934" : ""
+    )
   );
 }
 var BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
@@ -8774,7 +8893,7 @@ function TtsOverlay() {
 }
 function TtsRow(props) {
   return import_react12.default.createElement(
-    "label",
+    "div",
     { className: "dktts-row" },
     import_react12.default.createElement("span", { className: "dktts-label" }, props.label),
     import_react12.default.createElement("span", { className: "dktts-ctl" }, props.children),
@@ -8783,15 +8902,20 @@ function TtsRow(props) {
 }
 function TtsSwitch(props) {
   const on = props.value === true;
-  return import_react12.default.createElement("button", {
-    type: "button",
-    className: "dock-sw" + (on ? " on" : ""),
-    role: "switch",
-    "aria-checked": on,
-    "aria-label": (on ? "\u505C\u7528" : "\u542F\u7528") + props.label,
-    title: on ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09",
-    onClick: () => props.onChange(!on)
-  }, on ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528");
+  return import_react12.default.createElement(
+    "button",
+    {
+      type: "button",
+      className: "dktts-sw" + (on ? " on" : ""),
+      role: "switch",
+      "aria-checked": on,
+      "aria-label": (on ? "\u505C\u7528" : "\u542F\u7528") + props.label,
+      title: on ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09",
+      onClick: () => props.onChange(!on)
+    },
+    import_react12.default.createElement("span", { className: "dktts-sw-dot" }),
+    on ? "\u542F\u7528" : "\u505C\u7528"
+  );
 }
 function TtsView() {
   const cfg = useConfig();
@@ -8842,6 +8966,9 @@ function TtsView() {
       label: "\u8BD5\u542C"
     });
   };
+  const active = eng.phase !== "idle";
+  const paused = eng.phase === "paused";
+  const playing = eng.phase === "playing";
   const grouped = [];
   {
     const zh = [], other = [];
@@ -8947,62 +9074,36 @@ function TtsView() {
           }, l))
         )
       ),
-      import_react12.default.createElement(
-        TtsRow,
-        { label: "\u8BED\u901F " + cfg.rate.toFixed(2) + "\xD7" },
-        import_react12.default.createElement("input", {
-          type: "range",
-          min: "0.5",
-          max: "2",
-          step: "0.05",
-          value: String(cfg.rate),
-          "aria-label": "\u8BED\u901F",
-          onChange: (e) => patch({ rate: Number(e.target.value) || 1 })
-        })
-      ),
-      import_react12.default.createElement(
-        TtsRow,
-        { label: "\u97F3\u8C03 " + cfg.pitch.toFixed(2) },
-        import_react12.default.createElement("input", {
-          type: "range",
-          min: "0",
-          max: "2",
-          step: "0.1",
-          value: String(cfg.pitch),
-          "aria-label": "\u97F3\u8C03",
-          onChange: (e) => patch({ pitch: Number(e.target.value) })
-        })
-      ),
-      import_react12.default.createElement(
-        TtsRow,
-        { label: "\u97F3\u91CF " + Math.round(cfg.volume * 100) + "%" },
-        import_react12.default.createElement("input", {
-          type: "range",
-          min: "0",
-          max: "1",
-          step: "0.05",
-          value: String(cfg.volume),
-          "aria-label": "\u97F3\u91CF",
-          onChange: (e) => patch({ volume: Number(e.target.value) })
-        })
-      ),
-      import_react12.default.createElement(
-        "div",
-        { className: "dktts-actions" },
-        import_react12.default.createElement("button", {
-          type: "button",
-          className: "dktts-primary",
-          onClick: preview,
-          disabled: !supported
-        }, "\u8BD5\u542C"),
-        import_react12.default.createElement("button", {
-          type: "button",
-          className: "dktts-ghost",
-          onClick: () => stopSpeech()
-        }, "\u505C\u6B62"),
-        eng.playing ? import_react12.default.createElement("span", { className: "dktts-playing" }, "\u6B63\u5728\u6717\u8BFB\uFF1A" + (eng.label || "\u5185\u5BB9")) : null,
-        saved ? import_react12.default.createElement("span", { className: "dktts-saved" }, "\u2713 " + saved) : null
-      )
+      import_react12.default.createElement(TtsSlider, {
+        label: "\u8BED\u901F",
+        suffix: cfg.rate.toFixed(2) + "\xD7",
+        min: "0.5",
+        max: "2",
+        step: "0.05",
+        value: cfg.rate,
+        aria: "\u8BED\u901F",
+        onChange: (v) => patch({ rate: v })
+      }),
+      import_react12.default.createElement(TtsSlider, {
+        label: "\u97F3\u8C03",
+        suffix: cfg.pitch.toFixed(2),
+        min: "0",
+        max: "2",
+        step: "0.1",
+        value: cfg.pitch,
+        aria: "\u97F3\u8C03",
+        onChange: (v) => patch({ pitch: v })
+      }),
+      import_react12.default.createElement(TtsSlider, {
+        label: "\u97F3\u91CF",
+        suffix: Math.round(cfg.volume * 100) + "%",
+        min: "0",
+        max: "1",
+        step: "0.05",
+        value: cfg.volume,
+        aria: "\u97F3\u91CF",
+        onChange: (v) => patch({ volume: v })
+      })
     ),
     import_react12.default.createElement(
       "div",
@@ -9047,6 +9148,49 @@ function TtsView() {
         })
       )
     ),
+    // —— 播放控制：试听 + 正在读时的 暂停/继续 · 重新朗读 · 停止 ——
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u64AD\u653E\u63A7\u5236"),
+      import_react12.default.createElement(
+        "div",
+        { className: "dktts-transport" },
+        import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-primary",
+          onClick: preview,
+          disabled: !supported
+        }, "\u8BD5\u542C"),
+        active ? import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-ghost",
+          onClick: () => {
+            if (playing) pauseSpeech();
+            else resumeSpeech();
+          }
+        }, playing ? "\u6682\u505C" : "\u7EE7\u7EED") : null,
+        active ? import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-ghost",
+          onClick: () => {
+            restartSpeech();
+          }
+        }, "\u91CD\u65B0\u6717\u8BFB") : null,
+        active ? import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-ghost",
+          onClick: () => {
+            stopSpeech();
+          }
+        }, "\u505C\u6B62") : null,
+        import_react12.default.createElement(
+          "span",
+          { className: "dktts-playing" },
+          playing ? "\u6B63\u5728\u6717\u8BFB\uFF1A" + (eng.label || "\u5185\u5BB9") : paused ? "\u5DF2\u6682\u505C\uFF1A" + (eng.label || "\u5185\u5BB9") + "\uFF08\u70B9\u300C\u7EE7\u7EED\u300D\u4E0D\u91CD\u5934\uFF09" : saved ? "\u2713 " + saved : "\u3000"
+        )
+      )
+    ),
     import_react12.default.createElement(
       "div",
       { className: "dktts-note-line" },
@@ -9070,6 +9214,28 @@ function TtsView() {
     ) : null
   );
 }
+function TtsSlider(props) {
+  return import_react12.default.createElement(
+    "div",
+    { className: "dktts-row" },
+    import_react12.default.createElement("span", { className: "dktts-label" }, props.label),
+    import_react12.default.createElement(
+      "span",
+      { className: "dktts-slider" },
+      import_react12.default.createElement("input", {
+        type: "range",
+        min: props.min,
+        max: props.max,
+        step: props.step,
+        value: String(props.value),
+        "aria-label": props.aria,
+        onChange: (e) => props.onChange(Number(e.target.value))
+      }),
+      import_react12.default.createElement("span", { className: "dktts-slider-val" }, props.suffix)
+    ),
+    null
+  );
+}
 function TtsStat() {
   const cfg = useConfig();
   (0, import_react12.useEffect)(() => {
@@ -9090,33 +9256,45 @@ var CSS = [
   ".dktts-root{display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);font-size:13px;}",
   ".dktts-intro{color:var(--dsw-alias-label-secondary);line-height:1.7;}",
   ".dktts-intro b{color:var(--dsw-alias-label-primary);}",
-  ".dktts-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}",
-  ".dktts-card-h{font-weight:600;color:var(--dsw-alias-label-primary);padding-bottom:2px;border-bottom:1px solid var(--dsw-alias-border-l1);margin-bottom:2px;}",
-  ".dktts-row{display:grid;grid-template-columns:132px minmax(120px,220px) 1fr;align-items:center;gap:10px;padding:3px 0;}",
-  ".dktts-label{color:var(--dsw-alias-label-primary);}",
+  ".dktts-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;}",
+  ".dktts-card-h{font-weight:600;color:var(--dsw-alias-label-primary);padding-bottom:6px;border-bottom:1px solid var(--dsw-alias-border-l1);margin-bottom:4px;}",
+  // 行：标签列固定 116px 不换行 · 控件列不伸缩 · 说明列吃掉剩余（窄屏整块纵排）
+  ".dktts-row{display:grid;grid-template-columns:116px 220px minmax(0,1fr);align-items:center;gap:12px;padding:4px 0;min-width:0;}",
+  ".dktts-label{color:var(--dsw-alias-label-primary);white-space:nowrap;}",
   ".dktts-ctl{display:flex;align-items:center;gap:8px;min-width:0;}",
-  ".dktts-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
-  ".dktts-select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
-  ".dktts-num{width:110px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
-  ".dktts-row input[type='range']{width:100%;accent-color:var(--dk-accent);}",
-  ".dktts-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:2px;}",
-  ".dktts-primary,.dktts-ghost{border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
+  ".dktts-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;min-width:0;}",
+  ".dktts-select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;min-width:0;}",
+  ".dktts-num{width:110px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
+  // 开关：药丸形 + 状态点，文字绝不换行（旧版复用外壳 dock-sw 被挤成一字一行）
+  ".dktts-sw{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:4px 12px;cursor:pointer;font-size:12px;line-height:18px;}",
+  ".dktts-sw-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-label-tertiary);}",
+  ".dktts-sw.on{color:var(--dk-ok);border-color:var(--dk-ok);}",
+  ".dktts-sw.on .dktts-sw-dot{background:var(--dk-ok);}",
+  // 滑块行：滑块占满控件列，数值右对齐固定宽
+  ".dktts-slider{display:flex;align-items:center;gap:8px;min-width:0;}",
+  ".dktts-slider input[type='range']{flex:1;min-width:0;accent-color:var(--dk-accent);}",
+  ".dktts-slider-val{flex:none;width:46px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);font-size:12px;}",
+  ".dktts-transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+  ".dktts-primary,.dktts-ghost{flex:none;white-space:nowrap;border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
   ".dktts-primary{border-color:var(--dk-accent);color:var(--dk-accent);}",
   ".dktts-primary:disabled{opacity:.45;cursor:default;}",
-  ".dktts-playing{color:var(--dk-accent);font-size:12px;}",
-  ".dktts-saved{color:var(--dk-ok);font-size:12px;}",
+  ".dktts-ghost:hover,.dktts-primary:not(:disabled):hover{background:var(--dk-hover-tint);}",
+  ".dktts-playing{color:var(--dk-accent);font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
   ".dktts-warn{border:1px solid var(--dk-warn);color:var(--dk-warn);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;}",
   ".dktts-note-line{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
   ".dktts-links{display:flex;gap:8px;}",
-  // —— 回合下方的喇叭按钮：尺寸/配色对齐宿主消息动作行（ui-chat MessageIconActions .action）——
-  ".dktts-tail{display:flex;align-items:center;gap:8px;margin-top:4px;}",
+  // 窄屏（功能坞面板被压窄时）：三列改纵排，说明跟在控件下
+  "@media (max-width:720px){.dktts-row{grid-template-columns:1fr;gap:2px;padding:6px 0;}.dktts-ctl,.dktts-slider{max-width:320px;}}",
+  // —— 回合下方的播放条：尺寸/配色对齐宿主消息动作行（ui-chat MessageIconActions .action）——
+  ".dktts-tail{display:flex;align-items:center;gap:2px;margin-top:4px;flex-wrap:wrap;}",
   ".dktts-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:6px;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;}",
   ".dktts-btn svg{width:17px;height:17px;}",
   ".dktts-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary);}",
   ".dktts-btn.on{color:var(--dk-accent);}",
   ".dktts-btn.off{opacity:.4;cursor:default;}",
   ".dktts-btn.off:hover{background:transparent;color:var(--dsw-alias-label-tertiary);}",
-  ".dktts-hint{color:var(--dsw-alias-label-secondary);font-size:12px;}"
+  ".dktts-state{color:var(--dsw-alias-label-secondary);font-size:12px;padding-left:6px;}",
+  ".dktts-state.on{color:var(--dk-accent);}"
 ].join("\n");
 var feature10 = {
   id: "tts",

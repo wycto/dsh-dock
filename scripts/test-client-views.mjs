@@ -259,6 +259,8 @@ function makeWindow() {
 	};
 }
 // ---------- 语音合成桩：记录 speak 出去的内容，供【语音朗读】行为断言 ----------
+// speak 不自动触发 onend（引擎停在「正在读第一片」态，暂停/继续/重读才可测）；
+// 用例要推进分片时手动调 flush()。
 function makeSpeechStub() {
 	const spoken = [];
 	const utterCtor = function (text) { this.text = text; this.onend = null; this.onerror = null; };
@@ -268,15 +270,18 @@ function makeSpeechStub() {
 	];
 	const synth = {
 		getVoices: () => voices,
-		speak(utt) {
-			spoken.push(utt);
-			// 立即收尾：引擎按 onend 推进下一片（真实浏览器是异步的，桩里同步即可测到分片顺序）
-			try { if (typeof utt.onend === "function") utt.onend(); } catch { /* 用例自己负责断言 */ }
-		},
-		cancel() { synth.__cancelled = (synth.__cancelled || 0) + 1; },
-		addEventListener() {}, removeEventListener() {},
+		pauseCount: 0, resumeCount: 0, cancelCount: 0,
+		speak(utt) { spoken.push(utt); },
+		cancel() { synth.cancelCount += 1; },
+		pause() { synth.pauseCount += 1; },
+		resume() { synth.resumeCount += 1; },
 		paused: false, speaking: false, pending: false,
-		pause() {}, resume() {},
+		// 手动结算前 n 条（触发 onend → 引擎推进下一片）
+		flush(n) {
+			const list = spoken.splice(0, n === undefined ? spoken.length : n);
+			for (const u of list) { try { if (typeof u.onend === "function") u.onend(); } catch { /* 用例自己负责断言 */ } }
+			return list;
+		},
 	};
 	return { spoken, utterCtor, synth, voices };
 }
@@ -1522,6 +1527,65 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (!/id: "tts"[\s\S]{0,400}defaultEnabled: false/.test(bundle)) issues.push("【语音朗读】未遵循「新功能默认停用」约定");
 	if (issues.length) { console.log(`✗ 语音朗读契约：${issues.join("；")}`); process.exit(1); }
 	console.log("✓ 语音朗读契约：音色按本机校验、无裸引用、不支持有提示、长文本分片、长度上限、默认停用");
+}
+
+// ---------- 用例 18：【语音朗读】暂停 / 继续 / 重新朗读（不重头） ----------
+// 用户实测反馈（截图）：读完一条后再点喇叭会从头开始——要求播放中再点=暂停、
+// 再点=从暂停处继续；「重新朗读」才是显式回第一句。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const owner = {
+			sessionId: "s-9", seq: 7, openFile() {},
+			turn: {
+				turn: 1, status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text: "第一句。第二句。第三句。" }] } } : undefined) },
+			},
+		};
+		const node = runtime.react.createElement(reg.comp, owner);
+		const mainBtn = () => {
+			const els = runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className));
+			if (els.length === 0) throw new Error("回合尾没有可点按钮");
+			return els[0];
+		};
+		// ① 第一下：开始朗读（speak 一次，未自动播完）
+		await renderSettled(runtime, node);
+		mainBtn().handler({});
+		await renderSettled(runtime, node);
+		if (speech.spoken.length !== 1) throw new Error("第一下没有开始朗读（spoken=" + speech.spoken.length + "）");
+		// ② 第二下：暂停（synth.pause 被调、没有 cancel——cancel 会丢进度）
+		mainBtn().handler({});
+		await renderSettled(runtime, node);
+		if (speech.synth.pauseCount !== 1) detail = "播放中再点没有暂停（pause 调用数=" + speech.synth.pauseCount + "）";
+		else if (speech.synth.cancelCount !== 0) detail = "暂停走了 cancel（会丢进度、继续就重头）";
+		else {
+			// ③ 第三下：就地继续（synth.resume，不再 speak 新 utterance）
+			mainBtn().handler({});
+			await renderSettled(runtime, node);
+			if (speech.synth.resumeCount !== 1) detail = "暂停后再点没有继续（resume 调用数=" + speech.synth.resumeCount + "）";
+			else if (speech.spoken.length !== 1) detail = "继续时重新 speak 了（应就地续读，spoken=" + speech.spoken.length + "）";
+			else {
+				// ④ 「重新朗读」：cancel 旧篇 + 从第一片重 speak
+				const restart = runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className))[1];
+				if (!restart) throw new Error("播放中没有出现「重新朗读」按钮");
+				restart.handler({});
+				await renderSettled(runtime, node);
+				if (speech.synth.cancelCount < 1) detail = "重新朗读没有 cancel 旧篇";
+				else if (speech.spoken.length !== 2) detail = "重新朗读没有重新 speak（spoken=" + speech.spoken.length + "）";
+			}
+		}
+	} catch (e) {
+		detail = "暂停/继续用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 朗读暂停/继续：${detail}`); process.exit(1); }
+	console.log("✓ 朗读暂停/继续：播放中再点=暂停（不 cancel）、再点=就地继续、「重新朗读」才回第一句");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

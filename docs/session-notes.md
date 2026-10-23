@@ -2343,5 +2343,36 @@ v0.15.2 上线后用户实测：另一会话（dsh-gate 打包）的提权审批
 - 客户端已 build，刷新页面即得喇叭（功能需先在功能坞开启，默认停用）。
 - 宿主半部改动（tts 段 + 路由）**需重启 dsh web**（或 4b 的宿主 HMR）。
 
+### 续作（2026-10-23）· 用户实测打回两处：暂停/继续 + 面板排版
+
+**① 播放中再点=从头读，不对**。用户：「要支持暂停阅读、继续阅读，不要点完后再点击就
+从头开始，要支持点击继续或者重新阅读。」
+
+- 引擎从 `{playing}` 一相翻成 `phase: idle | playing | paused` 三相 + `engine.session`
+  （留住当前篇的 chunks 与游标）。**暂停走 `speechSynthesis.pause()`**（停在当前这句的
+  当前字上，Chrome/Edge/Safari 均支持），**绝不 cancel**——cancel 丢进度，resume 就重头。
+- 回合尾主按钮三态：喇叭（开读）→ ❚❚ 暂停（在读）→ ▶ 继续（暂停中）；播放中旁边再给
+  「重新朗读」（= cancel + 从第一片重 speak，显式重头）与「停止」两枚小按钮。
+- `speak()` 的幂等键语义扩展：同一 key 处于 playing **或 paused** 都忽略（第二下点击由
+  按钮自己路由到 pause/resume，不会落到 speak）。
+- 测试桩同步翻面：`speak()` **不再自动触发 onend**（否则引擎瞬间播完，暂停无从测起），
+  新增 `flush()/pauseCount/resumeCount/cancelCount`；用例 18 锁整条行为链
+  （点 1 speak=1；点 2 pause=1 且 cancel=0；点 3 resume=1 且 spoken 不增；重新朗读
+  cancel≥1 且 spoken=2）。
+- 面板「播放控制」卡同步：暂停/继续（一枚按钮随相位换字）、重新朗读、停止 + 状态行。
+
+**② 面板排版被打回**（截图红框：「已启用/已停用」竖排成一字一行、行网格错位）。根因：
+复用了外壳 `dock-sw`——它没有 `white-space:nowrap`，被 `dktts-row` 的
+`minmax(120px,220px)` 中列压窄后中文按钮文字逐字换行。修法：模块自带 `dktts-sw` 药丸
+开关（状态点 + 「启用/停用」二字、`flex:none` + `nowrap`）；行网格改定列
+`116px / 220px / minmax(0,1fr)`；滑块拆成 `TtsSlider` 行（滑块 flex:1 + 数值右对齐定宽，
+数值不再挤在标签里）；播放控制独立成卡；`@media (max-width:720px)` 三列纵排兜底。
+
+**教训**：外壳的 `dock-sw` 只在「空间充裕的卡片头」里安全，别处复用要么给它补
+nowrap，要么自带控件——文字按钮被网格压窄就是竖排。行为用例的桩要能表达**相位**
+（自动播完的桩测不了暂停）。
+
+**验证**：`build:client` + `test:client` 全绿（含新用例 18）；`test:host` 全绿。
+
 
 
