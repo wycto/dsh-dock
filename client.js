@@ -8415,8 +8415,21 @@ function pushConfigToHost(body, sentRev, resolve) {
   });
 }
 var hostConfigRequested = false;
+var resolveConfigReady = null;
+var configReady = new Promise((r) => {
+  resolveConfigReady = r;
+});
+function markConfigReady() {
+  if (resolveConfigReady === null) return;
+  const r = resolveConfigReady;
+  resolveConfigReady = null;
+  r();
+}
 function ensureConfigLoaded() {
-  if (hostConfigRequested || configStore.routeGone) return;
+  if (hostConfigRequested || configStore.routeGone) {
+    if (configStore.routeGone) markConfigReady();
+    return;
+  }
   hostConfigRequested = true;
   fetch("dsh-dock/tts/status", {
     method: "POST",
@@ -8427,6 +8440,7 @@ function ensureConfigLoaded() {
       configStore.routeGone = true;
       configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
       notifyConfig();
+      markConfigReady();
       return;
     }
     const data = await res.json().catch(() => ({}));
@@ -8438,7 +8452,9 @@ function ensureConfigLoaded() {
     }
     configStore.loaded = true;
     notifyConfig();
+    markConfigReady();
   }).catch(() => {
+    markConfigReady();
   });
 }
 function plainForSpeech(md, cfg) {
@@ -8909,6 +8925,21 @@ function TtsQuickPop(props) {
   );
   return portalTarget && typeof import_react12.default.createPortal === "function" ? import_react12.default.createPortal(pop, portalTarget) : pop;
 }
+var AUTO_PLAY_FRESH_MS = 8e3;
+var BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
+var spokenKeys = /* @__PURE__ */ new Set();
+function markSpoken(key) {
+  spokenKeys.add(key);
+  if (spokenKeys.size > 200) {
+    const first = spokenKeys.values().next();
+    if (!first.done) spokenKeys.delete(first.value);
+  }
+}
+function claimAutoPlay(key) {
+  if (spokenKeys.has(key)) return false;
+  markSpoken(key);
+  return true;
+}
 function TtsTurnTail(props) {
   const owner = props || {};
   const cfg = useConfig();
@@ -8925,12 +8956,43 @@ function TtsTurnTail(props) {
   (0, import_react12.useEffect)(() => {
     ensureConfigLoaded();
   }, []);
-  if (!hasText) return null;
   const startThis = () => {
     ensureConfigLoaded();
     const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
     speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
   };
+  const autoDoneRef = (0, import_react12.useRef)(false);
+  const [quick, setQuick] = (0, import_react12.useState)(null);
+  (0, import_react12.useEffect)(() => {
+    if (autoDoneRef.current) return;
+    autoDoneRef.current = true;
+    if (!hasText || !supported) return;
+    let cancelled = false;
+    configReady.then(() => {
+      if (cancelled || autoDoneRef.current === "played") return;
+      autoDoneRef.current = "played";
+      if (!configStore.routeGone) return;
+      if (!configStore.value.autoPlay) return;
+      const reasonKind = turn && turn.end && turn.end.data && turn.end.data.reason ? String(turn.end.data.reason.kind || "") : "";
+      const bad = Boolean(reasonKind) && BAD_END[reasonKind] === 1;
+      if (bad && configStore.value.autoPlayOnFinish === false) return;
+      let endedAgo = Number.POSITIVE_INFINITY;
+      try {
+        const t = turn && turn.end ? turn.end.time : 0;
+        if (typeof t === "number" && t > 0) endedAgo = Date.now() - t;
+      } catch {
+        endedAgo = Number.POSITIVE_INFINITY;
+      }
+      if (!(endedAgo >= 0 && endedAgo < AUTO_PLAY_FRESH_MS)) return;
+      if (!claimAutoPlay("local:" + key)) return;
+      const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
+      speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!hasText) return null;
   const mainTitle = !supported ? "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08Web Speech API\uFF09" : playing ? "\u6682\u505C\uFF08\u518D\u70B9\u7EE7\u7EED\uFF0C\u4E0D\u91CD\u5934\uFF09" : paused ? "\u7EE7\u7EED\u6717\u8BFB" : "\u6717\u8BFB\u8FD9\u6761\u56DE\u590D";
   const onMain = () => {
     if (!supported) return;
@@ -8944,7 +9006,6 @@ function TtsTurnTail(props) {
     }
     startThis();
   };
-  const [quick, setQuick] = (0, import_react12.useState)(null);
   const openQuick = (e) => {
     const rect2 = e && e.currentTarget && typeof e.currentTarget.getBoundingClientRect === "function" ? e.currentTarget.getBoundingClientRect() : null;
     ensureConfigLoaded();
@@ -8995,7 +9056,6 @@ function TtsTurnTail(props) {
     quick ? import_react12.default.createElement(TtsQuickPop, { anchor: quick, onClose: () => setQuick(null) }) : null
   );
 }
-var BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
 function TtsOverlay() {
   const cfg = useConfig();
   const seenRef = (0, import_react12.useRef)(null);
@@ -9017,7 +9077,7 @@ function TtsOverlay() {
       }).then(async (res) => {
         if (res.status === 404 || res.status === 405) {
           configStore.routeGone = true;
-          configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u81EA\u52A8\u6717\u8BFB\u6682\u4E0D\u53EF\u7528";
+          configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web \u540E\u66F4\u597D\uFF09\uFF1A\u81EA\u52A8\u6717\u8BFB\u6682\u53EA\u8986\u76D6\u4F60\u6B63\u5728\u770B\u7684\u4F1A\u8BDD\uFF0C\u914D\u7F6E\u4E5F\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
           notifyConfig();
           return;
         }
@@ -9045,6 +9105,7 @@ function TtsOverlay() {
         if (bad && configStore.value.autoPlayOnFinish === false) return;
         const text = String(r.lastText || "");
         if (!text.trim()) return;
+        if (!claimAutoPlay("auto:" + String(r.sessionId) + "|" + String(r.endTime))) return;
         const plain = capSpeechText(plainForSpeech(text, configStore.value), configStore.value);
         speak({
           key: "auto:" + String(r.sessionId) + "|" + String(r.endTime),
