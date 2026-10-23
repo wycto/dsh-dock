@@ -123,44 +123,69 @@ function useConfig() {
 	useEffect(() => subscribeConfig(() => force((n) => n + 1)), []);
 	return configStore.value;
 }
+// 宿主落盘防抖：滑杆拖动一格一事件，逐格 POST 会打爆宿主（面板与回合尾浮层共用）。
+// 本地值与 localStorage **立即**更新（UI 与朗读即时生效），只有宿主写盘延到停手之后。
+const HOST_SAVE_DEBOUNCE_MS = 400;
+let hostSaveTimer = null;
+let hostSavePending = null;
+// 本地改动序号：写盘响应回来时若本地已有更新的改动，**不拿宿主的旧值覆盖**——
+// 否则拖动中会出现「滑杆跳回上一个值」的闪回（防抖让在途请求与后续改动重叠，更易踩到）。
+let localRev = 0;
 function setConfig(patch, opts) {
-	const next = normalizeConfig(Object.assign({}, configStore.value, patch && typeof patch === "object" ? patch : {}));
+	const p = patch && typeof patch === "object" ? patch : {};
+	const next = normalizeConfig(Object.assign({}, configStore.value, p));
 	configStore.value = next;
+	localRev += 1;
 	writeLocalConfig(next);
 	notifyConfig();
 	if (opts && opts.skipHost) return Promise.resolve(next);
 	if (configStore.routeGone) return Promise.resolve(next);
-	return fetch("dsh-dock/tts/config", {
+	hostSavePending = Object.assign(hostSavePending || {}, p);
+	if (hostSaveTimer !== null) clearTimeout(hostSaveTimer);
+	return new Promise((resolve) => {
+		hostSaveTimer = setTimeout(() => {
+			hostSaveTimer = null;
+			const body = hostSavePending || {};
+			hostSavePending = null;
+			pushConfigToHost(body, localRev, resolve);
+		}, HOST_SAVE_DEBOUNCE_MS);
+	});
+}
+function pushConfigToHost(body, sentRev, resolve) {
+	fetch("dsh-dock/tts/config", {
 		method: "POST",
 		headers: { "content-type": "application/json" },
-		body: JSON.stringify(patch && typeof patch === "object" ? patch : {}),
+		body: JSON.stringify(body),
 	})
 		.then(async (res) => {
 			if (res.status === 404 || res.status === 405) {
 				configStore.routeGone = true;
 				configStore.note = "宿主侧没有语音朗读接口（重启 dsh web，或把本功能开关关掉再打开），配置暂只存在本浏览器";
 				notifyConfig();
-				return next;
+				resolve(configStore.value);
+				return;
 			}
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok || (data && data.ok === false)) {
 				configStore.note = "保存配置失败：" + ((data && data.error && data.error.message) || ("HTTP " + res.status));
 				notifyConfig();
-				return next;
+				resolve(configStore.value);
+				return;
 			}
 			configStore.note = "";
-			if (data && data.data && data.data.config) {
+			// 回包只作确认：期间本地若又有改动（sentRev 落后），不覆盖新值
+			if (data && data.data && data.data.config && localRev === sentRev) {
 				const merged = normalizeConfig(data.data.config);
 				configStore.value = merged;
 				writeLocalConfig(merged);
 			}
 			notifyConfig();
-			return configStore.value;
+			resolve(configStore.value);
 		})
 		.catch(() => {
 			configStore.note = "保存配置失败：网络不可达，配置暂只存在本浏览器";
 			notifyConfig();
-			return next;
+			resolve(configStore.value);
 		});
 }
 let hostConfigRequested = false;
@@ -409,9 +434,12 @@ function startSession(opts) {
 			setEngineState({ phase: "idle", key: "", label: "" });
 			return;
 		}
-		utt.rate = cfg.rate;
-		utt.pitch = cfg.pitch;
-		utt.volume = cfg.volume;
+		// 语速/音调/音量**逐片现取**：播放中在浮层/面板里拖动滑杆，从下一句起立即生效
+		// （当前这句改不了是浏览器限制——utterance 参数在 speak 时定格）。
+		const lv = configStore.value;
+		utt.rate = typeof lv.rate === "number" ? lv.rate : cfg.rate;
+		utt.pitch = typeof lv.pitch === "number" ? lv.pitch : cfg.pitch;
+		utt.volume = typeof lv.volume === "number" ? lv.volume : cfg.volume;
 		if (voice) { utt.voice = voice; if (voice.lang) utt.lang = voice.lang; }
 		else if (cfg.lang) utt.lang = cfg.lang;
 		utt.onend = () => { if (epoch !== engine.epoch) return; speakNext(); };
@@ -536,6 +564,79 @@ const ICON_STOP = react.createElement("svg", {
 },
 	react.createElement("rect", { x: "6.5", y: "6.5", width: "11", height: "11", rx: "2" }),
 );
+const ICON_GEAR = react.createElement("svg", {
+	viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8",
+	strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
+},
+	react.createElement("circle", { cx: "12", cy: "12", r: "3.2" }),
+	react.createElement("path", { d: "M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1" }),
+);
+
+// ---------- 就地快设浮层：语速 + 音量（听的时候最常改的就这两个） ----------
+/**
+ * 从回合尾的 ⚙ 弹出，portal 到 body（会话流祖先可能被 overflow/backdrop-filter 裁剪，
+ * 与【用量记录】单价子弹窗同一个理由）。滑杆改的是同一份 configStore：
+ * 引擎**逐片现取**语速/音量，播放中拖动从下一句起立即生效（当前这句是浏览器定格，改不动）。
+ * 完整设置（音色/清洗规则等）走「更多设置」跳功能坞面板。
+ */
+function TtsQuickPop(props) {
+	const cfg = useConfig();
+	const anchor = props.anchor || { x: 120, y: 120 };
+	const boxRef = useRef(null);
+	useEffect(() => {
+		if (typeof document === "undefined") return undefined;
+		const onDown = (e) => {
+			if (boxRef.current && !boxRef.current.contains(e.target)) props.onClose();
+		};
+		const onKey = (e) => { if (e.key === "Escape") props.onClose(); };
+		document.addEventListener("pointerdown", onDown, true);
+		document.addEventListener("keydown", onKey);
+		return () => {
+			document.removeEventListener("pointerdown", onDown, true);
+			document.removeEventListener("keydown", onKey);
+		};
+	}, [props.onClose]);
+	// 视口夹取：贴右边/下边的回合不至于把浮层弹出屏外（宽约 240、高约 130）
+	const vw = typeof globalThis !== "undefined" && globalThis.innerWidth ? globalThis.innerWidth : 1440;
+	const left = Math.max(8, Math.min(anchor.x - 4, vw - 256));
+	const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
+	const pop = react.createElement("div", {
+		ref: boxRef, className: "dktts-pop",
+		style: { left: left + "px", top: (anchor.y - 8) + "px" },
+		role: "dialog", "aria-label": "朗读快速设置",
+	},
+		react.createElement("div", { className: "dktts-pop-h" },
+			react.createElement("b", null, "朗读设置"),
+			react.createElement("button", {
+				type: "button", className: "dktts-pop-x",
+				"aria-label": "关闭", title: "关闭", onClick: props.onClose,
+			}, "✕")),
+		react.createElement("div", { className: "dktts-pop-row" },
+			react.createElement("span", null, "语速"),
+			react.createElement("input", {
+				type: "range", min: "0.5", max: "2", step: "0.05", value: String(cfg.rate),
+				"aria-label": "语速",
+				onChange: (e) => setConfig({ rate: Number(e.target.value) || 1 }),
+			}),
+			react.createElement("span", { className: "dktts-pop-val" }, cfg.rate.toFixed(2) + "×")),
+		react.createElement("div", { className: "dktts-pop-row" },
+			react.createElement("span", null, "音量"),
+			react.createElement("input", {
+				type: "range", min: "0", max: "1", step: "0.05", value: String(cfg.volume),
+				"aria-label": "音量",
+				onChange: (e) => setConfig({ volume: Number(e.target.value) }),
+			}),
+			react.createElement("span", { className: "dktts-pop-val" }, Math.round(cfg.volume * 100) + "%")),
+		react.createElement("div", { className: "dktts-pop-foot" },
+			react.createElement("span", { className: "dktts-pop-tip" }, "下一句起生效"),
+			react.createElement("button", {
+				type: "button", className: "dktts-pop-more",
+				onClick: () => { props.onClose(); openPanel("tts"); },
+			}, "更多设置 →")));
+	return portalTarget && typeof react.createPortal === "function"
+		? react.createPortal(pop, portalTarget)
+		: pop;
+}
 
 // ---------- 回合下方的喇叭按钮（手动朗读：播放 / 暂停 / 继续 / 重读 / 停止） ----------
 /**
@@ -578,6 +679,14 @@ function TtsTurnTail(props) {
 		if (paused) { resumeSpeech(); return; }
 		startThis();
 	};
+	// ⚙ 就地快设（语速/音量）：任何状态下都可开——没在读时调的下次朗读用
+	const [quick, setQuick] = useState(null); // null | { x, y }（按钮视口坐标）
+	const openQuick = (e) => {
+		const rect = e && e.currentTarget && typeof e.currentTarget.getBoundingClientRect === "function"
+			? e.currentTarget.getBoundingClientRect() : null;
+		ensureConfigLoaded();
+		setQuick(rect ? { x: rect.left, y: rect.bottom } : { x: 120, y: 120 });
+	};
 	return react.createElement("div", { className: "dktts-tail" },
 		react.createElement("button", {
 			type: "button",
@@ -597,8 +706,17 @@ function TtsTurnTail(props) {
 			"aria-label": "停止", title: "停止朗读",
 			onClick: () => { stopSpeech(); },
 		}, ICON_STOP) : null,
+		react.createElement("button", {
+			type: "button",
+			className: "dktts-btn" + (quick ? " on" : ""),
+			"aria-label": "朗读设置（语速 / 音量）",
+			"aria-expanded": quick ? true : false,
+			title: "朗读设置（语速 / 音量）",
+			onClick: openQuick,
+		}, ICON_GEAR),
 		react.createElement("span", { className: "dktts-state" + (active ? " on" : "") },
-			playing ? "正在朗读本回合" : paused ? "已暂停 · 点 ▶ 继续，不重头" : ""));
+			playing ? "正在朗读本回合" : paused ? "已暂停 · 点 ▶ 继续，不重头" : ""),
+		quick ? react.createElement(TtsQuickPop, { anchor: quick, onClose: () => setQuick(null) }) : null);
 }
 
 // ---------- 自动朗读浮层：任务结束时读最后一条回复 ----------
@@ -956,6 +1074,21 @@ const CSS = [
 	".dktts-btn.off:hover{background:transparent;color:var(--dsw-alias-label-tertiary);}",
 	".dktts-state{color:var(--dsw-alias-label-secondary);font-size:12px;padding-left:6px;}",
 	".dktts-state.on{color:var(--dk-accent);}",
+	// —— ⚙ 就地快设浮层（portal 到 body；z 高于功能坞面板 200，低于常见模态 1000）——
+	".dktts-pop{position:fixed;z-index:300;width:248px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:0 10px 32px rgb(0 0 0 / .28);padding:10px 12px;font-size:12px;animation:dktts-pop-in .12s ease-out;}",
+	"@keyframes dktts-pop-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}",
+	"@media (prefers-reduced-motion:reduce){.dktts-pop{animation:none}}",
+	".dktts-pop-h{display:flex;align-items:center;gap:8px;}",
+	".dktts-pop-h b{flex:1;font-weight:600;}",
+	".dktts-pop-x{border:none;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1;padding:4px;border-radius:6px;}",
+	".dktts-pop-x:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+	".dktts-pop-row{display:grid;grid-template-columns:32px 1fr 46px;align-items:center;gap:8px;}",
+	".dktts-pop-row input[type='range']{width:100%;min-width:0;accent-color:var(--dk-accent);}",
+	".dktts-pop-val{text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);}",
+	".dktts-pop-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;margin-top:2px;}",
+	".dktts-pop-tip{color:var(--dsw-alias-label-secondary);}",
+	".dktts-pop-more{border:none;background:transparent;color:var(--dk-accent);cursor:pointer;font-size:12px;padding:2px 0;}",
+	".dktts-pop-more:hover{text-decoration:underline;}",
 ].join("\n");
 
 export const feature = {

@@ -143,7 +143,7 @@ function createRuntime() {
 		// 宿主元素：记录带事件句柄的节点，供用例触发 onClick / onMouseEnter 等
 		if (typeof type === "string") {
 			const cls = String(props.className || "");
-			for (const ev of ["onClick", "onMouseEnter", "onMouseLeave"]) {
+			for (const ev of ["onClick", "onMouseEnter", "onMouseLeave", "onChange"]) {
 				if (typeof props[ev] === "function") elements.push({ tag: type, className: cls, event: ev, handler: props[ev] });
 			}
 			out.push("<" + type + (cls ? ' class="' + cls + '"' : "") + ">");
@@ -179,8 +179,9 @@ function createRuntime() {
 function resolveStatus(s) { return typeof s === "function" ? s() : s; }
 function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus, ttsStatus) {
 	return (url, init) => {
-		// 只拦截功能开关的同步 POST；功能自己的 RPC 也是 POST，不能一起吃掉
-		if (init && init.method === "POST" && String(url).includes("dsh-dock/features")) {
+		// 只拦截功能开关的同步 POST 与【语音朗读】的配置 POST（防抖断言要数它）；
+		// 其余功能自己的 RPC 也是 POST，不能一起吃掉
+		if (init && init.method === "POST" && (String(url).includes("dsh-dock/features") || String(url).includes("dsh-dock/tts/config"))) {
 			posts.push({ url: String(url), body: JSON.parse(init.body || "{}") });
 			return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, data: {} }) });
 		}
@@ -1641,6 +1642,68 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	}
 	if (detail) { console.log(`✗ 切换朗读清队：${detail}`); process.exit(1); }
 	console.log("✓ 切换朗读清队：cancel 未冲刷完不 speak，队列真空后立即播新内容（不排旧队列后面）");
+}
+
+// ---------- 用例 20：回合尾 ⚙ 就地快设（语速/音量滑杆即时生效 + 宿主落盘防抖） ----------
+// 用户诉求：听的时候想直接调语速音量，不用跑去功能坞。锁四点：
+//   ① 喇叭行里任何状态都有 ⚙ 设置按钮；② 点击弹出语速/音量浮层（portal 到 body）；
+//   ③ 拖动滑杆 → configStore 立即更新（引擎逐片现取 → 下一句生效）；
+//   ④ 连拖多格只 POST 一次宿主（防抖），且 payload 带上最新值。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	const bodyStub = { tag: "body-stub" };
+	let detail = "";
+	try {
+		const { runtime, regs, posts, portalNodes } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech, body: bodyStub });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const owner = {
+			sessionId: "s-20", seq: 5, openFile() {},
+			turn: {
+				turn: 0, status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text: "测试内容一句。" }] } } : undefined) },
+			},
+		};
+		const node = runtime.react.createElement(reg.comp, owner);
+		await renderSettled(runtime, node);
+		// ⚙ = 最后一个 dktts-btn（喇叭/重读/停止之后；未播放时是 喇叭+⚙ 两个）
+		const btns = runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className));
+		if (btns.length < 2) throw new Error("回合尾没有 ⚙ 设置按钮（只有 " + btns.length + " 枚按钮）");
+		btns[btns.length - 1].handler({ currentTarget: { getBoundingClientRect: () => ({ left: 200, bottom: 400 }) } });
+		await renderSettled(runtime, node);
+		const pops = portalNodes.filter((p) => p.target === bodyStub);
+		if (pops.length === 0) throw new Error("⚙ 点击后没有 portal 出浮层到 body");
+		const popHtml = runtime.render(pops[pops.length - 1].node);
+		if (!popHtml.includes("dktts-pop")) detail = "浮层缺少 dktts-pop 结构";
+		else {
+			// 拖语速滑杆（连拖 3 格）→ 本地值即时更新、宿主写盘只 1 次（防抖）
+			// 浮层里带 onChange 的就是语速/音量两枚滑杆（替身不记录 type 属性，按事件筛）
+			const sliders = runtime.elements.filter((el) => el.event === "onChange" && el.tag === "input");
+			if (sliders.length < 2) throw new Error("浮层里语速/音量滑杆不足两枚（找到 " + sliders.length + "）");
+			const before = posts.filter((p) => p.url.includes("dsh-dock/tts/config")).length;
+			sliders[0].handler({ target: { value: "1.4" } });
+			sliders[0].handler({ target: { value: "1.7" } });
+			sliders[0].handler({ target: { value: "1.6" } });
+			await renderSettled(runtime, node);
+			const after = posts.filter((p) => p.url.includes("dsh-dock/tts/config"));
+			// 防抖 400ms：此刻必须还没发（发早了=每格一个 POST）
+			if (after.length !== before) detail = "滑杆连拖 3 格立刻发了宿主 POST（应防抖到停手后合一次）";
+			await new Promise((resolve) => setTimeout(resolve, 650));
+			const after2 = posts.filter((p) => p.url.includes("dsh-dock/tts/config"));
+			if (after2.length - before !== 1) detail = "停手后应恰好补发 1 次宿主 POST（实际 " + (after2.length - before) + "）";
+			else {
+				const body = after2[after2.length - 1].body;
+				if (body.rate !== 1.6) detail = "防抖 POST 应带最新语速 1.6（实际 " + body.rate + "）";
+			}
+		}
+	} catch (e) {
+		detail = "⚙ 快设用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 回合尾快设：${detail}`); process.exit(1); }
+	console.log("✓ 回合尾快设：⚙ 弹语速/音量浮层（portal body），拖动即时生效、宿主落盘防抖合一次");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

@@ -8356,42 +8356,62 @@ function useConfig() {
   (0, import_react12.useEffect)(() => subscribeConfig(() => force((n) => n + 1)), []);
   return configStore.value;
 }
+var HOST_SAVE_DEBOUNCE_MS = 400;
+var hostSaveTimer = null;
+var hostSavePending = null;
+var localRev = 0;
 function setConfig(patch, opts) {
-  const next = normalizeConfig(Object.assign({}, configStore.value, patch && typeof patch === "object" ? patch : {}));
+  const p = patch && typeof patch === "object" ? patch : {};
+  const next = normalizeConfig(Object.assign({}, configStore.value, p));
   configStore.value = next;
+  localRev += 1;
   writeLocalConfig(next);
   notifyConfig();
   if (opts && opts.skipHost) return Promise.resolve(next);
   if (configStore.routeGone) return Promise.resolve(next);
-  return fetch("dsh-dock/tts/config", {
+  hostSavePending = Object.assign(hostSavePending || {}, p);
+  if (hostSaveTimer !== null) clearTimeout(hostSaveTimer);
+  return new Promise((resolve) => {
+    hostSaveTimer = setTimeout(() => {
+      hostSaveTimer = null;
+      const body = hostSavePending || {};
+      hostSavePending = null;
+      pushConfigToHost(body, localRev, resolve);
+    }, HOST_SAVE_DEBOUNCE_MS);
+  });
+}
+function pushConfigToHost(body, sentRev, resolve) {
+  fetch("dsh-dock/tts/config", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(patch && typeof patch === "object" ? patch : {})
+    body: JSON.stringify(body)
   }).then(async (res) => {
     if (res.status === 404 || res.status === 405) {
       configStore.routeGone = true;
       configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
       notifyConfig();
-      return next;
+      resolve(configStore.value);
+      return;
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data && data.ok === false) {
       configStore.note = "\u4FDD\u5B58\u914D\u7F6E\u5931\u8D25\uFF1A" + (data && data.error && data.error.message || "HTTP " + res.status);
       notifyConfig();
-      return next;
+      resolve(configStore.value);
+      return;
     }
     configStore.note = "";
-    if (data && data.data && data.data.config) {
+    if (data && data.data && data.data.config && localRev === sentRev) {
       const merged = normalizeConfig(data.data.config);
       configStore.value = merged;
       writeLocalConfig(merged);
     }
     notifyConfig();
-    return configStore.value;
+    resolve(configStore.value);
   }).catch(() => {
     configStore.note = "\u4FDD\u5B58\u914D\u7F6E\u5931\u8D25\uFF1A\u7F51\u7EDC\u4E0D\u53EF\u8FBE\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
     notifyConfig();
-    return next;
+    resolve(configStore.value);
   });
 }
 var hostConfigRequested = false;
@@ -8621,9 +8641,10 @@ function startSession(opts) {
       setEngineState({ phase: "idle", key: "", label: "" });
       return;
     }
-    utt.rate = cfg.rate;
-    utt.pitch = cfg.pitch;
-    utt.volume = cfg.volume;
+    const lv = configStore.value;
+    utt.rate = typeof lv.rate === "number" ? lv.rate : cfg.rate;
+    utt.pitch = typeof lv.pitch === "number" ? lv.pitch : cfg.pitch;
+    utt.volume = typeof lv.volume === "number" ? lv.volume : cfg.volume;
     if (voice) {
       utt.voice = voice;
       if (voice.lang) utt.lang = voice.lang;
@@ -8785,6 +8806,109 @@ var ICON_STOP = import_react12.default.createElement(
   },
   import_react12.default.createElement("rect", { x: "6.5", y: "6.5", width: "11", height: "11", rx: "2" })
 );
+var ICON_GEAR = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("circle", { cx: "12", cy: "12", r: "3.2" }),
+  import_react12.default.createElement("path", { d: "M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1" })
+);
+function TtsQuickPop(props) {
+  const cfg = useConfig();
+  const anchor = props.anchor || { x: 120, y: 120 };
+  const boxRef = (0, import_react12.useRef)(null);
+  (0, import_react12.useEffect)(() => {
+    if (typeof document === "undefined") return void 0;
+    const onDown = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) props.onClose();
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [props.onClose]);
+  const vw = typeof globalThis !== "undefined" && globalThis.innerWidth ? globalThis.innerWidth : 1440;
+  const left = Math.max(8, Math.min(anchor.x - 4, vw - 256));
+  const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
+  const pop = import_react12.default.createElement(
+    "div",
+    {
+      ref: boxRef,
+      className: "dktts-pop",
+      style: { left: left + "px", top: anchor.y - 8 + "px" },
+      role: "dialog",
+      "aria-label": "\u6717\u8BFB\u5FEB\u901F\u8BBE\u7F6E"
+    },
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-h" },
+      import_react12.default.createElement("b", null, "\u6717\u8BFB\u8BBE\u7F6E"),
+      import_react12.default.createElement("button", {
+        type: "button",
+        className: "dktts-pop-x",
+        "aria-label": "\u5173\u95ED",
+        title: "\u5173\u95ED",
+        onClick: props.onClose
+      }, "\u2715")
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-row" },
+      import_react12.default.createElement("span", null, "\u8BED\u901F"),
+      import_react12.default.createElement("input", {
+        type: "range",
+        min: "0.5",
+        max: "2",
+        step: "0.05",
+        value: String(cfg.rate),
+        "aria-label": "\u8BED\u901F",
+        onChange: (e) => setConfig({ rate: Number(e.target.value) || 1 })
+      }),
+      import_react12.default.createElement("span", { className: "dktts-pop-val" }, cfg.rate.toFixed(2) + "\xD7")
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-row" },
+      import_react12.default.createElement("span", null, "\u97F3\u91CF"),
+      import_react12.default.createElement("input", {
+        type: "range",
+        min: "0",
+        max: "1",
+        step: "0.05",
+        value: String(cfg.volume),
+        "aria-label": "\u97F3\u91CF",
+        onChange: (e) => setConfig({ volume: Number(e.target.value) })
+      }),
+      import_react12.default.createElement("span", { className: "dktts-pop-val" }, Math.round(cfg.volume * 100) + "%")
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-foot" },
+      import_react12.default.createElement("span", { className: "dktts-pop-tip" }, "\u4E0B\u4E00\u53E5\u8D77\u751F\u6548"),
+      import_react12.default.createElement("button", {
+        type: "button",
+        className: "dktts-pop-more",
+        onClick: () => {
+          props.onClose();
+          openPanel("tts");
+        }
+      }, "\u66F4\u591A\u8BBE\u7F6E \u2192")
+    )
+  );
+  return portalTarget && typeof import_react12.default.createPortal === "function" ? import_react12.default.createPortal(pop, portalTarget) : pop;
+}
 function TtsTurnTail(props) {
   const owner = props || {};
   const cfg = useConfig();
@@ -8820,6 +8944,12 @@ function TtsTurnTail(props) {
     }
     startThis();
   };
+  const [quick, setQuick] = (0, import_react12.useState)(null);
+  const openQuick = (e) => {
+    const rect2 = e && e.currentTarget && typeof e.currentTarget.getBoundingClientRect === "function" ? e.currentTarget.getBoundingClientRect() : null;
+    ensureConfigLoaded();
+    setQuick(rect2 ? { x: rect2.left, y: rect2.bottom } : { x: 120, y: 120 });
+  };
   return import_react12.default.createElement(
     "div",
     { className: "dktts-tail" },
@@ -8849,11 +8979,20 @@ function TtsTurnTail(props) {
         stopSpeech();
       }
     }, ICON_STOP) : null,
+    import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn" + (quick ? " on" : ""),
+      "aria-label": "\u6717\u8BFB\u8BBE\u7F6E\uFF08\u8BED\u901F / \u97F3\u91CF\uFF09",
+      "aria-expanded": quick ? true : false,
+      title: "\u6717\u8BFB\u8BBE\u7F6E\uFF08\u8BED\u901F / \u97F3\u91CF\uFF09",
+      onClick: openQuick
+    }, ICON_GEAR),
     import_react12.default.createElement(
       "span",
       { className: "dktts-state" + (active ? " on" : "") },
       playing ? "\u6B63\u5728\u6717\u8BFB\u672C\u56DE\u5408" : paused ? "\u5DF2\u6682\u505C \xB7 \u70B9 \u25B6 \u7EE7\u7EED\uFF0C\u4E0D\u91CD\u5934" : ""
-    )
+    ),
+    quick ? import_react12.default.createElement(TtsQuickPop, { anchor: quick, onClose: () => setQuick(null) }) : null
   );
 }
 var BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
@@ -9328,7 +9467,22 @@ var CSS = [
   ".dktts-btn.off{opacity:.4;cursor:default;}",
   ".dktts-btn.off:hover{background:transparent;color:var(--dsw-alias-label-tertiary);}",
   ".dktts-state{color:var(--dsw-alias-label-secondary);font-size:12px;padding-left:6px;}",
-  ".dktts-state.on{color:var(--dk-accent);}"
+  ".dktts-state.on{color:var(--dk-accent);}",
+  // —— ⚙ 就地快设浮层（portal 到 body；z 高于功能坞面板 200，低于常见模态 1000）——
+  ".dktts-pop{position:fixed;z-index:300;width:248px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:0 10px 32px rgb(0 0 0 / .28);padding:10px 12px;font-size:12px;animation:dktts-pop-in .12s ease-out;}",
+  "@keyframes dktts-pop-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}",
+  "@media (prefers-reduced-motion:reduce){.dktts-pop{animation:none}}",
+  ".dktts-pop-h{display:flex;align-items:center;gap:8px;}",
+  ".dktts-pop-h b{flex:1;font-weight:600;}",
+  ".dktts-pop-x{border:none;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1;padding:4px;border-radius:6px;}",
+  ".dktts-pop-x:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  ".dktts-pop-row{display:grid;grid-template-columns:32px 1fr 46px;align-items:center;gap:8px;}",
+  ".dktts-pop-row input[type='range']{width:100%;min-width:0;accent-color:var(--dk-accent);}",
+  ".dktts-pop-val{text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);}",
+  ".dktts-pop-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;margin-top:2px;}",
+  ".dktts-pop-tip{color:var(--dsw-alias-label-secondary);}",
+  ".dktts-pop-more{border:none;background:transparent;color:var(--dk-accent);cursor:pointer;font-size:12px;padding:2px 0;}",
+  ".dktts-pop-more:hover{text-decoration:underline;}"
 ].join("\n");
 var feature10 = {
   id: "tts",

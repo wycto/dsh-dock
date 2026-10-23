@@ -2397,5 +2397,30 @@ speak（spoken 数不增）、真空后 speak 出的必须是 B 的文本。`tes
 **经验**：浏览器 API 的「立即生效」承诺要看实现——cancel 语义上是清空、实际是异步冲刷；
 凡「cancel 紧接 speak」的切换都必须等真空，且探测要 fail-open（读不到状态就播，别静默）。
 
+### 续作三（2026-10-23）· 回合尾加 ⚙ 就地快设（语速/音量）
+
+**需求（用户截图 + 原话）**：「需要支持在这里增加设置按钮，点击设置语速和音量」——
+听的时候想直接调，不用跑去功能坞面板。
+
+**改法**：
+- 喇叭行尾常驻 ⚙ 按钮（idle/playing/paused 任何状态都可点，没在读时调的下次朗读用），
+  点击弹 `TtsQuickPop`：语速 + 音量两枚滑杆 + 「更多设置」直达功能坞 tts 页。
+- **浮层必须 portal 到 body**（与【用量记录】单价子弹窗同一个理由）：会话流的祖先带
+  overflow/backdrop-filter，就地渲染会被裁剪或定位错乱。点外部/Esc 关闭；按按钮视口
+  坐标定位并夹进屏内。
+- **播放中改要即时生效**：引擎从「起篇时定格 cfg」改成**逐片现取** `configStore.value`
+  的 rate/pitch/volume——拖动滑杆，下一句起立即变（当前这句是浏览器在 speak 时定格的，
+  改不动，浮层里标一句「下一句起生效」）。
+- **滑杆连拖不能打爆宿主**：`setConfig` 的宿主 POST 加 400ms 防抖、多次拖动合并成一次
+  写盘；本地值与 localStorage 仍即时更新（UI 与朗读不等网络）。
+
+**踩坑**：测试替身只收集 onClick/onMouseEnter/onMouseLeave，滑杆是 onChange——加了
+onChange 收集才测得到浮层交互；替身不记录 input 的 type 属性，按「带 onChange 的 input」
+筛滑杆，别写 `/range/`。
+
+**验证**：新用例 20 锁四件事（⚙ 在行尾、点击 portal 出浮层、连拖 3 格本地即时更新且
+停手前不发宿主 POST、停手后恰好补发 1 次且带最新值 1.6）；`test:client` 全绿、
+`test:host` 全绿。README 功能表/使用说明、CHANGELOG 同步。
+
 
 
