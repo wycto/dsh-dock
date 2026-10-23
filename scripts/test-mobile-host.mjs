@@ -70,6 +70,14 @@ try {
   assert.doesNotMatch(once1, /\.dsh-mobile-burger\{[^}]*backdrop-filter/, '汉堡不得有毛玻璃底')
   assert.match(once1, /打开侧边栏/, '汉堡没有转发原生「打开侧边栏」')
   assert.match(once1, /aria-expanded/, '汉堡没有维护展开态语义')
+  // —— 给标题让出汉堡宽度（用户实测：标题首字叠在三条横线上）——
+  // 汉堡 fixed 定位、不占布局，原生标题从头部的 padding-left:20px 起排 → 真实实例
+  // 390×844 逐字实测重叠 16px（会话标题首字 x=28 vs 汉堡右缘 44）；插件页/自动化任务页
+  // 的页头（padding-left:0、靠外层容器给 24px）首字 x=24 → 重叠 20px。
+  // 契约：会话页头补到 44px（= 汉堡宽度）；两条原生页头各补 28px（首字落 x=52、留 8px），
+  // 并把 gap 从 16px 收到 4px 补回被内边距吃掉的内容宽度（否则「添加插件」按钮会换行）。
+  assert.match(once1, /header:has\(\[class\*="titleRow"\]\)\{padding-left:calc\(44px \+ env\(safe-area-inset-left,0px\)\)\}/, '会话页头没有给汉堡让出宽度（标题会被压住）')
+  assert.match(once1, /\[class\$="_pageHead"\],\[class\$="_pageHeading"\]\{padding-left:calc\(28px \+ env\(safe-area-inset-left,0px\)\);gap:4px\}/, '插件页/任务页页头没有给汉堡让出宽度（标题会被压住）')
   // —— 待确认任务角标：挂汉堡右上角（替代底部 Tab 栏「插件」页签上的角标）——
   assert.match(once1, /dsh-mobile-burger-badge/, '汉堡没有待确认任务角标（底部 Tab 栏移除后该提醒丢失了）')
   assert.match(once1, /dsh-mobile-burger-badge\.wait/, '角标缺少「等待确认」红色脉冲态')
