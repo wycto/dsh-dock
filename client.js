@@ -8608,7 +8608,7 @@ function startSession(opts) {
   const speakNext = () => {
     if (epoch !== engine.epoch) return;
     if (session.index >= session.chunks.length) {
-      engine.session = null;
+      if (engine.session === session) engine.session = null;
       setEngineState({ phase: "idle", key: "", label: "" });
       drainQueue();
       return;
@@ -8617,7 +8617,7 @@ function startSession(opts) {
     session.index += 1;
     const utt = makeUtterance(piece);
     if (!utt) {
-      engine.session = null;
+      if (engine.session === session) engine.session = null;
       setEngineState({ phase: "idle", key: "", label: "" });
       return;
     }
@@ -8639,12 +8639,46 @@ function startSession(opts) {
     try {
       s.speak(utt);
     } catch {
-      engine.session = null;
+      if (engine.session === session) engine.session = null;
       setEngineState({ phase: "idle", key: "", label: "" });
     }
   };
-  speakNext();
+  whenQueueClear(s, epoch, speakNext);
   return true;
+}
+function queueBusy(s) {
+  try {
+    return s.speaking === true || s.pending === true;
+  } catch {
+    return false;
+  }
+}
+var FLUSH_POLL_MS = 15;
+var FLUSH_MAX_MS = 1500;
+function whenQueueClear(s, epoch, run) {
+  if (!queueBusy(s)) {
+    run();
+    return;
+  }
+  let waited = 0;
+  const poll = () => {
+    if (epoch !== engine.epoch) return;
+    if (!queueBusy(s)) {
+      run();
+      return;
+    }
+    waited += FLUSH_POLL_MS;
+    if (waited >= FLUSH_MAX_MS) {
+      try {
+        s.cancel();
+      } catch {
+      }
+      run();
+      return;
+    }
+    setTimeout(poll, FLUSH_POLL_MS);
+  };
+  setTimeout(poll, FLUSH_POLL_MS);
 }
 function speak(opts) {
   const o = opts && typeof opts === "object" ? opts : {};
