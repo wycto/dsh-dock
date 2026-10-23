@@ -4,7 +4,7 @@
 // 按余额策略查询各账号余额/配额，返回归一化 JSON 给浏览器半身（同源 fetch，无需 typert）。
 // 余额策略表沿用 @wycto/dsh-balance-panel@0.1.1 的实现（MIT，同作者）。
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { sendJson, walkPath } from '../../src/host-core.js'
+import { sendJson, walkPath, rejectUntrustedRequest } from '../../src/host-core.js'
 
 /** deepseek-official 内置默认值（适配器默认配置的镜像，配置缺失时兜底）。 */
 const DEEPSEEK_DEFAULTS = {
@@ -480,6 +480,7 @@ export const feature = {
     const webServer = ctx.get('webServer')
     if (webServer === undefined) throw new Error('webServer 服务不可用，无法提供余额查询路由')
     const handler = async (req, res) => {
+      if (rejectUntrustedRequest(ctx, req, res)) return
       try {
         sendJson(res, 200, await queryAll(ctx))
       } catch (e) {

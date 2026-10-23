@@ -1954,3 +1954,547 @@ enabled），但宿主没注册路由**。chip 每 10s、面板首页每 60s，�
   只验证角标三种状态（B1–B5 全过）。
 - 套件：`test:client` 全绿（含两条新契约）、`test:host` 7/7、
   `verify-live` 19/19、`verify-visual` 11/11。
+
+## 二十一、续作会话（2026-10-13）· 汉堡压住标题：给标题让出汉堡宽度
+
+### 需求
+
+用户手机截图（红框圈出左上角）：「【dsh-dock】，手机适配。左上角的三横线菜单，被右边的标题
+重叠了，改完提交推送」。截图里会话标题「更新所有仓库代码」的首字正叠在三条横线上。
+
+### 定位（不猜，逐字量）
+
+汉堡是 `position:fixed`（`left/top: env(safe-area-inset-*)`、44×44），**完全不占布局**；
+原生标题仍按自己的排版从头部 `padding-left:20px` 起排。用 Playwright 在真实实例
+（390×844）里用 `Range` **逐字符**取矩形，量到三处重叠：
+
+| 页面 | 关键元素 | 原生左内边距 | 标题首字 x | 汉堡右缘 | 重叠 |
+|---|---|---|---|---|---|
+| 会话页 | `header:has([class*="titleRow"])` | 20px | 28 | 44 | **16px** |
+| 插件页 | plugin-manager `ZVcBiW_pageHead` | 0（外层 `.page` 给 24px） | 24 | 44 | **20px** |
+| 自动化任务页 | schedule `CxUija_pageHeading` | 0（同上） | 24 | 44 | **20px** |
+
+⚠️ 顺带看清一件事：这不是「会话页头」一个地方的问题——插件页/任务页同样被压，只是用户
+最容易在会话页看到（那是最常停留的页面）。只修会话页会留下两个同样的缺陷。
+
+### 改法
+
+- **给容器补内边距**，而不是给汉堡加底色/加宽（后者只是把问题搬到视觉上，还会破坏
+  v0.15.0 定下的「与原生 ghost 控件同款」形态）：
+  - 会话页头 `padding-left` 20px → **44px**（正好等于汉堡宽度；标题自带 8px 内边距 →
+    首字落 x=52，与汉堡留 8px 间隔）；
+  - 两条原生页头各补 **28px**（首字同样落 x=52）。
+- ⚠️ **两条原生页头是 flex + `gap:16px`**（标题块 | 工具栏），直接补内边距会压缩内容宽度：
+  实测 430/390/360/320px 下描述文案与「添加插件」按钮会被挤到换行（按钮从单行变两行、
+  在 320px 上甚至 2 行 → 4 行）。故**同时把 `gap` 收到 4px** 补回 12px——这是本次唯一
+  需要「补偿」的地方，也是为什么最终写成 `padding-left:28px;gap:4px` 而不是只补内边距。
+- 选择器用 `[class$="_pageHead"]` / `[class$="_pageHeading"]`（**语义后缀**）而非
+  `[class*=…]`：DSH 类名是「哈希前缀 + 语义后缀」，后缀稳定、前缀随版本变（本机
+  0.2.0-rc.2 实测为 `ZVcBiW_pageHead` / `CxUija_pageHeading`）；`$=` 也顺带避开
+  `pageHeadActions` 这类同前缀的无关元素。
+- 两半部同步改：`features/mobile/view.js`（客户端；规则挂 `body[data-dk-mobile="1"]`，
+  停用本功能即摘属性、原生排版还原）与 `features/mobile/host.js`（宿主注入，需重启 dsh web）。
+
+### 验证
+
+- **四个视口（430/390/360/320）× 三个页面（会话/插件/自动化任务）共 12 组**，
+  断言口径是「汉堡 44×44 方框内不得有任何**真正绘制出来**的文字」——逐字符取矩形求交，
+  并排除被滚动容器裁掉的（⚠️ 第一版审计把滚动到头部后面的正文也算成侵入，得到过
+  假阳性；加上 clip 判定后才干净）：
+  - 修前：会话页 2 处侵入（标题 16px、模式徽标 7.6px）、插件/任务页各 1 处（20px）；
+  - 修后：**12 组全部零侵入**，且无横向溢出（`scrollWidth == innerWidth`）。
+- 行数回归单独量：插件页头在 390/360/320px 本来就有换行（「安装、启用和配置插件」与
+  「添加插件」按钮），修复前后**逐文本节点行数完全一致**；430px 无换行。
+- 交付产物复验：`npm run build:client` 后用**真实 client.js** 走客户端自建路径
+  （`window.__dshDockMobileDrawer="client"`）打开真实页面，确认新规则经
+  `style[data-plugin-css="dsh-dock"]` 注入、390/320px 会话页零侵入。
+- 套件：`test:client` 全绿（含新增两条契约）、`test:host` 7/7。
+
+### 经验
+
+- **fixed 元素的「不占布局」是这类重叠的通用成因**：汉堡为了贴左上角安全区用了 fixed，
+  于是它覆盖谁就只有视觉层知道、布局层不知道。修法应该是「让容器让出位置」（内边距），
+  而不是「把 fixed 元素做得更显眼」（加底色/阴影）——后者在 v0.15.0 刚被用户否过一次。
+- **补内边距会压缩 flex 行内容**：凡是 `display:flex` + `gap` 的容器，补 padding 都要
+  连带看一眼 `gap` 与内容是否换行（这里 12px 的 gap 正好是本例的补偿来源）。
+- **审计「有没有重叠」别只看 DOM 距离**，也别只信一次遍历：逐字符取矩形（`Range`）+
+  排除被裁掉的元素，两个条件缺一个都会得到假阳性/假阴性。
+
+---
+
+## 二十二、续作会话（2026-10-14）· 插件路由信任栅栏 + 「模型提供商」拆成独立功能
+
+### 现象（安全缺口）
+
+承接「远程部署 + 账户体系」的讨论，逐层追到一条此前没人提过的洞：**dsh-dock 所有
+`webServer` 路由对任何能连到端口的人都是敞开的**——不需要登录，也不需要攻破登录页
+（`dsh-access` 这类门禁插件只有 exact 表 / fallback / connection-request / upgrades 四个缝，
+命名路由一个都不经过）。两条已确认可被利用的路径（代码可复现，未在真实实例上实际打过）：
+
+- `POST /dsh-dock/mobile-relay {method:'auth/set'|'lan/start'}`：改远程访问账号密码 + 开启
+  `0.0.0.0` 网关；网关随后会用 `connection.authenticatedUrl` 在服务端兑换出 **dsh 自己的会话
+  Cookie**（控制面暴露，不是数据泄露级别，但足以让攻击者在实例里落一颗钉子）。
+- `POST /dsh-dock/models {action:'listModels', baseURL:'<攻击者地址>', apiKeyEnv:'DEEPSEEK_API_KEY'}`：
+  宿主从本机凭据库取出**真 Key**，作为 `Authorization: Bearer` 发到调用方给的地址——
+  **模型 API Key 外带 + 任意 URL 出站（SSRF）**，全程无任何身份检查。
+
+### 根因
+
+`webServer` 的命名路由由载体直接派发给 handler，而载体「不拥有认证或 Origin 策略」
+（`packages/host/webserver` 的 handle：匹配到 route 就 `route.handler(req, res)`）；
+`/api` 的 Host/Origin 校验与会话认证由 Connection 在自己的 FetchHandler 上做，**管不到
+插件注册的命名路由**。所以「插件路由要不要鉴权」是插件自己的责任——官方
+`dsh-host-open-in-app`、`dsh-experimental-inspector` 都在入口调 `connection.requestRejection
+(req)`，而本仓库此前**全文一次都没调过**，且 `features/providerconfig` 还不存在时，
+`modelconfig` 的 `listModels` 就是一个典型的 confused deputy。
+
+### 改法
+
+1. **`src/host-core.js` 新增 `rejectUntrustedRequest(ctx, req, res)`**：内部取
+   `ctx.get('connection').requestRejection(req)`，非 `undefined` 就按该状态回
+   `{ ok:false, error:{ code:'untrusted' } }`（401 = Host 可信但无会话；403 = Host/Origin
+   栅栏拒绝），并 `req.resume()` 收掉未读正文；判定抛错也按 403 拒绝；**Connection 服务
+   不存在时 fail-closed 按 401 拒绝**（dsh-dock 的路由本身就是 web 专用）。
+2. **9 处 `webServer.register` 全部在 handler 第一行调用它**：`index.js` 的功能开关路由 +
+   8 个功能模块路由（`balance` / `animation` / `notify` / `runstate` / `tokenlog` /
+   `mobile-relay` / `modelconfig` / `providerconfig`；`mobile` 与 `visionproxy` 不注册路由，不涉及）。
+3. **拆出独立功能【模型提供商】**（`features/providerconfig/`，路由 `/dsh-dock/providerconfig`）：
+   Provider 增删改 + API Key 写入 + 拉取上游模型列表从「模型设置」整体迁走；「模型设置」
+   从此只管模型条目的输入模态与思考强度。理由是分工本身：前者是**配置面 + 出站请求**，
+   后者是模型元数据；拆开后不需要改 Provider 的部署可以把它整个停用，那三条路由一起卸载。
+   - 宿主共享层上提为 **`src/model-directory.js`**（目录归一化 + 条目整形），
+     `modelconfig` / `providerconfig` / `visionproxy` 三处共用；客户端共享层上提为
+     **`src/model-draft.js`**（草稿常量与纯函数），两个视图共用——避免各抄一份必然漂移。
+   - `scripts/extract-feature.mjs` 同步复制这两个共享文件。
+   - 客户端：「模型设置」去掉 Provider 入口卡与 `params.page="providers"` 子页面；
+     新模块自带页面（排版沿用官方「设置 → 模型」，深链 `params.openProviderForm` 保留）。
+   - `/dsh-dock/models` 的 GET 不再附带 `apiKeyConfigured`（移到新路由），模型设置页的
+     「有 N 个 Provider 未配置密钥」提示随功能迁走。
+4. **测试桩补信任面**：`test-task-host` / `test-tokenlog-host` / `test-mobile-relay-host` 的
+   ctx 桩加 `connection: { requestRejection: () => undefined }`（= 受信且已登录）。这不是
+   为了让测试变绿而放水：桩不提供信任面时新守卫会按 fail-closed 拒绝，正是期望行为。
+
+### 验证
+
+- 新增 `scripts/test-route-trust-host.mjs`（已串进 `npm run test:host`）：
+  - **静态**：扫描 `index.js` + `features/*/host.js` 的每一处 `webServer.register(`，
+    断言附近出现 `rejectUntrustedRequest(`——**防新路由漏挂**，当前 9 处；
+  - **行为**：401 / 403 / 栅栏缺失 fail-closed 三条路径都拒绝，且被拒绝的请求**不触到
+    `ctx.get('llm')`**（证明没进业务逻辑）；
+  - **模型提供商**：放行时 GET 返回 2 个 Provider + `apiKeyConfigured` + revision；
+    被拒绝的 create 不写 settings；非法 route / `ftp://` baseURL / 删除不存在的路由
+    分别 4xx 且不落盘。
+- `npm run test:host` 全绿（8 个用例文件）；`npm run build:client` + `npm run test:client`
+  全绿：**12 个内置功能视图**渲染正常、**9 个双半部模块**视图 id 与宿主 id 一致、
+  Provider 表单与列表两条断言迁到新模块。
+- 未做（留待真机）：真实实例上验证「无 Cookie 调 `/dsh-dock/*` 得 401/403」；截图重拍。
+
+### 经验
+
+- **载体不拥有认证 ⇒ 每个插件路由都要自证身份**。这类缺口不会有报错、不会被门禁插件兜住，
+  只能靠约定与契约测试；官方插件都调 `requestRejection` 就是现成的正确做法。
+- **「缺省放行」比「缺省拒绝」危险得多**：守卫在拿不到信任面时按 401 拒绝，测试桩被迫显式
+  提供 `connection`——如果反过来写成「探不到就放行」，测试会全绿而线上仍是敞开的门。
+- **拆分模块时先把共享逻辑上提到 `src/`**：`model-directory.js` / `model-draft.js` 两个
+  共享层让「两条入口写出的条目必须一致」变成结构性保证，而不是两处注释互相提醒。
+- **有出站请求或写凭据的路由，应该归属到可以整体停用的功能里**：拆完后「不改 Provider 的
+  部署」可以把配置面连同它的攻击面一起关掉。
+
+## 二十三、续作会话（2026-10-20）· 「任务需要确认」卡片越堆越多：处理完/看过后自动收起
+
+### 现象（用户体验）
+
+用户截图：右上角同时压着 **4 张**「任务需要确认」卡片，每张都得手动点 ✕ 才能清掉。
+诉求是两条：**审批确认（或拒绝）之后卡片自己消失**；**已经看过了也自己消失**，
+不要越堆越多、一个个点。
+
+### 根因
+
+需确认卡是 `stayMs: 0` 的常驻卡（`features/notify/view.jsx` 里 `pushToast({kind:"confirm"})`），
+`Toast` 只在 `stayMs > 0` 时倒计时，等于**除了手动点 ✕ 永远不会消失**；而卡片本身又没和
+「这批审批项」建立任何关联——审批在宿主侧早已 `approval/decided` 出队，客户端却不知道
+自己那张卡已经没意义了。
+
+### 改法（两条自动收起路径，都在客户端）
+
+1. **审批处理完就收起**：`pushToast` 里记下 `approvalKeys`（`sessionId|approvalId`）；
+   新增一个依赖 `snap.status` 的对账 effect——把快照里**仍在** `active[].approvals` 的
+   审批项收成集合，某张需确认卡绑的 key 全都不在其中，就把它标 `closing`（与手动关闭
+   同一套 240ms 淡出，不硬删 DOM）。审批被确认/拒绝、或任务结束（approvals 随会话清空）
+   都会走到这里。
+2. **看过了也收起**：卡片带 `lingerMs`（8 秒）「看过计时」——**页面在前台可见时才计时**，
+   连续看到 8 秒自动收起；页面在后台不计时（切回来重新从 0 算，人不在不会白丢提醒）；
+   鼠标停在卡片上暂停计时、移开重新计时。3 个通知音与系统通知的行为不变。
+
+面板文案同步（「常驻不自动消失」→「处理完自动收起；在前台看到 8 秒后也自动收起」）。
+
+### 验证
+
+- `scripts/test-client-views.mjs` 新增**用例 5b**：审批等待时弹卡 → 把 `approvals` 换空
+  → 等一轮轮询（850ms）+ 淡出（240ms）→ 断言渲染结果里不再有「任务需要确认」。
+- `npm run build:client` + `npm run test:client` 全绿（12 个内置视图、契约与本用例）。
+
+### 经验
+
+- **常驻卡片必须绑定生命周期**：`stayMs:0` 这种「等我手动关」的设计只在「关掉它的人就是
+  被提醒的人」时成立；一旦一次触发多张，成本就变成逐张点 ✕。给卡片绑一个宿主侧会消失的
+  事实（approvalId）比加长超时可靠。
+- **「看过了」要用可见性判断，不要用时间**：后台标签页里倒计时等于没提醒到人；
+  `visibilityState` + 悬停暂停两件小事，决定了提醒到底是「送达」还是「打扰」。
+
+## 二十四、续作会话（2026-10-20）· 任务在后台跑完，切回页面提示已经没了
+
+### 现象（用户体验）
+
+用户反馈：某会话任务完成了，**人没有点开看过，右上角也没有弹任何卡片**。与上午的
+5b 相反方向——5b 解决「堆着不消失」，这次是「没送达就消失」。
+
+### 根因
+
+完成卡（`handleTaskEnd` → `pushToast({kind:"success"|"error"})`）带 `stayMs`
+（默认 8 秒），倒计时**从弹卡那一刻就开始走，不管页面在前台还是后台**。页面切到
+后台后浏览器把定时器节流，某轮后台轮询检测到任务结束、弹出卡片，卡片在没人看的
+地方默默走完 8 秒被移除——用户切回来时通知已经没了。系统通知默认关闭
+（`systemNotify:false`），也没有 OS 弹窗兜底，于是表现为「什么都没弹」。
+
+### 改法（客户端 `features/notify/view.jsx` 的 `Toast`）
+
+`stayMs` 倒计时改成**只在页面处于前台可见时走**：`start/stop` 随 `visibilitychange`
+暂停恢复，切回前台**重新计满** stayMs 再收起——后台弹的卡会一直挂着，人回来能完整
+看到。与 5b 给需确认卡加的「看过计时」同一套可见性规则；常驻卡（`stayMs:0`）与
+需确认卡的 `lingerMs` 行为不变。面板「停留时长」文案补一句「只在页面处于前台时
+倒计时」。
+
+### 验证
+
+- `scripts/test-client-views.mjs` 新增**用例 5c**：`notifyStayMs` 调到 1000ms，
+  后台（`visibilityState:"hidden"`）让任务结束弹卡 → 等超过 stayMs 并多推两轮渲染
+  （覆盖 close→240ms→onClose 的完整退场链）→ 断言卡片仍在；切回前台触发
+  `visibilitychange` → 断言卡片还在；再等过 stayMs → 断言卡片收起。
+  **负向验证过**：旧产物上该用例失败（「完成卡走完 stayMs 消失了」），新产物全绿。
+- `npm run build:client` + `npm run test:client` 全绿（12 个内置视图、契约与 5b/5c）。
+
+### 经验
+
+- **给「提醒」设超时前，先问倒计时该不该在用户看不见的时候走**：`stayMs` 从弹卡起算
+  的实现在前台没问题，一旦弹在后台就等于自我销毁；`visibilitychange` 暂停/恢复是
+  所有通知倒计时的默认姿势，5b 的 linger 与这次的 stay 现在共用同一条规则。
+- **成对的反向缺陷要一起钉**：5b 管「该消失的得消失」，5c 管「不该消失的别消失」；
+  只修一头，另一头就是下一个用户反馈。
+
+### 追加（同日）：点进会话，完成卡跟着收起（用例 5d）
+
+用户下一条诉求：「完成的任务我还能点进去看，点进去的时候这条通知要跟着消失」——
+完成卡该弹照弹（前台完成也要有通知），收起时机从"干等 stayMs"升级为"看到即收起"。
+
+- 改法：`handleTaskEnd` 的 `pushToast` 绑定 `sessionTitle`；浮层新增 500ms 巡检
+  effect，用 `currentSelectedSessionTitle()`（与【任务动画】`currentSessionTitle`
+  同款：侧栏 `role="treeitem"[aria-selected="true"]` 高亮行、`right <= 35vw` 排除
+  正文区同名节点、标题互为子串即算命中）对账，命中的结束卡标 `closing` 淡出。
+- 边界：后台不巡检（回来若仍停在该会话，切回后 500ms 内收起）；取不到选中行不收；
+  需确认卡不参与（它已有 approvalKeys + linger 两条路径）。
+- 踩坑：`document.querySelectorAll` 在旧 document 桩（用例 9 的 body 桩、以及宿主
+  半部没有该方法的任何环境）上不存在，巡检直接抛 TypeError 打挂测试——函数入口
+  `typeof !== "function"` 早退，与 `pageVisible` 的防御同款。
+- 验证：用例 5d（stayMs 调 60s 排除超时干扰 → 弹卡 → 桩里选中该会话 → 断言卡片
+  消失）；`build:client` + `test:client` 全绿（5/5b/5c/5d 四条通知链）。
+
+## 二十五、续作会话（2026-10-20）· 通知最终形态：常驻到看过 + 点卡直达 + 叠放收纳
+
+### 现象（用户体验）
+
+用户第三条反馈把前两轮的方案收敛成最终语义：「会话完了没点击查看过，就一直显示；
+卡片过多就叠放、显示标题部分，鼠标放上去展开；点击通知卡片能跳转到对应会话」。
+
+### 决策
+
+- **结束卡（完成/异常）彻底去掉超时自毁**：`stayMs` 不再消费（`notifyStayMs` 配置
+  保留兼容，面板下拉移除、换成「卡片收纳」说明行）。收起只认「看过」三条出口：
+  点卡片跳转成功、点进该会话（500ms 巡检侧栏高亮行）、手动 ✕。
+  二十四节的「前台才倒计时」是过渡方案，被本节的「不倒计时」取代——语义更简单，
+  也不再需要 visibilitychange 与计时器互搏。
+- **点卡片 = 直达会话**：`openSessionByTitle()` 在侧栏 `[role="treeitem"]` 里找
+  标题对上（互为子串）且可见（`right <= 35vw`）的行，优先点行内 `a,button`。
+  结束卡跳转成功就地淡出；需确认卡只跳转不收（审批没处理完它就该在）；
+  找不到可见行（抽屉收起/手机端/会话删了）不跳也不收——没看到就不该消失。
+- **叠放收纳**：`toasts ≥ 3` 且未悬停卡片栈 → 栈加 `.stacked`、除最新一张外全部
+  `.collapsed`（只渲染标题条、正文不渲染、左边距 14px 出层次感）；悬停整栈
+  （`onMouseEnter` → `stackHover`）展开、移开收回。上限 4 → 12（常驻后 4 张易见底）。
+
+### 验证（`scripts/test-client-views.mjs`）
+
+- 5c 改写：后台弹卡等 3s、切回前台再等 3s，全程断言卡片仍在（常驻不超时）。
+- 5d 保留：点进会话（侧栏 aria-selected 桩）→ 卡片淡出。
+- 5e 新增：点卡片句柄触发 → 断言行 `click()` 被调 + 卡片淡出；行不可见时不跳不收。
+- 5f 新增：三会话先后结束 → 断言 `.stacked` + 2 张 `.collapsed` + 只剩 1 个正文；
+  触发栈 `onMouseEnter` → 断言展开（无 `.stacked`、正文数 3）。
+- 测试运行时补了 elements 收集（宿主元素 onClick/onMouseEnter/onMouseLeave 句柄），
+  行为用例可以直接触发交互，不再只靠字符串断言。
+- 踩坑：5e/5f 初跑失败——共享 fixture `NOTIFY_STATUS.active[0].approvals` 非空，
+  需确认卡混进来抢了句柄/凑多了卡数；用例内 `approvals: []` 置空后正确。
+  另一坑：淡出的 240ms 定时器在渲染趟内才排上，断言前要 `renderSettled` + 等待各来两轮。
+- `npm run build:client` + `npm run test:client` 全绿；`npm run test:host` 全绿。
+
+### 经验
+
+- **通知的"消失"应该由"看到"驱动，不由时钟驱动**：三轮演进（超时→前台超时→
+  常驻+看过即收）里，最后这条同时满足"不丢"和"不堆"——堆的问题交给叠放收纳，
+  而不是交给丢弃。
+- **叠放的判定放渲染层（class），别放数据层**：toasts 数组保持完整顺序与身份，
+  收起态只是 `collapsed` prop；展开/收起零成本、无状态迁移。
+
+## 二十六、续作会话（2026-10-20）· 需确认卡「看过 8 秒也收」造成漏提醒：删掉所有计时器
+
+### 现象（用户体验）
+
+v0.15.2 上线后用户实测：另一会话（dsh-gate 打包）的提权审批在「等待批准」，
+右上角**没有任何需确认卡片**。查宿主事件流确认 `approval/asked` 正常落盘、
+插件是 junction 指向本仓库的 v0.15.2、宿主进程比它新——链路都通，卡片是
+**弹出后被 lingerMs 计时器收掉的**：用户在页面里看别的会话，需确认卡处于
+前台可见，8 秒倒计时走满就淡出，可审批根本没处理。
+
+### 根因
+
+二十五节保留的「前台看过 8 秒也收」对需确认卡是错的类比：结束卡的提醒目的
+是"让人看到结果"，看到了就能收；需确认卡的目的是"催人来处理"，**处理完才是
+终点，看过不是**。审批还挂着时把提醒弄丢 = 任务卡死没人知道。
+
+### 改法
+
+删干净所有计时器：`CONFIRM_LINGER_MS`、`Toast` 的 linger effect、
+`pushToast({lingerMs})` 全部移除；`hoveringRef` 一并删（没有计时器就没有
+悬停暂停）。需确认卡只剩两条出口：approvalKeys 对账（审批处理完/任务结束）
+与手动 ✕；结束卡维持三条出口（点卡直达 / 点进会话 / ✕）。面板与文档文案
+同步（「处理完自动收起；前台看到 8 秒也收」→「处理完自动收起，没处理完
+就一直显示」）。
+
+### 验证
+
+- 用例 5b 改写：弹卡 → **前台放 9.2 秒**（>旧 8 秒 linger）断言卡片仍在 →
+  产物正则断言不再含 `lingerMs` → approvals 清空 → 对账淡出。
+- 5c/5d/5e/5f 不受影响，`test:client` 全绿；`build:client` 重建产物一致。
+
+### 经验
+
+- **同类卡片 ≠ 同类生命周期**：需确认（催办）和完成（报偿）都是"通知"，但
+  终止条件一个是"处理"、一个是"看到"，套同一个计时器必漏。判断标准：提醒
+  消失时，它催的事完成了吗？
+- **删功能要连测试语义一起翻面**：旧 5b 断言"8 秒后消失"，新 5b 断言
+  "9 秒后仍在"——同一个用例名，方向完全相反，注释必须写清是哪代问题。
+
+## 二十七、续作会话（2026-10-22）· 新功能【语音朗读】：回复下方喇叭 + 自动朗读
+
+### 需求
+
+用户：「dsh 有语音转文字，我现在需要文字转语音——会话结束后把文字读出来我听，
+不想看了，眼睛不舒服。在插件 dsh-dock 里加一个功能模块：会话结束后，会话下方
+增加一个喇叭图标，点击就播放，也可以设置结束后自动播放。」
+
+### 改法
+
+- **纯浏览器实现**：Web Speech API（`speechSynthesis` + `SpeechSynthesisUtterance`），
+  声音从用户这台设备出，零 token、零新依赖、不过服务器。宿主半部只管配置持久化
+  （`DockConfig.tts` 段 + `/dsh-dock/tts/status|config` 路由，入口挂信任栅栏，
+  `/config` 白名单增量合并 + 数值钳制）。
+- **喇叭按钮**：挂宿主 ui-chat 的 `conversation.chat.turnTail` list 座位（官方
+  计划卡/交付物卡/日程卡同一挂点，只对已完成回合渲染）。外壳加 `FeatureTurnTail`
+  装配 + 模块描述符可选 `TurnTail` 组件；按钮 28×28、配色对齐宿主
+  MessageIconActions `.action`。正文从 `owner.turn.data.get('turn-tail').closing.blocks`
+  里取 `kind === 'text'` 块（reasoning 永不读）。
+- **自动朗读走宿主任务追踪**（`src/task-track.js`，与【任务通知】同一份），不在
+  turnTail 节点里判断「回合刚结束」：冷读历史会话时那个节点同样挂载，只能靠
+  turn/end 时间差猜，会误播、也读不到后台会话。浮层轮询 `/dsh-dock/tts/status`，
+  **首帧只登记不朗读**（页面刚打开时 recent 全是历史），之后新出现的结束记录读其
+  lastText。
+- **Markdown 清洗**（`plainForSpeech`）：围栏代码块/表格整段跳过（可关）、行内代码
+  与链接只留文字、结构符号全去、压成单段；`maxSentences`/`maxChars` 截断补
+  「以下略」。长文本按句分片（≤180 字）顺序播——Chrome 对超长 utterance 会静默
+  停住，分片是标准解法；`onend`/`onerror` 都推进，index 在 speak 前自增。
+- **音色是设备相关的**：voiceURI 存宿主持久化，但使用前必须拿本机 `getVoices()`
+  校验，取不到按 `lang` 前缀回落、再回落中文音色；Chrome 音色表异步到位，面板
+  订阅 `voiceschanged`。
+
+### 踩坑
+
+- **沙箱 ReferenceError**：`test-client-views.mjs` 在 node:vm 里跑构建产物，没有
+  speechSynthesis 全局——裸引用 `speechSynthesis.xxx` 直接抛。一律经 `synth()`
+  取（globalThis/window 属性读 undefined 安全）。契约用例 17 用正则把「裸引用」
+  钉死。测试桩同时挂 `sandbox.speechSynthesis` 与 `win.speechSynthesis`。
+- **不用 useSyncExternalStore**：极简 React 替身没有这个 hook。引擎状态跨组件共享
+  走模块级单例 + useState + 订阅（useEngineState/useConfig）。
+- **readBody 的空请求体**：测试桩对无 body 的 POST 也会喂一个 `data('')` 事件 →
+  `JSON.parse('')` 抛「请求体不是合法 JSON」500。桩里 payload===undefined 时只喂
+  end 不喂 data（与 runstate 测试同款语义）。
+- **括号配平**：面板 JSX 一段多写一个 `)` 让 esbuild 报「Expected ";"」——构建失败
+  信息只指到最后一行，肉眼数括号比重读结构便宜；改完大段 JSX 先 build 再测。
+
+### 验证
+
+- `npm run build:client`（823KB）；`test:client` 全绿（13 内置视图 + 新用例 15/16/17：
+  喇叭渲染与点击朗读+清洗断言、自动朗读首屏不补读/新结束才读、契约静态断言）。
+- `npm run test:host` 全绿（新增 `test-tts-host.mjs` 三组：401/403/fail-closed 不落盘、
+  合并白名单+钳制+取整+trim、/status 带 config 与追踪快照且 /config 只写 tts 段）。
+- 本机运行实例（13082，dsh 0.2.1-rc.2）路由 405 属预期——宿主进程还没有 tts 路由，
+  重启 `dsh web` + 面板开启功能即注册；客户端 routeGone 闩锁保证重启前也只是
+  「配置暂存本浏览器」，不刷 405。
+
+### 部署
+
+- 客户端已 build，刷新页面即得喇叭（功能需先在功能坞开启，默认停用）。
+- 宿主半部改动（tts 段 + 路由）**需重启 dsh web**（或 4b 的宿主 HMR）。
+
+### 续作（2026-10-23）· 用户实测打回两处：暂停/继续 + 面板排版
+
+**① 播放中再点=从头读，不对**。用户：「要支持暂停阅读、继续阅读，不要点完后再点击就
+从头开始，要支持点击继续或者重新阅读。」
+
+- 引擎从 `{playing}` 一相翻成 `phase: idle | playing | paused` 三相 + `engine.session`
+  （留住当前篇的 chunks 与游标）。**暂停走 `speechSynthesis.pause()`**（停在当前这句的
+  当前字上，Chrome/Edge/Safari 均支持），**绝不 cancel**——cancel 丢进度，resume 就重头。
+- 回合尾主按钮三态：喇叭（开读）→ ❚❚ 暂停（在读）→ ▶ 继续（暂停中）；播放中旁边再给
+  「重新朗读」（= cancel + 从第一片重 speak，显式重头）与「停止」两枚小按钮。
+- `speak()` 的幂等键语义扩展：同一 key 处于 playing **或 paused** 都忽略（第二下点击由
+  按钮自己路由到 pause/resume，不会落到 speak）。
+- 测试桩同步翻面：`speak()` **不再自动触发 onend**（否则引擎瞬间播完，暂停无从测起），
+  新增 `flush()/pauseCount/resumeCount/cancelCount`；用例 18 锁整条行为链
+  （点 1 speak=1；点 2 pause=1 且 cancel=0；点 3 resume=1 且 spoken 不增；重新朗读
+  cancel≥1 且 spoken=2）。
+- 面板「播放控制」卡同步：暂停/继续（一枚按钮随相位换字）、重新朗读、停止 + 状态行。
+
+**② 面板排版被打回**（截图红框：「已启用/已停用」竖排成一字一行、行网格错位）。根因：
+复用了外壳 `dock-sw`——它没有 `white-space:nowrap`，被 `dktts-row` 的
+`minmax(120px,220px)` 中列压窄后中文按钮文字逐字换行。修法：模块自带 `dktts-sw` 药丸
+开关（状态点 + 「启用/停用」二字、`flex:none` + `nowrap`）；行网格改定列
+`116px / 220px / minmax(0,1fr)`；滑块拆成 `TtsSlider` 行（滑块 flex:1 + 数值右对齐定宽，
+数值不再挤在标签里）；播放控制独立成卡；`@media (max-width:720px)` 三列纵排兜底。
+
+**教训**：外壳的 `dock-sw` 只在「空间充裕的卡片头」里安全，别处复用要么给它补
+nowrap，要么自带控件——文字按钮被网格压窄就是竖排。行为用例的桩要能表达**相位**
+（自动播完的桩测不了暂停）。
+
+**验证**：`build:client` + `test:client` 全绿（含新用例 18）；`test:host` 全绿。
+
+### 续作二（2026-10-23）· 切换朗读仍先听完上一条：Chrome cancel() 是异步冲刷的
+
+**现象（用户实测）**：会话 A 正在朗读时点会话 B 的喇叭，切换要等好几秒——前几秒
+读的还是 A 的剩余内容。
+
+**根因**：`speechSynthesis.cancel()` 并不同步清空队列，Chrome 要异步冲刷一小段时间；
+`stopSpeech()` 之后**同一 tick** `speak()`，B 的 utterance 排进了还没清空的旧队列，
+于是 A 的分片继续播完才轮到 B。上一节引入 restart/stop 后所有换篇路径都走这个模式，
+全部中招。
+
+**改法**：`startSession` 不再直接 `speakNext()`，改走 `whenQueueClear(s, epoch, speakNext)`：
+`speaking/pending` 都假才算真空（读不到属性按真空处理，沙箱/旧内核不卡死）；15ms 轮询，
+**队列本来就空时零延迟**（绝大多数点击）；1.5 秒上限兜底——cancel 没生效（Chrome 已知
+毛病）时补一次 cancel 硬开播，宁可短暂重叠也不静默不出声。epoch 守卫：等待期间用户又
+切了内容/点了停止，旧局直接作废。restart、drainQueue、自动朗读换篇同受保护。
+
+**验证**：新用例 19 用「cancel 后 speaking 仍挂 30ms」的桩锁行为——点 B 的瞬间不得
+speak（spoken 数不增）、真空后 speak 出的必须是 B 的文本。`test:client` 全绿（19 用例）、
+`test:host` 全绿。
+
+**经验**：浏览器 API 的「立即生效」承诺要看实现——cancel 语义上是清空、实际是异步冲刷；
+凡「cancel 紧接 speak」的切换都必须等真空，且探测要 fail-open（读不到状态就播，别静默）。
+
+### 续作三（2026-10-23）· 回合尾加 ⚙ 就地快设（语速/音量）
+
+**需求（用户截图 + 原话）**：「需要支持在这里增加设置按钮，点击设置语速和音量」——
+听的时候想直接调，不用跑去功能坞面板。
+
+**改法**：
+- 喇叭行尾常驻 ⚙ 按钮（idle/playing/paused 任何状态都可点，没在读时调的下次朗读用），
+  点击弹 `TtsQuickPop`：语速 + 音量两枚滑杆 + 「更多设置」直达功能坞 tts 页。
+- **浮层必须 portal 到 body**（与【用量记录】单价子弹窗同一个理由）：会话流的祖先带
+  overflow/backdrop-filter，就地渲染会被裁剪或定位错乱。点外部/Esc 关闭；按按钮视口
+  坐标定位并夹进屏内。
+- **播放中改要即时生效**：引擎从「起篇时定格 cfg」改成**逐片现取** `configStore.value`
+  的 rate/pitch/volume——拖动滑杆，下一句起立即变（当前这句是浏览器在 speak 时定格的，
+  改不动，浮层里标一句「下一句起生效」）。
+- **滑杆连拖不能打爆宿主**：`setConfig` 的宿主 POST 加 400ms 防抖、多次拖动合并成一次
+  写盘；本地值与 localStorage 仍即时更新（UI 与朗读不等网络）。
+
+**踩坑**：测试替身只收集 onClick/onMouseEnter/onMouseLeave，滑杆是 onChange——加了
+onChange 收集才测得到浮层交互；替身不记录 input 的 type 属性，按「带 onChange 的 input」
+筛滑杆，别写 `/range/`。
+
+**验证**：新用例 20 锁四件事（⚙ 在行尾、点击 portal 出浮层、连拖 3 格本地即时更新且
+停手前不发宿主 POST、停手后恰好补发 1 次且带最新值 1.6）；`test:client` 全绿、
+`test:host` 全绿。README 功能表/使用说明、CHANGELOG 同步。
+
+### 续作四（2026-10-23）· 自动朗读没生效：旧宿主进程没路由，补回合尾本地兜底
+
+**现象（用户实测）**：开了自动朗读，会话结束没读。
+
+**定位**：探测运行实例（13082）——`dsh-dock/notify/status → 401`（路由在，只是无登录态）
+而 `dsh-dock/tts/status → 405`（路由不存在）；宿主进程启动于 2026-10-22 15:22，早于
+tts 宿主半部落盘。**dsh web 没重启 → 宿主进程里根本没有 /dsh-dock/tts 路由** →
+routeGone 闩锁 → 自动朗读唯一触发源（轮询宿主追踪的浮层）哑火。手动喇叭不依赖宿主，
+照常能用——于是「手动能读、自动不读」的残缺态。重启是根治，但重启前窗口期功能不该残缺。
+
+**改法**：
+- **回合尾节点自带兜底**：仅 routeGone 时生效——「本节点挂载 + turn/end 距今 < 8 秒」
+  = 这一回合刚结束，就地朗读（该节点只在 turn/end 落盘后挂载，是现成的权威信号；
+  冷读历史时间差大 → 不播）。主路径（浮层，覆盖后台会话）与兜底（前台会话）共用
+  `claimAutoPlay` 键级去重闸——宿主路由中途恢复（面板「重试连接宿主」）也只读一次。
+- **与配置探测合流**：新增 `configReady`（/status 一次往返落定的 promise）。兜底若同步
+  读 routeGone，页面刚加载时首个回合尾会先于探测返回而漏判；改 promise 后 8 秒新鲜
+  窗口内补判，不漏读也不误播。
+- **自动与手动同 speak key**（回合尾的 `sessionId:turn:seq`）：兜底自动读时本回合
+  按钮同步进「暂停」态，点它即暂停/继续。
+- **纠正一处 React 规则违规**：`if (!hasText) return null` 早退出现在位于
+  autoDoneRef/quick 两个 hooks 之前——hasText 翻转时真实 React 会抛
+  「rendered more hooks than during the previous render」。全部 hooks 移到早退之前。
+
+**验证**：新用例 21（tts 路由一律 405 + 本地表态 autoPlay=true：刚结束回合被兜底朗读、
+一小时前的老回合不播、同回合重挂载不重播）；既有 20 用例不回归；test:host 全绿。
+
+**经验**：
+- **降级路径要按「依赖的缺失面」逐条核对**：tts 客户端把「宿主不可用」统一按
+  routeGone 处理，但手动/自动对宿主的依赖面完全不同——一个不依赖、一个全依赖。
+  残缺态（一半能用一半静默）比全不能用更迷惑，提示文案必须说清降级边界。
+- **8 秒新鲜窗口是「节点挂载时机」类信号的通用护栏**：任何「组件挂载 ≈ 事件刚发生」
+  的推断，都要配时间差门 + 键级去重，才能同时挡住冷读误播与切回重播。
+
+
+
+
+## 二十八、续作会话（2026-10-23）· v0.16.0 发版：模型设置截图按拆分后界面重拍
+
+### 背景
+
+v0.15.0 拆出「模型提供商」独立功能时遗留一条 ⚠️：`screenshots/dock-modelconfig.png`
+仍是拆分前旧图（内容区带可点击的「模型提供商」入口卡），注明「下次发版前重拍」。
+0.15.1–0.15.3 三次补丁都没重拍，本次 v0.16.0 发版前清掉这笔债。
+
+### 截图重拍配方（macOS 本机，可复用）
+
+1. **隔离实例**：`DSH_HOME=/tmp/dsh-dock-shot-home`（`profiles/web` 从 `~/.dsh/profiles/web`
+   拷贝，`.credentials.yaml` 同拷并 chmod 600）。两个坑：
+   - profile 里的 `dsh-dock` / `dsh-evolution` 软链是**相对路径**，拷到 /tmp 就断，
+     要改成指向本仓库的**绝对软链**再起；
+   - 用 npx 缓存闭包起实例：`node <npx闭包>/node_modules/@deepseek-ai/dsh/lib/bin.js
+     --profile web --no-open --host 127.0.0.1 --port 3999`。web profile 的 bundles 里
+     一堆 `dsh-experimental-*`，旧闭包（0.1.5-rc.x）没有这些包会 resolve 失败，
+     0.2.1-rc.2 闭包齐全。
+2. **认证 Cookie 手签**（不用 ?token= 引导，避免地址栏 token 泄进截图/历史）：
+   `dsh-client-connection` 的算法——name = `dsh-auth-` + base64url(sha256(authority))，
+   value = `v1.` + base64url(JSON{version:1,authority,issuedAt,expiresAt}) + `.` +
+   base64url(HMAC-SHA256(secret, body))；secret 取隔离 home `.credentials.yaml` 里
+   `records: client-connection/browser-session` 的 43 字符 base64url；authority
+   就是 `Host` 头（`127.0.0.1:3999`）。签好后 Playwright `context.addCookies` 注入。
+3. **驱动路径**：账号菜单 → 设置 → 功能坞（面板注册在 settings.section，比走
+   「··· 更多」菜单稳）→ 左菜单「模型设置」，等 2.5s 模型目录拉完。
+4. **断言防拍错**：`dkm-*` 元素 ≥20、`.dkm-prov` ≥2、内容区**无可点击**的
+   「模型提供商」入口卡（该字样允许出现在功能描述文案与左菜单功能项里——probe 时
+   两个命中分别就是这两处，`clickable=false`）。1280px 宽下【手机适配】的汉堡按钮
+   `display:none`（narrow()=false），桌面截图不受影响。
+5. **整窗截图 1280×720**：本环境 `tab.screenshot({clip})` 会平铺错位（2026-09-10 记过），
+   Playwright 整窗 + `deviceScaleFactor:1` 与旧图格式一致。
+
+### 其它发版动作
+
+- 版本号两处 0.15.3 → 0.16.0（`package.json` + `src/client.jsx` 的 `DOCK_VERSION`），
+  `npm run build:client` 重建产物；
+- CHANGELOG「未发布」整段改名 `## v0.16.0 — 2026-10-23`，截图条目从 ⚠️ 遗留改为「已重拍」；
+- `npm run test:client`（42 用例）+ `npm run test:host`（9 套）全绿。

@@ -2126,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react24 = __toESM(require("react"), 1);
+var import_react26 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -3729,34 +3729,8 @@ var feature = {
 
 // features/modelconfig/view.js
 var import_react3 = __toESM(require("react"), 1);
-var modelsStore = {
-  snap: { data: null, loading: false, error: null },
-  listeners: /* @__PURE__ */ new Set(),
-  subscribe(fn) {
-    this.listeners.add(fn);
-    return () => {
-      this.listeners.delete(fn);
-    };
-  },
-  set(patch) {
-    this.snap = Object.assign({}, this.snap, patch);
-    for (const fn of this.listeners) fn();
-  },
-  load() {
-    if (this.snap.loading) return;
-    this.set({ loading: true, error: null });
-    fetch("dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
-  }
-};
-function useModels() {
-  const [snap, setSnap] = import_react3.default.useState(modelsStore.snap);
-  import_react3.default.useEffect(() => {
-    const off = modelsStore.subscribe(() => setSnap(modelsStore.snap));
-    if (!modelsStore.snap.data && !modelsStore.snap.loading) modelsStore.load();
-    return off;
-  }, []);
-  return snap;
-}
+
+// src/model-draft.js
 var DKM_MODALITIES = [["text", "\u6587\u672C"], ["image", "\u56FE\u7247"]];
 var DKM_TAGS = [["video", "\u89C6\u9891"], ["audio", "\u97F3\u9891"], ["document", "\u6587\u6863"]];
 var DKM_PI_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -3819,6 +3793,15 @@ function emptyProviderForm() {
     extra: {}
   };
 }
+function draftFromProvider(p) {
+  return {
+    id: p.id,
+    kind: p.kind,
+    thinking: p.thinking === "disabled" ? "disabled" : "enabled",
+    defaultEffort: DKM_DS_LEVELS.indexOf(p.defaultEffort) >= 0 ? p.defaultEffort : "high",
+    models: (p.models || []).map(draftFromModel)
+  };
+}
 function providerFormFromProvider(p) {
   const raw = p.rawProfile && typeof p.rawProfile === "object" && !Array.isArray(p.rawProfile) ? p.rawProfile : {};
   const extra = Object.assign({}, raw);
@@ -3841,14 +3824,35 @@ function providerFormFromProvider(p) {
     extra
   };
 }
-function draftFromProvider(p) {
-  return {
-    id: p.id,
-    kind: p.kind,
-    thinking: p.thinking === "disabled" ? "disabled" : "enabled",
-    defaultEffort: DKM_DS_LEVELS.indexOf(p.defaultEffort) >= 0 ? p.defaultEffort : "high",
-    models: (p.models || []).map(draftFromModel)
-  };
+
+// features/modelconfig/view.js
+var modelsStore = {
+  snap: { data: null, loading: false, error: null },
+  listeners: /* @__PURE__ */ new Set(),
+  subscribe(fn) {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  },
+  set(patch) {
+    this.snap = Object.assign({}, this.snap, patch);
+    for (const fn of this.listeners) fn();
+  },
+  load() {
+    if (this.snap.loading) return;
+    this.set({ loading: true, error: null });
+    fetch("dsh-dock/models", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u76EE\u5F55\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+  }
+};
+function useModels() {
+  const [snap, setSnap] = import_react3.default.useState(modelsStore.snap);
+  import_react3.default.useEffect(() => {
+    const off = modelsStore.subscribe(() => setSnap(modelsStore.snap));
+    if (!modelsStore.snap.data && !modelsStore.snap.loading) modelsStore.load();
+    return off;
+  }, []);
+  return snap;
 }
 function ModelRow(props) {
   const m = props.m, i = props.i, kind = props.kind, onPatch = props.onPatch, onDel = props.onDel;
@@ -3945,7 +3949,6 @@ function ModelsView(props) {
   const snap = useModels();
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
-  const params = props && props.params;
   const [selId, setSelId] = import_react3.default.useState(null);
   const [draft, setDraft] = import_react3.default.useState(null);
   const [builtKey, setBuiltKey] = import_react3.default.useState(null);
@@ -3958,8 +3961,6 @@ function ModelsView(props) {
   const [vpSaving, setVpSaving] = import_react3.default.useState(false);
   const [vpMsg, setVpMsg] = import_react3.default.useState(null);
   const [vpDirectExpanded, setVpDirectExpanded] = import_react3.default.useState(false);
-  const [page, setPage] = import_react3.default.useState("settings");
-  const [pageOpenCreate, setPageOpenCreate] = import_react3.default.useState(false);
   import_react3.default.useEffect(() => {
     modelsStore.load();
   }, []);
@@ -4008,7 +4009,6 @@ function ModelsView(props) {
     models[i] = Object.assign({}, models[i], patch);
     patchDraft({ models });
   };
-  const toggleIn = (list, v) => list.indexOf(v) >= 0 ? list.filter((x) => x !== v) : list.concat([v]);
   const ALL_INPUT = DKM_MODALITIES.map((x) => x[0]);
   const ALL_TAGS = DKM_TAGS.map((x) => x[0]);
   const allInputs = (on) => ({ input: on ? ALL_INPUT.slice() : [], tags: on ? ALL_TAGS.slice() : [] });
@@ -4022,13 +4022,6 @@ function ModelsView(props) {
     setSelId(id);
     setMsg(null);
   };
-  import_react3.default.useEffect(() => {
-    if (params && params.page === "providers") setPage("providers");
-    if (params && params.openProviderForm) {
-      setPage("providers");
-      setPageOpenCreate(true);
-    }
-  }, []);
   const save = () => {
     if (!draft || !cur || !dirty || saving) return;
     const models = draft.models.map((m) => ({
@@ -4069,21 +4062,6 @@ function ModelsView(props) {
     onPatch: (j, patch) => patchModel(j, patch),
     onDel: (j) => patchDraft({ models: draft.models.filter((_, k) => k !== j) })
   });
-  if (page === "providers") {
-    return import_react3.default.createElement(ProvidersPage, {
-      data,
-      providers,
-      loading: snap.loading,
-      error: snap.error,
-      openCreate: pageOpenCreate,
-      onCreateHandled: () => setPageOpenCreate(false),
-      // 返回主页时顺手重读目录：子页面里增删改过的 Provider 立即反映到模型编辑器
-      onBack: () => {
-        setPage("settings");
-        refreshModels();
-      }
-    });
-  }
   const body = [];
   if (data) {
     body.push(import_react3.default.createElement(
@@ -4223,44 +4201,6 @@ function ModelsView(props) {
       )
     ));
   }
-  if (data) {
-    const custom = providers.filter((p) => p.kind === "pi-ai");
-    const missingKey = custom.filter((p) => p.apiKeyEnv && !p.apiKeyConfigured).length;
-    body.push(import_react3.default.createElement(
-      "div",
-      { key: "pf-entry", className: "dkp-card" },
-      import_react3.default.createElement(
-        "div",
-        { className: "dkp-rowhead" },
-        import_react3.default.createElement(
-          "span",
-          { className: "dkp-identity" },
-          import_react3.default.createElement("span", { className: "dkp-name" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
-          import_react3.default.createElement("span", { className: "dkp-tag" }, custom.length + " \u4E2A\u81EA\u5B9A\u4E49\u8DEF\u7531"),
-          custom.length > 0 ? import_react3.default.createElement("span", {
-            className: "dkp-dot " + (missingKey > 0 ? "warn" : "ok"),
-            role: "img",
-            title: missingKey > 0 ? "\u6709 " + missingKey + " \u4E2A Provider \u672A\u914D\u7F6E\u5BC6\u94A5" : "\u5BC6\u94A5\u5747\u5DF2\u914D\u7F6E",
-            "aria-label": missingKey > 0 ? "\u6709 Provider \u672A\u914D\u7F6E\u5BC6\u94A5" : "\u5BC6\u94A5\u5747\u5DF2\u914D\u7F6E"
-          }) : null
-        ),
-        import_react3.default.createElement(
-          "span",
-          { className: "dkp-actions" },
-          import_react3.default.createElement("button", {
-            type: "button",
-            className: "dkp-btn ghost sm",
-            onClick: () => setPage("providers")
-          }, "\u7BA1\u7406")
-        )
-      ),
-      import_react3.default.createElement(
-        "p",
-        { className: "dkp-hint" },
-        "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002"
-      )
-    ));
-  }
   if (data && providers.length === 0) {
     body.push(import_react3.default.createElement("div", { key: "empty", className: "dkm-note" }, "\u6CA1\u6709\u53EF\u7F16\u8F91\u7684\u6A21\u578B Provider\uFF08Host \u4FA7\u5C1A\u672A\u914D\u7F6E\uFF09"));
   }
@@ -4337,13 +4277,108 @@ function ModelsView(props) {
   }
   return import_react3.default.createElement("div", { className: "dkm-list" }, body);
 }
+function ModelsStat() {
+  const snap = useModels();
+  const data = snap.data;
+  if (snap.error) return import_react3.default.createElement("span", { className: "dockm-err" }, "\u6A21\u578B\u76EE\u5F55\u62C9\u53D6\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\uFF09");
+  if (!data) return import_react3.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u6A21\u578B\u76EE\u5F55\u2026" : "\u7B49\u5F85\u62C9\u53D6\u6A21\u578B\u76EE\u5F55");
+  const providers = Array.isArray(data.providers) ? data.providers : [];
+  const total = providers.reduce((n, p) => n + (p.models ? p.models.length : 0), 0);
+  return import_react3.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + total + " \u4E2A\u6A21\u578B");
+}
+var feature2 = {
+  id: "modelconfig",
+  name: "\u6A21\u578B\u8BBE\u7F6E",
+  order: 100,
+  accent: "#22d3ee",
+  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u7684\u8F93\u5165\u7C7B\u578B\u4E0E\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF0C\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF1BProvider \u81EA\u8EAB\u7684\u589E\u5220\u6539\u5728\u300C\u6A21\u578B\u63D0\u4F9B\u5546\u300D\u91CC\u7BA1\u7406",
+  css: [
+    ".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+    ".dkm-warn{color:var(--dk-warn);}",
+    ".dkm-error{color:var(--dsw-alias-state-error-primary);font-size:12px;}",
+    ".dkm-chips{display:flex;flex-wrap:wrap;gap:6px;}",
+    ".dkm-chip{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 12px;font-family:inherit;font-size:12px;}",
+    ".dkm-chip.on{color:var(--dk-accent);border-color:currentColor;}",
+    ".dkm-prov{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}",
+    ".dkm-prov-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+    ".dkm-name{font-weight:600;}",
+    ".dkm-sub{color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}",
+    ".dkm-badge{flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
+    ".dkm-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--dsw-alias-border-l1);padding-top:8px;}",
+    ".dkm-label{color:var(--dsw-alias-label-secondary);font-size:12px;flex:none;}",
+    ".dkm-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:3px 8px;font-family:inherit;font-size:12px;}",
+    ".dkm-model{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;}",
+    ".dkm-model-head{display:flex;align-items:center;gap:6px;}",
+    ".dkm-model-idx{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}",
+    ".dkm-grid{display:grid;grid-template-columns:1.3fr 1.3fr .8fr .8fr;gap:6px;align-items:center;}",
+    ".dkm-input{box-sizing:border-box;width:100%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;}",
+    ".dkm-checks{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}",
+    ".dkm-check{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;}",
+    ".dkm-check input{accent-color:var(--dk-accent);margin:0;}",
+    ".dkm-tag{color:var(--dsw-alias-label-tertiary);}",
+    ".dkm-efforts{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}",
+    ".dkm-del{margin-left:auto;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;flex:none;}",
+    ".dkm-del:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
+    ".dkm-add{cursor:pointer;border:1px dashed var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:10px;padding:6px 14px;font-family:inherit;font-size:12px;align-self:flex-start;}",
+    ".dkm-add:hover{color:var(--dsw-alias-label-primary);}",
+    ".dkm-savebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
+    ".dkm-save{cursor:pointer;border:1px solid var(--dk-accent);color:var(--dk-accent);background:transparent;border-radius:8px;padding:4px 14px;font-family:inherit;font-size:12px;flex:none;}",
+    ".dkm-save:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkm-save[disabled]{opacity:.5;cursor:default;}",
+    ".dkm-msg{font-size:12px;color:var(--dsw-alias-label-secondary);}",
+    ".dkm-msg.ok{color:var(--dsw-alias-state-success-primary);}",
+    ".dkm-msg.err{color:var(--dsw-alias-state-error-primary);}",
+    ".dkm-list{display:flex;flex-direction:column;gap:8px;}",
+    ".dkm-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}",
+    ".dkm-capabilities{display:flex;flex-direction:column;gap:6px;}",
+    ".dkm-capability-list{max-height:168px;overflow:auto;padding:2px 0 2px 2px;}",
+    ".dkm-ro{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+    ".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
+    ".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
+    ".dkm-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--dsw-alias-border-l1);padding-top:8px;}",
+    ".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}"
+  ].join("\n"),
+  View: ModelsView,
+  HomeStat: ModelsStat
+};
+
+// features/providerconfig/view.js
+var import_react4 = __toESM(require("react"), 1);
+var providersStore = {
+  snap: { data: null, loading: false, error: null },
+  listeners: /* @__PURE__ */ new Set(),
+  subscribe(fn) {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  },
+  set(patch) {
+    this.snap = Object.assign({}, this.snap, patch);
+    for (const fn of this.listeners) fn();
+  },
+  load() {
+    if (this.snap.loading) return;
+    this.set({ loading: true, error: null });
+    fetch("dsh-dock/providerconfig", { cache: "no-store", signal: AbortSignal.timeout(2e4) }).then((res) => res.ok ? res.json() : Promise.reject(new Error("\u6A21\u578B\u63D0\u4F9B\u5546\u63A5\u53E3 HTTP " + res.status))).then((data) => this.set({ data, loading: false, error: null })).catch((e) => this.set({ loading: false, error: e && e.message || String(e) }));
+  }
+};
+function useProviders() {
+  const [snap, setSnap] = import_react4.default.useState(providersStore.snap);
+  import_react4.default.useEffect(() => {
+    const off = providersStore.subscribe(() => setSnap(providersStore.snap));
+    if (!providersStore.snap.data && !providersStore.snap.loading) providersStore.load();
+    return off;
+  }, []);
+  return snap;
+}
 function ProviderModelRow(props) {
   const m = props.m;
   const i = props.i;
-  const check = (v, list, kind) => import_react3.default.createElement(
+  const check = (v, list, kind) => import_react4.default.createElement(
     "label",
     { key: v[0], className: "dkp-check" },
-    import_react3.default.createElement("input", {
+    import_react4.default.createElement("input", {
       type: "checkbox",
       checked: list.indexOf(v[0]) >= 0,
       onChange: () => {
@@ -4353,36 +4388,36 @@ function ProviderModelRow(props) {
     }),
     v[1]
   );
-  return import_react3.default.createElement(
+  return import_react4.default.createElement(
     "div",
     { className: "dkp-model-entry" },
-    import_react3.default.createElement(
+    import_react4.default.createElement(
       "div",
       { className: "dkp-model-row" },
-      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF09", value: m.id, onChange: (e) => props.onPatch(i, { id: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => props.onPatch(i, { name: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => props.onPatch(i, { contextWindow: e.target.value }) }),
-      import_react3.default.createElement("input", { className: "dkp-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => props.onPatch(i, { maxTokens: e.target.value }) }),
-      import_react3.default.createElement("button", { type: "button", className: "dkp-iconbtn danger", title: "\u5220\u9664\u8BE5\u6A21\u578B", "aria-label": "\u5220\u9664\u6A21\u578B", onClick: () => props.onDel(i) }, "\u2715")
+      import_react4.default.createElement("input", { className: "dkp-input", placeholder: "\u6A21\u578B id\uFF08\u5FC5\u586B\uFF09", value: m.id, onChange: (e) => props.onPatch(i, { id: e.target.value }) }),
+      import_react4.default.createElement("input", { className: "dkp-input", placeholder: "\u663E\u793A\u540D\u79F0\uFF08\u53EF\u9009\uFF09", value: m.name, onChange: (e) => props.onPatch(i, { name: e.target.value }) }),
+      import_react4.default.createElement("input", { className: "dkp-input", placeholder: "\u4E0A\u4E0B\u6587\u7A97\u53E3", inputMode: "numeric", value: m.contextWindow, onChange: (e) => props.onPatch(i, { contextWindow: e.target.value }) }),
+      import_react4.default.createElement("input", { className: "dkp-input", placeholder: "\u6700\u5927\u8F93\u51FA", inputMode: "numeric", value: m.maxTokens, onChange: (e) => props.onPatch(i, { maxTokens: e.target.value }) }),
+      import_react4.default.createElement("button", { type: "button", className: "dkp-iconbtn danger", title: "\u5220\u9664\u8BE5\u6A21\u578B", "aria-label": "\u5220\u9664\u6A21\u578B", onClick: () => props.onDel(i) }, "\u2715")
     ),
-    import_react3.default.createElement(
+    import_react4.default.createElement(
       "div",
       { className: "dkp-model-opts" },
-      import_react3.default.createElement(
+      import_react4.default.createElement(
         "div",
         { className: "dkp-checks" },
-        import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
+        import_react4.default.createElement("span", { className: "dkp-flabel" }, "\u8F93\u5165\u7C7B\u578B\uFF1A"),
         DKM_MODALITIES.map((v) => check(v, m.input, "input")),
-        import_react3.default.createElement("span", { className: "dkp-flabel dkp-dim", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
+        import_react4.default.createElement("span", { className: "dkp-flabel dkp-dim", title: "\u6807\u6CE8\u4EC5\u5728\u672C\u9762\u677F\u5C55\u793A\u4E0E\u6301\u4E45\u5316\uFF0C\u4E0D\u53C2\u4E0E\u8BF7\u6C42\u8DEF\u7531\uFF08\u5B98\u65B9 schema \u53EA\u63A5\u53D7\u6587\u672C/\u56FE\u7247\uFF09" }, "\u6807\u6CE8\uFF1A"),
         DKM_TAGS.map((v) => check(v, m.tags, "tags")),
-        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => props.onPatch(i, dkmAllInputs(true)) }, "\u5168\u9009"),
-        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009", onClick: () => props.onPatch(i, dkmAllInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
+        import_react4.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u8F93\u5165\u7C7B\u578B\u4E0E\u6807\u6CE8", onClick: () => props.onPatch(i, dkmAllInputs(true)) }, "\u5168\u9009"),
+        import_react4.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u52FE\u9009", onClick: () => props.onPatch(i, dkmAllInputs(false)) }, "\u53D6\u6D88\u5168\u9009")
       ),
-      import_react3.default.createElement(
+      import_react4.default.createElement(
         "div",
         { className: "dkp-checks" },
-        import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
-        import_react3.default.createElement(
+        import_react4.default.createElement("span", { className: "dkp-flabel" }, "\u601D\u8003\u5F3A\u5EA6\uFF1A"),
+        import_react4.default.createElement(
           "select",
           {
             className: "dkp-input dkp-select dkp-select-sm",
@@ -4392,14 +4427,14 @@ function ProviderModelRow(props) {
               effortLevels: e.target.value === "custom" && m.effortsMode !== "custom" ? { off: true, low: true, high: true } : m.effortLevels
             })
           },
-          import_react3.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
-          import_react3.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
-          import_react3.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
+          import_react4.default.createElement("option", { value: "inherit" }, "\u8DDF\u968F\u76EE\u5F55\u9ED8\u8BA4"),
+          import_react4.default.createElement("option", { value: "off" }, "\u4E0D\u652F\u6301\u601D\u8003"),
+          import_react4.default.createElement("option", { value: "custom" }, "\u81EA\u5B9A\u4E49\u6863\u4F4D")
         ),
-        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react3.default.createElement(
+        m.effortsMode === "custom" ? DKM_PI_LEVELS.map((lv) => import_react4.default.createElement(
           "label",
           { key: lv, className: "dkp-check" },
-          import_react3.default.createElement("input", {
+          import_react4.default.createElement("input", {
             type: "checkbox",
             checked: !!m.effortLevels[lv],
             onChange: () => {
@@ -4410,24 +4445,33 @@ function ProviderModelRow(props) {
           }),
           DKM_EFFORT_NAMES[lv] || lv
         )) : null,
-        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => props.onPatch(i, dkmAllLevels(true)) }, "\u5168\u9009"),
-        import_react3.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => props.onPatch(i, dkmAllLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
+        import_react4.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u52FE\u9009\u5168\u90E8\u5F3A\u5EA6\u6863\uFF08\u5207\u4E3A\u81EA\u5B9A\u4E49\uFF09", onClick: () => props.onPatch(i, dkmAllLevels(true)) }, "\u5168\u9009"),
+        import_react4.default.createElement("button", { type: "button", className: "dkp-mini", title: "\u4E00\u952E\u53D6\u6D88\u5168\u90E8\u5F3A\u5EA6\u6863", onClick: () => props.onPatch(i, dkmAllLevels(false)) }, "\u53D6\u6D88\u5168\u9009")
       )
     )
   );
 }
-function ProvidersPage(props) {
-  const data = props.data;
-  const providers = props.providers || [];
-  const piProviders = providers.filter((p) => p.kind === "pi-ai");
-  const [pfMode, setPfMode] = import_react3.default.useState(null);
-  const [pfDraft, setPfDraft] = import_react3.default.useState(null);
-  const [pfDirty, setPfDirty] = import_react3.default.useState(false);
-  const [pfSaving, setPfSaving] = import_react3.default.useState(false);
-  const [pfMsg, setPfMsg] = import_react3.default.useState(null);
-  const [pfDelArm, setPfDelArm] = import_react3.default.useState(null);
-  const [pfFetching, setPfFetching] = import_react3.default.useState(false);
-  const [pfFetchedList, setPfFetchedList] = import_react3.default.useState(null);
+function ProvidersView(props) {
+  const snap = useProviders();
+  const data = snap.data;
+  const providers = data && Array.isArray(data.providers) ? data.providers : [];
+  const params = props && props.params;
+  const [openCreate, setOpenCreate] = import_react4.default.useState(false);
+  const [pfMode, setPfMode] = import_react4.default.useState(null);
+  const [pfDraft, setPfDraft] = import_react4.default.useState(null);
+  const [pfDirty, setPfDirty] = import_react4.default.useState(false);
+  const [pfSaving, setPfSaving] = import_react4.default.useState(false);
+  const [pfMsg, setPfMsg] = import_react4.default.useState(null);
+  const [pfDelArm, setPfDelArm] = import_react4.default.useState(null);
+  const [pfFetching, setPfFetching] = import_react4.default.useState(false);
+  const [pfFetchedList, setPfFetchedList] = import_react4.default.useState(null);
+  import_react4.default.useEffect(() => {
+    providersStore.load();
+  }, []);
+  import_react4.default.useEffect(() => {
+    if (params && params.openProviderForm) setOpenCreate(true);
+  }, []);
+  const reload = () => providersStore.load();
   const openPfCreate = () => {
     setPfMode("create");
     setPfDraft(emptyProviderForm());
@@ -4502,7 +4546,7 @@ function ProvidersPage(props) {
     if (!pfDraft || pfFetching) return;
     setPfFetching(true);
     setPfMsg(null);
-    fetch("dsh-dock/models", {
+    fetch("dsh-dock/providerconfig", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -4572,7 +4616,7 @@ function ProvidersPage(props) {
     if (apiKey) payload.apiKey = apiKey;
     setPfSaving(true);
     setPfMsg(null);
-    fetch("dsh-dock/models", {
+    fetch("dsh-dock/providerconfig", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -4583,7 +4627,7 @@ function ProvidersPage(props) {
         setPfMode(null);
         setPfDraft(null);
         setPfDirty(false);
-        modelsStore.load();
+        reload();
       } else {
         setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
       }
@@ -4599,7 +4643,7 @@ function ProvidersPage(props) {
     setPfDelArm(null);
     setPfSaving(true);
     setPfMsg(null);
-    fetch("dsh-dock/models", {
+    fetch("dsh-dock/providerconfig", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "delete", route, revisions: data && data.revisions || {} }),
@@ -4611,36 +4655,35 @@ function ProvidersPage(props) {
           setPfMode(null);
           setPfDraft(null);
         }
-        modelsStore.load();
+        reload();
       } else {
         setPfMsg({ ok: false, text: r.body && r.body.error || "HTTP " + r.status });
       }
     }).catch((e) => setPfMsg({ ok: false, text: e && e.message || String(e) })).then(() => setPfSaving(false));
   };
-  const openedRef = import_react3.default.useRef(false);
-  import_react3.default.useEffect(() => {
-    if (props.openCreate && !openedRef.current) {
+  const openedRef = import_react4.default.useRef(false);
+  import_react4.default.useEffect(() => {
+    if (openCreate && !openedRef.current) {
       openedRef.current = true;
       openPfCreate();
-      if (typeof props.onCreateHandled === "function") props.onCreateHandled();
     }
-  }, []);
-  const input = (p) => import_react3.default.createElement("input", Object.assign({ className: "dkp-input" }, p));
-  const field = (label, node, hint) => import_react3.default.createElement(
+  }, [openCreate]);
+  const input = (p) => import_react4.default.createElement("input", Object.assign({ className: "dkp-input" }, p));
+  const field = (label, node, hint) => import_react4.default.createElement(
     "div",
     { className: "dkp-field", key: label },
-    import_react3.default.createElement("label", { className: "dkp-flabel" }, label),
+    import_react4.default.createElement("label", { className: "dkp-flabel" }, label),
     node,
-    hint ? import_react3.default.createElement("p", { className: "dkp-hint" }, hint) : null
+    hint ? import_react4.default.createElement("p", { className: "dkp-hint" }, hint) : null
   );
-  const editor = !pfDraft ? null : import_react3.default.createElement(
+  const editor = !pfDraft ? null : import_react4.default.createElement(
     "div",
     { className: "dkp-editor" },
-    import_react3.default.createElement(
+    import_react4.default.createElement(
       "div",
       { className: "dkp-editor-head" },
-      import_react3.default.createElement("span", { className: "dkp-editor-title" }, pfMode === "create" ? "\u65B0\u589E Provider" : "\u7F16\u8F91 Provider"),
-      pfMode === "edit" ? import_react3.default.createElement("span", { className: "dkp-editor-route" }, pfDraft.route) : null
+      import_react4.default.createElement("span", { className: "dkp-editor-title" }, pfMode === "create" ? "\u65B0\u589E Provider" : "\u7F16\u8F91 Provider"),
+      pfMode === "edit" ? import_react4.default.createElement("span", { className: "dkp-editor-route" }, pfDraft.route) : null
     ),
     field("\u8DEF\u7531 key", input({
       value: pfDraft.route,
@@ -4658,16 +4701,16 @@ function ProvidersPage(props) {
       placeholder: pfDraft.api === "anthropic-messages" ? "https://gateway.example" : "https://gateway.example/v1",
       onChange: (e) => patchPf({ baseURL: e.target.value })
     }), "OpenAI \u517C\u5BB9\u7AEF\u70B9\u901A\u5E38\u4EE5 /v1 \u7ED3\u5C3E\uFF1BAnthropic Messages \u7531 SDK \u81EA\u884C\u8FFD\u52A0 /v1/messages\u3002"),
-    field("API \u534F\u8BAE", import_react3.default.createElement(
+    field("API \u534F\u8BAE", import_react4.default.createElement(
       "select",
       {
         className: "dkp-input dkp-select",
         value: pfDraft.api,
         onChange: (e) => patchPf({ api: e.target.value })
       },
-      DKM_APIS.map(([v, label]) => import_react3.default.createElement("option", { key: v, value: v }, label))
+      DKM_APIS.map(([v, label]) => import_react4.default.createElement("option", { key: v, value: v }, label))
     )),
-    field("API Key", import_react3.default.createElement("input", {
+    field("API Key", import_react4.default.createElement("input", {
       className: "dkp-input",
       type: "password",
       autoComplete: "new-password",
@@ -4675,11 +4718,11 @@ function ProvidersPage(props) {
       value: pfDraft.apiKey,
       onChange: (e) => patchPf({ apiKey: e.target.value })
     })),
-    import_react3.default.createElement(
+    import_react4.default.createElement(
       "details",
       { className: "dkp-customized" },
-      import_react3.default.createElement("summary", { className: "dkp-summary" }, "\u81EA\u5B9A\u4E49\u8BBE\u7F6E"),
-      import_react3.default.createElement(
+      import_react4.default.createElement("summary", { className: "dkp-summary" }, "\u81EA\u5B9A\u4E49\u8BBE\u7F6E"),
+      import_react4.default.createElement(
         "div",
         { className: "dkp-custombody" },
         field("apiKeyEnv", input({
@@ -4687,17 +4730,17 @@ function ProvidersPage(props) {
           placeholder: "\u7559\u7A7A = \u6309\u8DEF\u7531 key \u81EA\u52A8\u751F\u6210\uFF08" + (dkmEnvFromRoute(pfDraft.route) || "ROUTE_API_KEY") + "\uFF09",
           onChange: (e) => patchPf({ apiKeyEnv: e.target.value })
         }), "\u51ED\u636E\u5E93\u6761\u76EE\u540D\uFF1B\u7559\u7A7A\u65F6\u6309\u8DEF\u7531 key \u63A8\u5BFC\uFF0C\u4E00\u822C\u65E0\u9700\u586B\u5199\u3002"),
-        import_react3.default.createElement(
+        import_react4.default.createElement(
           "div",
           { className: "dkp-field" },
-          import_react3.default.createElement("span", { className: "dkp-flabel" }, "\u9ED8\u8BA4\u8F93\u5165\u7C7B\u578B"),
-          import_react3.default.createElement(
+          import_react4.default.createElement("span", { className: "dkp-flabel" }, "\u9ED8\u8BA4\u8F93\u5165\u7C7B\u578B"),
+          import_react4.default.createElement(
             "div",
             { className: "dkp-checks" },
-            DKM_MODALITIES.map(([v, label]) => import_react3.default.createElement(
+            DKM_MODALITIES.map(([v, label]) => import_react4.default.createElement(
               "label",
               { key: v, className: "dkp-check" },
-              import_react3.default.createElement("input", {
+              import_react4.default.createElement("input", {
                 type: "checkbox",
                 checked: pfDraft.defaultInput.indexOf(v) >= 0,
                 onChange: () => {
@@ -4707,142 +4750,142 @@ function ProvidersPage(props) {
               }),
               label
             )),
-            import_react3.default.createElement("span", { className: "dkp-hint" }, "\u6A21\u578B\u672A\u5355\u72EC\u58F0\u660E\u8F93\u5165\u7C7B\u578B\u65F6\u7EE7\u627F\u8FD9\u91CC\u3002")
+            import_react4.default.createElement("span", { className: "dkp-hint" }, "\u6A21\u578B\u672A\u5355\u72EC\u58F0\u660E\u8F93\u5165\u7C7B\u578B\u65F6\u7EE7\u627F\u8FD9\u91CC\u3002")
           )
         )
       )
     ),
-    import_react3.default.createElement(
+    import_react4.default.createElement(
       "section",
       { className: "dkp-catalog", "aria-label": "\u6A21\u578B" },
-      import_react3.default.createElement(
+      import_react4.default.createElement(
         "div",
         { className: "dkp-catalog-head" },
-        import_react3.default.createElement(
+        import_react4.default.createElement(
           "div",
           { className: "dkp-catalog-titlewrap" },
-          import_react3.default.createElement("span", { className: "dkp-catalog-title" }, "\u6A21\u578B"),
-          import_react3.default.createElement(
+          import_react4.default.createElement("span", { className: "dkp-catalog-title" }, "\u6A21\u578B"),
+          import_react4.default.createElement(
             "span",
             { className: "dkp-catalog-meta" },
             "\u5DF2\u9009 " + pfSelectedCount() + " \u4E2A" + (pfFetchedList ? " / \u4E0A\u6E38\u5171 " + pfFetchedList.length + " \u4E2A" : "")
           )
         ),
-        import_react3.default.createElement(
+        import_react4.default.createElement(
           "div",
           { className: "dkp-actions" },
-          import_react3.default.createElement("button", {
+          import_react4.default.createElement("button", {
             type: "button",
             className: "dkp-btn ghost sm",
             disabled: pfFetching || !pfDraft.baseURL,
             title: "\u8C03\u7528 baseURL/models \u62C9\u53D6\u8BE5\u7AEF\u70B9\u53EF\u7528\u6A21\u578B\uFF0C\u52FE\u9009\u540E\u52A0\u5165\u4E0B\u65B9\u5217\u8868",
             onClick: fetchPfModels
           }, pfFetching ? "\u62C9\u53D6\u4E2D\u2026" : "\u83B7\u53D6\u6A21\u578B\u5217\u8868"),
-          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u52FE\u9009\u4E0A\u6E38\u8FD4\u56DE\u7684\u5168\u90E8\u6A21\u578B", onClick: () => setAllPfModels(true) }, "\u5168\u9009") : null,
-          pfFetchedList && pfFetchedList.length > 0 ? import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u6E05\u7A7A\u5DF2\u52FE\u9009\u7684\u6A21\u578B", onClick: () => setAllPfModels(false) }, "\u6E05\u7A7A") : null
+          pfFetchedList && pfFetchedList.length > 0 ? import_react4.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u52FE\u9009\u4E0A\u6E38\u8FD4\u56DE\u7684\u5168\u90E8\u6A21\u578B", onClick: () => setAllPfModels(true) }, "\u5168\u9009") : null,
+          pfFetchedList && pfFetchedList.length > 0 ? import_react4.default.createElement("button", { type: "button", className: "dkp-btn ghost sm", title: "\u6E05\u7A7A\u5DF2\u52FE\u9009\u7684\u6A21\u578B", onClick: () => setAllPfModels(false) }, "\u6E05\u7A7A") : null
         )
       ),
-      pfFetchedList ? import_react3.default.createElement(
+      pfFetchedList ? import_react4.default.createElement(
         "div",
         { className: "dkp-picker" },
-        pfFetchedList.length === 0 ? import_react3.default.createElement("div", { className: "dkp-hint" }, "\u4E0A\u6E38\u6CA1\u6709\u8FD4\u56DE\u4EFB\u4F55\u6A21\u578B") : pfFetchedList.map((mm) => {
+        pfFetchedList.length === 0 ? import_react4.default.createElement("div", { className: "dkp-hint" }, "\u4E0A\u6E38\u6CA1\u6709\u8FD4\u56DE\u4EFB\u4F55\u6A21\u578B") : pfFetchedList.map((mm) => {
           const id = String(mm && mm.id || "").trim();
           if (!id) return null;
           const checked = pfDraft.models.some((m) => String(m.id || "").trim() === id);
-          return import_react3.default.createElement(
+          return import_react4.default.createElement(
             "label",
             { key: id },
-            import_react3.default.createElement("input", {
+            import_react4.default.createElement("input", {
               type: "checkbox",
               checked,
               onChange: () => togglePfModel(id, mm && mm.name || "", !checked)
             }),
-            import_react3.default.createElement("span", { className: "dkp-picker-id" }, id),
-            mm && mm.name ? import_react3.default.createElement("span", { className: "dkp-picker-name" }, mm.name) : null
+            import_react4.default.createElement("span", { className: "dkp-picker-id" }, id),
+            mm && mm.name ? import_react4.default.createElement("span", { className: "dkp-picker-name" }, mm.name) : null
           );
         })
       ) : null,
-      pfDraft.models.length === 0 ? import_react3.default.createElement("div", { className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u6A21\u578B\u2014\u2014\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u52FE\u9009\u4E0A\u6E38\u6A21\u578B\uFF0C\u6216\u300C\u6DFB\u52A0\u6A21\u578B\u300D\u624B\u52A8\u586B\u5199\u3002") : import_react3.default.createElement(
+      pfDraft.models.length === 0 ? import_react4.default.createElement("div", { className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u6A21\u578B\u2014\u2014\u70B9\u300C\u83B7\u53D6\u6A21\u578B\u5217\u8868\u300D\u52FE\u9009\u4E0A\u6E38\u6A21\u578B\uFF0C\u6216\u300C\u6DFB\u52A0\u6A21\u578B\u300D\u624B\u52A8\u586B\u5199\u3002") : import_react4.default.createElement(
         "div",
         { className: "dkp-model-list" },
-        pfDraft.models.map((m, i) => import_react3.default.createElement(ProviderModelRow, { key: i, m, i, onPatch: patchPfModel, onDel: delPfModel }))
+        pfDraft.models.map((m, i) => import_react4.default.createElement(ProviderModelRow, { key: i, m, i, onPatch: patchPfModel, onDel: delPfModel }))
       ),
-      import_react3.default.createElement("button", { type: "button", className: "dkp-addmodel", onClick: addPfModel }, "\uFF0B \u6DFB\u52A0\u6A21\u578B")
+      import_react4.default.createElement("button", { type: "button", className: "dkp-addmodel", onClick: addPfModel }, "\uFF0B \u6DFB\u52A0\u6A21\u578B")
     ),
-    pfMsg && !pfMsg.ok ? import_react3.default.createElement("p", { className: "dkp-error" }, pfMsg.text) : null,
-    import_react3.default.createElement(
+    pfMsg && !pfMsg.ok ? import_react4.default.createElement("p", { className: "dkp-error" }, pfMsg.text) : null,
+    import_react4.default.createElement(
       "div",
       { className: "dkp-editor-actions" },
-      import_react3.default.createElement("span", { className: "dkp-hint" }, pfDirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : ""),
-      import_react3.default.createElement("button", { type: "button", className: "dkp-btn ghost", onClick: closePf }, "\u53D6\u6D88"),
-      import_react3.default.createElement(
+      import_react4.default.createElement("span", { className: "dkp-hint" }, pfDirty ? "\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539" : ""),
+      import_react4.default.createElement("button", { type: "button", className: "dkp-btn ghost", onClick: closePf }, "\u53D6\u6D88"),
+      import_react4.default.createElement(
         "button",
         { type: "button", className: "dkp-btn primary", disabled: pfSaving, onClick: savePf },
         pfSaving ? "\u4FDD\u5B58\u4E2D\u2026" : pfMode === "create" ? "\u65B0\u589E Provider" : "\u4FDD\u5B58\u4FEE\u6539"
       )
     )
   );
+  const piProviders = providers.filter((p) => p.kind === "pi-ai");
   const body = [
-    import_react3.default.createElement("button", { key: "back", type: "button", className: "dkp-back", onClick: props.onBack }, "\u2190 \u6A21\u578B\u8BBE\u7F6E"),
-    import_react3.default.createElement("h2", { key: "title", className: "dkp-title" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
-    import_react3.default.createElement(
+    import_react4.default.createElement("h2", { key: "title", className: "dkp-title" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
+    import_react4.default.createElement(
       "p",
       { key: "intro", className: "dkp-intro" },
-      "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u672C\u9875\u53EA\u8BFB\uFF0C\u5176\u6A21\u578B\u76EE\u5F55\u8BF7\u56DE\u300C\u6A21\u578B\u8BBE\u7F6E\u300D\u7F16\u8F91\u3002"
+      "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u672C\u9875\u53EA\u8BFB\uFF0C\u5176\u6A21\u578B\u76EE\u5F55\u5728\u300C\u6A21\u578B\u8BBE\u7F6E\u300D\u91CC\u7F16\u8F91\u3002\u672C\u529F\u80FD\u53EF\u5355\u72EC\u505C\u7528\uFF1A\u505C\u7528\u540E\u8FD9\u4E9B\u5199\u914D\u7F6E\u4E0E\u51FA\u7AD9\u8BF7\u6C42\u7684\u8DEF\u7531\u4E00\u5E76\u5173\u95ED\u3002"
     )
   ];
-  if (props.error) {
-    body.push(import_react3.default.createElement("p", { key: "err", className: "dkp-error" }, "\u6A21\u578B\u76EE\u5F55\u62C9\u53D6\u5931\u8D25\uFF1A" + props.error));
+  if (snap.error) {
+    body.push(import_react4.default.createElement("p", { key: "err", className: "dkp-error" }, "\u6A21\u578B\u76EE\u5F55\u62C9\u53D6\u5931\u8D25\uFF1A" + snap.error));
   }
   if (pfMsg && !pfDraft) {
-    body.push(import_react3.default.createElement("p", { key: "msg", className: "dkp-msg " + (pfMsg.ok ? "ok" : "err"), role: "status" }, pfMsg.text));
+    body.push(import_react4.default.createElement("p", { key: "msg", className: "dkp-msg " + (pfMsg.ok ? "ok" : "err"), role: "status" }, pfMsg.text));
   }
   if (!data) {
-    body.push(import_react3.default.createElement("p", { key: "loading", className: "dkp-hint" }, props.loading ? "\u6B63\u5728\u62C9\u53D6\u6A21\u578B\u76EE\u5F55\u2026" : "\u7B49\u5F85\u62C9\u53D6\u6A21\u578B\u76EE\u5F55"));
+    body.push(import_react4.default.createElement("p", { key: "loading", className: "dkp-hint" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u6A21\u578B\u76EE\u5F55\u2026" : "\u7B49\u5F85\u62C9\u53D6\u6A21\u578B\u76EE\u5F55"));
   } else if (piProviders.length === 0) {
-    body.push(import_react3.default.createElement("div", { key: "empty", className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49 Provider\u2014\u2014\u70B9\u4E0B\u65B9\u300C\u65B0\u589E Provider\u300D\u6DFB\u52A0\u3002"));
+    body.push(import_react4.default.createElement("div", { key: "empty", className: "dkp-empty" }, "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49 Provider\u2014\u2014\u70B9\u4E0B\u65B9\u300C\u65B0\u589E Provider\u300D\u6DFB\u52A0\u3002"));
   } else {
-    body.push(import_react3.default.createElement(
+    body.push(import_react4.default.createElement(
       "ul",
       { key: "rows", className: "dkp-rows" },
       piProviders.map((p) => {
         const route = p.route || p.id;
         const editing = pfMode === "edit" && !!pfDraft && pfDraft.route === route;
         const keyMissing = !!(p.apiKeyEnv && !p.apiKeyConfigured);
-        return import_react3.default.createElement(
+        return import_react4.default.createElement(
           "li",
           { key: p.id, className: "dkp-card" },
-          import_react3.default.createElement(
+          import_react4.default.createElement(
             "div",
             { className: "dkp-rowhead" },
-            import_react3.default.createElement(
+            import_react4.default.createElement(
               "span",
               { className: "dkp-identity" },
-              import_react3.default.createElement("span", { className: "dkp-name" }, p.displayName || route),
-              import_react3.default.createElement("span", { className: "dkp-tag" }, route),
-              import_react3.default.createElement("span", { className: "dkp-tag" }, (p.models ? p.models.length : 0) + " \u6A21\u578B"),
-              import_react3.default.createElement("span", {
+              import_react4.default.createElement("span", { className: "dkp-name" }, p.displayName || route),
+              import_react4.default.createElement("span", { className: "dkp-tag" }, route),
+              import_react4.default.createElement("span", { className: "dkp-tag" }, (p.models ? p.models.length : 0) + " \u6A21\u578B"),
+              import_react4.default.createElement("span", {
                 className: "dkp-dot " + (keyMissing ? "missing" : "ok"),
                 role: "img",
                 title: p.apiKeyEnv ? p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv",
                 "aria-label": p.apiKeyEnv ? p.apiKeyConfigured ? "\u5BC6\u94A5\u5DF2\u914D\u7F6E" : "\u5BC6\u94A5\u672A\u914D\u7F6E" : "\u672A\u8BBE apiKeyEnv"
               }),
-              p.apiKeyEnv ? import_react3.default.createElement(
+              p.apiKeyEnv ? import_react4.default.createElement(
                 "span",
                 { className: "dkp-tag" + (keyMissing ? " warn" : " ok") },
                 p.apiKeyConfigured ? p.apiKeyEnv + " \u5DF2\u914D\u7F6E" : p.apiKeyEnv + " \u672A\u914D\u7F6E"
               ) : null
             ),
-            import_react3.default.createElement(
+            import_react4.default.createElement(
               "span",
               { className: "dkp-actions" },
-              import_react3.default.createElement("button", {
+              import_react4.default.createElement("button", {
                 type: "button",
                 className: "dkp-btn ghost sm",
                 "aria-expanded": editing,
                 onClick: () => editing ? closePf() : openPfEdit(p)
               }, editing ? "\u6536\u8D77" : "\u7F16\u8F91"),
-              import_react3.default.createElement("button", {
+              import_react4.default.createElement("button", {
                 type: "button",
                 className: "dkp-btn danger sm" + (pfDelArm === route ? " arm" : ""),
                 title: pfDelArm === route ? "\u518D\u70B9\u4E00\u6B21\u786E\u8BA4\u5220\u9664" : "\u5220\u9664\u8BE5 Provider",
@@ -4850,85 +4893,40 @@ function ProvidersPage(props) {
               }, pfDelArm === route ? "\u786E\u8BA4\u5220\u9664\uFF1F" : "\u5220\u9664")
             )
           ),
-          import_react3.default.createElement("div", { className: "dkp-sub" }, [p.api, p.baseURL].filter(Boolean).join(" \xB7 ")),
+          import_react4.default.createElement("div", { className: "dkp-sub" }, [p.api, p.baseURL].filter(Boolean).join(" \xB7 ")),
           editing ? editor : null
         );
       })
     ));
   }
-  body.push(import_react3.default.createElement(
+  body.push(import_react4.default.createElement(
     "div",
     { key: "add", className: "dkp-addblock" },
-    pfMode === "create" && pfDraft ? import_react3.default.createElement("div", { className: "dkp-card dkp-addcard" }, editor) : import_react3.default.createElement("button", { type: "button", className: "dkp-addbtn", onClick: openPfCreate }, "\uFF0B \u65B0\u589E Provider")
+    pfMode === "create" && pfDraft ? import_react4.default.createElement("div", { className: "dkp-card dkp-addcard" }, editor) : import_react4.default.createElement("button", { type: "button", className: "dkp-addbtn", onClick: openPfCreate }, "\uFF0B \u65B0\u589E Provider")
   ));
-  return import_react3.default.createElement("div", { className: "dkp-page" }, body);
+  return import_react4.default.createElement("div", { className: "dkp-page" }, body);
 }
-function ModelsStat() {
-  const snap = useModels();
+function ProvidersStat() {
+  const snap = useProviders();
   const data = snap.data;
-  if (snap.error) return import_react3.default.createElement("span", { className: "dockm-err" }, "\u6A21\u578B\u76EE\u5F55\u62C9\u53D6\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\uFF09");
-  if (!data) return import_react3.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u6A21\u578B\u76EE\u5F55\u2026" : "\u7B49\u5F85\u62C9\u53D6\u6A21\u578B\u76EE\u5F55");
+  if (snap.error) return import_react4.default.createElement("span", { className: "dockm-err" }, "\u6A21\u578B\u63D0\u4F9B\u5546\u62C9\u53D6\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\uFF09");
+  if (!data) return import_react4.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u6A21\u578B\u63D0\u4F9B\u5546\u2026" : "\u7B49\u5F85\u62C9\u53D6\u6A21\u578B\u63D0\u4F9B\u5546");
   const providers = Array.isArray(data.providers) ? data.providers : [];
-  const total = providers.reduce((n, p) => n + (p.models ? p.models.length : 0), 0);
-  return import_react3.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + total + " \u4E2A\u6A21\u578B");
+  const custom = providers.filter((p) => p.kind === "pi-ai");
+  const missing = custom.filter((p) => p.apiKeyEnv && !p.apiKeyConfigured).length;
+  return import_react4.default.createElement("span", null, custom.length + " \u4E2A\u81EA\u5B9A\u4E49 Provider" + (missing > 0 ? " \xB7 " + missing + " \u4E2A\u7F3A\u5BC6\u94A5" : ""));
 }
-var feature2 = {
-  id: "modelconfig",
-  name: "\u6A21\u578B\u8BBE\u7F6E",
-  order: 100,
-  accent: "#22d3ee",
-  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u76EE\u5F55\uFF08\u8F93\u5165\u7C7B\u578B/\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF09\uFF1B\u81EA\u5B9A\u4E49 Provider \u7684\u589E\u5220\u6539\u5728\u300C\u6A21\u578B\u63D0\u4F9B\u5546\u300D\u5B50\u9875\u9762\uFF0C\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF0C\u4F1A\u8BDD\u6A21\u578B\u9009\u62E9\u5668\u5373\u65F6\u53EF\u9009",
+var feature3 = {
+  id: "providerconfig",
+  name: "\u6A21\u578B\u63D0\u4F9B\u5546",
+  order: 101,
+  accent: "#8b5cf6",
+  description: "\u7BA1\u7406\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF1A\u65B0\u589E/\u7F16\u8F91/\u5220\u9664\u3001\u62C9\u53D6\u4E0A\u6E38\u6A21\u578B\u5217\u8868\u3001\u5199\u5165 API Key\uFF08\u53EF\u5355\u72EC\u505C\u7528\uFF09",
   css: [
-    ".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
-    ".dkm-warn{color:var(--dk-warn);}",
-    ".dkm-error{color:var(--dsw-alias-state-error-primary);font-size:12px;}",
-    ".dkm-chips{display:flex;flex-wrap:wrap;gap:6px;}",
-    ".dkm-chip{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 12px;font-family:inherit;font-size:12px;}",
-    ".dkm-chip.on{color:var(--dk-accent);border-color:currentColor;}",
-    ".dkm-prov{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}",
-    ".dkm-prov-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
-    ".dkm-name{font-weight:600;}",
-    ".dkm-sub{color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}",
-    ".dkm-badge{flex:none;font-size:11px;border-radius:999px;padding:0 8px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);}",
-    ".dkm-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--dsw-alias-border-l1);padding-top:8px;}",
-    ".dkm-label{color:var(--dsw-alias-label-secondary);font-size:12px;flex:none;}",
-    ".dkm-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:3px 8px;font-family:inherit;font-size:12px;}",
-    ".dkm-model{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;}",
-    ".dkm-model-head{display:flex;align-items:center;gap:6px;}",
-    ".dkm-model-idx{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}",
-    ".dkm-grid{display:grid;grid-template-columns:1.3fr 1.3fr .8fr .8fr;gap:6px;align-items:center;}",
-    ".dkm-input{box-sizing:border-box;width:100%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;}",
-    ".dkm-checks{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}",
-    ".dkm-check{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;}",
-    ".dkm-check input{accent-color:var(--dk-accent);margin:0;}",
-    ".dkm-tag{color:var(--dsw-alias-label-tertiary);}",
-    ".dkm-efforts{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}",
-    ".dkm-del{margin-left:auto;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;flex:none;}",
-    ".dkm-del:hover{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
-    ".dkm-add{cursor:pointer;border:1px dashed var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:10px;padding:6px 14px;font-family:inherit;font-size:12px;align-self:flex-start;}",
-    ".dkm-add:hover{color:var(--dsw-alias-label-primary);}",
-    ".dkm-savebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
-    ".dkm-save{cursor:pointer;border:1px solid var(--dk-accent);color:var(--dk-accent);background:transparent;border-radius:8px;padding:4px 14px;font-family:inherit;font-size:12px;flex:none;}",
-    ".dkm-save:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-    ".dkm-save[disabled]{opacity:.5;cursor:default;}",
-    ".dkm-msg{font-size:12px;color:var(--dsw-alias-label-secondary);}",
-    ".dkm-msg.ok{color:var(--dsw-alias-state-success-primary);}",
-    ".dkm-msg.err{color:var(--dsw-alias-state-error-primary);}",
-    ".dkm-list{display:flex;flex-direction:column;gap:8px;}",
-    ".dkm-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}",
-    ".dkm-capabilities{display:flex;flex-direction:column;gap:6px;}",
-    ".dkm-capability-list{max-height:168px;overflow:auto;padding:2px 0 2px 2px;}",
-    ".dkm-ro{color:var(--dsw-alias-label-secondary);font-size:12px;}",
-    ".dkm-mini{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:11px;flex:none;}",
-    ".dkm-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-secondary);}",
-    ".dkm-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--dsw-alias-border-l1);padding-top:8px;}",
-    ".dkm-toolbar-label{color:var(--dsw-alias-label-tertiary);font-size:11px;flex:none;}",
-    // ---- 模型提供商子页面（dkp- 前缀）：对齐官方「模型」设置页的排版与尺寸 ----
+    // ---- 模型提供商页（dkp- 前缀）：对齐官方「模型」设置页的排版与尺寸 ----
     // 官方用量参考：section 限宽 720、行卡片 .5px 描边 + radius-xl + 12/14 内距、
     // 输入高 32、按钮高 36（行内小按钮 28）、新增按钮 44 虚线、编辑器 bg-module-platform。
     ".dkp-page{width:100%;max-width:720px;display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);}",
-    ".dkp-back{box-sizing:border-box;align-self:flex-start;cursor:pointer;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:var(--dsw-radius-sm,6px);padding:4px 8px;margin-left:-8px;font-family:inherit;font-size:12px;line-height:18px;}",
-    ".dkp-back:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
     ".dkp-title{margin:0;font-size:16px;font-weight:500;line-height:24px;}",
     ".dkp-intro{margin:0;color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:22px;}",
     ".dkp-rows{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;}",
@@ -5016,12 +5014,12 @@ var feature2 = {
     ".dkp-editor-actions .dkp-hint{margin-right:auto;}",
     "@media (max-width:680px){.dkp-page{max-width:none;gap:14px}.dkp-intro{font-size:13px;line-height:20px}.dkp-model-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dkp-model-row .dkp-iconbtn{justify-self:end}.dkp-editor{padding:12px}.dkp-addcard{padding:12px 14px}.dkp-btn{height:40px}.dkp-btn.sm{height:34px}.dkp-addbtn{height:48px}}"
   ].join("\n"),
-  View: ModelsView,
-  HomeStat: ModelsStat
+  View: ProvidersView,
+  HomeStat: ProvidersStat
 };
 
 // features/heartbeat/view.js
-var import_react4 = __toESM(require("react"), 1);
+var import_react5 = __toESM(require("react"), 1);
 var loadedAt = Date.now();
 function uptimeText() {
   const sec = Math.max(0, Math.floor((Date.now() - loadedAt) / 1e3));
@@ -5030,17 +5028,17 @@ function uptimeText() {
 }
 function HeartbeatView(props) {
   const ctx = props && props.ctx;
-  const [txt, setTxt] = import_react4.default.useState(uptimeText());
-  import_react4.default.useEffect(() => ctx && typeof ctx.interval === "function" ? ctx.interval(() => setTxt(uptimeText()), 1e3) : void 0, []);
-  return import_react4.default.createElement("div", null, txt);
+  const [txt, setTxt] = import_react5.default.useState(uptimeText());
+  import_react5.default.useEffect(() => ctx && typeof ctx.interval === "function" ? ctx.interval(() => setTxt(uptimeText()), 1e3) : void 0, []);
+  return import_react5.default.createElement("div", null, txt);
 }
 function HeartbeatStat(props) {
   const ctx = props && props.ctx;
-  const [txt, setTxt] = import_react4.default.useState(uptimeText());
-  import_react4.default.useEffect(() => ctx && typeof ctx.interval === "function" ? ctx.interval(() => setTxt(uptimeText()), 1e3) : void 0, []);
-  return import_react4.default.createElement("span", null, txt);
+  const [txt, setTxt] = import_react5.default.useState(uptimeText());
+  import_react5.default.useEffect(() => ctx && typeof ctx.interval === "function" ? ctx.interval(() => setTxt(uptimeText()), 1e3) : void 0, []);
+  return import_react5.default.createElement("span", null, txt);
 }
-var feature3 = {
+var feature4 = {
   id: "heartbeat",
   name: "\u5FC3\u8DF3\u76D1\u89C6",
   order: 140,
@@ -5052,8 +5050,8 @@ var feature3 = {
 };
 
 // features/theme/view.js
-var import_react5 = __toESM(require("react"), 1);
-var import_react6 = require("react");
+var import_react6 = __toESM(require("react"), 1);
+var import_react7 = require("react");
 var PREFERENCE_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272", system: "\u8DDF\u968F\u7CFB\u7EDF" };
 var THEME_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272" };
 function readThemeInfo(ctx) {
@@ -5071,8 +5069,8 @@ function readThemeInfo(ctx) {
   return { label };
 }
 function useThemeInfo(ctx) {
-  const [info, setInfo] = (0, import_react6.useState)(() => readThemeInfo(ctx));
-  (0, import_react6.useEffect)(() => {
+  const [info, setInfo] = (0, import_react7.useState)(() => readThemeInfo(ctx));
+  (0, import_react7.useEffect)(() => {
     let off = null;
     try {
       if (ctx && typeof ctx.on === "function") {
@@ -5091,15 +5089,15 @@ function useThemeInfo(ctx) {
 }
 function ThemeView(props) {
   const r = useThemeInfo(props && props.ctx);
-  if (r.err) return import_react5.default.createElement("div", null, r.err);
-  return import_react5.default.createElement("div", null, "\u5F53\u524D\u4E3B\u9898\uFF1A" + r.label);
+  if (r.err) return import_react6.default.createElement("div", null, r.err);
+  return import_react6.default.createElement("div", null, "\u5F53\u524D\u4E3B\u9898\uFF1A" + r.label);
 }
 function ThemeStat(props) {
   const r = useThemeInfo(props && props.ctx);
-  if (r.err) return import_react5.default.createElement("span", null, r.err);
-  return import_react5.default.createElement("span", null, "\u4E3B\u9898\uFF1A" + r.label);
+  if (r.err) return import_react6.default.createElement("span", null, r.err);
+  return import_react6.default.createElement("span", null, "\u4E3B\u9898\uFF1A" + r.label);
 }
-var feature4 = {
+var feature5 = {
   id: "theme",
   name: "\u4E3B\u9898\u4FE1\u606F",
   order: 150,
@@ -5111,7 +5109,7 @@ var feature4 = {
 };
 
 // features/balance/view.js
-var import_react7 = __toESM(require("react"), 1);
+var import_react8 = __toESM(require("react"), 1);
 var ACCENT_PALETTE = ["#2563eb", "#0d9488", "#b45309", "#7c3aed", "#be185d", "#0369a1", "#c2410c", "#15803d", "#a21caf", "#0e7490"];
 var CURATED_ACCENTS = {
   "deepseek-official": "#2563eb",
@@ -5170,8 +5168,8 @@ var balanceStore = {
   }
 };
 function useBalance(ctx) {
-  const [snap, setSnap] = import_react7.default.useState(balanceStore.snap);
-  import_react7.default.useEffect(() => {
+  const [snap, setSnap] = import_react8.default.useState(balanceStore.snap);
+  import_react8.default.useEffect(() => {
     const off = balanceStore.subscribe(() => setSnap(balanceStore.snap));
     if (!balanceStore.snap.data && !balanceStore.snap.loading) balanceStore.load();
     const disposer = ctx && typeof ctx.interval === "function" ? ctx.interval(() => balanceStore.load(), 5 * 60 * 1e3) : null;
@@ -5185,7 +5183,7 @@ function useBalance(ctx) {
 function BalanceView(props) {
   const snap = useBalance(props && props.ctx);
   const load = () => balanceStore.load();
-  import_react7.default.useEffect(() => {
+  import_react8.default.useEffect(() => {
     const pid = props && props.params && props.params.provider;
     if (!pid || typeof document === "undefined") return;
     const t = setTimeout(() => {
@@ -5208,15 +5206,15 @@ function BalanceView(props) {
   const def = data && data.default ? data.default.provider : null;
   const body = [];
   if (snap.error) {
-    body.push(import_react7.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
+    body.push(import_react8.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
   } else if (!data) {
-    body.push(import_react7.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
+    body.push(import_react8.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
   } else if (providers.length === 0) {
-    body.push(import_react7.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
+    body.push(import_react8.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
   } else {
     const rank = (p) => p.balance && p.balance.status === "ok" ? 0 : p.balance && p.balance.status === "login-required" ? 1 : 2;
     const sorted = providers.slice().sort((a, b) => rank(a) - rank(b));
-    body.push(import_react7.default.createElement(
+    body.push(import_react8.default.createElement(
       "div",
       { key: "rows", className: "dkb-rows" },
       sorted.map((p) => {
@@ -5233,76 +5231,76 @@ function BalanceView(props) {
         let balBody = null;
         if (b && b.status === "ok" && b.kind === "quota") {
           const dims = Array.isArray(b.dims) ? b.dims : [];
-          balBody = import_react7.default.createElement(
-            import_react7.default.Fragment,
+          balBody = import_react8.default.createElement(
+            import_react8.default.Fragment,
             null,
-            import_react7.default.createElement(
+            import_react8.default.createElement(
               "div",
               { className: "dkb-main" },
-              import_react7.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
-              import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
-              import_react7.default.createElement(
+              import_react8.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
+              import_react8.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
+              import_react8.default.createElement(
                 "span",
                 { className: "dkb-main-part" },
                 "\u5DF2\u7528 " + fmt(b.used) + " / \u603B " + fmt(b.limit),
-                b.resetTime ? import_react7.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
+                b.resetTime ? import_react8.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
               )
             ),
-            dims.map((d, i) => import_react7.default.createElement(
+            dims.map((d, i) => import_react8.default.createElement(
               "div",
               { key: "d" + i, className: "dkb-dim" },
-              import_react7.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
-              import_react7.default.createElement(
+              import_react8.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
+              import_react8.default.createElement(
                 "span",
                 { className: "dkb-dim-bar" },
-                import_react7.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
+                import_react8.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
               ),
-              import_react7.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
+              import_react8.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
             ))
           );
         } else if (b && b.status === "ok") {
           const infos = Array.isArray(b.infos) ? b.infos : [];
-          balBody = import_react7.default.createElement(
+          balBody = import_react8.default.createElement(
             "div",
             { className: "dkb-mains" },
             infos.map((rawInfo, idx) => {
               const i = cnyBalanceInfo(rawInfo);
-              return import_react7.default.createElement(
+              return import_react8.default.createElement(
                 "div",
                 { key: idx, className: "dkb-main" },
-                import_react7.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
-                import_react7.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
-                import_react7.default.createElement(
+                import_react8.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+                import_react8.default.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+                import_react8.default.createElement(
                   "span",
                   { className: "dkb-main-parts" },
-                  i.grantedBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
-                  i.toppedUpBalance != null ? import_react7.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
+                  i.grantedBalance != null ? import_react8.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + fmt(i.grantedBalance)) : null,
+                  i.toppedUpBalance != null ? import_react8.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + fmt(i.toppedUpBalance)) : null
                 )
               );
             })
           );
         } else if (b && b.status === "login-required" && b.consoleUrl) {
-          balBody = import_react7.default.createElement(
+          balBody = import_react8.default.createElement(
             "div",
             { className: "dkb-main" },
-            import_react7.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
+            import_react8.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
           );
         } else {
-          balBody = b && b.message ? import_react7.default.createElement("div", { className: "dkb-note" }, b.message) : import_react7.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
+          balBody = b && b.message ? import_react8.default.createElement("div", { className: "dkb-note" }, b.message) : import_react8.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
         }
         const sub = ["ID " + p.id, p.api, p.baseURL ? p.baseURL.replace(/^https?:\/\//, "") : null].filter(Boolean).join(" \xB7 ");
-        return import_react7.default.createElement(
+        return import_react8.default.createElement(
           "div",
           { key: p.id, className: "dkb-row", "data-dock-provider": p.id },
-          import_react7.default.createElement(
+          import_react8.default.createElement(
             "div",
             { className: "dkb-row-head" },
-            import_react7.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
-            import_react7.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
-            def === p.id ? import_react7.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
-            import_react7.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
+            import_react8.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
+            import_react8.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
+            def === p.id ? import_react8.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
+            import_react8.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
             // 模型数折叠提示（点开展开 chips）
-            p.models && p.models.length > 0 ? import_react7.default.createElement("button", {
+            p.models && p.models.length > 0 ? import_react8.default.createElement("button", {
               type: "button",
               className: "dkb-models-toggle",
               title: p.models.join(", "),
@@ -5312,13 +5310,13 @@ function BalanceView(props) {
               }
             }, p.models.length + " \u4E2A\u6A21\u578B \u25BE") : null
           ),
-          sub ? import_react7.default.createElement("div", { className: "dkb-sub" }, sub) : null,
-          p.apiKeyEnv ? import_react7.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
-          p.models && p.models.length > 0 ? import_react7.default.createElement(
+          sub ? import_react8.default.createElement("div", { className: "dkb-sub" }, sub) : null,
+          p.apiKeyEnv ? import_react8.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
+          p.models && p.models.length > 0 ? import_react8.default.createElement(
             "div",
             { className: "dkb-chips" },
-            p.models.slice(0, 8).map((m) => import_react7.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
-            p.models.length > 8 ? import_react7.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
+            p.models.slice(0, 8).map((m) => import_react8.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
+            p.models.length > 8 ? import_react8.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
           ) : null,
           balBody
         );
@@ -5326,20 +5324,20 @@ function BalanceView(props) {
     ));
   }
   const now = new Date(data && data.generatedAt ? data.generatedAt : Date.now());
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "div",
     { className: "dkb-rows" },
-    import_react7.default.createElement(
+    import_react8.default.createElement(
       "div",
       { className: "dkb-note" },
       data && !snap.error && providers.length > 0 ? okCount + "/" + providers.length + " \u4E2A Provider \u53EF\u67E5\u4F59\u989D\uFF08\u53EF\u67E5\u7684\u6392\u524D\u9762\uFF09" : "\u6A21\u578B\u4F59\u989D \xB7 Host \u534A\u90E8\u5B9E\u65F6\u62C9\u53D6"
     ),
     body,
-    import_react7.default.createElement(
+    import_react8.default.createElement(
       "div",
       { className: "dkb-foot" },
-      import_react7.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
-      import_react7.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
+      import_react8.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
+      import_react8.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
     )
   );
 }
@@ -5347,14 +5345,14 @@ function BalanceStat(props) {
   const snap = useBalance(props && props.ctx);
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
-  if (snap.error) return import_react7.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
-  if (!data) return import_react7.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
+  if (snap.error) return import_react8.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
+  if (!data) return import_react8.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
   const ok = providers.filter((p) => p.balance && p.balance.status === "ok").length;
-  return import_react7.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
+  return import_react8.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
 }
 function useCurrentProvider(ctx, sessionId) {
-  const [cur, setCur] = import_react7.default.useState(null);
-  import_react7.default.useEffect(() => {
+  const [cur, setCur] = import_react8.default.useState(null);
+  import_react8.default.useEffect(() => {
     let alive = true, off = null;
     try {
       const models = ctx && ctx.get ? ctx.get("modelDirectories") : void 0;
@@ -5416,7 +5414,7 @@ function BalanceChip(props) {
   const text = snap.error ? "\u4F59\u989D\xB7\u5931\u8D25" : !data ? snap.loading ? "\u4F59\u989D \u2026" : "\u4F59\u989D \u2014" : cur ? chipBalanceText(cur) : "\u4F59\u989D \u2014";
   const selModel = sel && (sel.model || sel.selected && sel.selected.model) || null;
   const title = cur ? (cur.displayName || cur.id) + (selModel ? " \xB7 \u5F53\u524D\u6A21\u578B " + selModel : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "button",
     {
       type: "button",
@@ -5425,11 +5423,11 @@ function BalanceChip(props) {
       "aria-label": "\u6A21\u578B\u4F59\u989D",
       onClick: () => openPanel("balance", def ? { provider: def } : null)
     },
-    import_react7.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
-    import_react7.default.createElement("span", null, text)
+    import_react8.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
+    import_react8.default.createElement("span", null, text)
   );
 }
-var feature5 = {
+var feature6 = {
   id: "balance",
   name: "\u6A21\u578B\u4F59\u989D",
   order: 120,
@@ -5486,7 +5484,7 @@ var feature5 = {
 };
 
 // features/animation/view.jsx
-var import_react8 = require("react");
+var import_react9 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 function rpcCall2(method, args) {
   return fetch("dsh-dock/animation/" + method, {
@@ -5584,13 +5582,13 @@ var animationStore = {
   }
 };
 function useAnimation() {
-  const [snap, setSnap] = (0, import_react8.useState)(animationStore.snap);
-  (0, import_react8.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
+  const [snap, setSnap] = (0, import_react9.useState)(animationStore.snap);
+  (0, import_react9.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
   return snap;
 }
 function useTicker(ctx, active) {
-  const [, bump] = (0, import_react8.useState)(0);
-  (0, import_react8.useEffect)(() => {
+  const [, bump] = (0, import_react9.useState)(0);
+  (0, import_react9.useEffect)(() => {
     if (!active) return;
     if (ctx && typeof ctx.interval === "function") return ctx.interval(bump, 1e3);
     const t = setInterval(bump, 1e3);
@@ -5765,7 +5763,7 @@ var MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
   const mode = props.mode;
   const speed = props.speed;
-  const particles = (0, import_react8.useMemo)(() => {
+  const particles = (0, import_react9.useMemo)(() => {
     if (mode === "matrix") return { matrix: makeBits(34, () => ({
       l: Math.random() * 100,
       d: 4 + Math.random() * 6,
@@ -6013,8 +6011,8 @@ function composerDockPoint(side = "right") {
   };
 }
 function useSpaceDocks(enabled) {
-  const [docks, setDocks] = (0, import_react8.useState)(null);
-  (0, import_react8.useEffect)(() => {
+  const [docks, setDocks] = (0, import_react9.useState)(null);
+  (0, import_react9.useEffect)(() => {
     if (!enabled || typeof window === "undefined") {
       setDocks(null);
       return void 0;
@@ -6207,25 +6205,25 @@ function ProgrammingStuck(props) {
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation();
-  const [flourish, setFlourish] = (0, import_react8.useState)(null);
-  const [bursts, setBursts] = (0, import_react8.useState)([]);
-  const [deliveries, setDeliveries] = (0, import_react8.useState)([]);
-  const [departures, setDepartures] = (0, import_react8.useState)([]);
-  const prevActiveRef = (0, import_react8.useRef)(null);
-  const burstIdRef = (0, import_react8.useRef)(0);
-  const deliveryIdRef = (0, import_react8.useRef)(0);
-  const departureTimersRef = (0, import_react8.useRef)(/* @__PURE__ */ new Map());
-  const lastImmediateDepartureRef = (0, import_react8.useRef)(0);
-  (0, import_react8.useEffect)(() => () => {
+  const [flourish, setFlourish] = (0, import_react9.useState)(null);
+  const [bursts, setBursts] = (0, import_react9.useState)([]);
+  const [deliveries, setDeliveries] = (0, import_react9.useState)([]);
+  const [departures, setDepartures] = (0, import_react9.useState)([]);
+  const prevActiveRef = (0, import_react9.useRef)(null);
+  const burstIdRef = (0, import_react9.useRef)(0);
+  const deliveryIdRef = (0, import_react9.useRef)(0);
+  const departureTimersRef = (0, import_react9.useRef)(/* @__PURE__ */ new Map());
+  const lastImmediateDepartureRef = (0, import_react9.useRef)(0);
+  (0, import_react9.useEffect)(() => () => {
     for (const timer of departureTimersRef.current.values()) clearTimeout(timer);
     departureTimersRef.current.clear();
   }, []);
-  const pushBurst = (0, import_react8.useCallback)((type, x, y, bits) => {
+  const pushBurst = (0, import_react9.useCallback)((type, x, y, bits) => {
     const id = ++burstIdRef.current;
     setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
     setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
   }, []);
-  const launchMission = (0, import_react8.useCallback)(() => {
+  const launchMission = (0, import_react9.useCallback)(() => {
     const cfg2 = animationStore.snap.status && animationStore.snap.status.config;
     if (!cfg2 || !cfg2.animationEnabled || cfg2.effectMode !== "space") return false;
     const id = ++deliveryIdRef.current;
@@ -6248,7 +6246,7 @@ function AnimationOverlay(props) {
     }, departure.duration));
     return true;
   }, []);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     if (typeof document === "undefined") return;
     const onClick = (e) => {
       const t = e.target;
@@ -6275,8 +6273,8 @@ function AnimationOverlay(props) {
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [pushBurst, launchMission]);
-  const taskCountRef = (0, import_react8.useRef)(0);
-  (0, import_react8.useEffect)(() => {
+  const taskCountRef = (0, import_react9.useRef)(0);
+  (0, import_react9.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const n = st2.active.length;
@@ -6287,7 +6285,7 @@ function AnimationOverlay(props) {
     }
     taskCountRef.current = n;
   }, [snap.status, pushBurst, launchMission]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
@@ -6307,7 +6305,7 @@ function AnimationOverlay(props) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const prev = prevActiveRef.current;
@@ -6354,8 +6352,8 @@ function AnimationOverlay(props) {
   const mode = cfg && cfg.effectMode ? cfg.effectMode : "flow";
   const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
   const waitingTask = active.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
-  const sessionTitleRef = (0, import_react8.useRef)({ at: 0, title: "" });
-  const currentTitle = (0, import_react8.useMemo)(() => {
+  const sessionTitleRef = (0, import_react9.useRef)({ at: 0, title: "" });
+  const currentTitle = (0, import_react9.useMemo)(() => {
     const c = sessionTitleRef.current;
     if (typeof window === "undefined") return "";
     if (Date.now() - c.at < 1e3) return c.title;
@@ -6363,19 +6361,19 @@ function AnimationOverlay(props) {
     c.title = currentSessionTitle();
     return c.title;
   }, [snap.status]);
-  const onScreenTasks = (0, import_react8.useMemo)(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
+  const onScreenTasks = (0, import_react9.useMemo)(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
   const waitingTaskOnScreen = onScreenTasks.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
   useTicker(ctx, animOn);
   const now = Date.now();
   const elapsed = active.length > 0 ? fmtClock(now - Math.min(...active.map((x) => x.startTime || now))) : "";
-  const [panelOpen, setPanelOpen2] = (0, import_react8.useState)(false);
-  (0, import_react8.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react9.useState)(false);
+  (0, import_react9.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
-  const [speed, setSpeed] = (0, import_react8.useState)(1);
-  const speedRef = (0, import_react8.useRef)({ ticks: -1, at: 0 });
-  (0, import_react8.useEffect)(() => {
+  const [speed, setSpeed] = (0, import_react9.useState)(1);
+  const speedRef = (0, import_react9.useRef)({ ticks: -1, at: 0 });
+  (0, import_react9.useEffect)(() => {
     if (!st || active.length === 0) {
       speedRef.current = { ticks: -1, at: 0 };
       setSpeed(1);
@@ -6401,17 +6399,17 @@ function AnimationOverlay(props) {
   const stuckTask = onScreenTasks.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18e3) || null;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
-  const saveRobotScale = (0, import_react8.useCallback)((robotScale) => {
+  const saveRobotScale = (0, import_react9.useCallback)((robotScale) => {
     rpcCall2("config", { robotScale }).then((d) => animationStore.applyConfig(d && d.config)).catch(() => {
     });
   }, []);
-  const [botPos, setBotPos] = (0, import_react8.useState)(null);
-  const botPosRef = (0, import_react8.useRef)(null);
-  const botDragRef = (0, import_react8.useRef)(null);
-  const botResizeRef = (0, import_react8.useRef)(null);
-  const [botScaleDraft, setBotScaleDraft] = (0, import_react8.useState)(null);
-  const botClickBlockRef = (0, import_react8.useRef)(false);
-  (0, import_react8.useEffect)(() => {
+  const [botPos, setBotPos] = (0, import_react9.useState)(null);
+  const botPosRef = (0, import_react9.useRef)(null);
+  const botDragRef = (0, import_react9.useRef)(null);
+  const botResizeRef = (0, import_react9.useRef)(null);
+  const [botScaleDraft, setBotScaleDraft] = (0, import_react9.useState)(null);
+  const botClickBlockRef = (0, import_react9.useRef)(false);
+  (0, import_react9.useEffect)(() => {
     try {
       if (typeof localStorage === "undefined") return;
       const raw = localStorage.getItem("dsh-dock/anim/robot-pos/v1");
@@ -6662,11 +6660,11 @@ function ModePreview({ id }) {
 function AnimationView(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation(ctx);
-  const [cfg, setCfg] = (0, import_react8.useState)(null);
-  const [saveErr, setSaveErr] = (0, import_react8.useState)("");
-  const cfgRef = (0, import_react8.useRef)(null);
-  const pendingSavesRef = (0, import_react8.useRef)(0);
-  (0, import_react8.useEffect)(() => {
+  const [cfg, setCfg] = (0, import_react9.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react9.useState)("");
+  const cfgRef = (0, import_react9.useRef)(null);
+  const pendingSavesRef = (0, import_react9.useRef)(0);
+  (0, import_react9.useEffect)(() => {
     const c = snap.status && snap.status.config;
     if (!c) return;
     if (pendingSavesRef.current > 0) return;
@@ -6675,7 +6673,7 @@ function AnimationView(props) {
       setCfg(Object.assign({}, c));
     }
   }, [snap.status]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     if (!animationStore.snap.status) animationStore.refresh();
   }, []);
   const patch = (p) => {
@@ -7150,7 +7148,7 @@ var css2 = [
   // 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
   "@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}"
 ].join("\n");
-var feature6 = {
+var feature7 = {
   id: "animation",
   name: "\u4EFB\u52A1\u52A8\u753B",
   order: 130,
@@ -7163,7 +7161,7 @@ var feature6 = {
 };
 
 // features/notify/view.jsx
-var import_react9 = require("react");
+var import_react10 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 function rpcCall3(method, args) {
   return fetch("dsh-dock/notify/" + method, {
@@ -7301,49 +7299,107 @@ var notifyStore = {
   }
 };
 function useNotify() {
-  const [snap, setSnap] = (0, import_react9.useState)(notifyStore.snap);
-  (0, import_react9.useEffect)(() => notifyStore.subscribe(() => setSnap(notifyStore.snap)), []);
+  const [snap, setSnap] = (0, import_react10.useState)(notifyStore.snap);
+  (0, import_react10.useEffect)(() => notifyStore.subscribe(() => setSnap(notifyStore.snap)), []);
   return snap;
+}
+function pageVisible() {
+  return typeof document === "undefined" || document.visibilityState === "visible";
+}
+function currentSelectedSessionTitle() {
+  if (typeof document === "undefined" || typeof window === "undefined") return "";
+  if (typeof document.querySelectorAll !== "function") return "";
+  for (const el of document.querySelectorAll('[role="treeitem"][aria-selected="true"]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0 && r.right <= window.innerWidth * 0.35) {
+      const text = (el.textContent || "").trim();
+      if (text) return text;
+    }
+  }
+  return "";
+}
+function titleMatches(a, b) {
+  return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
+}
+function openSessionByTitle(title) {
+  if (typeof document === "undefined" || typeof window === "undefined") return false;
+  if (typeof document.querySelectorAll !== "function" || !title) return false;
+  for (const el of document.querySelectorAll('[role="treeitem"]')) {
+    const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+    if (!r || r.width <= 0 || r.height <= 0 || r.right > window.innerWidth * 0.35) continue;
+    if (!titleMatches((el.textContent || "").trim(), title)) continue;
+    const link = typeof el.querySelector === "function" ? el.querySelector("a,button") : null;
+    const target = link || el;
+    if (typeof target.click === "function") {
+      target.click();
+      return true;
+    }
+    return false;
+  }
+  return false;
 }
 function Toast(props) {
   const t = props.t;
-  const [closing, setClosing] = (0, import_react9.useState)(false);
-  const close = (0, import_react9.useCallback)(() => {
-    if (!closing) setClosing(true);
-  }, [closing]);
-  (0, import_react9.useEffect)(() => {
-    if (!t.stayMs) return;
-    const timer = setTimeout(close, t.stayMs);
-    return () => clearTimeout(timer);
+  const [closing, setClosing] = (0, import_react10.useState)(!!t.closing);
+  const close = (0, import_react10.useCallback)(() => {
+    setClosing(true);
   }, []);
-  (0, import_react9.useEffect)(() => {
+  const jump = (0, import_react10.useCallback)(() => {
+    if (!t.sessionTitle) return;
+    if (openSessionByTitle(t.sessionTitle) && t.kind !== "confirm") setClosing(true);
+  }, [t.sessionTitle, t.kind]);
+  (0, import_react10.useEffect)(() => {
+    if (t.closing && !closing) setClosing(true);
+  }, [t.closing, closing]);
+  (0, import_react10.useEffect)(() => {
     if (!closing) return;
     const timer = setTimeout(() => props.onClose(t.id), 240);
     return () => clearTimeout(timer);
   }, [closing]);
   const markColor = t.kind === "success" ? "var(--dk-ok)" : t.kind === "error" ? "var(--dk-err)" : "var(--dk-warn)";
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (closing ? " out" : ""), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.title, children: [
-        t.kind === "confirm" ? "\u270B " : "",
-        t.title
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-toast-close", "aria-label": "\u5173\u95ED", onClick: close, children: "\u2715" })
-    ] }),
-    t.body ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toast-body", children: t.body }) : null
-  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+    "div",
+    {
+      className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (t.sessionTitle ? " clickable" : "") + (props.collapsed ? " collapsed" : "") + (closing ? " out" : ""),
+      onClick: t.sessionTitle ? jump : void 0,
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.sessionTitle || t.title, children: [
+            t.kind === "confirm" ? "\u270B " : "",
+            props.collapsed ? t.sessionTitle || t.title : t.title,
+            !props.collapsed && t.sessionTitle && t.kind !== "confirm" ? " \xB7 " + t.sessionTitle : ""
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dknt-toast-close",
+              "aria-label": "\u5173\u95ED",
+              onClick: (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                close();
+              },
+              children: "\u2715"
+            }
+          )
+        ] }),
+        !props.collapsed && t.body ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toast-body", children: t.body }) : null
+      ]
+    }
+  );
 }
 function NotifyOverlay(props) {
   const snap = useNotify();
-  const [toasts, setToasts] = (0, import_react9.useState)([]);
-  const prevActiveRef = (0, import_react9.useRef)(null);
-  const remindedApprovalsRef = (0, import_react9.useRef)(/* @__PURE__ */ new Map());
-  const toastSeqRef = (0, import_react9.useRef)(0);
-  const pushToast = (0, import_react9.useCallback)((toast) => {
-    setToasts((prev) => prev.concat([toast]).slice(-4));
+  const [toasts, setToasts] = (0, import_react10.useState)([]);
+  const [stackHover, setStackHover] = (0, import_react10.useState)(false);
+  const prevActiveRef = (0, import_react10.useRef)(null);
+  const remindedApprovalsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const toastSeqRef = (0, import_react10.useRef)(0);
+  const pushToast = (0, import_react10.useCallback)((toast) => {
+    setToasts((prev) => prev.concat([toast]).slice(-12));
   }, []);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
@@ -7363,7 +7419,7 @@ function NotifyOverlay(props) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const prev = prevActiveRef.current;
@@ -7377,7 +7433,7 @@ function NotifyOverlay(props) {
     }
     prevActiveRef.current = st.active.slice();
   }, [snap.status]);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const cfg = st.config || {};
@@ -7410,8 +7466,11 @@ function NotifyOverlay(props) {
         kind: "confirm",
         title: "\u4EFB\u52A1\u9700\u8981\u786E\u8BA4",
         body: lines.join("\n"),
-        // 需确认常驻到用户处理（notifyStayMs=0 同款语义），不会自动消失
-        stayMs: 0
+        // 点卡片直达该会话去处理审批（需确认卡跳转后不收起——审批没处理完它就该在）
+        sessionTitle: task.title || "",
+        // 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
+        // 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
+        approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id)
       });
       if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
       if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -7425,6 +7484,44 @@ function NotifyOverlay(props) {
       }
     }
   }, [snap.status]);
+  (0, import_react10.useEffect)(() => {
+    const st = snap.status;
+    if (!st || !st.active) return;
+    const live = /* @__PURE__ */ new Set();
+    for (const task of st.active) {
+      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+      for (const a of approvals) if (a && a.id) live.add(task.sessionId + "|" + a.id);
+    }
+    setToasts((prev) => {
+      let changed = false;
+      const next = prev.map((x) => {
+        if (x.kind !== "confirm" || x.closing) return x;
+        const keys = Array.isArray(x.approvalKeys) ? x.approvalKeys : [];
+        if (keys.length === 0 || keys.some((k) => live.has(k))) return x;
+        changed = true;
+        return Object.assign({}, x, { closing: true });
+      });
+      return changed ? next : prev;
+    });
+  }, [snap.status]);
+  (0, import_react10.useEffect)(() => {
+    const timer = setInterval(() => {
+      if (!pageVisible()) return;
+      const current = currentSelectedSessionTitle();
+      if (!current) return;
+      setToasts((prev) => {
+        let changed = false;
+        const next = prev.map((x) => {
+          if (x.kind === "confirm" || x.closing || !x.sessionTitle) return x;
+          if (!titleMatches(x.sessionTitle, current)) return x;
+          changed = true;
+          return Object.assign({}, x, { closing: true });
+        });
+        return changed ? next : prev;
+      });
+    }, 500);
+    return () => clearInterval(timer);
+  }, []);
   const handleTaskEnd = (task, record, cfg) => {
     const reason = record && record.endReason || "";
     const success = isSuccessReason2(reason);
@@ -7450,7 +7547,9 @@ function NotifyOverlay(props) {
       kind: success ? "success" : info.cls === "err" ? "error" : "warn",
       title,
       body: lines.join("\n"),
-      stayMs: typeof cfg.notifyStayMs === "number" ? cfg.notifyStayMs : 8e3
+      // 绑定会话标题：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
+      // 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
+      sessionTitle: record && record.title || task.title || ""
     });
     if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
     if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -7465,21 +7564,38 @@ function NotifyOverlay(props) {
   };
   if (!snap.status) return null;
   if (toasts.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-toasts", children: toasts.map((t) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Toast, { t, onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id)) }, t.id)) });
+  const stack = toasts.length >= 3 && !stackHover;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+    "div",
+    {
+      className: "dknt-toasts" + (stack ? " stacked" : ""),
+      onMouseEnter: () => setStackHover(true),
+      onMouseLeave: () => setStackHover(false),
+      children: toasts.map((t, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        Toast,
+        {
+          t,
+          collapsed: stack && i < toasts.length - 1,
+          onClose: (id) => setToasts((prev) => prev.filter((x) => x.id !== id))
+        },
+        t.id
+      ))
+    }
+  );
 }
 function NotifyView(props) {
   const snap = useNotify();
-  const [cfg, setCfg] = (0, import_react9.useState)(null);
-  const [saveErr, setSaveErr] = (0, import_react9.useState)("");
-  const [testing, setTesting] = (0, import_react9.useState)(false);
-  const [testState, setTestState] = (0, import_react9.useState)(null);
-  const [feishuTesting, setFeishuTesting] = (0, import_react9.useState)(false);
-  const [feishuTestState, setFeishuTestState] = (0, import_react9.useState)(null);
-  const cfgRef = (0, import_react9.useRef)(null);
-  const pendingSavesRef = (0, import_react9.useRef)(0);
-  const editingWebhookRef = (0, import_react9.useRef)(false);
-  const editingFeishuRef = (0, import_react9.useRef)(false);
-  (0, import_react9.useEffect)(() => {
+  const [cfg, setCfg] = (0, import_react10.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react10.useState)("");
+  const [testing, setTesting] = (0, import_react10.useState)(false);
+  const [testState, setTestState] = (0, import_react10.useState)(null);
+  const [feishuTesting, setFeishuTesting] = (0, import_react10.useState)(false);
+  const [feishuTestState, setFeishuTestState] = (0, import_react10.useState)(null);
+  const cfgRef = (0, import_react10.useRef)(null);
+  const pendingSavesRef = (0, import_react10.useRef)(0);
+  const editingWebhookRef = (0, import_react10.useRef)(false);
+  const editingFeishuRef = (0, import_react10.useRef)(false);
+  (0, import_react10.useEffect)(() => {
     const c = snap.status && snap.status.config;
     if (!c) return;
     if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
@@ -7488,7 +7604,7 @@ function NotifyView(props) {
       setCfg(Object.assign({}, c));
     }
   }, [snap.status]);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     if (!notifyStore.snap.status) notifyStore.refresh();
   }, []);
   const patch = (p) => {
@@ -7631,7 +7747,7 @@ function NotifyView(props) {
                 children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF08\u5E38\u9A7B\u4E0D\u81EA\u52A8\u6D88\u5931\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF1B\u5BA1\u6279\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF0C\u6CA1\u5904\u7406\u5B8C\u5C31\u4E00\u76F4\u663E\u793A\uFF08\u70B9\u5361\u7247\u76F4\u8FBE\u4F1A\u8BDD\uFF09" })
           ] })
         ] })
       ] }, "events"),
@@ -7642,23 +7758,8 @@ function NotifyView(props) {
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u505C\u7559\u65F6\u957F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-              "select",
-              {
-                className: "dknt-select",
-                value: String(cfg.notifyStayMs),
-                onChange: (e) => patch({ notifyStayMs: Number(e.target.value) }),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "4000", children: "4 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "8000", children: "8 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "15000", children: "15 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "30000", children: "30 \u79D2" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "0", children: "\u5E38\u9A7B\uFF08\u624B\u52A8\u5173\u95ED\uFF09" })
-                ]
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5361\u7247\u81EA\u52A8\u6D88\u5931\u7684\u65F6\u95F4\uFF08\u9700\u786E\u8BA4\u63D0\u9192\u6052\u4E3A\u5E38\u9A7B\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u6536\u7EB3" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u6240\u6709\u5361\u7247\u90FD\u4E0D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u7ED3\u675F\u5361\u7247\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF08\u540E\u53F0\u8DD1\u5B8C\u7684\u5207\u56DE\u6765\u4E5F\u5728\uFF09\uFF0C\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD\uFF0C\u6216\u70B9\u8FDB\u8BE5\u4F1A\u8BDD\uFF0C\u5361\u7247\u81EA\u52A8\u6536\u8D77\uFF1B\u9700\u786E\u8BA4\u5361\u7247\u6302\u5230\u5BA1\u6279\u5904\u7406\u5B8C\u30023 \u5F20\u53CA\u4EE5\u4E0A\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
@@ -7877,6 +7978,13 @@ var css3 = [
   ".dknt-toast-confirm{border-color:color-mix(in srgb,var(--dk-warn) 55%,transparent);animation:dknt-toast-in .32s var(--ds-ease-in-out),dknt-confirm-glow 2.4s ease-in-out 0.4s infinite;}",
   "@keyframes dknt-confirm-glow{0%,100%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 0 0 color-mix(in srgb,var(--dk-warn) 30%,transparent)}50%{box-shadow:0 10px 36px rgb(0 0 0 / .22),0 0 14px 2px color-mix(in srgb,var(--dk-warn) 32%,transparent)}}",
   "@media (prefers-reduced-motion:reduce){.dknt-toast,.dknt-toast-confirm{animation:none}}",
+  // 可跳转卡片：指针 + 悬停提亮（点卡片直达对应会话）
+  ".dknt-toast.clickable{cursor:pointer;}",
+  ".dknt-toast.clickable:hover{border-color:var(--dk-accent);}",
+  // 叠放收纳：≥3 张时旧卡收成"只剩标题条"，悬停卡片栈整体展开
+  ".dknt-toasts.stacked{gap:4px;}",
+  ".dknt-toast.collapsed{padding:6px 14px;opacity:.85;margin-left:14px;}",
+  ".dknt-toast.collapsed .dknt-toast-head{margin-bottom:0;}",
   // 面板页布局
   ".dknt-root{display:flex;flex-direction:column;gap:10px;}",
   ".dknt-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
@@ -7896,7 +8004,6 @@ var css3 = [
   ".dknt-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
   ".dknt-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
   ".dknt-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
-  ".dknt-select{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:3px 8px;font-size:12px;font-family:inherit;}",
   // 音效选择卡（名称 + 播放键；选中态描边）
   ".dknt-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
   ".dknt-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
@@ -7914,7 +8021,7 @@ var css3 = [
   ".dknt-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
   ".dknt-btn[disabled]{opacity:.5;cursor:default;}"
 ].join("\n");
-var feature7 = {
+var feature8 = {
   id: "notify",
   name: "\u4EFB\u52A1\u901A\u77E5",
   order: 140,
@@ -7927,7 +8034,7 @@ var feature7 = {
 };
 
 // features/runstate/view.jsx
-var import_react10 = require("react");
+var import_react11 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 function rpcCall4(method, args) {
   return fetch("dsh-dock/runstate/" + method, {
@@ -8014,8 +8121,8 @@ var runStateStore = {
   }
 };
 function useRunState() {
-  const [snap, setSnap] = (0, import_react10.useState)(runStateStore.snap);
-  (0, import_react10.useEffect)(() => runStateStore.subscribe(() => setSnap(runStateStore.snap)), []);
+  const [snap, setSnap] = (0, import_react11.useState)(runStateStore.snap);
+  (0, import_react11.useEffect)(() => runStateStore.subscribe(() => setSnap(runStateStore.snap)), []);
   return snap;
 }
 function waitingOf(active) {
@@ -8047,7 +8154,7 @@ function RunStateView() {
   const active = st && st.active ? st.active : [];
   const recent = st && st.recent ? st.recent.slice(0, 10) : [];
   const waitingCount = waitingOf(active);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
@@ -8086,7 +8193,7 @@ function RunStateView() {
 }
 function RunStateStat(props) {
   const snap = useRunState();
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (!runStateStore.snap.status) runStateStore.refresh();
   }, []);
   const st = snap.status;
@@ -8137,7 +8244,7 @@ var css4 = [
   ".dkrs-tag.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
   ".dkrs-tag.warn{color:var(--dk-warn);border-color:currentColor;}"
 ].join("\n");
-var feature8 = {
+var feature9 = {
   id: "runstate",
   name: "\u8FD0\u884C\u72B6\u6001",
   order: 150,
@@ -8148,11 +8255,1321 @@ var feature8 = {
   HomeStat: RunStateStat
 };
 
+// features/tts/view.jsx
+var import_react12 = __toESM(require("react"), 1);
+function synth() {
+  try {
+    const g = typeof globalThis !== "undefined" ? globalThis : null;
+    if (g && g.speechSynthesis) return g.speechSynthesis;
+    if (typeof window !== "undefined" && window.speechSynthesis) return window.speechSynthesis;
+  } catch {
+  }
+  return null;
+}
+function ttsSupported() {
+  return synth() !== null && typeof globalThis.SpeechSynthesisUtterance === "function";
+}
+function makeUtterance(text) {
+  try {
+    const Ctor = typeof globalThis !== "undefined" && globalThis.SpeechSynthesisUtterance ? globalThis.SpeechSynthesisUtterance : typeof window !== "undefined" ? window.SpeechSynthesisUtterance : null;
+    return Ctor ? new Ctor(text) : null;
+  } catch {
+    return null;
+  }
+}
+function localVoices() {
+  const s = synth();
+  if (!s) return [];
+  try {
+    return (typeof s.getVoices === "function" ? s.getVoices() : []) || [];
+  } catch {
+    return [];
+  }
+}
+var CONFIG_STORE_KEY = "dsh-dock/tts/v1";
+var CONFIG_DEFAULTS = {
+  autoPlay: false,
+  autoPlayOnFinish: true,
+  interruptOnNew: true,
+  rate: 1,
+  pitch: 1,
+  volume: 1,
+  voiceURI: "",
+  lang: "",
+  skipCode: true,
+  skipTables: true,
+  maxChars: 0,
+  maxSentences: 0
+};
+var NUMERIC_RANGE = { rate: [0.1, 10], pitch: [0, 2], volume: [0, 1], maxChars: [0, 2e5], maxSentences: [0, 200] };
+var BOOL_KEYS = ["autoPlay", "autoPlayOnFinish", "interruptOnNew", "skipCode", "skipTables"];
+var NUM_KEYS = Object.keys(NUMERIC_RANGE);
+var STR_KEYS = ["voiceURI", "lang"];
+function normalizeConfig(raw) {
+  const out = Object.assign({}, CONFIG_DEFAULTS);
+  const src = raw && typeof raw === "object" ? raw : {};
+  for (const k of BOOL_KEYS) if (typeof src[k] === "boolean") out[k] = src[k];
+  for (const k of STR_KEYS) if (typeof src[k] === "string") out[k] = src[k].slice(0, 200);
+  for (const k of NUM_KEYS) {
+    if (typeof src[k] === "number" && Number.isFinite(src[k])) {
+      const [lo, hi] = NUMERIC_RANGE[k];
+      const step4 = k === "maxChars" || k === "maxSentences" ? Math.round(src[k]) : src[k];
+      out[k] = Math.min(hi, Math.max(lo, step4));
+    }
+  }
+  return out;
+}
+function readLocalConfig() {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const raw = localStorage.getItem(CONFIG_STORE_KEY);
+    return raw ? normalizeConfig(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+function writeLocalConfig(cfg) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(CONFIG_STORE_KEY, JSON.stringify(cfg));
+  } catch {
+  }
+}
+var configStore = {
+  value: readLocalConfig() || normalizeConfig({}),
+  loaded: false,
+  routeGone: false,
+  note: "",
+  listeners: /* @__PURE__ */ new Set()
+};
+function notifyConfig() {
+  for (const fn of Array.from(configStore.listeners)) {
+    try {
+      fn();
+    } catch {
+    }
+  }
+}
+function subscribeConfig(fn) {
+  configStore.listeners.add(fn);
+  return () => {
+    configStore.listeners.delete(fn);
+  };
+}
+function useConfig() {
+  const [, force] = (0, import_react12.useState)(0);
+  (0, import_react12.useEffect)(() => subscribeConfig(() => force((n) => n + 1)), []);
+  return configStore.value;
+}
+var HOST_SAVE_DEBOUNCE_MS = 400;
+var hostSaveTimer = null;
+var hostSavePending = null;
+var localRev = 0;
+function setConfig(patch, opts) {
+  const p = patch && typeof patch === "object" ? patch : {};
+  const next = normalizeConfig(Object.assign({}, configStore.value, p));
+  configStore.value = next;
+  localRev += 1;
+  writeLocalConfig(next);
+  notifyConfig();
+  if (opts && opts.skipHost) return Promise.resolve(next);
+  if (configStore.routeGone) return Promise.resolve(next);
+  hostSavePending = Object.assign(hostSavePending || {}, p);
+  if (hostSaveTimer !== null) clearTimeout(hostSaveTimer);
+  return new Promise((resolve) => {
+    hostSaveTimer = setTimeout(() => {
+      hostSaveTimer = null;
+      const body = hostSavePending || {};
+      hostSavePending = null;
+      pushConfigToHost(body, localRev, resolve);
+    }, HOST_SAVE_DEBOUNCE_MS);
+  });
+}
+function pushConfigToHost(body, sentRev, resolve) {
+  fetch("dsh-dock/tts/config", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  }).then(async (res) => {
+    if (res.status === 404 || res.status === 405) {
+      configStore.routeGone = true;
+      configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
+      notifyConfig();
+      resolve(configStore.value);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data && data.ok === false) {
+      configStore.note = "\u4FDD\u5B58\u914D\u7F6E\u5931\u8D25\uFF1A" + (data && data.error && data.error.message || "HTTP " + res.status);
+      notifyConfig();
+      resolve(configStore.value);
+      return;
+    }
+    configStore.note = "";
+    if (data && data.data && data.data.config && localRev === sentRev) {
+      const merged = normalizeConfig(data.data.config);
+      configStore.value = merged;
+      writeLocalConfig(merged);
+    }
+    notifyConfig();
+    resolve(configStore.value);
+  }).catch(() => {
+    configStore.note = "\u4FDD\u5B58\u914D\u7F6E\u5931\u8D25\uFF1A\u7F51\u7EDC\u4E0D\u53EF\u8FBE\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
+    notifyConfig();
+    resolve(configStore.value);
+  });
+}
+var hostConfigRequested = false;
+var resolveConfigReady = null;
+var configReady = new Promise((r) => {
+  resolveConfigReady = r;
+});
+function markConfigReady() {
+  if (resolveConfigReady === null) return;
+  const r = resolveConfigReady;
+  resolveConfigReady = null;
+  r();
+}
+function ensureConfigLoaded() {
+  if (hostConfigRequested || configStore.routeGone) {
+    if (configStore.routeGone) markConfigReady();
+    return;
+  }
+  hostConfigRequested = true;
+  fetch("dsh-dock/tts/status", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}"
+  }).then(async (res) => {
+    if (res.status === 404 || res.status === 405) {
+      configStore.routeGone = true;
+      configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u628A\u672C\u529F\u80FD\u5F00\u5173\u5173\u6389\u518D\u6253\u5F00\uFF09\uFF0C\u914D\u7F6E\u6682\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
+      notifyConfig();
+      markConfigReady();
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (data && data.ok && data.data && data.data.config) {
+      const local = readLocalConfig();
+      const fromHost = normalizeConfig(data.data.config);
+      configStore.value = local ? normalizeConfig(Object.assign({}, CONFIG_DEFAULTS, fromHost, local)) : fromHost;
+      writeLocalConfig(configStore.value);
+    }
+    configStore.loaded = true;
+    notifyConfig();
+    markConfigReady();
+  }).catch(() => {
+    markConfigReady();
+  });
+}
+function plainForSpeech(md, cfg) {
+  let t = String(md == null ? "" : md);
+  if (!t.trim()) return "";
+  t = t.replace(/\r\n?/g, "\n");
+  t = t.replace(/```[\w+-]*(?:[^\n]*)\n([\s\S]*?)```/g, (_m, body) => {
+    if (cfg && cfg.skipCode === false) return " " + String(body).replace(/[#*_`>]/g, " ") + " ";
+    return " \uFF08\u6B64\u5904\u6709\u4EE3\u7801\uFF0C\u7565\uFF09 ";
+  });
+  t = t.replace(/^(?: {4}|\t)(.*)$/gm, (_m, body) => cfg && cfg.skipCode === false ? " " + body : " ");
+  t = t.replace(/`([^`\n]*)`/g, "$1");
+  t = t.replace(/!\[([^\]]*)\]\([^)]*\)/g, " $1 ");
+  t = t.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  t = t.replace(/<((?:https?|ftp|mailto):[^>\s]+)>/gi, " ");
+  t = t.replace(/(^\s*\|.+\|[ \t]*(?:\n|$))+/gm, (block) => {
+    if (cfg && cfg.skipTables === false) return block.replace(/\|/g, "\uFF0C").replace(/[-:，]{2,}/g, "\uFF0C");
+    return " \uFF08\u6B64\u5904\u6709\u8868\u683C\uFF0C\u7565\uFF09 ";
+  });
+  t = t.replace(/^\s{0,3}#{1,6}\s+/gm, " ");
+  t = t.replace(/^\s{0,3}>+\s?/gm, " ");
+  t = t.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, " ");
+  t = t.replace(/^\s*(?:={3,}|-{3,}|\*{3,}|_{3,})\s*$/gm, " ");
+  t = t.replace(/(\*\*|__|~~|\*|_)/g, " ");
+  t = t.replace(/<[^>\n]{1,200}>/g, " ");
+  t = t.replace(/\s*\n+\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
+  return t;
+}
+function capSpeechText(text, cfg) {
+  let t = String(text || "");
+  const sentences = cfg && typeof cfg.maxSentences === "number" && cfg.maxSentences > 0 ? Math.round(cfg.maxSentences) : 0;
+  if (sentences > 0) {
+    const parts = splitSentences(t);
+    if (parts.length > sentences) t = parts.slice(0, sentences).join("") + "\uFF08\u540E\u9762\u7684\u5185\u5BB9\u7565\uFF09";
+  }
+  const max = cfg && typeof cfg.maxChars === "number" && cfg.maxChars > 0 ? Math.round(cfg.maxChars) : 0;
+  if (max > 0 && t.length > max) t = t.slice(0, max) + "\u2026\uFF08\u4EE5\u4E0B\u7565\uFF09";
+  return t.trim();
+}
+function splitSentences(text) {
+  const out = [];
+  let cur = "";
+  const re = /[^。！？；.!?;\n]+|[。！？；.!?;\n]+/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (/[。！？；.!?;\n]/.test(m[0])) {
+      cur += m[0];
+      if (cur.trim()) out.push(cur);
+      cur = "";
+    } else {
+      cur += m[0];
+    }
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+function chunkForSpeech(text, limit) {
+  const cap = limit && limit > 0 ? limit : 180;
+  const sentences = splitSentences(String(text || ""));
+  const chunks = [];
+  let buf = "";
+  for (const s of sentences) {
+    if (s.length > cap) {
+      if (buf) {
+        chunks.push(buf);
+        buf = "";
+      }
+      for (let i = 0; i < s.length; i += cap) chunks.push(s.slice(i, i + cap));
+      continue;
+    }
+    if ((buf + s).length > cap && buf) {
+      chunks.push(buf);
+      buf = s;
+    } else buf += s;
+  }
+  if (buf.trim()) chunks.push(buf);
+  return chunks;
+}
+function pickVoice(cfg) {
+  const voices = localVoices();
+  if (voices.length === 0) return null;
+  const want = String(cfg && cfg.voiceURI || "");
+  if (want) {
+    const hit = voices.find((v) => v && v.voiceURI === want);
+    if (hit) return hit;
+  }
+  const lang = String(cfg && cfg.lang || "");
+  if (lang) {
+    const base = lang.split("-")[0].toLowerCase();
+    return voices.find((v) => String(v.lang || "").toLowerCase() === lang.toLowerCase()) || voices.find((v) => String(v.lang || "").toLowerCase().startsWith(base)) || null;
+  }
+  const zh = voices.find((v) => /^zh/i.test(String(v.lang || "")));
+  return zh || null;
+}
+var engine = {
+  state: { phase: "idle", key: "", label: "" },
+  session: null,
+  listeners: /* @__PURE__ */ new Set(),
+  queue: [],
+  epoch: 0
+};
+function notifyEngine() {
+  for (const fn of Array.from(engine.listeners)) {
+    try {
+      fn();
+    } catch {
+    }
+  }
+}
+function engineSnapshot() {
+  return engine.state;
+}
+function subscribeEngine(fn) {
+  engine.listeners.add(fn);
+  return () => {
+    engine.listeners.delete(fn);
+  };
+}
+function useEngineState() {
+  const [snap, setSnap] = (0, import_react12.useState)(engineSnapshot());
+  (0, import_react12.useEffect)(() => subscribeEngine(() => setSnap(engineSnapshot())), []);
+  return snap;
+}
+function setEngineState(next) {
+  engine.state = Object.assign({}, engine.state, next);
+  notifyEngine();
+}
+function stopSpeech() {
+  engine.queue = [];
+  engine.session = null;
+  engine.epoch += 1;
+  const s = synth();
+  if (s) {
+    try {
+      s.cancel();
+    } catch {
+    }
+  }
+  setEngineState({ phase: "idle", key: "", label: "" });
+}
+function pauseSpeech() {
+  if (engine.state.phase !== "playing") return false;
+  const s = synth();
+  if (s) {
+    try {
+      s.pause();
+    } catch {
+    }
+  }
+  setEngineState({ phase: "paused" });
+  return true;
+}
+function resumeSpeech() {
+  if (engine.state.phase !== "paused") return false;
+  const s = synth();
+  if (s) {
+    try {
+      s.resume();
+    } catch {
+    }
+  }
+  setEngineState({ phase: "playing" });
+  return true;
+}
+function restartSpeech() {
+  const session = engine.session;
+  if (!session) return false;
+  const { key, raw, label, cfg } = session;
+  stopSpeech();
+  return startSession({ key, text: raw, label, cfg });
+}
+function startSession(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const text = String(o.text || "").trim();
+  if (!text) return false;
+  if (!ttsSupported()) return false;
+  const cfg = normalizeConfig(o.cfg || configStore.value);
+  const key = String(o.key || "k" + Date.now());
+  const chunks = chunkForSpeech(text, 180);
+  if (chunks.length === 0) return false;
+  const epoch = ++engine.epoch;
+  const voice = pickVoice(cfg);
+  const session = { key, raw: text, chunks, index: 0, epoch, cfg, label: String(o.label || "") };
+  engine.session = session;
+  setEngineState({ phase: "playing", key, label: session.label });
+  const s = synth();
+  const speakNext = () => {
+    if (epoch !== engine.epoch) return;
+    if (session.index >= session.chunks.length) {
+      if (engine.session === session) engine.session = null;
+      setEngineState({ phase: "idle", key: "", label: "" });
+      drainQueue();
+      return;
+    }
+    const piece = session.chunks[session.index];
+    session.index += 1;
+    const utt = makeUtterance(piece);
+    if (!utt) {
+      if (engine.session === session) engine.session = null;
+      setEngineState({ phase: "idle", key: "", label: "" });
+      return;
+    }
+    const lv = configStore.value;
+    utt.rate = typeof lv.rate === "number" ? lv.rate : cfg.rate;
+    utt.pitch = typeof lv.pitch === "number" ? lv.pitch : cfg.pitch;
+    utt.volume = typeof lv.volume === "number" ? lv.volume : cfg.volume;
+    if (voice) {
+      utt.voice = voice;
+      if (voice.lang) utt.lang = voice.lang;
+    } else if (cfg.lang) utt.lang = cfg.lang;
+    utt.onend = () => {
+      if (epoch !== engine.epoch) return;
+      speakNext();
+    };
+    utt.onerror = () => {
+      if (epoch !== engine.epoch) return;
+      speakNext();
+    };
+    try {
+      s.speak(utt);
+    } catch {
+      if (engine.session === session) engine.session = null;
+      setEngineState({ phase: "idle", key: "", label: "" });
+    }
+  };
+  whenQueueClear(s, epoch, speakNext);
+  return true;
+}
+function queueBusy(s) {
+  try {
+    return s.speaking === true || s.pending === true;
+  } catch {
+    return false;
+  }
+}
+var FLUSH_POLL_MS = 15;
+var FLUSH_MAX_MS = 1500;
+function whenQueueClear(s, epoch, run) {
+  if (!queueBusy(s)) {
+    run();
+    return;
+  }
+  let waited = 0;
+  const poll = () => {
+    if (epoch !== engine.epoch) return;
+    if (!queueBusy(s)) {
+      run();
+      return;
+    }
+    waited += FLUSH_POLL_MS;
+    if (waited >= FLUSH_MAX_MS) {
+      try {
+        s.cancel();
+      } catch {
+      }
+      run();
+      return;
+    }
+    setTimeout(poll, FLUSH_POLL_MS);
+  };
+  setTimeout(poll, FLUSH_POLL_MS);
+}
+function speak(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const text = String(o.text || "").trim();
+  if (!text) return false;
+  if (!ttsSupported()) return false;
+  const cfg = normalizeConfig(o.cfg || configStore.value);
+  const key = String(o.key || "k" + Date.now());
+  if (engine.state.phase !== "idle" && engine.state.key === key) return false;
+  if (engine.state.phase !== "idle" && !cfg.interruptOnNew) {
+    engine.queue = [{ key, text, label: String(o.label || ""), cfg }];
+    return false;
+  }
+  if (engine.state.phase !== "idle") stopSpeech();
+  return startSession({ key, text, label: o.label, cfg });
+}
+function drainQueue() {
+  const next = engine.queue.shift();
+  engine.queue = [];
+  if (next) speak({ key: next.key, text: next.text, label: next.label, cfg: Object.assign({}, next.cfg, { interruptOnNew: true }) });
+}
+function closingMarkdown(owner) {
+  const turn = owner && owner.turn;
+  const store = turn && turn.data;
+  if (!store || typeof store.get !== "function") return "";
+  let tail = null;
+  try {
+    tail = store.get("turn-tail");
+  } catch {
+    return "";
+  }
+  const closing = tail && tail.closing;
+  const blocks = closing && Array.isArray(closing.blocks) ? closing.blocks : null;
+  if (!blocks) return "";
+  const parts = [];
+  for (const b of blocks) if (b && b.kind === "text" && typeof b.text === "string") parts.push(b.text);
+  return parts.join("");
+}
+var ICON_SPEAKER = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M11 5 6 9H3v6h3l5 4z" }),
+  import_react12.default.createElement("path", { d: "M15.5 8.5a5 5 0 0 1 0 7" }),
+  import_react12.default.createElement("path", { d: "M18.5 5.5a9 9 0 0 1 0 13" })
+);
+var ICON_PAUSE = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.2",
+    strokeLinecap: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M9 6v12" }),
+  import_react12.default.createElement("path", { d: "M15 6v12" })
+);
+var ICON_RESUME = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M8 5.5v13l11-6.5z" })
+);
+var ICON_RESTART = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("path", { d: "M3.5 8.5V4.5" }),
+  import_react12.default.createElement("path", { d: "M3.5 8.5h4" }),
+  import_react12.default.createElement("path", { d: "M5.6 5.1a8.5 8.5 0 1 1-2.1 5.4" })
+);
+var ICON_STOP = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("rect", { x: "6.5", y: "6.5", width: "11", height: "11", rx: "2" })
+);
+var ICON_GEAR = import_react12.default.createElement(
+  "svg",
+  {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true"
+  },
+  import_react12.default.createElement("circle", { cx: "12", cy: "12", r: "3.2" }),
+  import_react12.default.createElement("path", { d: "M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1" })
+);
+function TtsQuickPop(props) {
+  const cfg = useConfig();
+  const anchor = props.anchor || { x: 120, y: 120 };
+  const boxRef = (0, import_react12.useRef)(null);
+  (0, import_react12.useEffect)(() => {
+    if (typeof document === "undefined") return void 0;
+    const onDown = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) props.onClose();
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [props.onClose]);
+  const vw = typeof globalThis !== "undefined" && globalThis.innerWidth ? globalThis.innerWidth : 1440;
+  const left = Math.max(8, Math.min(anchor.x - 4, vw - 256));
+  const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
+  const pop = import_react12.default.createElement(
+    "div",
+    {
+      ref: boxRef,
+      className: "dktts-pop",
+      style: { left: left + "px", top: anchor.y - 8 + "px" },
+      role: "dialog",
+      "aria-label": "\u6717\u8BFB\u5FEB\u901F\u8BBE\u7F6E"
+    },
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-h" },
+      import_react12.default.createElement("b", null, "\u6717\u8BFB\u8BBE\u7F6E"),
+      import_react12.default.createElement("button", {
+        type: "button",
+        className: "dktts-pop-x",
+        "aria-label": "\u5173\u95ED",
+        title: "\u5173\u95ED",
+        onClick: props.onClose
+      }, "\u2715")
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-row" },
+      import_react12.default.createElement("span", null, "\u8BED\u901F"),
+      import_react12.default.createElement("input", {
+        type: "range",
+        min: "0.5",
+        max: "2",
+        step: "0.05",
+        value: String(cfg.rate),
+        "aria-label": "\u8BED\u901F",
+        onChange: (e) => setConfig({ rate: Number(e.target.value) || 1 })
+      }),
+      import_react12.default.createElement("span", { className: "dktts-pop-val" }, cfg.rate.toFixed(2) + "\xD7")
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-row" },
+      import_react12.default.createElement("span", null, "\u97F3\u91CF"),
+      import_react12.default.createElement("input", {
+        type: "range",
+        min: "0",
+        max: "1",
+        step: "0.05",
+        value: String(cfg.volume),
+        "aria-label": "\u97F3\u91CF",
+        onChange: (e) => setConfig({ volume: Number(e.target.value) })
+      }),
+      import_react12.default.createElement("span", { className: "dktts-pop-val" }, Math.round(cfg.volume * 100) + "%")
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-pop-foot" },
+      import_react12.default.createElement("span", { className: "dktts-pop-tip" }, "\u4E0B\u4E00\u53E5\u8D77\u751F\u6548"),
+      import_react12.default.createElement("button", {
+        type: "button",
+        className: "dktts-pop-more",
+        onClick: () => {
+          props.onClose();
+          openPanel("tts");
+        }
+      }, "\u66F4\u591A\u8BBE\u7F6E \u2192")
+    )
+  );
+  return portalTarget && typeof import_react12.default.createPortal === "function" ? import_react12.default.createPortal(pop, portalTarget) : pop;
+}
+var AUTO_PLAY_FRESH_MS = 8e3;
+var BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
+var spokenKeys = /* @__PURE__ */ new Set();
+function markSpoken(key) {
+  spokenKeys.add(key);
+  if (spokenKeys.size > 200) {
+    const first = spokenKeys.values().next();
+    if (!first.done) spokenKeys.delete(first.value);
+  }
+}
+function claimAutoPlay(key) {
+  if (spokenKeys.has(key)) return false;
+  markSpoken(key);
+  return true;
+}
+function TtsTurnTail(props) {
+  const owner = props || {};
+  const cfg = useConfig();
+  const eng = useEngineState();
+  const md = closingMarkdown(owner);
+  const turn = owner.turn;
+  const turnNo = turn && typeof turn.turn === "number" ? turn.turn : -1;
+  const key = String(owner && owner.sessionId || "") + ":" + turnNo + ":" + (owner.seq || 0);
+  const hasText = Boolean(md && md.trim());
+  const supported = ttsSupported();
+  const active = hasText && eng.phase !== "idle" && eng.key === key;
+  const paused = active && eng.phase === "paused";
+  const playing = active && eng.phase === "playing";
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+  }, []);
+  const startThis = () => {
+    ensureConfigLoaded();
+    const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
+    speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
+  };
+  const autoDoneRef = (0, import_react12.useRef)(false);
+  const [quick, setQuick] = (0, import_react12.useState)(null);
+  (0, import_react12.useEffect)(() => {
+    if (autoDoneRef.current) return;
+    autoDoneRef.current = true;
+    if (!hasText || !supported) return;
+    let cancelled = false;
+    configReady.then(() => {
+      if (cancelled || autoDoneRef.current === "played") return;
+      autoDoneRef.current = "played";
+      if (!configStore.routeGone) return;
+      if (!configStore.value.autoPlay) return;
+      const reasonKind = turn && turn.end && turn.end.data && turn.end.data.reason ? String(turn.end.data.reason.kind || "") : "";
+      const bad = Boolean(reasonKind) && BAD_END[reasonKind] === 1;
+      if (bad && configStore.value.autoPlayOnFinish === false) return;
+      let endedAgo = Number.POSITIVE_INFINITY;
+      try {
+        const t = turn && turn.end ? turn.end.time : 0;
+        if (typeof t === "number" && t > 0) endedAgo = Date.now() - t;
+      } catch {
+        endedAgo = Number.POSITIVE_INFINITY;
+      }
+      if (!(endedAgo >= 0 && endedAgo < AUTO_PLAY_FRESH_MS)) return;
+      if (!claimAutoPlay("local:" + key)) return;
+      const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
+      speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!hasText) return null;
+  const mainTitle = !supported ? "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08Web Speech API\uFF09" : playing ? "\u6682\u505C\uFF08\u518D\u70B9\u7EE7\u7EED\uFF0C\u4E0D\u91CD\u5934\uFF09" : paused ? "\u7EE7\u7EED\u6717\u8BFB" : "\u6717\u8BFB\u8FD9\u6761\u56DE\u590D";
+  const onMain = () => {
+    if (!supported) return;
+    if (playing) {
+      pauseSpeech();
+      return;
+    }
+    if (paused) {
+      resumeSpeech();
+      return;
+    }
+    startThis();
+  };
+  const openQuick = (e) => {
+    const rect2 = e && e.currentTarget && typeof e.currentTarget.getBoundingClientRect === "function" ? e.currentTarget.getBoundingClientRect() : null;
+    ensureConfigLoaded();
+    setQuick(rect2 ? { x: rect2.left, y: rect2.bottom } : { x: 120, y: 120 });
+  };
+  return import_react12.default.createElement(
+    "div",
+    { className: "dktts-tail" },
+    import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn" + (active ? " on" : "") + (supported ? "" : " off"),
+      "aria-label": mainTitle,
+      "aria-pressed": active,
+      title: mainTitle,
+      onClick: onMain
+    }, playing ? ICON_PAUSE : paused ? ICON_RESUME : ICON_SPEAKER),
+    active ? import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn",
+      "aria-label": "\u91CD\u65B0\u6717\u8BFB",
+      title: "\u91CD\u65B0\u6717\u8BFB\uFF08\u4ECE\u5934\u8BFB\uFF09",
+      onClick: () => {
+        restartSpeech();
+      }
+    }, ICON_RESTART) : null,
+    active ? import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn",
+      "aria-label": "\u505C\u6B62",
+      title: "\u505C\u6B62\u6717\u8BFB",
+      onClick: () => {
+        stopSpeech();
+      }
+    }, ICON_STOP) : null,
+    import_react12.default.createElement("button", {
+      type: "button",
+      className: "dktts-btn" + (quick ? " on" : ""),
+      "aria-label": "\u6717\u8BFB\u8BBE\u7F6E\uFF08\u8BED\u901F / \u97F3\u91CF\uFF09",
+      "aria-expanded": quick ? true : false,
+      title: "\u6717\u8BFB\u8BBE\u7F6E\uFF08\u8BED\u901F / \u97F3\u91CF\uFF09",
+      onClick: openQuick
+    }, ICON_GEAR),
+    import_react12.default.createElement(
+      "span",
+      { className: "dktts-state" + (active ? " on" : "") },
+      playing ? "\u6B63\u5728\u6717\u8BFB\u672C\u56DE\u5408" : paused ? "\u5DF2\u6682\u505C \xB7 \u70B9 \u25B6 \u7EE7\u7EED\uFF0C\u4E0D\u91CD\u5934" : ""
+    ),
+    quick ? import_react12.default.createElement(TtsQuickPop, { anchor: quick, onClose: () => setQuick(null) }) : null
+  );
+}
+function TtsOverlay() {
+  const cfg = useConfig();
+  const seenRef = (0, import_react12.useRef)(null);
+  const primedRef = (0, import_react12.useRef)(false);
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+  }, []);
+  (0, import_react12.useEffect)(() => {
+    if (!cfg.autoPlay) return void 0;
+    if (!ttsSupported()) return void 0;
+    if (seenRef.current === null) seenRef.current = /* @__PURE__ */ new Set();
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled || configStore.routeGone) return;
+      fetch("dsh-dock/tts/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      }).then(async (res) => {
+        if (res.status === 404 || res.status === 405) {
+          configStore.routeGone = true;
+          configStore.note = "\u5BBF\u4E3B\u4FA7\u6CA1\u6709\u8BED\u97F3\u6717\u8BFB\u63A5\u53E3\uFF08\u91CD\u542F dsh web \u540E\u66F4\u597D\uFF09\uFF1A\u81EA\u52A8\u6717\u8BFB\u6682\u53EA\u8986\u76D6\u4F60\u6B63\u5728\u770B\u7684\u4F1A\u8BDD\uFF0C\u914D\u7F6E\u4E5F\u53EA\u5B58\u5728\u672C\u6D4F\u89C8\u5668";
+          notifyConfig();
+          return;
+        }
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !data || !data.ok || !data.data) return;
+        const recent = Array.isArray(data.data.recent) ? data.data.recent : [];
+        const seen = seenRef.current;
+        if (!primedRef.current) {
+          for (const r2 of recent) seen.add(String(r2.sessionId) + "|" + String(r2.endTime));
+          primedRef.current = true;
+          return;
+        }
+        const fresh = [];
+        for (const r2 of recent) {
+          const k = String(r2.sessionId) + "|" + String(r2.endTime);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          fresh.push(r2);
+        }
+        if (fresh.length === 0) return;
+        if (seen.size > 500) seenRef.current = new Set([].concat(Array.from(seen).slice(-200)));
+        const r = fresh[fresh.length - 1];
+        const bad = BAD_END[String(r.endReason || "")] === 1;
+        if (bad && configStore.value.autoPlayOnFinish === false) return;
+        const text = String(r.lastText || "");
+        if (!text.trim()) return;
+        if (!claimAutoPlay("auto:" + String(r.sessionId) + "|" + String(r.endTime))) return;
+        const plain = capSpeechText(plainForSpeech(text, configStore.value), configStore.value);
+        speak({
+          key: "auto:" + String(r.sessionId) + "|" + String(r.endTime),
+          text: plain,
+          cfg: configStore.value,
+          label: (r.title || "\u4EFB\u52A1") + (bad ? "\uFF08" + String(r.endReason) + "\uFF09" : "\uFF08\u5DF2\u5B8C\u6210\uFF09")
+        });
+      }).catch(() => {
+      });
+    };
+    tick();
+    const timer = setInterval(tick, 1e3);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [cfg.autoPlay]);
+  return null;
+}
+function TtsRow(props) {
+  return import_react12.default.createElement(
+    "div",
+    { className: "dktts-row" },
+    import_react12.default.createElement("span", { className: "dktts-label" }, props.label),
+    import_react12.default.createElement("span", { className: "dktts-ctl" }, props.children),
+    props.note ? import_react12.default.createElement("span", { className: "dktts-note" }, props.note) : null
+  );
+}
+function TtsSwitch(props) {
+  const on = props.value === true;
+  return import_react12.default.createElement(
+    "button",
+    {
+      type: "button",
+      className: "dktts-sw" + (on ? " on" : ""),
+      role: "switch",
+      "aria-checked": on,
+      "aria-label": (on ? "\u505C\u7528" : "\u542F\u7528") + props.label,
+      title: on ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09",
+      onClick: () => props.onChange(!on)
+    },
+    import_react12.default.createElement("span", { className: "dktts-sw-dot" }),
+    on ? "\u542F\u7528" : "\u505C\u7528"
+  );
+}
+function TtsView() {
+  const cfg = useConfig();
+  const eng = useEngineState();
+  const [, force] = (0, import_react12.useState)(0);
+  const [saved, setSaved] = (0, import_react12.useState)("");
+  const voices = (0, import_react12.useRef)(localVoices());
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+    const s = synth();
+    if (!s || typeof s.addEventListener !== "function") return;
+    const onChange = () => {
+      voices.current = localVoices();
+      force((n) => n + 1);
+    };
+    try {
+      s.addEventListener("voiceschanged", onChange);
+    } catch {
+      return;
+    }
+    return () => {
+      try {
+        s.removeEventListener("voiceschanged", onChange);
+      } catch {
+      }
+    };
+  }, []);
+  (0, import_react12.useEffect)(() => {
+    if (voices.current.length === 0) {
+      voices.current = localVoices();
+      force((n) => n + 1);
+    }
+  }, []);
+  const list = voices.current;
+  const supported = ttsSupported();
+  const sample = "\u597D\u7684\uFF0C\u6211\u73B0\u5728\u628A\u8FD9\u6761\u56DE\u590D\u8BFB\u7ED9\u4F60\u542C\u3002\u8BED\u901F\u548C\u97F3\u8272\u53EF\u4EE5\u5728\u8FD9\u91CC\u8C03\uFF0C\u70B9\u300C\u8BD5\u542C\u300D\u5C31\u80FD\u7ACB\u523B\u542C\u5230\u6548\u679C\u3002";
+  const patch = (p) => {
+    setConfig(p);
+    setSaved("\u5DF2\u4FDD\u5B58");
+    setTimeout(() => setSaved(""), 1500);
+  };
+  const preview = () => {
+    stopSpeech();
+    speak({
+      key: "preview:" + Date.now(),
+      text: sample,
+      cfg: configStore.value,
+      label: "\u8BD5\u542C"
+    });
+  };
+  const active = eng.phase !== "idle";
+  const paused = eng.phase === "paused";
+  const playing = eng.phase === "playing";
+  const grouped = [];
+  {
+    const zh = [], other = [];
+    for (const v of list) {
+      if (!v || !v.voiceURI) continue;
+      if (/^zh/i.test(String(v.lang || ""))) zh.push(v);
+      else other.push(v);
+    }
+    if (zh.length) grouped.push(["\u4E2D\u6587\u97F3\u8272", zh]);
+    if (other.length) grouped.push(["\u5176\u4ED6\u97F3\u8272", other]);
+  }
+  return import_react12.default.createElement(
+    "div",
+    { className: "dktts-root" },
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-intro" },
+      "\u773C\u775B\u4E0D\u8212\u670D\u65F6\u8BA9 dsh \u628A\u56DE\u590D\u8BFB\u51FA\u6765\u3002\u7528\u7684\u662F",
+      import_react12.default.createElement("b", null, "\u6D4F\u89C8\u5668\u81EA\u5E26\u7684\u8BED\u97F3\u5408\u6210"),
+      "\uFF08Web Speech API\uFF09\uFF0C\u58F0\u97F3\u4ECE\u4F60\u5F53\u524D\u8FD9\u53F0\u8BBE\u5907\u7684\u626C\u58F0\u5668\u51FA\u6765\uFF0C\u4E0D\u6D88\u8017 token\u3001\u4E0D\u7ECF\u8FC7\u670D\u52A1\u5668\u3002",
+      "\u6BCF\u6761\u56DE\u590D\u4E0B\u65B9\u4F1A\u51FA\u73B0\u4E00\u4E2A",
+      import_react12.default.createElement("b", null, " \u{1F50A} \u5587\u53ED"),
+      "\uFF0C\u70B9\u4E00\u4E0B\u5C31\u8BFB\u8FD9\u6761\uFF1B\u4E5F\u53EF\u4EE5\u6253\u5F00\u300C\u81EA\u52A8\u6717\u8BFB\u300D\uFF0C\u56DE\u5408\u7ED3\u675F\u540E\u76F4\u63A5\u8BFB\u6700\u540E\u4E00\u6761\u56DE\u590D\u3002"
+    ),
+    !supported ? import_react12.default.createElement(
+      "div",
+      { className: "dktts-warn" },
+      "\u8FD9\u4E2A\u6D4F\u89C8\u5668\u4E0D\u63D0\u4F9B\u8BED\u97F3\u5408\u6210\u80FD\u529B\uFF08speechSynthesis \u4E0D\u53EF\u7528\uFF09\u3002\u6362 Chrome / Edge / Safari \u5373\u53EF\uFF1BLinux \u4E0A\u7684 Chromium \u9700\u8981\u88C5\u8BED\u97F3\u5305\uFF08\u5982 espeak-ng\uFF09\uFF0C\u6216\u5728\u7CFB\u7EDF\u8BBE\u7F6E\u91CC\u6DFB\u52A0\u8BED\u97F3\u3002"
+    ) : null,
+    supported && list.length === 0 ? import_react12.default.createElement(
+      "div",
+      { className: "dktts-warn" },
+      "\u672C\u673A\u6682\u65F6\u8BFB\u4E0D\u5230\u4EFB\u4F55\u97F3\u8272\u3002\u901A\u5E38\u662F\u7CFB\u7EDF\u8FD8\u6CA1\u88C5/\u6CA1\u542F\u7528\u8BED\u97F3\uFF1AWindows \u5230\u300C\u8BBE\u7F6E \u2192 \u65F6\u95F4\u548C\u8BED\u8A00 \u2192 \u8BED\u97F3\u300D\u6DFB\u52A0\u4E2D\u6587\u8BED\u97F3\uFF0CmacOS \u5230\u300C\u7CFB\u7EDF\u8BBE\u7F6E \u2192 \u65E0\u969C\u788D \u2192 \u6717\u8BFB\u5185\u5BB9\u300D\u6DFB\u52A0\u97F3\u8272\uFF0C\u7136\u540E\u5237\u65B0\u9875\u9762\u3002"
+    ) : null,
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u6717\u8BFB\u65F6\u673A"),
+      import_react12.default.createElement(TtsRow, {
+        label: "\u81EA\u52A8\u6717\u8BFB",
+        note: "\u56DE\u5408\u7ED3\u675F\u540E\u81EA\u52A8\u8BFB\u6700\u540E\u4E00\u6761\u56DE\u590D\uFF1B\u4F60\u6B63\u5728\u770B\u7684\u8FD9\u6761\u4F1A\u8BDD\u624D\u8BFB\uFF0C\u540E\u53F0\u4F1A\u8BDD\u4E0D\u8BFB\u3002"
+      }, import_react12.default.createElement(TtsSwitch, {
+        label: "\u81EA\u52A8\u6717\u8BFB",
+        value: cfg.autoPlay,
+        onChange: (v) => patch({ autoPlay: v })
+      })),
+      import_react12.default.createElement(TtsRow, {
+        label: "\u51FA\u9519 / \u4E2D\u6B62\u4E5F\u8BFB",
+        note: "\u5173\u95ED\u540E\u53EA\u5728\u6B63\u5E38\u5B8C\u6210\u65F6\u8BFB\u3002"
+      }, import_react12.default.createElement(TtsSwitch, {
+        label: "\u51FA\u9519\u4E5F\u8BFB",
+        value: cfg.autoPlayOnFinish,
+        onChange: (v) => patch({ autoPlayOnFinish: v })
+      })),
+      import_react12.default.createElement(TtsRow, {
+        label: "\u65B0\u5185\u5BB9\u6253\u65AD\u5F53\u524D\u6717\u8BFB",
+        note: "\u5173\u95ED\u5219\u6392\u961F\uFF1A\u65B0\u7684\u90A3\u6761\u7B49\u5F53\u524D\u8BFB\u5B8C\u518D\u8BFB\uFF08\u53EA\u4FDD\u7559\u6700\u65B0\u4E00\u6761\uFF09\u3002"
+      }, import_react12.default.createElement(TtsSwitch, {
+        label: "\u6253\u65AD",
+        value: cfg.interruptOnNew,
+        onChange: (v) => patch({ interruptOnNew: v })
+      }))
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u58F0\u97F3"),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u97F3\u8272", note: "\u97F3\u8272\u662F\u672C\u673A\u6D4F\u89C8\u5668\u7ED9\u7684\uFF0C\u6362\u8BBE\u5907\u53EF\u80FD\u8981\u91CD\u9009\u3002" },
+        import_react12.default.createElement(
+          "select",
+          {
+            className: "dktts-select",
+            value: cfg.voiceURI,
+            onChange: (e) => patch({ voiceURI: e.target.value })
+          },
+          import_react12.default.createElement("option", { value: "" }, "\u81EA\u52A8\uFF08\u6309\u8BED\u8A00\u6311\uFF09"),
+          grouped.map(([gname, vs]) => import_react12.default.createElement(
+            "optgroup",
+            { key: gname, label: gname },
+            vs.map((v) => import_react12.default.createElement("option", {
+              key: v.voiceURI,
+              value: v.voiceURI
+            }, (v.name || v.voiceURI) + "\uFF08" + (v.lang || "?") + "\uFF09"))
+          ))
+        )
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u5F3A\u5236\u8BED\u8A00", note: "\u7559\u7A7A\u5219\u4E2D\u6587\u6587\u672C\u4F18\u5148\u6311\u4E2D\u6587\u97F3\u8272\u3002" },
+        import_react12.default.createElement(
+          "select",
+          {
+            className: "dktts-select",
+            value: cfg.lang,
+            onChange: (e) => patch({ lang: e.target.value })
+          },
+          import_react12.default.createElement("option", { value: "" }, "\u81EA\u52A8"),
+          ["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => import_react12.default.createElement("option", {
+            key: l,
+            value: l
+          }, l))
+        )
+      ),
+      import_react12.default.createElement(TtsSlider, {
+        label: "\u8BED\u901F",
+        suffix: cfg.rate.toFixed(2) + "\xD7",
+        min: "0.5",
+        max: "2",
+        step: "0.05",
+        value: cfg.rate,
+        aria: "\u8BED\u901F",
+        onChange: (v) => patch({ rate: v })
+      }),
+      import_react12.default.createElement(TtsSlider, {
+        label: "\u97F3\u8C03",
+        suffix: cfg.pitch.toFixed(2),
+        min: "0",
+        max: "2",
+        step: "0.1",
+        value: cfg.pitch,
+        aria: "\u97F3\u8C03",
+        onChange: (v) => patch({ pitch: v })
+      }),
+      import_react12.default.createElement(TtsSlider, {
+        label: "\u97F3\u91CF",
+        suffix: Math.round(cfg.volume * 100) + "%",
+        min: "0",
+        max: "1",
+        step: "0.05",
+        value: cfg.volume,
+        aria: "\u97F3\u91CF",
+        onChange: (v) => patch({ volume: v })
+      })
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u5FF5\u4EC0\u4E48\uFF08\u56DE\u590D\u6B63\u6587\u7684\u6E05\u6D17\uFF09"),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u8DF3\u8FC7\u4EE3\u7801\u5757", note: "\u5173\u95ED\u5219\u8FDE\u4EE3\u7801\u4E00\u8D77\u5FF5\uFF08\u53EA\u53BB\u7B26\u53F7\uFF09\u3002" },
+        import_react12.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u4EE3\u7801\u5757", value: cfg.skipCode, onChange: (v) => patch({ skipCode: v }) })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u8DF3\u8FC7\u8868\u683C", note: "\u8868\u683C\u9010\u683C\u5FF5\u51FA\u6765\u6CA1\u6709\u610F\u4E49\uFF0C\u9ED8\u8BA4\u8DF3\u8FC7\u3002" },
+        import_react12.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u8868\u683C", value: cfg.skipTables, onChange: (v) => patch({ skipTables: v }) })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u53EA\u8BFB\u524D N \u53E5", note: "0 = \u4E0D\u9650\u3002\u60F3\u53EA\u542C\u7ED3\u8BBA\u65F6\u8BBE 3~5 \u53E5\u3002" },
+        import_react12.default.createElement("input", {
+          type: "number",
+          className: "dktts-num",
+          min: "0",
+          max: "200",
+          step: "1",
+          "aria-label": "\u53EA\u8BFB\u524D\u51E0\u53E5",
+          value: String(cfg.maxSentences),
+          onChange: (e) => patch({ maxSentences: Math.max(0, Math.round(Number(e.target.value) || 0)) })
+        })
+      ),
+      import_react12.default.createElement(
+        TtsRow,
+        { label: "\u5B57\u6570\u4E0A\u9650", note: "0 = \u4E0D\u9650\uFF1B\u8D85\u51FA\u90E8\u5206\u5FF5\u300C\u4EE5\u4E0B\u7565\u300D\u3002" },
+        import_react12.default.createElement("input", {
+          type: "number",
+          className: "dktts-num",
+          min: "0",
+          max: "200000",
+          step: "100",
+          "aria-label": "\u5B57\u6570\u4E0A\u9650",
+          value: String(cfg.maxChars),
+          onChange: (e) => patch({ maxChars: Math.max(0, Math.round(Number(e.target.value) || 0)) })
+        })
+      )
+    ),
+    // —— 播放控制：试听 + 正在读时的 暂停/继续 · 重新朗读 · 停止 ——
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-card" },
+      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u64AD\u653E\u63A7\u5236"),
+      import_react12.default.createElement(
+        "div",
+        { className: "dktts-transport" },
+        import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-primary",
+          onClick: preview,
+          disabled: !supported
+        }, "\u8BD5\u542C"),
+        active ? import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-ghost",
+          onClick: () => {
+            if (playing) pauseSpeech();
+            else resumeSpeech();
+          }
+        }, playing ? "\u6682\u505C" : "\u7EE7\u7EED") : null,
+        active ? import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-ghost",
+          onClick: () => {
+            restartSpeech();
+          }
+        }, "\u91CD\u65B0\u6717\u8BFB") : null,
+        active ? import_react12.default.createElement("button", {
+          type: "button",
+          className: "dktts-ghost",
+          onClick: () => {
+            stopSpeech();
+          }
+        }, "\u505C\u6B62") : null,
+        import_react12.default.createElement(
+          "span",
+          { className: "dktts-playing" },
+          playing ? "\u6B63\u5728\u6717\u8BFB\uFF1A" + (eng.label || "\u5185\u5BB9") : paused ? "\u5DF2\u6682\u505C\uFF1A" + (eng.label || "\u5185\u5BB9") + "\uFF08\u70B9\u300C\u7EE7\u7EED\u300D\u4E0D\u91CD\u5934\uFF09" : saved ? "\u2713 " + saved : "\u3000"
+        )
+      )
+    ),
+    import_react12.default.createElement(
+      "div",
+      { className: "dktts-note-line" },
+      "\u63D0\u793A\uFF1A\u6D4F\u89C8\u5668\u8981\u6C42\u300C\u5148\u6709\u7528\u6237\u624B\u52BF\u624D\u5141\u8BB8\u51FA\u58F0\u300D\u3002\u521A\u6253\u5F00\u9875\u9762\u5C31\u81EA\u52A8\u6717\u8BFB\u53EF\u80FD\u88AB\u6D4F\u89C8\u5668\u62E6\u6389\u2014\u2014",
+      "\u70B9\u4E00\u4E0B\u9875\u9762\u4E0A\u4EFB\u610F\u4F4D\u7F6E\uFF0C\u6216\u76F4\u63A5\u7528\u56DE\u590D\u4E0B\u65B9\u7684\u5587\u53ED\u6309\u94AE\u3002"
+    ),
+    configStore.note ? import_react12.default.createElement("div", { className: "dktts-warn" }, configStore.note) : null,
+    configStore.routeGone ? import_react12.default.createElement(
+      "div",
+      { className: "dktts-links" },
+      import_react12.default.createElement("button", {
+        type: "button",
+        className: "dktts-ghost",
+        onClick: () => {
+          configStore.routeGone = false;
+          hostConfigRequested = false;
+          ensureConfigLoaded();
+          force((n) => n + 1);
+        }
+      }, "\u91CD\u8BD5\u8FDE\u63A5\u5BBF\u4E3B")
+    ) : null
+  );
+}
+function TtsSlider(props) {
+  return import_react12.default.createElement(
+    "div",
+    { className: "dktts-row" },
+    import_react12.default.createElement("span", { className: "dktts-label" }, props.label),
+    import_react12.default.createElement(
+      "span",
+      { className: "dktts-slider" },
+      import_react12.default.createElement("input", {
+        type: "range",
+        min: props.min,
+        max: props.max,
+        step: props.step,
+        value: String(props.value),
+        "aria-label": props.aria,
+        onChange: (e) => props.onChange(Number(e.target.value))
+      }),
+      import_react12.default.createElement("span", { className: "dktts-slider-val" }, props.suffix)
+    ),
+    null
+  );
+}
+function TtsStat() {
+  const cfg = useConfig();
+  (0, import_react12.useEffect)(() => {
+    ensureConfigLoaded();
+  }, []);
+  return import_react12.default.createElement(
+    "span",
+    null,
+    "\u81EA\u52A8\u6717\u8BFB\uFF1A",
+    cfg.autoPlay ? "\u5F00" : "\u5173",
+    " \xB7 \u8BED\u901F ",
+    cfg.rate.toFixed(2),
+    "\xD7",
+    cfg.autoPlay ? "" : "\uFF08\u56DE\u590D\u4E0B\u65B9\u70B9\u5587\u53ED\u53EF\u624B\u52A8\u8BFB\uFF09"
+  );
+}
+var CSS = [
+  ".dktts-root{display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);font-size:13px;}",
+  ".dktts-intro{color:var(--dsw-alias-label-secondary);line-height:1.7;}",
+  ".dktts-intro b{color:var(--dsw-alias-label-primary);}",
+  ".dktts-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;}",
+  ".dktts-card-h{font-weight:600;color:var(--dsw-alias-label-primary);padding-bottom:6px;border-bottom:1px solid var(--dsw-alias-border-l1);margin-bottom:4px;}",
+  // 行：标签列固定 116px 不换行 · 控件列不伸缩 · 说明列吃掉剩余（窄屏整块纵排）
+  ".dktts-row{display:grid;grid-template-columns:116px 220px minmax(0,1fr);align-items:center;gap:12px;padding:4px 0;min-width:0;}",
+  ".dktts-label{color:var(--dsw-alias-label-primary);white-space:nowrap;}",
+  ".dktts-ctl{display:flex;align-items:center;gap:8px;min-width:0;}",
+  ".dktts-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;min-width:0;}",
+  ".dktts-select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;min-width:0;}",
+  ".dktts-num{width:110px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
+  // 开关：药丸形 + 状态点，文字绝不换行（旧版复用外壳 dock-sw 被挤成一字一行）
+  ".dktts-sw{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:4px 12px;cursor:pointer;font-size:12px;line-height:18px;}",
+  ".dktts-sw-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-label-tertiary);}",
+  ".dktts-sw.on{color:var(--dk-ok);border-color:var(--dk-ok);}",
+  ".dktts-sw.on .dktts-sw-dot{background:var(--dk-ok);}",
+  // 滑块行：滑块占满控件列，数值右对齐固定宽
+  ".dktts-slider{display:flex;align-items:center;gap:8px;min-width:0;}",
+  ".dktts-slider input[type='range']{flex:1;min-width:0;accent-color:var(--dk-accent);}",
+  ".dktts-slider-val{flex:none;width:46px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);font-size:12px;}",
+  ".dktts-transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+  ".dktts-primary,.dktts-ghost{flex:none;white-space:nowrap;border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
+  ".dktts-primary{border-color:var(--dk-accent);color:var(--dk-accent);}",
+  ".dktts-primary:disabled{opacity:.45;cursor:default;}",
+  ".dktts-ghost:hover,.dktts-primary:not(:disabled):hover{background:var(--dk-hover-tint);}",
+  ".dktts-playing{color:var(--dk-accent);font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+  ".dktts-warn{border:1px solid var(--dk-warn);color:var(--dk-warn);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;}",
+  ".dktts-note-line{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
+  ".dktts-links{display:flex;gap:8px;}",
+  // 窄屏（功能坞面板被压窄时）：三列改纵排，说明跟在控件下
+  "@media (max-width:720px){.dktts-row{grid-template-columns:1fr;gap:2px;padding:6px 0;}.dktts-ctl,.dktts-slider{max-width:320px;}}",
+  // —— 回合下方的播放条：尺寸/配色对齐宿主消息动作行（ui-chat MessageIconActions .action）——
+  ".dktts-tail{display:flex;align-items:center;gap:2px;margin-top:4px;flex-wrap:wrap;}",
+  ".dktts-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:6px;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;}",
+  ".dktts-btn svg{width:17px;height:17px;}",
+  ".dktts-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary);}",
+  ".dktts-btn.on{color:var(--dk-accent);}",
+  ".dktts-btn.off{opacity:.4;cursor:default;}",
+  ".dktts-btn.off:hover{background:transparent;color:var(--dsw-alias-label-tertiary);}",
+  ".dktts-state{color:var(--dsw-alias-label-secondary);font-size:12px;padding-left:6px;}",
+  ".dktts-state.on{color:var(--dk-accent);}",
+  // —— ⚙ 就地快设浮层（portal 到 body；z 高于功能坞面板 200，低于常见模态 1000）——
+  ".dktts-pop{position:fixed;z-index:300;width:248px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:0 10px 32px rgb(0 0 0 / .28);padding:10px 12px;font-size:12px;animation:dktts-pop-in .12s ease-out;}",
+  "@keyframes dktts-pop-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}",
+  "@media (prefers-reduced-motion:reduce){.dktts-pop{animation:none}}",
+  ".dktts-pop-h{display:flex;align-items:center;gap:8px;}",
+  ".dktts-pop-h b{flex:1;font-weight:600;}",
+  ".dktts-pop-x{border:none;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1;padding:4px;border-radius:6px;}",
+  ".dktts-pop-x:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  ".dktts-pop-row{display:grid;grid-template-columns:32px 1fr 46px;align-items:center;gap:8px;}",
+  ".dktts-pop-row input[type='range']{width:100%;min-width:0;accent-color:var(--dk-accent);}",
+  ".dktts-pop-val{text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);}",
+  ".dktts-pop-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;margin-top:2px;}",
+  ".dktts-pop-tip{color:var(--dsw-alias-label-secondary);}",
+  ".dktts-pop-more{border:none;background:transparent;color:var(--dk-accent);cursor:pointer;font-size:12px;padding:2px 0;}",
+  ".dktts-pop-more:hover{text-decoration:underline;}"
+].join("\n");
+var feature10 = {
+  id: "tts",
+  name: "\u8BED\u97F3\u6717\u8BFB",
+  order: 160,
+  accent: "#0ea5e9",
+  description: "\u628A\u4F1A\u8BDD\u56DE\u590D\u8BFB\u51FA\u6765\uFF08\u6D4F\u89C8\u5668\u8BED\u97F3\u5408\u6210\uFF09\uFF1A\u56DE\u590D\u4E0B\u65B9\u70B9\u5587\u53ED\u64AD\u653E\uFF0C\u6216\u8BBE\u7F6E\u56DE\u5408\u7ED3\u675F\u81EA\u52A8\u6717\u8BFB",
+  defaultEnabled: false,
+  css: CSS,
+  View: TtsView,
+  HomeStat: TtsStat,
+  // 回合下方的喇叭按钮（宿主 conversation.chat.turnTail 座位，见 src/client.jsx 的装配）
+  TurnTail: TtsTurnTail,
+  // 自动朗读的触发器（无 UI，只在功能启用时常驻挂载）
+  Overlay: TtsOverlay
+};
+
 // features/games/view.jsx
-var import_react20 = require("react");
+var import_react22 = require("react");
 
 // features/games/games/shared.jsx
-var import_react11 = require("react");
+var import_react13 = require("react");
 function isTypingTarget(event) {
   const tag = event.target && event.target.tagName || "";
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
@@ -8160,9 +9577,9 @@ function isTypingTarget(event) {
   return false;
 }
 function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
-  const pausedRef = (0, import_react11.useRef)(!!paused);
+  const pausedRef = (0, import_react13.useRef)(!!paused);
   pausedRef.current = !!paused;
-  (0, import_react11.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     if (pausedRef.current) return;
     const el = stageRef && stageRef.current;
     if (!el) return;
@@ -8174,7 +9591,7 @@ function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
     }, 60);
     return () => clearTimeout(t);
   }, [paused]);
-  (0, import_react11.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const inStage = (event) => {
       const el = stageRef && stageRef.current;
       return !!el && (el === event.target || el.contains(event.target));
@@ -8267,7 +9684,7 @@ function playSfx(name) {
 }
 
 // features/games/games/tetris.jsx
-var import_react12 = require("react");
+var import_react14 = require("react");
 var import_jsx_runtime5 = require("react/jsx-runtime");
 var COLS = 10;
 var ROWS = 20;
@@ -8428,12 +9845,12 @@ var KEY_ACTIONS = {
   "Enter": "drop"
 };
 function TetrisGame(props) {
-  const [state, setState] = (0, import_react12.useState)(initial);
-  const [manualPause, setManualPause] = (0, import_react12.useState)(false);
-  const pausedRef = (0, import_react12.useRef)(!!(props && props.paused));
+  const [state, setState] = (0, import_react14.useState)(initial);
+  const [manualPause, setManualPause] = (0, import_react14.useState)(false);
+  const pausedRef = (0, import_react14.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused) || manualPause;
-  const stageRef = (0, import_react12.useRef)(null);
-  const act = (0, import_react12.useCallback)((action) => setState((s) => {
+  const stageRef = (0, import_react14.useRef)(null);
+  const act = (0, import_react14.useCallback)((action) => setState((s) => {
     if (pausedRef.current) return s;
     if (action === "left") {
       playSfx("move");
@@ -8455,21 +9872,21 @@ function TetrisGame(props) {
     }
     return s;
   }), []);
-  const softRef = (0, import_react12.useRef)(null);
-  const stateRef = (0, import_react12.useRef)(state);
+  const softRef = (0, import_react14.useRef)(null);
+  const stateRef = (0, import_react14.useRef)(state);
   stateRef.current = state;
-  const holdIdRef = (0, import_react12.useRef)(null);
-  const stopSoft = (0, import_react12.useCallback)(() => {
+  const holdIdRef = (0, import_react14.useRef)(null);
+  const stopSoft = (0, import_react14.useCallback)(() => {
     if (softRef.current) {
       clearInterval(softRef.current);
       softRef.current = null;
     }
   }, []);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (state.over || manualPause || props.paused) stopSoft();
     return stopSoft;
   }, [state.over, manualPause, props.paused, stopSoft]);
-  const onKeyDown = (0, import_react12.useCallback)((event) => {
+  const onKeyDown = (0, import_react14.useCallback)((event) => {
     const action = KEY_ACTIONS[event.key];
     if (action) {
       event.preventDefault();
@@ -8501,13 +9918,13 @@ function TetrisGame(props) {
       setManualPause(false);
     }
   }, [act, stopSoft]);
-  const onKeyUp = (0, import_react12.useCallback)((event) => {
+  const onKeyUp = (0, import_react14.useCallback)((event) => {
     if (KEY_ACTIONS[event.key] === "down") stopSoft();
   }, [stopSoft]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (pausedRef.current || state.over) return;
     const speed = Math.max(80, 720 - (state.level - 1) * 70);
     const timer = setInterval(() => act("down"), speed);
@@ -8613,7 +10030,7 @@ var tetrisGame = { Game: TetrisGame, Preview: TetrisPreview, css: `
 ` };
 
 // features/games/games/sokoban.jsx
-var import_react13 = require("react");
+var import_react15 = require("react");
 var import_jsx_runtime6 = require("react/jsx-runtime");
 var LEVELS = [
   ["######", "#    #", "#@$ .#", "#    #", "######"],
@@ -8708,28 +10125,28 @@ function undo(state) {
 }
 var DIRS = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
 function SokobanGame(props) {
-  const [level, setLevel] = (0, import_react13.useState)(0);
-  const [state, setState] = (0, import_react13.useState)(() => makeInitial(0));
-  const stageRef = (0, import_react13.useRef)(null);
-  const levelRef = (0, import_react13.useRef)(level);
+  const [level, setLevel] = (0, import_react15.useState)(0);
+  const [state, setState] = (0, import_react15.useState)(() => makeInitial(0));
+  const stageRef = (0, import_react15.useRef)(null);
+  const levelRef = (0, import_react15.useRef)(level);
   levelRef.current = level;
-  const move = (0, import_react13.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
-  const prevWon = (0, import_react13.useRef)(false);
-  (0, import_react13.useEffect)(() => {
+  const move = (0, import_react15.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
+  const prevWon = (0, import_react15.useRef)(false);
+  (0, import_react15.useEffect)(() => {
     if (state.wonNew && !prevWon.current) playSfx("win");
     prevWon.current = state.wonNew;
   }, [state.wonNew]);
-  const nextLevel = (0, import_react13.useCallback)(() => {
+  const nextLevel = (0, import_react15.useCallback)(() => {
     const n = (levelRef.current + 1) % LEVELS.length;
     setLevel(n);
     setState(makeInitial(n));
   }, []);
-  const pickLevel = (0, import_react13.useCallback)((i) => {
+  const pickLevel = (0, import_react15.useCallback)((i) => {
     setLevel(i);
     setState(makeInitial(i));
   }, []);
-  const reset = (0, import_react13.useCallback)(() => setState(makeInitial(levelRef.current)), []);
-  const onKeyDown = (0, import_react13.useCallback)((event) => {
+  const reset = (0, import_react15.useCallback)(() => setState(makeInitial(levelRef.current)), []);
+  const onKeyDown = (0, import_react15.useCallback)((event) => {
     const d = DIRS[event.key];
     if (d) {
       event.preventDefault();
@@ -8814,7 +10231,7 @@ var sokobanGame = { Game: SokobanGame, Preview: SokobanPreview, css: `
 ` };
 
 // features/games/games/gomoku.jsx
-var import_react14 = require("react");
+var import_react16 = require("react");
 var import_jsx_runtime7 = require("react/jsx-runtime");
 var GOMOKU_LINES = (() => {
   const P = (n) => n * 100 + 50;
@@ -8931,22 +10348,22 @@ function aiMove(board) {
   return best || [7, 7];
 }
 function GomokuGame(props) {
-  const [board, setBoard] = (0, import_react14.useState)(emptyBoard2);
-  const [turn, setTurn] = (0, import_react14.useState)("b");
-  const [winner, setWinner] = (0, import_react14.useState)(null);
-  const [winCells, setWinCells] = (0, import_react14.useState)(null);
-  const [showResult, setShowResult] = (0, import_react14.useState)(false);
-  const [last, setLast] = (0, import_react14.useState)(null);
-  const [history, setHistory] = (0, import_react14.useState)([]);
-  const [thinking, setThinking] = (0, import_react14.useState)(false);
-  const boardRef = (0, import_react14.useRef)(board);
-  const stageRef = (0, import_react14.useRef)(null);
+  const [board, setBoard] = (0, import_react16.useState)(emptyBoard2);
+  const [turn, setTurn] = (0, import_react16.useState)("b");
+  const [winner, setWinner] = (0, import_react16.useState)(null);
+  const [winCells, setWinCells] = (0, import_react16.useState)(null);
+  const [showResult, setShowResult] = (0, import_react16.useState)(false);
+  const [last, setLast] = (0, import_react16.useState)(null);
+  const [history, setHistory] = (0, import_react16.useState)([]);
+  const [thinking, setThinking] = (0, import_react16.useState)(false);
+  const boardRef = (0, import_react16.useRef)(board);
+  const stageRef = (0, import_react16.useRef)(null);
   boardRef.current = board;
-  const turnRef = (0, import_react14.useRef)(turn);
+  const turnRef = (0, import_react16.useRef)(turn);
   turnRef.current = turn;
-  const winRef = (0, import_react14.useRef)(winner);
+  const winRef = (0, import_react16.useRef)(winner);
   winRef.current = winner;
-  const finish = (0, import_react14.useCallback)((b, r, c, color) => {
+  const finish = (0, import_react16.useCallback)((b, r, c, color) => {
     const line = winLine(b, r, c, color);
     if (line) {
       setWinner(color);
@@ -8960,7 +10377,7 @@ function GomokuGame(props) {
       playSfx("clear");
     } else playSfx("stone");
   }, []);
-  const place = (0, import_react14.useCallback)((r, c, color) => {
+  const place = (0, import_react16.useCallback)((r, c, color) => {
     if (boardRef.current[r][c]) return false;
     const next = boardRef.current.map((row) => row.slice());
     next[r][c] = color;
@@ -8971,7 +10388,7 @@ function GomokuGame(props) {
     finish(next, r, c, color);
     return true;
   }, [finish]);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     if (turn !== "w" || winner || props.paused) return;
     setThinking(true);
     const t = setTimeout(() => {
@@ -8982,12 +10399,12 @@ function GomokuGame(props) {
     }, 260);
     return () => clearTimeout(t);
   }, [turn, winner, props.paused, place]);
-  const onCell = (0, import_react14.useCallback)((r, c) => {
+  const onCell = (0, import_react16.useCallback)((r, c) => {
     if (winRef.current || turnRef.current !== "b" || thinking || boardRef.current[r][c]) return;
     place(r, c, "b");
     setTurn("w");
   }, [thinking, place]);
-  const reset = (0, import_react14.useCallback)(() => {
+  const reset = (0, import_react16.useCallback)(() => {
     setBoard(emptyBoard2());
     setTurn("b");
     setWinner(null);
@@ -8997,7 +10414,7 @@ function GomokuGame(props) {
     setHistory([]);
     setThinking(false);
   }, []);
-  const undo2 = (0, import_react14.useCallback)(() => {
+  const undo2 = (0, import_react16.useCallback)(() => {
     if (thinking || history.length < 2) return;
     const h = history.slice(0, -2);
     const next = emptyBoard2();
@@ -9011,7 +10428,7 @@ function GomokuGame(props) {
     setShowResult(false);
     setLast(h.length ? h[h.length - 1] : null);
   }, [history, thinking]);
-  const onKeyDown = (0, import_react14.useCallback)((event) => {
+  const onKeyDown = (0, import_react16.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       reset();
@@ -9110,7 +10527,7 @@ var gomokuGame = { Game: GomokuGame, Preview: GomokuPreview, css: `
 ` };
 
 // features/games/games/xiangqi.jsx
-var import_react15 = require("react");
+var import_react17 = require("react");
 
 // features/games/xiangqi-core.js
 var ROWS2 = 10;
@@ -9475,35 +10892,35 @@ function moveNotation(board, fr, fc, tr, tc) {
   return pieceChar(p) + num(file(fc)) + verb + num(to);
 }
 function XiangqiGame(props) {
-  const [board, setBoard] = (0, import_react15.useState)(initialBoard);
-  const [turn, setTurn] = (0, import_react15.useState)("r");
-  const [sel, setSel] = (0, import_react15.useState)(null);
-  const [targets, setTargets] = (0, import_react15.useState)([]);
-  const [over, setOver] = (0, import_react15.useState)(null);
-  const [check, setCheck] = (0, import_react15.useState)(false);
-  const [last, setLast] = (0, import_react15.useState)(null);
-  const [lastMove, setLastMove] = (0, import_react15.useState)(null);
-  const [moveLog, setMoveLog] = (0, import_react15.useState)([]);
-  const [moving, setMoving] = (0, import_react15.useState)(null);
-  const [thinking, setThinking] = (0, import_react15.useState)(false);
-  const [history, setHistory] = (0, import_react15.useState)([]);
-  const [repKeys, setRepKeys] = (0, import_react15.useState)(() => [posKey(initialBoard())]);
-  const pushKey = (0, import_react15.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
-  const stageRef = (0, import_react15.useRef)(null);
-  const boardRef = (0, import_react15.useRef)(board);
+  const [board, setBoard] = (0, import_react17.useState)(initialBoard);
+  const [turn, setTurn] = (0, import_react17.useState)("r");
+  const [sel, setSel] = (0, import_react17.useState)(null);
+  const [targets, setTargets] = (0, import_react17.useState)([]);
+  const [over, setOver] = (0, import_react17.useState)(null);
+  const [check, setCheck] = (0, import_react17.useState)(false);
+  const [last, setLast] = (0, import_react17.useState)(null);
+  const [lastMove, setLastMove] = (0, import_react17.useState)(null);
+  const [moveLog, setMoveLog] = (0, import_react17.useState)([]);
+  const [moving, setMoving] = (0, import_react17.useState)(null);
+  const [thinking, setThinking] = (0, import_react17.useState)(false);
+  const [history, setHistory] = (0, import_react17.useState)([]);
+  const [repKeys, setRepKeys] = (0, import_react17.useState)(() => [posKey(initialBoard())]);
+  const pushKey = (0, import_react17.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
+  const stageRef = (0, import_react17.useRef)(null);
+  const boardRef = (0, import_react17.useRef)(board);
   boardRef.current = board;
-  const turnRef = (0, import_react15.useRef)(turn);
+  const turnRef = (0, import_react17.useRef)(turn);
   turnRef.current = turn;
-  const overRef = (0, import_react15.useRef)(over);
+  const overRef = (0, import_react17.useRef)(over);
   overRef.current = over;
-  const thinkingRef = (0, import_react15.useRef)(thinking);
+  const thinkingRef = (0, import_react17.useRef)(thinking);
   thinkingRef.current = thinking;
-  const historyRef = (0, import_react15.useRef)(history);
+  const historyRef = (0, import_react17.useRef)(history);
   historyRef.current = history;
-  const movingRef = (0, import_react15.useRef)(false);
-  const pendingRef = (0, import_react15.useRef)(null);
-  const animTimerRef = (0, import_react15.useRef)(null);
-  const animateMove = (0, import_react15.useCallback)((b, fr, fc, tr, tc, after) => {
+  const movingRef = (0, import_react17.useRef)(false);
+  const pendingRef = (0, import_react17.useRef)(null);
+  const animTimerRef = (0, import_react17.useRef)(null);
+  const animateMove = (0, import_react17.useCallback)((b, fr, fc, tr, tc, after) => {
     const piece = boardRef.current[fr][fc];
     const capture = !!boardRef.current[tr][tc];
     pendingRef.current = { board: b, after };
@@ -9530,7 +10947,7 @@ function XiangqiGame(props) {
       }
     }, 260);
   }, []);
-  const restart = (0, import_react15.useCallback)(() => {
+  const restart = (0, import_react17.useCallback)(() => {
     if (animTimerRef.current) {
       clearTimeout(animTimerRef.current);
       animTimerRef.current = null;
@@ -9553,7 +10970,7 @@ function XiangqiGame(props) {
     setMoving(null);
     setRepKeys([posKey(b)]);
   }, []);
-  const undo2 = (0, import_react15.useCallback)(() => {
+  const undo2 = (0, import_react17.useCallback)(() => {
     if (thinkingRef.current || overRef.current || turnRef.current !== "r" || movingRef.current) return;
     const h = historyRef.current;
     if (h.length < 2) return;
@@ -9571,7 +10988,7 @@ function XiangqiGame(props) {
     setCheck(inCheck(b, "r"));
     setRepKeys(hist.map(posKey).concat(posKey(b)));
   }, []);
-  const moveRed = (0, import_react15.useCallback)((tr, tc) => {
+  const moveRed = (0, import_react17.useCallback)((tr, tc) => {
     if (turnRef.current !== "r" || overRef.current || !sel || movingRef.current) return;
     const fr = sel[0], fc = sel[1];
     const nb = applyMove(boardRef.current, fr, fc, tr, tc);
@@ -9585,7 +11002,7 @@ function XiangqiGame(props) {
       } else setCheck(inCheck(nb, "b"));
     });
   }, [sel, pushKey, animateMove]);
-  const select = (0, import_react15.useCallback)((r, c) => {
+  const select = (0, import_react17.useCallback)((r, c) => {
     if (overRef.current || turnRef.current !== "r" || thinkingRef.current || movingRef.current) return;
     const p = boardRef.current[r][c];
     if (p && p.c === "r") {
@@ -9601,7 +11018,7 @@ function XiangqiGame(props) {
     setSel(null);
     setTargets([]);
   }, [sel, targets, moveRed]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (turn !== "b" || over || props.paused || movingRef.current) return;
     const t = setTimeout(() => {
       const seenCounts = /* @__PURE__ */ new Map();
@@ -9625,7 +11042,7 @@ function XiangqiGame(props) {
     setThinking(true);
     return () => clearTimeout(t);
   }, [turn, over, props.paused, repKeys, pushKey, animateMove]);
-  const onKeyDown = (0, import_react15.useCallback)((event) => {
+  const onKeyDown = (0, import_react17.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       restart();
@@ -9636,14 +11053,14 @@ function XiangqiGame(props) {
   }, [restart, undo2]);
   useGameControls(stageRef, props.paused, onKeyDown);
   const status = over === "r" ? "\u7EA2\u65B9\u80DC \xB7 \u606D\u559C" : over === "b" ? "\u9ED1\u65B9\u80DC \xB7 AI \u8D62" : moving ? moving.piece.c === "r" ? "\u7EA2\u65B9\u8D70\u5B50\u2026" : "AI \u8D70\u5B50\u2026" : thinking ? "AI \u601D\u8003\u4E2D\u2026" : check ? "\u5C06\u519B\uFF01" : turn === "r" ? "\u8F6E\u5230\u4F60\uFF08\u7EA2\u65B9\uFF09" : "\u8F6E\u5230 AI\uFF08\u9ED1\u65B9\uFF09";
-  const prevCheck = (0, import_react15.useRef)(false);
-  (0, import_react15.useEffect)(() => {
+  const prevCheck = (0, import_react17.useRef)(false);
+  (0, import_react17.useEffect)(() => {
     if (over === "r") playSfx("win");
     else if (over === "b") playSfx("over");
     else if (!thinking && check && !prevCheck.current) playSfx("check");
     prevCheck.current = !thinking && check;
   }, [check, thinking, over]);
-  (0, import_react15.useEffect)(() => () => {
+  (0, import_react17.useEffect)(() => () => {
     if (animTimerRef.current) clearTimeout(animTimerRef.current);
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "dgame-game", "aria-label": "\u8C61\u68CB", children: [
@@ -9748,7 +11165,7 @@ var xiangqiGame = { Game: XiangqiGame, Preview: XiangqiPreview, css: `
 ` };
 
 // features/games/games/snake.jsx
-var import_react16 = require("react");
+var import_react18 = require("react");
 var import_jsx_runtime9 = require("react/jsx-runtime");
 var SIZE2 = 16;
 var DIRS3 = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
@@ -9793,26 +11210,26 @@ function step2(state, dir) {
   return Object.assign({}, state, { snake });
 }
 function SnakeGame(props) {
-  const [state, setState] = (0, import_react16.useState)(initial2);
-  const [paused, setPaused] = (0, import_react16.useState)(false);
-  const [speedMode, setSpeedMode] = (0, import_react16.useState)(loadSpeedMode);
-  const stageRef = (0, import_react16.useRef)(null);
-  const dirRef = (0, import_react16.useRef)(state.dir);
-  const overRef = (0, import_react16.useRef)(state.over);
+  const [state, setState] = (0, import_react18.useState)(initial2);
+  const [paused, setPaused] = (0, import_react18.useState)(false);
+  const [speedMode, setSpeedMode] = (0, import_react18.useState)(loadSpeedMode);
+  const stageRef = (0, import_react18.useRef)(null);
+  const dirRef = (0, import_react18.useRef)(state.dir);
+  const overRef = (0, import_react18.useRef)(state.over);
   overRef.current = state.over;
-  const pausedRef = (0, import_react16.useRef)(!!(props && props.paused) || paused);
+  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused) || paused);
   pausedRef.current = !!(props && props.paused) || paused;
-  const start = (0, import_react16.useCallback)(() => {
+  const start = (0, import_react18.useCallback)(() => {
     const init = initial2();
     init.started = true;
     dirRef.current = init.dir;
     setState(init);
     setPaused(false);
   }, []);
-  const begin = (0, import_react16.useCallback)(() => {
+  const begin = (0, import_react18.useCallback)(() => {
     setState((s) => s.started || s.over ? s : Object.assign({}, s, { started: true }));
   }, []);
-  const changeDir = (0, import_react16.useCallback)((nv) => {
+  const changeDir = (0, import_react18.useCallback)((nv) => {
     if (overRef.current || pausedRef.current) return;
     const cur = dirRef.current;
     const opp = OPPOSITE[cur[0] + "," + cur[1]];
@@ -9820,24 +11237,24 @@ function SnakeGame(props) {
     dirRef.current = nv;
     begin();
   }, [begin]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     if (!state.started || state.over || pausedRef.current) return;
     const mode = SPEED_MODES[speedMode] || SPEED_MODES.slow;
     const speed = Math.max(mode.min, mode.base - state.score * mode.stepMs);
     const timer = setInterval(() => setState((s) => s.over || !s.started || pausedRef.current ? s : step2(s, dirRef.current)), speed);
     return () => clearInterval(timer);
   }, [state.started, state.over, state.score, props.paused, paused, speedMode]);
-  const pickSpeed = (0, import_react16.useCallback)((m) => {
+  const pickSpeed = (0, import_react18.useCallback)((m) => {
     setSpeedMode(m);
     try {
       localStorage.setItem("dsh-dock.snake.speed", m);
     } catch {
     }
   }, []);
-  const onKeyDown = (0, import_react16.useCallback)((event) => {
+  const onKeyDown = (0, import_react18.useCallback)((event) => {
     const d = DIRS3[event.key];
     if (d) {
       event.preventDefault();
@@ -9937,7 +11354,7 @@ var snakeGame = { Game: SnakeGame, Preview: SnakePreview, css: `
 ` };
 
 // features/games/games/breakout.jsx
-var import_react17 = require("react");
+var import_react19 = require("react");
 var import_jsx_runtime10 = require("react/jsx-runtime");
 var W = 320;
 var H = 360;
@@ -10017,22 +11434,22 @@ function collideRect(x, y, r, bx, by, bw, bh) {
   return dx * dx + dy * dy < r * r;
 }
 function BreakoutGame(props) {
-  const canvasRef = (0, import_react17.useRef)(null);
-  const [score, setScore] = (0, import_react17.useState)(0);
-  const [lives, setLives] = (0, import_react17.useState)(3);
-  const [level, setLevel] = (0, import_react17.useState)(1);
-  const [status, setStatus] = (0, import_react17.useState)("play");
-  const keys = (0, import_react17.useRef)({});
-  const pausedRef = (0, import_react17.useRef)(!!(props && props.paused));
+  const canvasRef = (0, import_react19.useRef)(null);
+  const [score, setScore] = (0, import_react19.useState)(0);
+  const [lives, setLives] = (0, import_react19.useState)(3);
+  const [level, setLevel] = (0, import_react19.useState)(1);
+  const [status, setStatus] = (0, import_react19.useState)("play");
+  const keys = (0, import_react19.useRef)({});
+  const pausedRef = (0, import_react19.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const game = (0, import_react17.useRef)(null);
-  const scoreRef = (0, import_react17.useRef)(0);
+  const game = (0, import_react19.useRef)(null);
+  const scoreRef = (0, import_react19.useRef)(0);
   scoreRef.current = score;
-  const statusRef = (0, import_react17.useRef)("play");
+  const statusRef = (0, import_react19.useRef)("play");
   statusRef.current = status;
-  const livesRef = (0, import_react17.useRef)(3);
+  const livesRef = (0, import_react19.useRef)(3);
   livesRef.current = lives;
-  const start = (0, import_react17.useCallback)((lvl) => {
+  const start = (0, import_react19.useCallback)((lvl) => {
     const bricks = makeBricks(lvl);
     game.current = {
       stars: Array.from({ length: 46 }, () => ({ x: Math.random() * W, y: Math.random() * H, a: 0.25 + Math.random() * 0.5 })),
@@ -10042,20 +11459,20 @@ function BreakoutGame(props) {
       speed: SPEED * (1 + (lvl - 1) * 0.09)
     };
   }, []);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     start(1);
     setScore(0);
     setLives(3);
     setStatus("play");
   }, [start]);
-  const launchBall = (0, import_react17.useCallback)(() => {
+  const launchBall = (0, import_react19.useCallback)(() => {
     const g = game.current;
     if (!g) return;
     g.ball.vx = (Math.random() > 0.5 ? 1 : -1) * SPEED;
     g.ball.vy = -SPEED;
     g.launched = true;
   }, []);
-  const resetBall = (0, import_react17.useCallback)(() => {
+  const resetBall = (0, import_react19.useCallback)(() => {
     const g = game.current;
     if (g) {
       g.ball.x = W / 2;
@@ -10065,7 +11482,7 @@ function BreakoutGame(props) {
       g.launched = false;
     }
   }, []);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     const frame = () => {
       const g = game.current;
       const ctx = canvasRef.current && canvasRef.current.getContext("2d");
@@ -10151,7 +11568,7 @@ function BreakoutGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, [resetBall]);
-  const onKeyDown = (0, import_react17.useCallback)((event) => {
+  const onKeyDown = (0, import_react19.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -10172,11 +11589,11 @@ function BreakoutGame(props) {
       livesRef.current = 3;
     }
   }, [launchBall, start]);
-  const onKeyUp = (0, import_react17.useCallback)((event) => {
+  const onKeyUp = (0, import_react19.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react17.useCallback)((e) => {
+  const onPointerMove = (0, import_react19.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect2 = cv.getBoundingClientRect();
@@ -10268,7 +11685,7 @@ var breakoutGame = { Game: BreakoutGame, Preview: BreakoutPreview, css: `
 ` };
 
 // features/games/games/racer.jsx
-var import_react18 = require("react");
+var import_react20 = require("react");
 var import_jsx_runtime11 = require("react/jsx-runtime");
 var W2 = 300;
 var H2 = 420;
@@ -10295,15 +11712,15 @@ function rect(ctx, x, y, w, h, r, fill) {
   ctx.fill();
 }
 function RacerGame(props) {
-  const canvasRef = (0, import_react18.useRef)(null);
-  const [status, setStatus] = (0, import_react18.useState)("play");
-  const game = (0, import_react18.useRef)(null);
-  const keys = (0, import_react18.useRef)({});
-  const statusRef = (0, import_react18.useRef)("play");
+  const canvasRef = (0, import_react20.useRef)(null);
+  const [status, setStatus] = (0, import_react20.useState)("play");
+  const game = (0, import_react20.useRef)(null);
+  const keys = (0, import_react20.useRef)({});
+  const statusRef = (0, import_react20.useRef)("play");
   statusRef.current = status;
-  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused));
+  const pausedRef = (0, import_react20.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const reset = (0, import_react18.useCallback)(() => {
+  const reset = (0, import_react20.useCallback)(() => {
     game.current = {
       stars: Array.from({ length: 50 }, () => ({ x: Math.random() * W2, y: Math.random() * H2, a: 0.2 + Math.random() * 0.5 })),
       player: { x: laneX(1), y: H2 - CAR_H - 16, w: CAR_W, h: CAR_H },
@@ -10317,15 +11734,15 @@ function RacerGame(props) {
       over: false
     };
   }, []);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  const launch = (0, import_react18.useCallback)(() => {
+  const launch = (0, import_react20.useCallback)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     const draw2 = () => {
       const g = game.current, ctx = canvasRef.current && canvasRef.current.getContext("2d");
       if (!g || !ctx) return;
@@ -10427,7 +11844,7 @@ function RacerGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, []);
-  const onKeyDown = (0, import_react18.useCallback)((event) => {
+  const onKeyDown = (0, import_react20.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -10440,11 +11857,11 @@ function RacerGame(props) {
       launch();
     }
   }, [launch]);
-  const onKeyUp = (0, import_react18.useCallback)((event) => {
+  const onKeyUp = (0, import_react20.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react18.useCallback)((e) => {
+  const onPointerMove = (0, import_react20.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect0 = cv.getBoundingClientRect();
@@ -10505,7 +11922,7 @@ var racerGame = { Game: RacerGame, Preview: RacerPreview, css: `
 ` };
 
 // features/games/games/tank.jsx
-var import_react19 = require("react");
+var import_react21 = require("react");
 
 // features/games/tank-core.js
 var GRID = 15;
@@ -10713,27 +12130,27 @@ var import_jsx_runtime12 = require("react/jsx-runtime");
 var DIR_ANGLE = { up: 0, right: 90, down: 180, left: 270 };
 var ENEMY_COLORS = ["#f87171", "#fb923c", "#c084fc", "#4ade80", "#38bdf8"];
 function TankGame(props) {
-  const [snap, setSnap] = (0, import_react19.useState)(initialState);
-  const [status, setStatus] = (0, import_react19.useState)("play");
-  const snapRef = (0, import_react19.useRef)(snap);
+  const [snap, setSnap] = (0, import_react21.useState)(initialState);
+  const [status, setStatus] = (0, import_react21.useState)("play");
+  const snapRef = (0, import_react21.useRef)(snap);
   snapRef.current = snap;
-  const keys = (0, import_react19.useRef)({ dir: null, shoot: false });
-  const pausedRef = (0, import_react19.useRef)(!!(props && props.paused));
+  const keys = (0, import_react21.useRef)({ dir: null, shoot: false });
+  const pausedRef = (0, import_react21.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const statusRef = (0, import_react19.useRef)("play");
+  const statusRef = (0, import_react21.useRef)("play");
   statusRef.current = status;
-  const boardRef = (0, import_react19.useRef)(null);
-  const start = (0, import_react19.useCallback)(() => {
+  const boardRef = (0, import_react21.useRef)(null);
+  const start = (0, import_react21.useCallback)(() => {
     setSnap(initialState());
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  const nextLvl = (0, import_react19.useCallback)(() => {
+  const nextLvl = (0, import_react21.useCallback)(() => {
     setSnap((s) => nextWave(s));
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react21.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current) return;
       setSnap((s) => {
@@ -10752,8 +12169,8 @@ function TankGame(props) {
     }, 120);
     return () => clearInterval(timer);
   }, []);
-  const stageRef = (0, import_react19.useRef)(null);
-  const onKeyDown = (0, import_react19.useCallback)((event) => {
+  const stageRef = (0, import_react21.useRef)(null);
+  const onKeyDown = (0, import_react21.useCallback)((event) => {
     if (pausedRef.current) return;
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
@@ -10770,7 +12187,7 @@ function TankGame(props) {
       start();
     }
   }, [start]);
-  const onKeyUp = (0, import_react19.useCallback)((event) => {
+  const onKeyUp = (0, import_react21.useCallback)((event) => {
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
     if (dir && keys.current.dir === dir) keys.current.dir = null;
@@ -10912,8 +12329,8 @@ function initialDash() {
   return { lane: 1, rocks: [], score: 0, shield: 3, running: true, nextId: 1 };
 }
 function useTaskPulse() {
-  const [status, setStatus] = (0, import_react20.useState)({ loading: true, active: [], error: false });
-  const refresh = (0, import_react20.useCallback)(() => fetch("dsh-dock/animation/status", {
+  const [status, setStatus] = (0, import_react22.useState)({ loading: true, active: [], error: false });
+  const refresh = (0, import_react22.useCallback)(() => fetch("dsh-dock/animation/status", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}"
@@ -10921,7 +12338,7 @@ function useTaskPulse() {
     if (!payload || !payload.ok) throw new Error("status unavailable");
     setStatus({ loading: false, active: Array.isArray(payload.data && payload.data.active) ? payload.data.active : [], error: false });
   }).catch(() => setStatus((current) => ({ loading: false, active: current.active || [], error: true }))), []);
-  (0, import_react20.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 2600);
     return () => clearInterval(timer);
@@ -10929,14 +12346,14 @@ function useTaskPulse() {
   return status;
 }
 function DashGame(props) {
-  const [dash, setDash] = (0, import_react20.useState)(initialDash);
-  const pausedRef = (0, import_react20.useRef)(!!(props && props.paused));
+  const [dash, setDash] = (0, import_react22.useState)(initialDash);
+  const pausedRef = (0, import_react22.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const move = (0, import_react20.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
+  const move = (0, import_react22.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
     lane: Math.max(0, Math.min(LANES - 1, current.lane + delta))
   })), []);
-  const stageRef = (0, import_react20.useRef)(null);
-  const onKeyDown = (0, import_react20.useCallback)((event) => {
+  const stageRef = (0, import_react22.useRef)(null);
+  const onKeyDown = (0, import_react22.useCallback)((event) => {
     if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
       event.preventDefault();
       move(-1);
@@ -10949,7 +12366,7 @@ function DashGame(props) {
     }
   }, [move, dash.running]);
   useGameControls(stageRef, props.paused, onKeyDown);
-  (0, import_react20.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current || typeof document !== "undefined" && document.hidden) return;
       setDash((current) => {
@@ -11026,10 +12443,10 @@ function DashGame(props) {
   ] });
 }
 function ReactorGame(props) {
-  const [cells, setCells] = (0, import_react20.useState)(makeReactor);
-  const [moves, setMoves] = (0, import_react20.useState)(0);
-  const [cursor, setCursor] = (0, import_react20.useState)(4);
-  const gridRef = (0, import_react20.useRef)(null);
+  const [cells, setCells] = (0, import_react22.useState)(makeReactor);
+  const [moves, setMoves] = (0, import_react22.useState)(0);
+  const [cursor, setCursor] = (0, import_react22.useState)(4);
+  const gridRef = (0, import_react22.useRef)(null);
   const solved = cells.every(Boolean);
   const toggle = (index) => {
     if (solved) return;
@@ -11239,8 +12656,8 @@ var gamesBus = {
   }
 };
 function useGameWin() {
-  const [state, setState] = (0, import_react20.useState)(gamesBus.state);
-  (0, import_react20.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
+  const [state, setState] = (0, import_react22.useState)(gamesBus.state);
+  (0, import_react22.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
   return state;
 }
 var CATS = [
@@ -11356,12 +12773,12 @@ function snapFabX(side) {
 function GameWindow(props) {
   const game = props.game;
   const status = useTaskPulse();
-  const [win, setWin] = (0, import_react20.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
-  const winRef = (0, import_react20.useRef)(win);
+  const [win, setWin] = (0, import_react22.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
+  const winRef = (0, import_react22.useRef)(win);
   winRef.current = win;
-  const pickerRef = (0, import_react20.useRef)(props.picker);
+  const pickerRef = (0, import_react22.useRef)(props.picker);
   pickerRef.current = props.picker;
-  (0, import_react20.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (pickerRef.current) gamesBus.closePicker();
@@ -11449,12 +12866,12 @@ function GameWindow(props) {
   ] });
 }
 function GameFab(props) {
-  const [pos, setPos] = (0, import_react20.useState)(null);
-  const [dragging, setDragging] = (0, import_react20.useState)(false);
-  const dragRef = (0, import_react20.useRef)(null);
-  const clickBlockRef = (0, import_react20.useRef)(false);
-  const sideRef = (0, import_react20.useRef)("left");
-  (0, import_react20.useEffect)(() => {
+  const [pos, setPos] = (0, import_react22.useState)(null);
+  const [dragging, setDragging] = (0, import_react22.useState)(false);
+  const dragRef = (0, import_react22.useRef)(null);
+  const clickBlockRef = (0, import_react22.useRef)(false);
+  const sideRef = (0, import_react22.useRef)("left");
+  (0, import_react22.useEffect)(() => {
     if (typeof window === "undefined") return;
     let next = { side: "left", y: Math.round(window.innerHeight * 0.34) };
     try {
@@ -11469,7 +12886,7 @@ function GameFab(props) {
       y: Math.min(Math.max(8, next.y), Math.max(8, window.innerHeight - FAB_H - 8))
     });
   }, []);
-  (0, import_react20.useEffect)(() => {
+  (0, import_react22.useEffect)(() => {
     if (typeof window === "undefined") return;
     const update = () => {
       if (dragRef.current) return;
@@ -11564,8 +12981,8 @@ function GamepadIcon(props) {
 }
 function GamesOverlay() {
   const winState = useGameWin();
-  const [panelOpen, setPanelOpen2] = (0, import_react20.useState)(panelNav.open);
-  (0, import_react20.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react22.useState)(panelNav.open);
+  (0, import_react22.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
@@ -11668,7 +13085,7 @@ var dgcovGroupCss = `
 
 `;
 var css5 = [baseCss, tetrisGame.css, sokobanGame.css, gomokuGame.css, xiangqiGame.css, snakeGame.css, breakoutGame.css, racerGame.css, tankGame.css, dgcovGroupCss].filter(Boolean).join("\n");
-var feature9 = {
+var feature11 = {
   id: "games",
   name: "\u8DA3\u5473\u6E38\u620F",
   order: 135,
@@ -11682,7 +13099,7 @@ var feature9 = {
 };
 
 // features/mobile-relay/view.jsx
-var import_react21 = require("react");
+var import_react23 = require("react");
 var import_qrcode = __toESM(require_browser(), 1);
 var import_jsx_runtime14 = require("react/jsx-runtime");
 function rpc(method, payload) {
@@ -11719,8 +13136,8 @@ function RelayIcon({ name, size = 18 }) {
   ] });
 }
 function useCompact() {
-  const [compact, setCompact] = (0, import_react21.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
-  (0, import_react21.useEffect)(() => {
+  const [compact, setCompact] = (0, import_react23.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
+  (0, import_react23.useEffect)(() => {
     const media = window.matchMedia("(max-width: 680px)");
     const update = () => setCompact(media.matches);
     update();
@@ -11731,23 +13148,23 @@ function useCompact() {
 }
 function RemoteCard() {
   const compact = useCompact();
-  const [lan, setLan] = (0, import_react21.useState)(null);
-  const [username, setUsername] = (0, import_react21.useState)("");
-  const [password, setPassword] = (0, import_react21.useState)("");
-  const [newPassword, setNewPassword] = (0, import_react21.useState)("");
-  const [port, setPort] = (0, import_react21.useState)("");
-  const [address, setAddress] = (0, import_react21.useState)("");
-  const [qr, setQr] = (0, import_react21.useState)("");
-  const [busy, setBusy] = (0, import_react21.useState)("");
-  const [message, setMessage] = (0, import_react21.useState)("");
-  const [messageKind, setMessageKind] = (0, import_react21.useState)("error");
-  const [changing, setChanging] = (0, import_react21.useState)(false);
-  const [remote, setRemote] = (0, import_react21.useState)(false);
-  const notify = (0, import_react21.useCallback)((text, kind) => {
+  const [lan, setLan] = (0, import_react23.useState)(null);
+  const [username, setUsername] = (0, import_react23.useState)("");
+  const [password, setPassword] = (0, import_react23.useState)("");
+  const [newPassword, setNewPassword] = (0, import_react23.useState)("");
+  const [port, setPort] = (0, import_react23.useState)("");
+  const [address, setAddress] = (0, import_react23.useState)("");
+  const [qr, setQr] = (0, import_react23.useState)("");
+  const [busy, setBusy] = (0, import_react23.useState)("");
+  const [message, setMessage] = (0, import_react23.useState)("");
+  const [messageKind, setMessageKind] = (0, import_react23.useState)("error");
+  const [changing, setChanging] = (0, import_react23.useState)(false);
+  const [remote, setRemote] = (0, import_react23.useState)(false);
+  const notify = (0, import_react23.useCallback)((text, kind) => {
     setMessage(text);
     setMessageKind(kind || "error");
   }, []);
-  const refresh = (0, import_react21.useCallback)(async () => {
+  const refresh = (0, import_react23.useCallback)(async () => {
     try {
       const data = await rpc("lan");
       setLan(data);
@@ -11757,19 +13174,19 @@ function RemoteCard() {
       notify(e && e.message ? e.message : String(e));
     }
   }, [notify]);
-  (0, import_react21.useEffect)(() => {
+  (0, import_react23.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 3e3);
     return () => clearInterval(timer);
   }, [refresh]);
-  (0, import_react21.useEffect)(() => {
+  (0, import_react23.useEffect)(() => {
     fetch("/__dsh_auth/health", { method: "POST" }).then((r) => setRemote(Boolean(r.ok))).catch(() => setRemote(false));
   }, []);
   const active = Boolean(lan && lan.gatewayActive);
   const gatewayPort = lan && lan.gatewayPort ? lan.gatewayPort : 3081;
   const suggestedPort = lan && lan.mainPort ? lan.mainPort + 1 : gatewayPort;
-  const lanLink = (0, import_react21.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
-  (0, import_react21.useEffect)(() => {
+  const lanLink = (0, import_react23.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
+  (0, import_react23.useEffect)(() => {
     let live = true;
     if (!lanLink) {
       setQr("");
@@ -11986,8 +13403,8 @@ function MobileRelayView() {
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(RemoteCard, {});
 }
 function MobileRelayHomeStat() {
-  const [summary, setSummary] = (0, import_react21.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
-  (0, import_react21.useEffect)(() => {
+  const [summary, setSummary] = (0, import_react23.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
+  (0, import_react23.useEffect)(() => {
     const refresh = () => {
       rpc("lan").then((data) => {
         const devices = typeof data.devices === "number" && data.devices > 0 ? " \xB7 " + data.devices + " \u53F0\u8BBE\u5907\u5728\u7EBF" : "";
@@ -12001,7 +13418,7 @@ function MobileRelayHomeStat() {
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: summary });
 }
-var feature10 = {
+var feature12 = {
   id: "mobile-relay",
   name: "\u8FDC\u7A0B\u8BBF\u95EE",
   order: 80,
@@ -12016,8 +13433,8 @@ var feature10 = {
 };
 
 // features/mobile/view.js
-var import_react22 = __toESM(require("react"), 1);
-var import_react23 = require("react");
+var import_react24 = __toESM(require("react"), 1);
+var import_react25 = require("react");
 var MOBILE_QUERY_NARROW = "(max-width: 820px)";
 var MOBILE_QUERY_COARSE = "(pointer: coarse) and (hover: none)";
 var MOBILE_QUERY_CHROME = "(max-width: 700px)";
@@ -12049,8 +13466,8 @@ function watchQuery(query, onChange) {
   };
 }
 function MobileOverlay() {
-  const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
-  (0, import_react23.useEffect)(() => {
+  const [active, setActive] = (0, import_react25.useState)(() => mobileActive());
+  (0, import_react25.useEffect)(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
     let mqs = [];
     try {
@@ -12071,7 +13488,7 @@ function MobileOverlay() {
       }
     };
   }, []);
-  (0, import_react23.useEffect)(() => {
+  (0, import_react25.useEffect)(() => {
     if (typeof document === "undefined") return void 0;
     if (active) {
       document.body.setAttribute("data-dk-mobile", "1");
@@ -12089,7 +13506,7 @@ function MobileOverlay() {
       document.body.removeAttribute("data-dk-mobile");
     };
   }, [active]);
-  (0, import_react23.useEffect)(() => mobileChrome(), []);
+  (0, import_react25.useEffect)(() => mobileChrome(), []);
   return null;
 }
 function mobileChrome() {
@@ -12256,8 +13673,8 @@ function mobileChrome() {
   };
 }
 function useViewportSize() {
-  const [size, setSize] = (0, import_react23.useState)(() => typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight });
-  (0, import_react23.useEffect)(() => {
+  const [size, setSize] = (0, import_react25.useState)(() => typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight });
+  (0, import_react25.useEffect)(() => {
     if (typeof window === "undefined") return void 0;
     const update = () => setSize({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener("resize", update);
@@ -12266,10 +13683,10 @@ function useViewportSize() {
   return size;
 }
 function useMobileState() {
-  const [active, setActive] = (0, import_react23.useState)(() => mobileActive());
-  const [chrome, setChrome] = (0, import_react23.useState)(() => typeof window === "undefined" || typeof window.matchMedia !== "function" ? false : window.matchMedia(MOBILE_QUERY_CHROME).matches);
-  const [owner, setOwner] = (0, import_react23.useState)(() => typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null);
-  (0, import_react23.useEffect)(() => {
+  const [active, setActive] = (0, import_react25.useState)(() => mobileActive());
+  const [chrome, setChrome] = (0, import_react25.useState)(() => typeof window === "undefined" || typeof window.matchMedia !== "function" ? false : window.matchMedia(MOBILE_QUERY_CHROME).matches);
+  const [owner, setOwner] = (0, import_react25.useState)(() => typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null);
+  (0, import_react25.useEffect)(() => {
     const offChrome = watchQuery(MOBILE_QUERY_CHROME, setChrome);
     let mqs = [];
     try {
@@ -12297,34 +13714,34 @@ function useMobileState() {
 function MobileView() {
   const { active, chrome, owner } = useMobileState();
   const size = useViewportSize();
-  return import_react22.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dkmob-root" },
-    import_react22.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dkmob-row" },
-      import_react22.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
-      import_react22.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
-      import_react22.default.createElement(
+      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
+      import_react24.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
+      import_react24.default.createElement(
         "span",
         { className: "dkmob-dim" },
         size ? size.w + "\xD7" + size.h + "px" : "",
         "\uFF08\u2264820px \u5BBD\uFF0C\u6216\u4E3B\u6307\u9488\u4E3A\u89E6\u5C4F\u65E0\u60AC\u505C\u65F6\u547D\u4E2D\uFF1B\u684C\u9762\u628A\u7A97\u53E3\u62D6\u7A84\u4E5F\u4F1A\u547D\u4E2D\uFF0C\u65B9\u4FBF\u8C03\u8BD5\uFF09"
       )
     ),
-    import_react22.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dkmob-row" },
-      import_react22.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u7AEF chrome"),
-      import_react22.default.createElement("span", { className: "dkmob-state" + (chrome ? " on" : "") }, chrome ? "\u2264700px\uFF0C\u751F\u6548\u4E2D" : "\u672A\u547D\u4E2D"),
-      import_react22.default.createElement(
+      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u7AEF chrome"),
+      import_react24.default.createElement("span", { className: "dkmob-state" + (chrome ? " on" : "") }, chrome ? "\u2264700px\uFF0C\u751F\u6548\u4E2D" : "\u672A\u547D\u4E2D"),
+      import_react24.default.createElement(
         "span",
         { className: "dkmob-dim" },
         "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\uFF08\u5C55\u5F00\u5DE6\u4FA7\u4F1A\u8BDD\u62BD\u5C49\uFF09+ \u4FA7\u680F\u62BD\u5C49\u906E\u7F69 + \u8F6F\u952E\u76D8\u8BA9\u4F4D\uFF1B\u5E95\u90E8 Tab \u680F\u5DF2\u6309\u7528\u6237\u8981\u6C42\u79FB\u9664\uFF0C\u63D2\u4EF6/\u8BBE\u7F6E\u7B49\u5165\u53E3\u5728\u62BD\u5C49\u91CC\u3002",
         owner === "host" ? "\u5F53\u524D\u7531\u5BBF\u4E3B\u6CE8\u5165\u7248\u9A71\u52A8\uFF08\u91CD\u542F dsh web \u540E\u751F\u6548\u7684\u90A3\u5957\uFF09\u3002" : owner === "client" ? "\u5F53\u524D\u7531\u5BA2\u6237\u7AEF\u81EA\u5EFA\u7248\u9A71\u52A8\uFF08\u5237\u65B0\u5373\u751F\u6548\uFF09\u3002" : ""
       )
     ),
-    import_react22.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dkmob-note" },
       "\u751F\u6548\u4E2D\u7684\u4F18\u5316\uFF1A\u8F93\u5165\u7C7B\u63A7\u4EF6\u5B57\u53F7\u62C9\u5230 16px\uFF08\u907F\u514D iOS \u805A\u7126\u7F29\u653E\u6574\u9875\uFF09\xB7 \u7EAF\u56FE\u6807\u6309\u94AE\u9762\u79EF\u515C\u5E95 \u226536px \xB7 ",
@@ -12336,8 +13753,8 @@ function MobileView() {
 }
 function MobileStat() {
   const { active, chrome } = useMobileState();
-  if (!active) return import_react22.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
-  return import_react22.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
+  if (!active) return import_react24.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
+  return import_react24.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
 }
 var css6 = [
   // 输入类控件 16px：防 iOS 聚焦自动放大（<16px 的输入框聚焦时 Safari 强制缩放页面）
@@ -12388,6 +13805,26 @@ var css6 = [
   ".dsh-mobile-burger-badge.wait{background:#ef4444;animation:dsh-burger-badge-pulse 1.2s ease-in-out infinite}",
   "@keyframes dsh-burger-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}",
   "@media (prefers-reduced-motion:reduce){.dsh-mobile-burger-badge.wait{animation:none}}",
+  // ⚠️ 给标题让出汉堡宽度（用户实测：标题被汉堡压住——截图里「更新所有仓库代码」的首字
+  // 直接叠在三条横线上）。汉堡是 fixed 定位（贴安全区、44×44），**不占布局**，而原生标题
+  // 从头部的 padding-left:20px 起排——真实实例 390×844 逐字实测：会话标题首字 x=28、
+  // 汉堡右缘 44 → **重叠 16px**；插件页/自动化任务页的页头（自身 padding-left:0，靠外层
+  // 容器给 24px）首字 x=24 → 重叠 20px。
+  // 改法照原生排版习惯走：**给容器补内边距**，而不是给汉堡加底色/加宽（那是把问题搬到视觉上）。
+  //   · 会话页头 header:has([class*="titleRow"])（唯一含 titleRow 的 header）：左内边距
+  //     20px → 44px，正好等于汉堡宽度；标题自带 8px 内边距 → 首字落在 x=52，与汉堡留 8px。
+  //   · 插件页/自动化任务页头 [class$="_pageHead"] / [class$="_pageHeading"]
+  //     （DSH 0.2.0-rc.2 实测：plugin-manager 的 ZVcBiW_pageHead、schedule 的
+  //     CxUija_pageHeading）：左内边距 0 → 28px → 首字 x=52，同样留 8px。
+  //     这两条页头是 flex + gap:16px（标题块 | 工具栏），补内边距会压缩内容宽度——实测
+  //     430/390/360/320px 下「添加插件」按钮与描述文案会被挤到换行（按钮从单行变两行）。
+  //     故同时把 gap 收到 4px 补回 12px：四个宽度实测行数零回归、无横向溢出。
+  // 用 `[class$=…]`（语义后缀）而非 `[class*=…]`：DSH 类名是「哈希前缀 + 语义后缀」，
+  // 后缀稳定、前缀随版本变；`$=` 也避开 `pageHeadActions` 这类同前缀的无关元素。
+  // 挂 body[data-dk-mobile="1"]：本模块 css 字段会被无条件并入全局样式，停用本功能即摘掉
+  // body 属性 → 规则空转、原生排版还原（与文件头「开关协议」一致）。
+  'body[data-dk-mobile="1"] header:has([class*="titleRow"]){padding-left:calc(44px + env(safe-area-inset-left,0px))}',
+  'body[data-dk-mobile="1"] [class$="_pageHead"],body[data-dk-mobile="1"] [class$="_pageHeading"]{padding-left:calc(28px + env(safe-area-inset-left,0px));gap:4px}',
   // ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
   // 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
   // （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden
@@ -12435,7 +13872,7 @@ var css6 = [
   '[class*="dockm-backdrop"]{z-index:2000 !important}',
   "}"
 ].join("\n");
-var feature11 = {
+var feature13 = {
   id: "mobile",
   name: "\u624B\u673A\u9002\u914D",
   order: 170,
@@ -12449,8 +13886,8 @@ var feature11 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.15.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11];
+var DOCK_VERSION = "0.16.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12, feature13];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -12525,15 +13962,16 @@ var SHELL_CSS = [
   ".dock-switch.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
   ".dock-badge{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 10px;font-size:12px;}",
   ".dock-body{border-top:1px solid var(--dsw-alias-border-l1);padding-top:8px;color:var(--dsw-alias-label-secondary);display:flex;flex-direction:column;gap:4px;}",
-  // 侧栏入口按钮（docke2- 前缀）+ 功能坞弹出面板（dockm- 前缀，仿 dsh 设置的居中模态：遮罩 + 对话框，左导航 + 右内容）
-  // 侧栏入口按钮（docke2- 前缀）：与 dsh 设置按钮（.VOzbGW_trigger）几何逐条对齐——
-  // 宽栏同为整宽左对齐行按钮（高 42、margin 4/-2、padding 0 10px 0 8px、圆角 12），窄栏同为 36 圆钮居中，
-  // 使两按钮上下成列、左右边缘完全对齐（此前右对齐/叠放都会错位）。
-  ".docke2-btn{box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;border:none;background:transparent;color:var(--dsw-alias-label-primary);border-radius:12px;width:calc(100% + 4px);height:42px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;transition:background .15s var(--ds-ease-in-out),color .15s var(--ds-ease-in-out);}",
-  ".docke2-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-  ".docke2-btn.docke2-on{color:var(--dk-accent);background:var(--dk-accent-soft);}",
-  ".docke2-btn.docke2-rail{width:36px;height:36px;margin:8px 0 10px;padding:0;border-radius:50%;justify-content:center;gap:0;}",
-  ".docke2-label{white-space:nowrap;overflow:hidden;}",
+  // 「··· 更多」菜单里的功能坞菜单项（docke2-mi- 前缀）+ 功能坞弹出面板（dockm- 前缀，仿 dsh 设置的居中模态：遮罩 + 对话框，左导航 + 右内容）
+  // 菜单行指标仿宿主内置菜单项（ui-primitives Menu.module.css 的 .item/.itemIcon/.itemLabel）：
+  // 整宽块级行（按钮直接落在菜单视口的 flex 列里）、gap 6、min-height 34、padding 6px 8px、
+  // 圆角 --dsw-radius-md、字号 13/行高 20；悬停与键盘聚焦（宿主菜单走真实焦点）同款高亮背景。
+  ".docke2-mi-item{display:flex;align-items:center;gap:6px;box-sizing:border-box;width:100%;min-height:34px;padding:6px 8px;border:none;border-radius:var(--dsw-radius-md);background:transparent;cursor:pointer;font-family:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);text-align:left;}",
+  ".docke2-mi-item:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+  ".docke2-mi-item:focus-visible{background:var(--dsw-alias-interactive-bg-hover);outline:none;}",
+  ".docke2-mi-icon{display:inline-flex;flex:none;width:14px;height:14px;align-items:center;justify-content:center;color:var(--dsw-alias-menu-icon);}",
+  ".docke2-mi-icon svg{width:14px;height:14px;}",
+  ".docke2-mi-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
   // 遮罩固定用深色半透明：亮色主题下宿主 bg-layer-1 是纯白，白底遮罩会让弹窗与页面完全无层次
   ".dockm-backdrop{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(15,17,21,.45);backdrop-filter:blur(4px);pointer-events:auto;animation:dockm-fade .15s var(--ds-ease-in-out);}",
   "@keyframes dockm-fade{from{opacity:0}to{opacity:1}}",
@@ -12657,8 +14095,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => {
+  const [, bump] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -12668,44 +14106,53 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react24.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react26.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
-function DockEntry(props) {
-  const wide = !!props.wide;
-  const [open, setOpen] = import_react24.default.useState(panelNav.open);
-  import_react24.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react24.default.createElement("button", {
-    type: "button",
-    className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
-    title: "\u529F\u80FD\u575E",
-    "aria-label": "\u529F\u80FD\u575E",
-    "aria-expanded": open,
-    onClick: () => setPanelOpen(!open)
-  }, import_react24.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react24.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+function DockMenuItem(props) {
+  const [open, setOpen] = import_react26.default.useState(panelNav.open);
+  import_react26.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react26.default.createElement(
+    "button",
+    {
+      type: "button",
+      role: "menuitem",
+      className: "docke2-mi-item",
+      onClick: () => {
+        if (typeof props.dismiss === "function") props.dismiss();
+        setPanelOpen(!open);
+      }
+    },
+    import_react26.default.createElement(
+      "span",
+      { className: "docke2-mi-icon" },
+      import_react26.default.createElement(DockIcon, { size: 14 })
+    ),
+    import_react26.default.createElement("span", { className: "docke2-mi-label" }, "\u529F\u80FD\u575E")
+  );
 }
 function DockModal() {
-  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react26.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react26.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react24.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react24.default.useRef(null);
-  const contentRef = import_react24.default.useRef(null);
-  import_react24.default.useEffect(() => {
+  const [win, setWin] = import_react26.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react26.default.useRef(null);
+  const contentRef = import_react26.default.useRef(null);
+  import_react26.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react24.default.useEffect(() => {
+  import_react26.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -12743,13 +14190,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react24.default.createElement(
+  const viewNode = mod && View ? import_react26.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react24.default.createElement(
+    import_react26.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react24.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react26.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -12763,10 +14210,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react24.default.createElement(
+    import_react26.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -12774,41 +14221,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react24.default.createElement(
+      import_react26.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react24.default.createElement(DockIcon, null),
-        import_react24.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react24.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react24.default.createElement(
+        import_react26.default.createElement(DockIcon, null),
+        import_react26.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react26.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react26.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react24.default.createElement("button", {
+          import_react26.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react24.default.createElement("button", {
+          import_react26.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react24.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react26.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react24.default.createElement(
+      import_react26.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react24.default.createElement(
+          import_react26.default.createElement(
             "button",
             {
               type: "button",
@@ -12816,10 +14263,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)),
-            import_react24.default.createElement("span", null, "\u9996\u9875")
+            import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)),
+            import_react26.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react24.default.createElement(
+          MODULES.map((m) => import_react26.default.createElement(
             "button",
             {
               type: "button",
@@ -12827,42 +14274,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react24.default.createElement("span", null, m.name),
-            m.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react26.default.createElement("span", null, m.name),
+            m.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react24.default.createElement(
+          import_react26.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react24.default.createElement(
+            import_react26.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)) : import_react24.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)) : import_react26.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react24.default.createElement(
+            import_react26.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react24.default.createElement("div", { className: "dockm-view" }, import_react24.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react24.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react24.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react24.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react24.default.createElement(
+          isHome ? import_react26.default.createElement("div", { className: "dockm-view" }, import_react26.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react26.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react26.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react26.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react26.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react24.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react24.default.createElement(
+            import_react26.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react26.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react24.default.createElement("button", {
+              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react26.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -12875,11 +14322,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react24.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react26.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react24.default.createElement("button", {
+              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react26.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -12895,30 +14342,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react24.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react26.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react24.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react24.default.createElement(
+      const statNode = m.planned ? import_react26.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react26.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react24.default.createElement(Stat, { ctx })
-      ) : import_react24.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react24.default.createElement(
+        import_react26.default.createElement(Stat, { ctx })
+      ) : import_react26.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react26.default.createElement(
         "div",
         {
           key: m.id,
@@ -12933,21 +14380,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react24.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react24.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react26.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react26.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react24.default.createElement(
+          import_react26.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react24.default.createElement("span", { className: "dockh-sdot" }),
-            import_react24.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react26.default.createElement("span", { className: "dockh-sdot" }),
+            import_react26.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react24.default.createElement("button", {
+          m.planned ? null : import_react26.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -12962,12 +14409,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react24.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react24.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react24.default.createElement(
+        import_react26.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react26.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react26.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react24.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react26.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -12975,16 +14422,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react24.default.createElement(
+    import_react26.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -12993,25 +14440,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react24.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react26.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react24.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react26.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react24.default.createElement(
+      return import_react26.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react24.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react24.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react24.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react24.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react24.default.createElement("button", {
+          import_react26.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react26.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react26.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react26.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react26.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -13020,11 +14467,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react24.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react26.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react24.default.createElement("button", {
+            import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react26.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -13038,22 +14485,22 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react24.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react24.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react26.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react26.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react26.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.Chip, {
+      import_react26.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -13063,23 +14510,38 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react26.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react26.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react26.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
+  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
+}
+function FeatureTurnTail(props) {
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const items = [];
+  for (const f of allModules()) {
+    if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
+    items.push(import_react26.default.createElement(
+      FeatureBoundary,
+      { key: f.id, label: f.name },
+      import_react26.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
+    ));
+  }
+  if (items.length === 0) return null;
+  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -13088,25 +14550,29 @@ function apply(ctx) {
   initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
   const slots = ctx.get("slots");
   if (slots === void 0) return;
-  slots.inject("sidebar.footer.action", () => slots.register(
-    { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react24.default.createElement(DockEntry, props)
+  slots.inject("settings.launcher.menu.item", () => slots.register(
+    { name: "settings.launcher.menu.item", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
+    (props) => import_react26.default.createElement(DockMenuItem, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react24.default.createElement(DockModal, null)
+    () => import_react26.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react24.default.createElement(FeatureOverlays, null)
+    () => import_react26.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react24.default.createElement(DockPanel, props)
+    (props) => import_react26.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react24.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react26.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+  ));
+  slots.inject("conversation.chat.turnTail", () => slots.register(
+    { name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "\u529F\u80FD\u575E" },
+    (owner) => import_react26.default.createElement(FeatureTurnTail, owner)
   ));
 }
 var inject = ["timer"];
