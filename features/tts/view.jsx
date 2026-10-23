@@ -189,9 +189,19 @@ function pushConfigToHost(body, sentRev, resolve) {
 		});
 }
 let hostConfigRequested = false;
+// 配置探测（/status 一次往返）完成信号：回合尾的自动朗读兜底要等它落定才能
+// 判定 routeGone——首回合尾恰好在页面加载时挂载（探测在途）也不漏读。
+let resolveConfigReady = null;
+const configReady = new Promise((r) => { resolveConfigReady = r; });
+function markConfigReady() {
+	if (resolveConfigReady === null) return;
+	const r = resolveConfigReady;
+	resolveConfigReady = null;
+	r();
+}
 /** 首次用到配置时向宿主拉一次（幂等）。宿主不可达则保持本地值。 */
 function ensureConfigLoaded() {
-	if (hostConfigRequested || configStore.routeGone) return;
+	if (hostConfigRequested || configStore.routeGone) { if (configStore.routeGone) markConfigReady(); return; }
 	hostConfigRequested = true;
 	fetch("dsh-dock/tts/status", {
 		method: "POST",
@@ -203,6 +213,7 @@ function ensureConfigLoaded() {
 				configStore.routeGone = true;
 				configStore.note = "宿主侧没有语音朗读接口（重启 dsh web，或把本功能开关关掉再打开），配置暂只存在本浏览器";
 				notifyConfig();
+				markConfigReady();
 				return;
 			}
 			const data = await res.json().catch(() => ({}));
@@ -215,8 +226,10 @@ function ensureConfigLoaded() {
 			}
 			configStore.loaded = true;
 			notifyConfig();
+			markConfigReady();
 		})
-		.catch(() => { /* 宿主不可达：本地值继续用 */ });
+		.catch(() => { /* 宿主不可达：本地值继续用；就绪信号照放（兜底自己判 routeGone） */
+			markConfigReady(); });
 }
 
 // ---------- Markdown → 可朗读的纯文本 ----------
@@ -638,13 +651,42 @@ function TtsQuickPop(props) {
 		: pop;
 }
 
+// ---------- 自动朗读共用常量（回合尾兜底与 TtsOverlay 主路径共用） ----------
+/** 视为「这一回合刚结束」的窗口：回合尾节点挂载时 turn/end 距今不超过这个毫秒数。 */
+const AUTO_PLAY_FRESH_MS = 8000;
+/** 非正常结束的 reason（跟随 autoPlayOnFinish 开关决定是否朗读）。 */
+const BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
+/** 本地兜底读过的回合键（模块级：切会话/重挂载都不重播）。 */
+const spokenKeys = new Set();
+function markSpoken(key) {
+	spokenKeys.add(key);
+	if (spokenKeys.size > 200) {
+		// Set 保持插入序，丢最早的即可（只用于「刚结束的回合」判定，窗口很小）
+		const first = spokenKeys.values().next();
+		if (!first.done) spokenKeys.delete(first.value);
+	}
+}
+/**
+ * 自动朗读去重闸（两条路径合流）：浮层主路径（宿主追踪）与回合尾本地兜底
+ * 共用这份键集——宿主路由中途恢复（面板「重试连接宿主」）时，同一回合只会被
+ * 先到的那条路径读一次。键统一用回合尾口径 sessionId:turn:seq；浮层从
+ * lastText 反推不出 seq 时退回自己的 sessionId|endTime 口径（两口径互不碰撞，
+ * 真撞上也只是少读一次，不会双读）。
+ */
+function claimAutoPlay(key) {
+	if (spokenKeys.has(key)) return false;
+	markSpoken(key);
+	return true;
+}
+
 // ---------- 回合下方的喇叭按钮（手动朗读：播放 / 暂停 / 继续 / 重读 / 停止） ----------
 /**
  * 宿主把本条目渲染在「已完成回合」的动作区之前（conversation.chat.turnTail 是 list 座位）。
- * 这里只负责**手动**朗读。三态主按钮：
+ * 三态主按钮：
  *   没在读 → 朗读本条；正在读 → 暂停（停在当前这句的当前字上）；暂停中 → 就地继续。
  * 暂停/继续**不重头**；「重新朗读」回到第一句；「停止」彻底收起这条的播放。
- * 自动朗读在下面的 Overlay 里——由宿主侧任务追踪驱动，不会在冷读历史会话时误播。
+ * 行尾 ⚙ 就地快设语速/音量。自动朗读主路径在 TtsOverlay（宿主追踪驱动）；
+ * 宿主路由不可用时由本组件的兜底 effect 接手（见 autoDoneRef）。
  */
 function TtsTurnTail(props) {
 	const owner = props || {};
@@ -662,13 +704,52 @@ function TtsTurnTail(props) {
 	const playing = active && eng.phase === "playing";
 
 	useEffect(() => { ensureConfigLoaded(); }, []);
-
-	if (!hasText) return null;
 	const startThis = () => {
 		ensureConfigLoaded();
 		const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
 		speak({ key, text: plain, cfg: configStore.value, label: "第 " + (turnNo + 1) + " 回合" });
 	};
+	// —— 自动朗读的本地兜底（仅宿主路由不可用时生效）——
+	// 主路径在 TtsOverlay：轮宿主任务追踪，后台会话也能读。但宿主进程是旧版本时
+	// /dsh-dock/tts 整片 405 → routeGone → 主路径哑火，而**手动喇叭并不依赖宿主**——
+	// 于是出现「手动能读、自动不读」的残缺态（2026-10-23 用户实测）。兜底用回合尾
+	// 节点自己当信号：该节点只在 turn/end 落盘后挂载，「挂载 + 结束时间 < 8 秒」
+	// = 这一回合刚结束；冷读历史会话时间差大 → 不播，claimAutoPlay 去重防重播/双读。
+	// ⚠️ 全部 hooks 必须排在 hasText 早退之前（条件 hook 在真实 React 会抛错）。
+	const autoDoneRef = useRef(false);
+	// ⚙ 就地快设（语速/音量）：任何状态下都可开——没在读时调的下次朗读用
+	const [quick, setQuick] = useState(null); // null | { x, y }（按钮视口坐标）
+	useEffect(() => {
+		if (autoDoneRef.current) return;
+		autoDoneRef.current = true;
+		if (!hasText || !supported) return;
+		let cancelled = false;
+		// 等配置探测落定再判 routeGone：页面刚加载时首个回合尾可能先于 /status
+		// 往返挂载，同步读会漏掉这一回合（8 秒新鲜窗口内补判即可，过期自然放弃）。
+		configReady.then(() => {
+			if (cancelled || autoDoneRef.current === "played") return;
+			autoDoneRef.current = "played";
+			if (!configStore.routeGone) return; // 宿主路由活着 → 主路径负责，这里让位
+			if (!configStore.value.autoPlay) return;
+			const reasonKind = turn && turn.end && turn.end.data && turn.end.data.reason
+				? String(turn.end.data.reason.kind || "") : "";
+			const bad = Boolean(reasonKind) && BAD_END[reasonKind] === 1;
+			if (bad && configStore.value.autoPlayOnFinish === false) return;
+			let endedAgo = Number.POSITIVE_INFINITY;
+			try {
+				const t = turn && turn.end ? turn.end.time : 0;
+				if (typeof t === "number" && t > 0) endedAgo = Date.now() - t;
+			} catch { endedAgo = Number.POSITIVE_INFINITY; }
+			if (!(endedAgo >= 0 && endedAgo < AUTO_PLAY_FRESH_MS)) return;
+			if (!claimAutoPlay("local:" + key)) return;
+			const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
+			// 与手动同一 key：自动读时本回合的按钮同步进入「暂停」态，点它即暂停/继续
+			speak({ key, text: plain, cfg: configStore.value, label: "第 " + (turnNo + 1) + " 回合" });
+		});
+		return () => { cancelled = true; };
+	}, []);
+
+	if (!hasText) return null;
 	const mainTitle = !supported
 		? "本浏览器不支持语音合成（Web Speech API）"
 		: playing ? "暂停（再点继续，不重头）"
@@ -679,8 +760,6 @@ function TtsTurnTail(props) {
 		if (paused) { resumeSpeech(); return; }
 		startThis();
 	};
-	// ⚙ 就地快设（语速/音量）：任何状态下都可开——没在读时调的下次朗读用
-	const [quick, setQuick] = useState(null); // null | { x, y }（按钮视口坐标）
 	const openQuick = (e) => {
 		const rect = e && e.currentTarget && typeof e.currentTarget.getBoundingClientRect === "function"
 			? e.currentTarget.getBoundingClientRect() : null;
@@ -727,8 +806,9 @@ function TtsTurnTail(props) {
  * 为什么不在回合尾节点里判断「回合刚结束」：冷读历史会话时那个节点也会挂载，
  * 只能靠时间差猜，既会误播也读不到后台会话；而宿主追踪的 agent idle 是
  * 「这个会话的任务真的跑完了」的权威信号（一个任务多轮也只记一次结束）。
+ * 宿主路由不可用时（旧宿主进程未注册 /dsh-dock/tts），本浮层哑火，
+ * 由回合尾节点的本地兜底接手（见 TtsTurnTail 的 autoDoneRef effect）。
  */
-const BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
 function TtsOverlay() {
 	const cfg = useConfig();
 	const seenRef = useRef(null);
@@ -750,7 +830,7 @@ function TtsOverlay() {
 				.then(async (res) => {
 					if (res.status === 404 || res.status === 405) {
 						configStore.routeGone = true;
-						configStore.note = "宿主侧没有语音朗读接口（重启 dsh web，或把本功能开关关掉再打开），自动朗读暂不可用";
+						configStore.note = "宿主侧没有语音朗读接口（重启 dsh web 后更好）：自动朗读暂只覆盖你正在看的会话，配置也只存在本浏览器";
 						notifyConfig();
 						return;
 					}
@@ -780,6 +860,7 @@ function TtsOverlay() {
 					if (bad && configStore.value.autoPlayOnFinish === false) return;
 					const text = String(r.lastText || "");
 					if (!text.trim()) return;
+					if (!claimAutoPlay("auto:" + String(r.sessionId) + "|" + String(r.endTime))) return;
 					const plain = capSpeechText(plainForSpeech(text, configStore.value), configStore.value);
 					speak({
 						key: "auto:" + String(r.sessionId) + "|" + String(r.endTime),

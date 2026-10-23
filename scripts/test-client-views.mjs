@@ -1706,5 +1706,65 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 回合尾快设：⚙ 弹语速/音量浮层（portal body），拖动即时生效、宿主落盘防抖合一次");
 }
 
+// ---------- 用例 21：宿主路由不可用时，自动朗读走回合尾本地兜底 ----------
+// 用户实测（2026-10-23）：开了自动朗读但会话结束没读——根因是宿主进程旧版本没注册
+// /dsh-dock/tts（405 → routeGone），浮层主路径哑火，而手动喇叭不依赖宿主照常能用，
+// 形成「手动能读、自动不读」的残缺态。修法：回合尾节点自带兜底——routeGone 时
+// 「刚挂载 + turn/end < 8 秒」即读本回合；冷读历史（时间差大）不播。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	// 本地表态：自动朗读开（configStore 初值从 localStorage 读，宿主 405 后保持本地值）
+	const store = { "dsh-dock/tts/v1": JSON.stringify({ autoPlay: true }) };
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, {
+			speech,
+			store,
+			// tts 路由一律 405（模拟旧宿主进程未注册）
+			fetch: (url, init) => {
+				if (String(url).includes("dsh-dock/tts/")) {
+					return Promise.resolve({ ok: false, status: 405, json: async () => ({ ok: false }) });
+				}
+				return makeFetch(ANIMATION_STATUS, NOTIFY_STATUS, [], {}, undefined)(url, init);
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 50)); // 等 ensureConfigLoaded 的 405 回来置闩锁
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const mkOwner = (turnNo, text, endAgeMs) => ({
+			sessionId: "s-21", seq: 900 + turnNo, openFile() {},
+			turn: {
+				turn: turnNo, status: "closed",
+				end: { time: Date.now() - endAgeMs, data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text }] } } : undefined) },
+			},
+		});
+		// ① 刚结束的回合（turn/end 1 秒前）→ 兜底自动读
+		const freshNode = runtime.react.createElement(reg.comp, mkOwner(3, "刚跑完的回复，应当被自动朗读。", 1000));
+		await renderSettled(runtime, freshNode);
+		if (speech.spoken.length === 0) detail = "routeGone 时刚结束的回合没有被兜底自动朗读";
+		else if (!String(speech.spoken[0].text).includes("自动朗读")) detail = "兜底读的内容不对：" + String(speech.spoken[0].text).slice(0, 20);
+		else {
+			// ② 冷读历史回合（turn/end 1 小时前）→ 不播
+			const n0 = speech.spoken.length;
+			const oldNode = runtime.react.createElement(reg.comp, mkOwner(4, "一小时前的老回复。", 3600_000));
+			await renderSettled(runtime, oldNode);
+			if (speech.spoken.length !== n0) detail = "冷读历史会话被兜底误播（老回复不该补读）";
+			else {
+				// ③ 同一新回合重挂载（切走再切回）→ 去重不重播
+				const againNode = runtime.react.createElement(reg.comp, mkOwner(3, "刚跑完的回复，应当被自动朗读。", 1000));
+				await renderSettled(runtime, againNode);
+				if (speech.spoken.length !== n0) detail = "同一回合重挂载被重复朗读（去重失效）";
+			}
+		}
+	} catch (e) {
+		detail = "自动朗读兜底用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 自动朗读兜底：${detail}`); process.exit(1); }
+	console.log("✓ 自动朗读兜底：宿主路由不可用时刚结束回合仍自动读、冷读历史不播、重挂载不重播");
+}
+
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。
 process.exit(0);
