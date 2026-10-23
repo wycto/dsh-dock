@@ -2,7 +2,7 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## 未发布
+## v0.16.0 — 2026-10-23
 
 ### 新增
 
@@ -99,8 +99,7 @@
     页面（排版与官方「设置 → 模型」一致，深链 `params.openProviderForm` 仍可直达新增表单）。
   - 兼容性：`/dsh-dock/models` 的 GET 不再附带 `apiKeyConfigured`（移到模型提供商路由），
     模型设置页也不再显示「缺密钥」提示（该提示属于 Provider 配置，已随功能迁走）。
-  - ⚠️ 截图 `screenshots/dock-modelconfig.png` 仍是拆分前的（带「模型提供商」入口卡），
-    下次发版前重拍；`dock-modelconfig-providers*.png` 三张表现不变。
+  - 截图 `screenshots/dock-modelconfig.png` 已按拆分后的界面重拍（入口卡已移除）。
 
 ### 修复
 
