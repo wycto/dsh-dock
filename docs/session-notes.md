@@ -2374,5 +2374,28 @@ nowrap，要么自带控件——文字按钮被网格压窄就是竖排。行�
 
 **验证**：`build:client` + `test:client` 全绿（含新用例 18）；`test:host` 全绿。
 
+### 续作二（2026-10-23）· 切换朗读仍先听完上一条：Chrome cancel() 是异步冲刷的
+
+**现象（用户实测）**：会话 A 正在朗读时点会话 B 的喇叭，切换要等好几秒——前几秒
+读的还是 A 的剩余内容。
+
+**根因**：`speechSynthesis.cancel()` 并不同步清空队列，Chrome 要异步冲刷一小段时间；
+`stopSpeech()` 之后**同一 tick** `speak()`，B 的 utterance 排进了还没清空的旧队列，
+于是 A 的分片继续播完才轮到 B。上一节引入 restart/stop 后所有换篇路径都走这个模式，
+全部中招。
+
+**改法**：`startSession` 不再直接 `speakNext()`，改走 `whenQueueClear(s, epoch, speakNext)`：
+`speaking/pending` 都假才算真空（读不到属性按真空处理，沙箱/旧内核不卡死）；15ms 轮询，
+**队列本来就空时零延迟**（绝大多数点击）；1.5 秒上限兜底——cancel 没生效（Chrome 已知
+毛病）时补一次 cancel 硬开播，宁可短暂重叠也不静默不出声。epoch 守卫：等待期间用户又
+切了内容/点了停止，旧局直接作废。restart、drainQueue、自动朗读换篇同受保护。
+
+**验证**：新用例 19 用「cancel 后 speaking 仍挂 30ms」的桩锁行为——点 B 的瞬间不得
+speak（spoken 数不增）、真空后 speak 出的必须是 B 的文本。`test:client` 全绿（19 用例）、
+`test:host` 全绿。
+
+**经验**：浏览器 API 的「立即生效」承诺要看实现——cancel 语义上是清空、实际是异步冲刷；
+凡「cancel 紧接 speak」的切换都必须等真空，且探测要 fail-open（读不到状态就播，别静默）。
+
 
 

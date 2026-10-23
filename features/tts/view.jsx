@@ -396,7 +396,7 @@ function startSession(opts) {
 	const speakNext = () => {
 		if (epoch !== engine.epoch) return; // 已被新的播放/停止取代
 		if (session.index >= session.chunks.length) {
-			engine.session = null;
+			if (engine.session === session) engine.session = null;
 			setEngineState({ phase: "idle", key: "", label: "" });
 			drainQueue();
 			return;
@@ -405,7 +405,7 @@ function startSession(opts) {
 		session.index += 1; // 先推进：onend/onerror 只负责「继续下一片」，不再各自加一次
 		const utt = makeUtterance(piece);
 		if (!utt) {
-			engine.session = null;
+			if (engine.session === session) engine.session = null;
 			setEngineState({ phase: "idle", key: "", label: "" });
 			return;
 		}
@@ -418,12 +418,40 @@ function startSession(opts) {
 		// 分片之间被浏览器吃掉 onend 是已知问题：onerror 同样推进，坏一片不致整段哑掉
 		utt.onerror = () => { if (epoch !== engine.epoch) return; speakNext(); };
 		try { s.speak(utt); } catch {
-			engine.session = null;
+			if (engine.session === session) engine.session = null;
 			setEngineState({ phase: "idle", key: "", label: "" });
 		}
 	};
-	speakNext();
+	// 上一句可能刚被 cancel()：Chrome 异步清队，同一 tick 里 speak 会排进还没清空的
+	// 旧队列 → 先把上一条（会话 A）剩下的分片念完才轮到这一条（会话 B）。
+	// 所以必须等队列真正空了再开播；队列本来就空时（绝大多数情况）立即播，零延迟。
+	whenQueueClear(s, epoch, speakNext);
 	return true;
+}
+
+/** 队列真空探测（沙箱/旧内核读不到属性时按「空」处理，绝不因此卡住播放）。 */
+function queueBusy(s) {
+	try { return s.speaking === true || s.pending === true; } catch { return false; }
+}
+/** cancel 后等队列真空的轮询间隔与上限（上限到点仍未空则再 cancel 一次硬开播）。 */
+const FLUSH_POLL_MS = 15;
+const FLUSH_MAX_MS = 1500;
+function whenQueueClear(s, epoch, run) {
+	if (!queueBusy(s)) { run(); return; }
+	let waited = 0;
+	const poll = () => {
+		if (epoch !== engine.epoch) return; // 期间又切了内容/停止：本局作废
+		if (!queueBusy(s)) { run(); return; }
+		waited += FLUSH_POLL_MS;
+		if (waited >= FLUSH_MAX_MS) {
+			// cancel 没生效（Chrome 已知毛病）：再补一次并硬开播，宁可重叠也不静默不出声
+			try { s.cancel(); } catch { /* ignore */ }
+			run();
+			return;
+		}
+		setTimeout(poll, FLUSH_POLL_MS);
+	};
+	setTimeout(poll, FLUSH_POLL_MS);
 }
 
 /**
