@@ -20,7 +20,7 @@ import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import yaml from 'js-yaml'
-import { DOCK_NS, readBody, sendJson, readDockRoot, mutateDockSection } from '../../src/host-core.js'
+import { DOCK_NS, readBody, sendJson, rejectUntrustedRequest, readDockRoot, mutateDockSection } from '../../src/host-core.js'
 import { lanAddresses, startProtectedLanGateway } from './gateway.js'
 
 function dshHome() { return process.env.DSH_HOME || join(homedir(), '.dsh') }
@@ -389,6 +389,7 @@ export const feature = {
         kind: 'prefix',
         path: '/dsh-dock/mobile-relay',
         async handler(req, res) {
+          if (rejectUntrustedRequest(ctx, req, res)) return
           try {
             const method = routeMethod(req)
             const payload = await readBody(req)

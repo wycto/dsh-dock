@@ -26,6 +26,7 @@ function createRuntime() {
 	const Fragment = Symbol.for("dsh-dock-test.Fragment");
 	const instances = new Map();
 	const pending = [];
+	const elements = []; // 宿主元素事件句柄（render 时收集，用例触发交互用）
 	const noop = () => {};
 	let currentPath = "root";
 	let currentInst = null;
@@ -105,8 +106,7 @@ function createRuntime() {
 		const type = node.type;
 		const props = node.props || {};
 		if (type === Fragment) { render(props.children, out, key); return; }
-		if (typeof type === "function") {
-			const path = currentPath + "/" + key + "#" + (type.name || "anon");
+		if (typeof type === "function") {			const path = currentPath + "/" + key + "#" + (type.name || "anon");
 			const prevPath = currentPath, prevInst = currentInst, prevCursor = cursor;
 			currentPath = path;
 			currentInst = instanceOf(path);
@@ -140,12 +140,20 @@ function createRuntime() {
 			}
 			return;
 		}
+		// 宿主元素：记录带事件句柄的节点，供用例触发 onClick / onMouseEnter 等
+		if (typeof type === "string") {
+			const cls = String(props.className || "");
+			for (const ev of ["onClick", "onMouseEnter", "onMouseLeave", "onChange"]) {
+				if (typeof props[ev] === "function") elements.push({ tag: type, className: cls, event: ev, handler: props[ev] });
+			}
+			out.push("<" + type + (cls ? ' class="' + cls + '"' : "") + ">");
+		}
 		render(props.children, out, key);
 	}
 	// render 挂在返回对象上，避免外部重复实现
 	return {
-		react, jsxRuntime,
-		beginPass() { pending.length = 0; cursor = 0; },
+		react, jsxRuntime, elements,
+		beginPass() { pending.length = 0; elements.length = 0; cursor = 0; },
 		isDirty: () => dirty,
 		clearDirty() { dirty = false; },
 		runEffects() {
@@ -169,16 +177,21 @@ function createRuntime() {
 // 覆盖「轮询到新快照 → 触发任务结束检测」这类按引用变化才生效的分支）。
 // posts 记录所有 POST /dsh-dock/features（开关同步断言用）。
 function resolveStatus(s) { return typeof s === "function" ? s() : s; }
-function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus) {
+function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus, ttsStatus) {
 	return (url, init) => {
-		// 只拦截功能开关的同步 POST；功能自己的 RPC 也是 POST，不能一起吃掉
-		if (init && init.method === "POST" && String(url).includes("dsh-dock/features")) {
+		// 只拦截功能开关的同步 POST 与【语音朗读】的配置 POST（防抖断言要数它）；
+		// 其余功能自己的 RPC 也是 POST，不能一起吃掉
+		if (init && init.method === "POST" && (String(url).includes("dsh-dock/features") || String(url).includes("dsh-dock/tts/config"))) {
 			posts.push({ url: String(url), body: JSON.parse(init.body || "{}") });
 			return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, data: {} }) });
 		}
 		// 模型目录：视图直接用 json() 结果作目录（不包 ok/data），须与真实宿主一致
 		//（视图用相对 URL "dsh-dock/models"，此处不要求前导斜杠以兼容）
 		if (String(url).includes("dsh-dock/models")) {
+			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
+		}
+		// 模型提供商：与模型目录同一份目录数据（真实宿主额外补 apiKeyConfigured，fixture 已含）
+		if (String(url).includes("dsh-dock/providerconfig")) {
 			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
 		}
 		let data = {};
@@ -225,6 +238,7 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		if (url.includes("dsh-dock/animation/status")) data = resolveStatus(animationStatus);
 		else if (url.includes("dsh-dock/notify/status")) data = resolveStatus(notifyStatus);
 		else if (url.includes("dsh-dock/runstate/status")) data = resolveStatus(runstateStatus || RUNSTATE_STATUS);
+		else if (url.includes("dsh-dock/tts/status")) data = resolveStatus(ttsStatus || TTS_STATUS);
 		else if (url.includes("dsh-dock/features")) data = { persisted: persisted || {} };
 		return Promise.resolve({
 			ok: true,
@@ -245,12 +259,40 @@ function makeWindow() {
 		localStorage: null,
 	};
 }
+// ---------- 语音合成桩：记录 speak 出去的内容，供【语音朗读】行为断言 ----------
+// speak 不自动触发 onend（引擎停在「正在读第一片」态，暂停/继续/重读才可测）；
+// 用例要推进分片时手动调 flush()。
+function makeSpeechStub() {
+	const spoken = [];
+	const utterCtor = function (text) { this.text = text; this.onend = null; this.onerror = null; };
+	const voices = [
+		{ name: "Microsoft Xiaoxiao", lang: "zh-CN", voiceURI: "zh-CN-Xiaoxiao" },
+		{ name: "Google US English", lang: "en-US", voiceURI: "en-US-Google" },
+	];
+	const synth = {
+		getVoices: () => voices,
+		pauseCount: 0, resumeCount: 0, cancelCount: 0,
+		speak(utt) { spoken.push(utt); },
+		cancel() { synth.cancelCount += 1; },
+		pause() { synth.pauseCount += 1; },
+		resume() { synth.resumeCount += 1; },
+		paused: false, speaking: false, pending: false,
+		// 手动结算前 n 条（触发 onend → 引擎推进下一片）
+		flush(n) {
+			const list = spoken.splice(0, n === undefined ? spoken.length : n);
+			for (const u of list) { try { if (typeof u.onend === "function") u.onend(); } catch { /* 用例自己负责断言 */ } }
+			return list;
+		},
+	};
+	return { spoken, utterCtor, synth, voices };
+}
 let loaded = null;
 
-function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus, opts) {
+function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus, opts, ttsStatus) {
 	const runtime = createRuntime();
 	const posts = [];
-	const store = { "dsh-dock/features/v1": JSON.stringify(enabled) };
+	const store = Object.assign({}, opts && opts.store ? opts.store : null);
+	if (!("dsh-dock/features/v1" in store)) store["dsh-dock/features/v1"] = JSON.stringify(enabled);
 	const win = makeWindow();
 	// opts.body：提供最小 document 桩（body + head + createPortal 捕获），用于覆盖
 	// 「单价子弹窗 portal 到 document.body」这一真实浏览器分支。默认 document 仍为 undefined
@@ -276,7 +318,7 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 		setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
 		// opts.fetch：替换默认桩，用于「宿主某路由未注册（405/404）」这类行为用例——
 		// 需要断言「收到 405 之后不再发请求」，只查字符串钉不住这个语义。
-		fetch: (opts && opts.fetch) || makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus),
+		fetch: (opts && opts.fetch) || makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStatus, ttsStatus),
 		// 视图的 fetch 用 AbortSignal.timeout 设超时；沙箱补一个最小替身（stub 忽略 signal）
 		AbortSignal: { timeout: () => ({}) },
 		localStorage: {
@@ -291,6 +333,14 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 	};
 	sandbox.globalThis = sandbox;
 	win.localStorage = sandbox.localStorage;
+	// opts.speech：装一个 speechSynthesis 桩（同时挂 globalThis 与 window，
+	// 视图两条路径都会读；不装时视图按「本浏览器不支持」降级，正是默认沙箱形态）。
+	if (opts && opts.speech) {
+		sandbox.speechSynthesis = opts.speech.synth;
+		sandbox.SpeechSynthesisUtterance = opts.speech.utterCtor;
+		win.speechSynthesis = opts.speech.synth;
+		win.SpeechSynthesisUtterance = opts.speech.utterCtor;
+	}
 	vm.createContext(sandbox);
 	loaded = null;
 	vm.runInContext(bundle, sandbox, { filename: "client.js" });
@@ -356,6 +406,17 @@ const RUNSTATE_STATUS = {
 	recent: ANIMATION_STATUS.recent,
 };
 
+// 语音朗读的 /status：追踪快照 + tts 配置段（宿主 readTtsConfig 下发）
+const TTS_STATUS = {
+	active: ANIMATION_STATUS.active,
+	recent: ANIMATION_STATUS.recent,
+	config: {
+		autoPlay: false, autoPlayOnFinish: true, interruptOnNew: true,
+		rate: 1, pitch: 1, volume: 1, voiceURI: "", lang: "",
+		skipCode: true, skipTables: true, maxChars: 0, maxSentences: 0,
+	},
+};
+
 // 模型设置 /dsh-dock/models：视图把 json() 结果直接当目录用（不包 ok/data），
 // 与真实宿主 sendJson(res, 200, payload) 一致。给一个含 pi-ai 路由的目录，
 // 覆盖 Provider 管理列表 + 新增表单 + 选中 Provider 编辑器三条渲染分支。
@@ -398,11 +459,13 @@ const FEATURES = [
 	{ id: "animation", name: "任务动画", marker: "运行动画", deep: true },
 	{ id: "notify", name: "任务通知", marker: "通知事件", deep: true },
 	{ id: "runstate", name: "运行状态", marker: "运行状态", deep: true },
+	{ id: "tts", name: "语音朗读", marker: "朗读时机", deep: true },
 	// tokenlog 的 marker 用「调用明细」而非「用量」：后者能在卡片描述里命中，
 	// 会让「视图抛错降级为一行提示」也被判为渲染正常（曾实际发生，见下方 tokenlog 断言）。
 	{ id: "tokenlog", name: "用量记录", marker: "调用明细", deep: true },
 	{ id: "balance", name: "模型余额", marker: "余额", deep: true },
 	{ id: "modelconfig", name: "模型设置", marker: "模型", deep: true },
+	{ id: "providerconfig", name: "模型提供商", marker: "模型提供商", deep: true },
 	{ id: "heartbeat", name: "心跳监视", marker: "心跳", deep: true },
 	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
@@ -446,21 +509,28 @@ for (const f of FEATURES) {
 			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
 		}
 	}
-	// 模型设置：主页只剩「模型提供商」入口卡——提供商列表/表单已搬进独立子页面（见用例 1.4b）。
-	// 这里断言入口卡真的渲染（含自定义路由计数与「管理」按钮），防止子页面入口被误删成死路。
+	// 模型设置：只应出现模型目录编辑相关内容；Provider 的增删改入口已拆成独立功能【模型提供商】。
+	// 这里断言主页真的渲染出模型编辑器与图片代理面板，且不再有「模型提供商」入口卡（防拆分回退）。
 	if (f.id === "modelconfig" && !error) {
-		for (const needle of ["模型提供商", "个自定义路由", "管理"]) {
-			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置主页缺少「${needle}」（提供商子页面入口卡未渲染）`); }
+		for (const needle of ["图片理解代理", "保存写回官方配置", "刷新模型目录"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型设置主页缺少「${needle}」（模型编辑器/图片代理面板未渲染）`); }
+		}
+		if (html.includes("个自定义路由")) { failed++; console.log("✗ 模型设置主页仍渲染「模型提供商」入口卡（应已拆成独立功能）"); }
+	}
+	// 模型提供商：独立的 Provider 管理页（行卡片 + 编辑/删除 + 新增入口）
+	if (f.id === "providerconfig" && !error) {
+		for (const needle of ["魔搭 ModelScope", "编辑", "删除", "＋ 新增 Provider"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型提供商页缺少「${needle}」（Provider 列表/新增入口未渲染）`); }
 		}
 	}
 }
 
-// ---------- 用例 1.4：模型设置「新增 Provider」表单（params.openProviderForm 直达子页面并展开表单）----------
-// 提供商管理已从主页搬进独立子页面；openProviderForm 深链既要落到子页面，又要直接展开新增表单。
+// ---------- 用例 1.4：模型提供商「新增 Provider」表单（params.openProviderForm 直接展开）----------
+// Provider 管理已是独立功能模块；openProviderForm 深链要直接展开新增表单。
 // 用全新 runtime 避免与主页渲染共享组件实例状态。
 {
 	const enabled = {};
-	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	for (const other of FEATURES) enabled[other.id] = other.id === "providerconfig";
 	let detail = "";
 	try {
 		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
@@ -469,7 +539,7 @@ for (const f of FEATURES) {
 		else {
 			const formHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { openProviderForm: true } }));
 			// 沙箱只序列化文本节点（不含 input 的 placeholder 属性），故用表单特有的文本断言：
-			// 子页面标题 + api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
+			// 页面标题 + api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
 			for (const needle of ["模型提供商", "新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
 				if (!formHtml.includes(needle)) { detail = "新增 Provider 表单缺少「" + needle + "」"; break; }
 			}
@@ -478,34 +548,33 @@ for (const f of FEATURES) {
 		detail = "Provider 表单渲染抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { failed++; console.log("✗ " + detail); }
-	else console.log("✓ 模型设置 Provider 表单：params.openProviderForm 直达子页面「新增 Provider」表单（路由/api/baseURL/key/模型行）");
+	else console.log("✓ 模型提供商 Provider 表单：params.openProviderForm 直接展开「新增 Provider」表单（路由/api/baseURL/key/模型行）");
 }
 
-// ---------- 用例 1.4b：模型设置「模型提供商」子页面（params.page 直达）----------
-// 用户反馈：提供商管理挤在模型设置主页里又长又丑。现在它是独立子页面，按官方「模型」设置页排版：
-// 返回入口 + 标题/说明 + 行卡片（名称/路由/模型数/密钥状态 + 编辑/删除）+ 底部虚线新增。
-// 这条断言锁住「子页面自己就能渲染出整张列表」，避免入口卡指向一个空页面。
+// ---------- 用例 1.4b：模型提供商页（独立功能，行卡片列表）----------
+// Provider 管理从【模型设置】拆成独立功能模块后，本页自己就要渲染出整张列表：
+// 标题/说明 + 行卡片（名称/路由/模型数/密钥状态 + 编辑/删除）+ 底部虚线新增。
 {
 	const enabled = {};
-	for (const other of FEATURES) enabled[other.id] = other.id === "modelconfig";
+	for (const other of FEATURES) enabled[other.id] = other.id === "providerconfig";
 	let detail = "";
 	try {
 		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS);
 		const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
 		if (!reg) detail = "没有注册 settings.section";
 		else {
-			const pageHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { page: "providers" } }));
-			for (const needle of ["← 模型设置", "模型提供商", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
-				if (!pageHtml.includes(needle)) { detail = "模型提供商子页面缺少「" + needle + "」"; break; }
+			const pageHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
+			for (const needle of ["模型提供商", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
+				if (!pageHtml.includes(needle)) { detail = "模型提供商页缺少「" + needle + "」"; break; }
 			}
-			// 主业内容（图片理解代理 / 模型目录编辑器）不该跟着出现在子页面里
-			if (!detail && pageHtml.includes("图片理解代理")) detail = "模型提供商子页面串进了主页内容（图片理解代理）";
+			// 模型设置页的内容（图片理解代理 / 模型目录编辑器）不该串进来——两个功能各自独立
+			if (!detail && pageHtml.includes("图片理解代理")) detail = "模型提供商页串进了模型设置页内容（图片理解代理）";
 		}
 	} catch (e) {
-		detail = "模型提供商子页面渲染抛错：" + ((e && e.message) || e);
+		detail = "模型提供商页渲染抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { failed++; console.log("✗ " + detail); }
-	else console.log("✓ 模型设置「模型提供商」子页面：params.page=\"providers\" 直达行卡片列表（密钥状态/模型数/编辑/删除/新增）");
+	else console.log("✓ 模型提供商页：独立功能渲染行卡片列表（密钥状态/模型数/编辑/删除/新增）");
 }
 
 	if (failed) {
@@ -692,6 +761,319 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log("✓ 任务通知浮层：任务结束时弹出通知卡片（轮询 → 检测 → 卡片）");
+}
+
+// ---------- 用例 5b：需确认卡挂到审批处理完才收，前台多久都不自毁 ----------
+// 两代真实问题：①（用户截图）一个任务连弹 4 张需确认卡，只能挨个点 ✕——修法是
+// 卡片与审批项绑定（approvalKeys = sessionId|approvalId），approval/decided 后
+// 浮层对账到「绑定的审批项都不在了」就把卡片标记 closing 淡出；②（用户实测漏
+// 提醒）曾经的「前台看过 8 秒也收」（lingerMs）会在审批还挂着等人批的时候先把
+// 提醒弄丢——已彻底移除计时器。本用例先在前台放 9 秒（>旧 8 秒 linger）断言卡片
+// 仍在，再把 approvals 换空断言对账收起。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		active: [Object.assign({}, NOTIFY_STATUS.active[0], {
+			approvals: [{ id: "ap-1", toolName: "pwsh", reason: "需要提权执行命令" }],
+		})],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus);
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		const before = await renderSettled(runtime, node);
+		if (!before.includes("任务需要确认")) throw new Error("审批等待时没有弹出需确认卡（前置条件不成立）");
+		// 前台放 9 秒（旧 linger 是 8 秒自毁）：审批没处理完，卡片必须还挂着
+		await new Promise((resolve) => setTimeout(resolve, 9200));
+		const still = await renderSettled(runtime, node);
+		if (!still.includes("任务需要确认")) detail = "审批还挂着时前台放满 9 秒，需确认卡自己消失了（计时器没删干净）";
+		if (!detail && /lingerMs/.test(bundle)) detail = "产物里仍有 lingerMs（前台看过计时未移除，会提前弄丢待审批提醒）";
+		// 用户确认/拒绝 → 宿主把审批项移出 approvals（任务本身还在跑）
+		live.active = [Object.assign({}, live.active[0], { approvals: [] })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等下一轮轮询（任务中 850ms）
+		let html = await renderSettled(runtime, node);
+		// 收起是 240ms 的淡出：多等几拍，断言最终真的从 DOM 里消失
+		for (let i = 0; i < 4 && html.includes("任务需要确认"); i++) {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			html = await renderSettled(runtime, node);
+		}
+		if (!detail && html.includes("任务需要确认")) detail = "审批已处理，需确认卡没有自动收起（仍渲染在页面上）";
+	} catch (e) {
+		detail = "需确认卡自动收起用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 需确认卡挂到处理完：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 需确认卡挂到处理完：前台 9 秒不自毁（无计时器），审批处理完对账自动淡出");
+}
+
+// ---------- 用例 5c：完成卡没人看过就不会消失（后台弹的、前台弹的都常驻）----------
+// 真实问题（用户实测）：任务在后台跑完，切回页面时右上角什么都没有。根因（历史）：
+// 完成卡带 stayMs 倒计时，从弹卡那一刻就开始走，后台标签页里浏览器把轮询节流，
+// 卡片在没人看的地方默默走完时间消失——通知等于丢了。修法（最终形态）：结束卡
+// **没有任何自动消失**——没点开看过就一直挂着，多了靠叠放收纳。本用例 hidden
+// 弹卡等 3 秒断言仍在；切回 visible 再等 3 秒仍断言在（旧实现这里早已超时消失）。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		active: [Object.assign({}, NOTIFY_STATUS.active[0])],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	const listeners = {};
+	const doc = {
+		visibilityState: "hidden",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+		removeEventListener(type, fn) {
+			const arr = listeners[type] || [];
+			const i = arr.indexOf(fn);
+			if (i >= 0) arr.splice(i, 1);
+		},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		// 任务在后台结束：活跃清空、最近完成出现
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等一轮轮询（任务中 850ms）
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) throw new Error("后台任务结束没有弹出完成卡（前置条件不成立）");
+		// 后台等超过旧 stayMs（8s 的节流轮询场景按 3s 计），卡片必须还在
+		await new Promise((resolve) => setTimeout(resolve, 3000));
+		html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) detail = "页面在后台时完成卡自己消失了（用户切回来什么都看不到）";
+		else {
+			// 切回前台：没看过，仍然挂着（旧实现在这里重新计满 stayMs 后收起——已废弃）
+			doc.visibilityState = "visible";
+			for (const fn of (listeners.visibilitychange || []).slice()) fn();
+			await new Promise((resolve) => setTimeout(resolve, 3000));
+			html = await renderSettled(runtime, node);
+			if (!html.includes("任务完成")) detail = "切回前台后完成卡超时消失（应常驻到看过）";
+		}
+	} catch (e) {
+		detail = "完成卡常驻用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 完成卡常驻不白丢：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 完成卡常驻不白丢：后台、前台都没看过就一直挂着，不超时自毁");
+}
+
+// ---------- 用例 5d：点进完成的会话，完成卡跟着自动收起 ----------
+// 用户诉求：完成卡该弹还得弹（前台完成也要有通知），但点进那个会话看过结果后，
+// 卡片就该自己消失，不用手动点 ✕。判定与【任务动画】同款：侧栏高亮行
+// （role=treeitem + aria-selected）标题与卡片 sessionTitle 对上即收起。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		active: [Object.assign({}, NOTIFY_STATUS.active[0])],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	// 侧栏选中态可变桩：selectedTitle 非空即模拟"用户点进了该会话"
+	let selectedTitle = "";
+	const doc = {
+		visibilityState: "visible",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		querySelectorAll(sel) {
+			if (sel === '[role="treeitem"][aria-selected="true"]' && selectedTitle) {
+				return [{ textContent: selectedTitle, getBoundingClientRect: () => ({ width: 200, height: 32, top: 100, bottom: 132, right: 200, left: 8 }) }];
+			}
+			return [];
+		},
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener() {}, removeEventListener() {},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		// 前台任务结束 → 弹完成卡
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等一轮轮询
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) throw new Error("前台任务结束没有弹出完成卡（前置条件不成立）");
+		// 用户点进那个会话（recent[0].title =「上一个任务」）→ 巡检（500ms）应收起卡片
+		selectedTitle = NOTIFY_STATUS.recent[0].title;
+		await new Promise((resolve) => setTimeout(resolve, 700));
+		html = await renderSettled(runtime, node);
+		await new Promise((resolve) => setTimeout(resolve, 300)); // 240ms 淡出
+		html = await renderSettled(runtime, node);
+		if (html.includes("任务完成")) detail = "点进完成的会话后完成卡仍在（未随会话选中自动收起）";
+	} catch (e) {
+		detail = "点进会话收起完成卡用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 点进会话收起完成卡：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 点进会话收起完成卡：侧栏选中该会话即视为看到结果，完成卡自动淡出");
+}
+
+// ---------- 用例 5e：点通知卡片跳转到对应会话并收起 ----------
+// 用户诉求：点卡片直达对应会话。结束卡跳转成功就地淡出；找不到可见会话行
+// （抽屉收起/手机端）不跳转也不收起。侧栏行桩：role=treeitem、标题对上、内含可点 button。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	const live = {
+		// approvals 置空：本用例只测结束卡，别把共享 fixture 里的需确认项也弹出来抢句柄
+		active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })],
+		recent: [],
+		config: NOTIFY_STATUS.config,
+	};
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	let clicked = 0;
+	let rowsVisible = true;
+	const doc = {
+		visibilityState: "visible",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		querySelectorAll(sel) {
+			if (sel === '[role="treeitem"]' && rowsVisible) {
+				return [{
+					textContent: NOTIFY_STATUS.recent[0].title,
+					getBoundingClientRect: () => ({ width: 200, height: 32, top: 100, bottom: 132, right: 200, left: 8 }),
+					querySelector: () => ({ click: () => { clicked += 1; } }),
+				}];
+			}
+			return [];
+		},
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener() {}, removeEventListener() {},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 等一轮轮询弹卡
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("任务完成")) throw new Error("任务结束没有弹出完成卡（前置条件不成立）");
+		// 行不可见时点卡片：不跳转也不收起（选择器精确到卡片本体，别吃进 ✕ 按钮）
+		rowsVisible = false;
+		const isCard = (el) => el.event === "onClick" && /(^|\s)dknt-toast(\s|$)/.test(el.className) && !el.className.includes("close");
+		const card = runtime.elements.find(isCard);
+		if (!card) throw new Error("完成卡没有挂 onClick 跳转句柄（不是可点击卡片）");
+		card.handler({});
+		await new Promise((resolve) => setTimeout(resolve, 400));
+		html = await renderSettled(runtime, node);
+		if (clicked !== 0) detail = "会话行不可见时仍触发了点击";
+		else if (!html.includes("任务完成")) detail = "跳转失败时完成卡被误收起（没看到结果不该消失）";
+		else {
+			// 行可见时点卡片：跳转一次 + 卡片淡出收起
+			rowsVisible = true;
+			const card2 = runtime.elements.find(isCard);
+			card2.handler({});
+			if (clicked !== 1) detail = "点卡片没有调用会话行的 click（未跳转，clicked=" + clicked + "）";
+			await new Promise((resolve) => setTimeout(resolve, 600)); // 240ms 淡出 + 余量
+			html = await renderSettled(runtime, node);
+			await new Promise((resolve) => setTimeout(resolve, 300)); // 淡出定时器在渲染趟内才排上，再等一拍
+			html = await renderSettled(runtime, node);
+			if (!detail && html.includes("任务完成")) detail = "跳转成功后完成卡没有收起";
+		}
+	} catch (e) {
+		detail = "点卡片跳转会话用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 点卡片跳转会话：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 点卡片跳转会话：结束卡可点击直达会话，跳转成功即收起；行不可见时不跳不收");
+}
+
+// ---------- 用例 5f：卡片多了叠放收纳（≥3 张收成标题条，悬停展开）----------
+// 用户诉求：通知卡片过多时叠放、只露标题，鼠标放上去展开。实现：NotifyOverlay 在
+// toasts.length ≥ 3 且未悬停卡片栈时给栈加 .stacked、给除最新外的卡片加
+// .collapsed（只渲染标题条、不渲染正文）；悬停 onMouseEnter 整体展开。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = true;
+	// 三个不同会话先后结束 → 三张完成卡
+	const sessions = [
+		{ sessionId: "s-a", title: "会话甲的任务" },
+		{ sessionId: "s-b", title: "会话乙的任务" },
+		{ sessionId: "s-c", title: "会话丙的任务" },
+	];
+	const live = { active: [], recent: [], config: NOTIFY_STATUS.config };
+	for (const s of sessions) {
+		// approvals 置空：本用例只看结束卡的叠放，别让共享 fixture 的需确认项混进来
+		live.active.push(Object.assign({}, NOTIFY_STATUS.active[0], { sessionId: s.sessionId, title: s.title, approvals: [] }));
+	}
+	const notifyStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	const doc = {
+		visibilityState: "visible",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		querySelectorAll() { return []; },
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener() {}, removeEventListener() {},
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, notifyStatus, undefined, undefined, { document: doc });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		// 三个会话依次结束（active 清空、recent 补三条同 id 记录）
+		live.recent = sessions.map((s) => Object.assign({}, NOTIFY_STATUS.recent[0], s));
+		live.active = [];
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // 一轮轮询全部判结束
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("class=\"dknt-toasts stacked\"")) detail = "三张卡片没有进入叠放态（栈缺 .stacked 类）";
+		else {
+			const collapsedCount = (html.match(/dknt-toast[^"]*\scollapsed/g) || []).length;
+			const bodyCount = (html.match(/dknt-toast-body/g) || []).length;
+			// 叠放态：3 张里最新一张完整展开（1 个正文），其余 2 张只剩标题条
+			if (collapsedCount !== 2) detail = "叠放时应只展开最新一张（期望 2 张 .collapsed，实际 " + collapsedCount + "）";
+			else if (bodyCount !== 1) detail = "叠放态正文数不对（期望 1，实际 " + bodyCount + "；收起态不应渲染正文）";
+			else {
+				// 悬停卡片栈 → 整体展开
+				const stackEl = runtime.elements.find((el) => el.className.includes("dknt-toasts") && el.event === "onMouseEnter");
+				if (!stackEl) throw new Error("卡片栈没有 onMouseEnter 展开句柄");
+				stackEl.handler({});
+				html = await renderSettled(runtime, node);
+				if (html.includes("class=\"dknt-toasts stacked\"")) detail = "悬停卡片栈后没有展开（仍带 .stacked）";
+				else if ((html.match(/dknt-toast-body/g) || []).length !== 3) detail = "展开后没有恢复全部正文（期望 3）";
+			}
+		}
+	} catch (e) {
+		detail = "卡片叠放用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) {
+		console.log(`✗ 卡片叠放收纳：${detail}`);
+		process.exit(1);
+	}
+	console.log("✓ 卡片叠放收纳：≥3 张只展开最新、其余收成标题条，悬停卡片栈整体展开");
 }
 
 // ---------- 用例 6：开关补推（浏览器已表态、宿主从未收到过该功能） ----------
@@ -914,6 +1296,14 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	if (/\.dsh-mobile-burger\{[^}]*backdrop-filter/.test(bundle)) issues.push("汉堡有毛玻璃底");
 	if (!/aria-label", "\\u6253\\u5F00\\u4F1A\\u8BDD\\u5217\\u8868"/.test(bundle) && !/aria-label", "打开会话列表"/.test(bundle)) issues.push("汉堡没有无障碍标签");
 	if (!/aria-expanded/.test(bundle)) issues.push("汉堡没有维护展开态语义");
+	// 给标题让出汉堡宽度（用户实测：标题首字叠在三条横线上）。
+	// 汉堡 fixed 定位、不占布局，原生标题从头部 padding-left:20px 起排 → 真实实例 390×844
+	// 逐字实测重叠 16px（会话标题首字 x=28 vs 汉堡右缘 44）；插件页/自动化任务页页头
+	// （padding-left:0、靠外层容器给 24px）首字 x=24 → 重叠 20px。
+	// 契约：会话页头补到 44px（= 汉堡宽度）；两条原生页头各补 28px（首字落 x=52、留 8px），
+	// 并把 gap 从 16px 收到 4px 补回被内边距吃掉的内容宽度（否则「添加插件」按钮会换行）。
+	if (!/body\[data-dk-mobile="1"\] header:has\(\[class\*="titleRow"\]\)\{padding-left:calc\(44px \+ env\(safe-area-inset-left,0px\)\)\}/.test(bundle)) issues.push("会话页头没有给汉堡让出宽度（标题会被压住）");
+	if (!/body\[data-dk-mobile="1"\] \[class\$="_pageHead"\],body\[data-dk-mobile="1"\] \[class\$="_pageHeading"\]\{padding-left:calc\(28px \+ env\(safe-area-inset-left,0px\)\);gap:4px\}/.test(bundle)) issues.push("插件页/任务页页头没有给汉堡让出宽度（标题会被压住）");
 	if (!/\\u6253\\u5F00\\u4FA7\\u8FB9\\u680F/.test(bundle) && !/打开侧边栏/.test(bundle)) issues.push("汉堡没有转发原生「打开侧边栏」（点它展不开抽屉）");
 	// 待确认任务角标：底部 Tab 栏移除前挂在「插件」页签上，现在必须挂在汉堡右上角，
 	// 保留「手机上一眼看到有任务卡住等人确认」的能力。钉住：元素 + 轮询 runstate +
@@ -1017,6 +1407,363 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		process.exit(1);
 	}
 	console.log(`✓ 用量记录路由闩锁（行为）：首次 405 后停止轮询（首挂载 ${first} 次、切会话新增 ${again} 次）`);
+}
+
+// ---------- 用例 15：【语音朗读】回合尾喇叭按钮渲染 + 点击朗读（含 Markdown 清洗） ----------
+// 用户诉求：会话结束后在回复下方点喇叭听，不想看了。这里锁三件事：
+//   ① 功能启用后确实注册了 conversation.chat.turnTail 座位，且对「有正文的已完成回合」渲染出按钮；
+//   ② 点按钮 → speechSynthesis.speak 收到朗读文本；
+//   ③ 朗读的是清洗过的纯文本（Markdown 符号、代码块、表格不能念出来）。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail（回复下方不会出现喇叭按钮）");
+		const blocks = [
+			{ kind: "reasoning", text: "这段是思考过程，不该念" },
+			{ kind: "text", text: "结论如下：**共 3 处**修改。\n\n```js\nconst a = 1;\n```\n\n| 列 | 值 |\n| --- | --- |\n| a | 1 |\n\n详见 [工作流](docs/workflow.md)。" },
+		];
+		const owner = {
+			sessionId: "s-1",
+			seq: 42,
+			openFile() {},
+			turn: {
+				turn: 2,
+				status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks } } : undefined) },
+			},
+		};
+		const html = await renderSettled(runtime, runtime.react.createElement(reg.comp, owner));
+		if (!/dktts-btn/.test(html)) detail = "回合下方没有渲染朗读按钮（dktts-btn）";
+		else if (html.includes("思考过程")) detail = "思考过程被念出来了（只应读 text 块）";
+		else {
+			const btn = runtime.elements.find((el) => el.event === "onClick" && /dktts-btn/.test(el.className));
+			if (!btn) throw new Error("朗读按钮没有挂 onClick 句柄");
+			btn.handler({});
+			if (speech.spoken.length === 0) throw new Error("点喇叭没有任何 speak 调用");
+			const text = speech.spoken.map((u) => u.text).join("");
+			if (!text.includes("结论如下")) detail = "朗读文本缺少正文（实际：" + text.slice(0, 60) + "）";
+			else if (text.includes("const a")) detail = "代码块内容被念出来了（skipCode 默认应跳过）";
+			else if (text.includes("| a |")) detail = "表格原样被念出来了（skipTables 默认应跳过）";
+			else if (text.includes("**")) detail = "Markdown 加粗符号没清掉";
+			else if (text.includes("docs/workflow.md")) detail = "链接地址没清掉（只应留锚文字）";
+			else if (!text.includes("工作流")) detail = "链接锚文字丢了";
+			else if (speech.spoken.some((u) => typeof u.rate !== "number")) detail = "utterance 没带语速等参数";
+		}
+	} catch (e) {
+		detail = "回合尾朗读用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 回合尾朗读按钮：${detail}`); process.exit(1); }
+	console.log("✓ 回合尾朗读按钮：回复下方渲染喇叭，点击朗读清洗后的正文（代码块/表格/思考过程不念）");
+}
+
+// ---------- 用例 16：【语音朗读】自动朗读由宿主任务追踪驱动，且首屏历史不补读 ----------
+// 自动朗读的触发源是宿主侧会话级追踪（与【任务通知】同一机制），不是「回合节点刚挂载」——
+// 后者在冷读历史会话时也会命中，会莫名其妙把老回复念出来。这里锁两条：
+//   ① 首份快照里的「最近完成」只登记不朗读（页面刚打开保持安静）；
+//   ② 之后新出现的结束记录才朗读，且读的是那条记录的 lastText。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	const live = {
+		active: [],
+		recent: [Object.assign({}, NOTIFY_STATUS.recent[0], { lastText: "这是打开页面之前就完成的老回复" })],
+		config: Object.assign({}, TTS_STATUS.config, { autoPlay: true }),
+	};
+	const ttsStatus = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech }, ttsStatus);
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		if (!overlays) throw new Error("没有注册功能全局浮层");
+		const node = runtime.react.createElement(overlays.comp, null);
+		await renderSettled(runtime, node);
+		await new Promise((resolve) => setTimeout(resolve, 1600)); // 宿主配置回来 + 轮询起 + 首帧登记
+		await renderSettled(runtime, node);
+		if (speech.spoken.length > 0) detail = "页面刚打开就把历史「最近完成」补读了（应保持安静）";
+		else {
+			// 新任务结束：出现一条新的结束记录（endTime 不同）
+			live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], {
+				lastText: "新回复：三个仓库都已更新完毕。", endTime: Date.now() + 5000,
+			})].concat(live.recent);
+			await new Promise((resolve) => setTimeout(resolve, 1600)); // 等一轮轮询
+			await renderSettled(runtime, node);
+			if (speech.spoken.length === 0) detail = "新任务结束没有自动朗读（浮层没读到宿主追踪快照？）";
+			else {
+				const text = speech.spoken.map((u) => u.text).join("");
+				if (!text.includes("三个仓库都已更新完毕")) detail = "自动朗读的内容不是本回合回复（实际：" + text.slice(0, 40) + "）";
+			}
+		}
+	} catch (e) {
+		detail = "自动朗读用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 自动朗读：${detail}`); process.exit(1); }
+	console.log("✓ 自动朗读：首屏历史不补读，新任务结束时朗读其回复正文");
+}
+
+// ---------- 用例 17：【语音朗读】配置页与契约（音色设备相关 / 长度上限 / 不支持时的提示） ----------
+{
+	const issues = [];
+	// 音色是浏览器/设备本地的：使用前必须拿本机 getVoices 校验，取不到按语言回落
+	if (!/voiceURI/.test(bundle)) issues.push("产物里没有 voiceURI（音色选择未持久化）");
+	if (!/getVoices/.test(bundle)) issues.push("没有读本机音色表（换设备会挑到不存在的音色）");
+	// 沙箱兼容：不得裸引用全局 speechSynthesis（node:vm 里会 ReferenceError）
+	if (!/speechSynthesis/.test(bundle)) issues.push("产物里没有 speechSynthesis 引用");
+	if (/[^.\w"']speechSynthesis\s*\./.test(bundle)) issues.push("裸引用 speechSynthesis.xxx（沙箱/旧内核会抛）");
+	// 不支持时要给出可读原因，而不是静默失效
+	if (!/本浏览器不支持语音合成|不提供语音合成能力/.test(bundle) && !/\\u672C\\u6D4F\\u89C8\\u5668\\u4E0D\\u652F\\u6301/.test(bundle)) {
+		issues.push("浏览器不支持时没有可读提示（静默失效）");
+	}
+	// 长文本分片：Chrome 长句合成会静默停住
+	if (!/chunkForSpeech/.test(bundle)) issues.push("没有分片逻辑（长回复在 Chrome 上会中途哑掉）");
+	// 长度上限（只读前 N 句 / 字数上限）
+	if (!/maxSentences/.test(bundle) || !/maxChars/.test(bundle)) issues.push("缺少朗读长度上限设置");
+	// 功能默认关闭（新功能的仓库约定）
+	if (!/id: "tts"[\s\S]{0,400}defaultEnabled: false/.test(bundle)) issues.push("【语音朗读】未遵循「新功能默认停用」约定");
+	if (issues.length) { console.log(`✗ 语音朗读契约：${issues.join("；")}`); process.exit(1); }
+	console.log("✓ 语音朗读契约：音色按本机校验、无裸引用、不支持有提示、长文本分片、长度上限、默认停用");
+}
+
+// ---------- 用例 18：【语音朗读】暂停 / 继续 / 重新朗读（不重头） ----------
+// 用户实测反馈（截图）：读完一条后再点喇叭会从头开始——要求播放中再点=暂停、
+// 再点=从暂停处继续；「重新朗读」才是显式回第一句。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const owner = {
+			sessionId: "s-9", seq: 7, openFile() {},
+			turn: {
+				turn: 1, status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text: "第一句。第二句。第三句。" }] } } : undefined) },
+			},
+		};
+		const node = runtime.react.createElement(reg.comp, owner);
+		const mainBtn = () => {
+			const els = runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className));
+			if (els.length === 0) throw new Error("回合尾没有可点按钮");
+			return els[0];
+		};
+		// ① 第一下：开始朗读（speak 一次，未自动播完）
+		await renderSettled(runtime, node);
+		mainBtn().handler({});
+		await renderSettled(runtime, node);
+		if (speech.spoken.length !== 1) throw new Error("第一下没有开始朗读（spoken=" + speech.spoken.length + "）");
+		// ② 第二下：暂停（synth.pause 被调、没有 cancel——cancel 会丢进度）
+		mainBtn().handler({});
+		await renderSettled(runtime, node);
+		if (speech.synth.pauseCount !== 1) detail = "播放中再点没有暂停（pause 调用数=" + speech.synth.pauseCount + "）";
+		else if (speech.synth.cancelCount !== 0) detail = "暂停走了 cancel（会丢进度、继续就重头）";
+		else {
+			// ③ 第三下：就地继续（synth.resume，不再 speak 新 utterance）
+			mainBtn().handler({});
+			await renderSettled(runtime, node);
+			if (speech.synth.resumeCount !== 1) detail = "暂停后再点没有继续（resume 调用数=" + speech.synth.resumeCount + "）";
+			else if (speech.spoken.length !== 1) detail = "继续时重新 speak 了（应就地续读，spoken=" + speech.spoken.length + "）";
+			else {
+				// ④ 「重新朗读」：cancel 旧篇 + 从第一片重 speak
+				const restart = runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className))[1];
+				if (!restart) throw new Error("播放中没有出现「重新朗读」按钮");
+				restart.handler({});
+				await renderSettled(runtime, node);
+				if (speech.synth.cancelCount < 1) detail = "重新朗读没有 cancel 旧篇";
+				else if (speech.spoken.length !== 2) detail = "重新朗读没有重新 speak（spoken=" + speech.spoken.length + "）";
+			}
+		}
+	} catch (e) {
+		detail = "暂停/继续用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 朗读暂停/继续：${detail}`); process.exit(1); }
+	console.log("✓ 朗读暂停/继续：播放中再点=暂停（不 cancel）、再点=就地继续、「重新朗读」才回第一句");
+}
+
+// ---------- 用例 19：切换朗读内容时等 Chrome 异步清队，不排旧队列后面 ----------
+// 用户实测：会话 A 正在朗读时点会话 B 的喇叭，前几秒读的还是 A 的剩余内容。
+// 根因：Chrome 的 speechSynthesis.cancel() 是异步冲刷的——cancel 后同一 tick speak()，
+// 新语音排进还没清空的旧队列。修法：轮询 speaking/pending 直到队列真空再开播。
+// 桩模拟这个异步：cancel() 后 speaking 仍挂 30ms 才落。断言：
+//   ① 点 B 的瞬间**不得**立即 speak（否则就是排进了 A 的旧队列）；
+//   ② 队列真空后 B 的文本才 speak 出去，且内容确实是 B 的。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	// 覆盖桩：speak 置忙；cancel 后延迟 30ms 才真空（真实 Chrome 语义）
+	speech.synth.speak = (utt) => { speech.spoken.push(utt); speech.synth.speaking = true; };
+	speech.synth.cancel = () => {
+		speech.synth.cancelCount += 1;
+		setTimeout(() => { speech.synth.speaking = false; }, 30);
+	};
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const ownerFor = (turnNo, text) => ({
+			sessionId: "s-19", seq: 100 + turnNo, openFile() {},
+			turn: {
+				turn: turnNo, status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text }] } } : undefined) },
+			},
+		});
+		const nodeA = runtime.react.createElement(reg.comp, ownerFor(1, "会话甲的内容，正在被朗读。"));
+		await renderSettled(runtime, nodeA);
+		const btn = () => runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className))[0];
+		btn().handler({}); // A 开读
+		await renderSettled(runtime, nodeA);
+		if (speech.spoken.length !== 1) throw new Error("A 没有开始朗读（前置条件不成立）");
+		// 切到 B（模拟点另一会话的喇叭）
+		const nodeB = runtime.react.createElement(reg.comp, ownerFor(2, "会话乙的内容，应当立刻顶替甲。"));
+		await renderSettled(runtime, nodeB);
+		btn().handler({});
+		// 此刻 cancel 还没冲刷完（speaking 仍 true）：B 不得已经 speak
+		if (speech.spoken.length !== 1) detail = "cancel 尚未冲刷就 speak 了新内容（会排进旧队列，先听完上一条）";
+		else {
+			await new Promise((resolve) => setTimeout(resolve, 150)); // 等队列真空 + 轮询追上
+			await renderSettled(runtime, nodeB);
+			if (speech.spoken.length < 2) detail = "队列真空后 B 的内容始终没有开播";
+			else if (!String(speech.spoken[1].text).includes("会话乙")) detail = "真空后读的不是 B 的内容：" + String(speech.spoken[1].text).slice(0, 20);
+		}
+	} catch (e) {
+		detail = "切换清队用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 切换朗读清队：${detail}`); process.exit(1); }
+	console.log("✓ 切换朗读清队：cancel 未冲刷完不 speak，队列真空后立即播新内容（不排旧队列后面）");
+}
+
+// ---------- 用例 20：回合尾 ⚙ 就地快设（语速/音量滑杆即时生效 + 宿主落盘防抖） ----------
+// 用户诉求：听的时候想直接调语速音量，不用跑去功能坞。锁四点：
+//   ① 喇叭行里任何状态都有 ⚙ 设置按钮；② 点击弹出语速/音量浮层（portal 到 body）；
+//   ③ 拖动滑杆 → configStore 立即更新（引擎逐片现取 → 下一句生效）；
+//   ④ 连拖多格只 POST 一次宿主（防抖），且 payload 带上最新值。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	const bodyStub = { tag: "body-stub" };
+	let detail = "";
+	try {
+		const { runtime, regs, posts, portalNodes } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { speech, body: bodyStub });
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const owner = {
+			sessionId: "s-20", seq: 5, openFile() {},
+			turn: {
+				turn: 0, status: "closed",
+				end: { time: Date.now(), data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text: "测试内容一句。" }] } } : undefined) },
+			},
+		};
+		const node = runtime.react.createElement(reg.comp, owner);
+		await renderSettled(runtime, node);
+		// ⚙ = 最后一个 dktts-btn（喇叭/重读/停止之后；未播放时是 喇叭+⚙ 两个）
+		const btns = runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dktts-btn/.test(el.className));
+		if (btns.length < 2) throw new Error("回合尾没有 ⚙ 设置按钮（只有 " + btns.length + " 枚按钮）");
+		btns[btns.length - 1].handler({ currentTarget: { getBoundingClientRect: () => ({ left: 200, bottom: 400 }) } });
+		await renderSettled(runtime, node);
+		const pops = portalNodes.filter((p) => p.target === bodyStub);
+		if (pops.length === 0) throw new Error("⚙ 点击后没有 portal 出浮层到 body");
+		const popHtml = runtime.render(pops[pops.length - 1].node);
+		if (!popHtml.includes("dktts-pop")) detail = "浮层缺少 dktts-pop 结构";
+		else {
+			// 拖语速滑杆（连拖 3 格）→ 本地值即时更新、宿主写盘只 1 次（防抖）
+			// 浮层里带 onChange 的就是语速/音量两枚滑杆（替身不记录 type 属性，按事件筛）
+			const sliders = runtime.elements.filter((el) => el.event === "onChange" && el.tag === "input");
+			if (sliders.length < 2) throw new Error("浮层里语速/音量滑杆不足两枚（找到 " + sliders.length + "）");
+			const before = posts.filter((p) => p.url.includes("dsh-dock/tts/config")).length;
+			sliders[0].handler({ target: { value: "1.4" } });
+			sliders[0].handler({ target: { value: "1.7" } });
+			sliders[0].handler({ target: { value: "1.6" } });
+			await renderSettled(runtime, node);
+			const after = posts.filter((p) => p.url.includes("dsh-dock/tts/config"));
+			// 防抖 400ms：此刻必须还没发（发早了=每格一个 POST）
+			if (after.length !== before) detail = "滑杆连拖 3 格立刻发了宿主 POST（应防抖到停手后合一次）";
+			await new Promise((resolve) => setTimeout(resolve, 650));
+			const after2 = posts.filter((p) => p.url.includes("dsh-dock/tts/config"));
+			if (after2.length - before !== 1) detail = "停手后应恰好补发 1 次宿主 POST（实际 " + (after2.length - before) + "）";
+			else {
+				const body = after2[after2.length - 1].body;
+				if (body.rate !== 1.6) detail = "防抖 POST 应带最新语速 1.6（实际 " + body.rate + "）";
+			}
+		}
+	} catch (e) {
+		detail = "⚙ 快设用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 回合尾快设：${detail}`); process.exit(1); }
+	console.log("✓ 回合尾快设：⚙ 弹语速/音量浮层（portal body），拖动即时生效、宿主落盘防抖合一次");
+}
+
+// ---------- 用例 21：宿主路由不可用时，自动朗读走回合尾本地兜底 ----------
+// 用户实测（2026-10-23）：开了自动朗读但会话结束没读——根因是宿主进程旧版本没注册
+// /dsh-dock/tts（405 → routeGone），浮层主路径哑火，而手动喇叭不依赖宿主照常能用，
+// 形成「手动能读、自动不读」的残缺态。修法：回合尾节点自带兜底——routeGone 时
+// 「刚挂载 + turn/end < 8 秒」即读本回合；冷读历史（时间差大）不播。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tts";
+	const speech = makeSpeechStub();
+	// 本地表态：自动朗读开（configStore 初值从 localStorage 读，宿主 405 后保持本地值）
+	const store = { "dsh-dock/tts/v1": JSON.stringify({ autoPlay: true }) };
+	let detail = "";
+	try {
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, {
+			speech,
+			store,
+			// tts 路由一律 405（模拟旧宿主进程未注册）
+			fetch: (url, init) => {
+				if (String(url).includes("dsh-dock/tts/")) {
+					return Promise.resolve({ ok: false, status: 405, json: async () => ({ ok: false }) });
+				}
+				return makeFetch(ANIMATION_STATUS, NOTIFY_STATUS, [], {}, undefined)(url, init);
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 50)); // 等 ensureConfigLoaded 的 405 回来置闩锁
+		const reg = regs.find((r) => r.def && r.def.name === "conversation.chat.turnTail" && r.def.id === "dsh-dock-turn-tail");
+		if (!reg) throw new Error("没有注册 conversation.chat.turnTail");
+		const mkOwner = (turnNo, text, endAgeMs) => ({
+			sessionId: "s-21", seq: 900 + turnNo, openFile() {},
+			turn: {
+				turn: turnNo, status: "closed",
+				end: { time: Date.now() - endAgeMs, data: { reason: { kind: "completed" } } },
+				data: { get: (k) => (k === "turn-tail" ? { closing: { blocks: [{ kind: "text", text }] } } : undefined) },
+			},
+		});
+		// ① 刚结束的回合（turn/end 1 秒前）→ 兜底自动读
+		const freshNode = runtime.react.createElement(reg.comp, mkOwner(3, "刚跑完的回复，应当被自动朗读。", 1000));
+		await renderSettled(runtime, freshNode);
+		if (speech.spoken.length === 0) detail = "routeGone 时刚结束的回合没有被兜底自动朗读";
+		else if (!String(speech.spoken[0].text).includes("自动朗读")) detail = "兜底读的内容不对：" + String(speech.spoken[0].text).slice(0, 20);
+		else {
+			// ② 冷读历史回合（turn/end 1 小时前）→ 不播
+			const n0 = speech.spoken.length;
+			const oldNode = runtime.react.createElement(reg.comp, mkOwner(4, "一小时前的老回复。", 3600_000));
+			await renderSettled(runtime, oldNode);
+			if (speech.spoken.length !== n0) detail = "冷读历史会话被兜底误播（老回复不该补读）";
+			else {
+				// ③ 同一新回合重挂载（切走再切回）→ 去重不重播
+				const againNode = runtime.react.createElement(reg.comp, mkOwner(3, "刚跑完的回复，应当被自动朗读。", 1000));
+				await renderSettled(runtime, againNode);
+				if (speech.spoken.length !== n0) detail = "同一回合重挂载被重复朗读（去重失效）";
+			}
+		}
+	} catch (e) {
+		detail = "自动朗读兜底用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 自动朗读兜底：${detail}`); process.exit(1); }
+	console.log("✓ 自动朗读兜底：宿主路由不可用时刚结束回合仍自动读、冷读历史不播、重挂载不重播");
 }
 
 // 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。

@@ -448,6 +448,26 @@ const css = [
 	".dsh-mobile-burger-badge.wait{background:#ef4444;animation:dsh-burger-badge-pulse 1.2s ease-in-out infinite}",
 	"@keyframes dsh-burger-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}",
 	"@media (prefers-reduced-motion:reduce){.dsh-mobile-burger-badge.wait{animation:none}}",
+	// ⚠️ 给标题让出汉堡宽度（用户实测：标题被汉堡压住——截图里「更新所有仓库代码」的首字
+	// 直接叠在三条横线上）。汉堡是 fixed 定位（贴安全区、44×44），**不占布局**，而原生标题
+	// 从头部的 padding-left:20px 起排——真实实例 390×844 逐字实测：会话标题首字 x=28、
+	// 汉堡右缘 44 → **重叠 16px**；插件页/自动化任务页的页头（自身 padding-left:0，靠外层
+	// 容器给 24px）首字 x=24 → 重叠 20px。
+	// 改法照原生排版习惯走：**给容器补内边距**，而不是给汉堡加底色/加宽（那是把问题搬到视觉上）。
+	//   · 会话页头 header:has([class*="titleRow"])（唯一含 titleRow 的 header）：左内边距
+	//     20px → 44px，正好等于汉堡宽度；标题自带 8px 内边距 → 首字落在 x=52，与汉堡留 8px。
+	//   · 插件页/自动化任务页头 [class$="_pageHead"] / [class$="_pageHeading"]
+	//     （DSH 0.2.0-rc.2 实测：plugin-manager 的 ZVcBiW_pageHead、schedule 的
+	//     CxUija_pageHeading）：左内边距 0 → 28px → 首字 x=52，同样留 8px。
+	//     这两条页头是 flex + gap:16px（标题块 | 工具栏），补内边距会压缩内容宽度——实测
+	//     430/390/360/320px 下「添加插件」按钮与描述文案会被挤到换行（按钮从单行变两行）。
+	//     故同时把 gap 收到 4px 补回 12px：四个宽度实测行数零回归、无横向溢出。
+	// 用 `[class$=…]`（语义后缀）而非 `[class*=…]`：DSH 类名是「哈希前缀 + 语义后缀」，
+	// 后缀稳定、前缀随版本变；`$=` 也避开 `pageHeadActions` 这类同前缀的无关元素。
+	// 挂 body[data-dk-mobile="1"]：本模块 css 字段会被无条件并入全局样式，停用本功能即摘掉
+	// body 属性 → 规则空转、原生排版还原（与文件头「开关协议」一致）。
+	'body[data-dk-mobile="1"] header:has([class*="titleRow"]){padding-left:calc(44px + env(safe-area-inset-left,0px))}',
+	'body[data-dk-mobile="1"] [class$="_pageHead"],body[data-dk-mobile="1"] [class$="_pageHeading"]{padding-left:calc(28px + env(safe-area-inset-left,0px));gap:4px}',
 	// ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
 	// 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
 	// （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden

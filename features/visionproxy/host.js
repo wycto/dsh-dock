@@ -8,7 +8,7 @@
 // 其编辑 UI 在模型设置页内（见 features/modelconfig/view.js）。
 import { BlockAssembler } from '@deepseek-ai/dsh-llm'
 import { readDockRoot } from '../../src/host-core.js'
-import { readModelDirectory } from '../modelconfig/host.js'
+import { readModelDirectory } from '../../src/model-directory.js'
 
 /** 递归判断内容块里是否有图片（含 tool-result 嵌套，与官方 contentHasImage 同构）。 */
 function contentHasImageDeep(content) {

@@ -9,7 +9,7 @@
 //
 // 数据形状由客户端消费，字段改动要同时看：features/runstate/view.jsx、
 // features/animation/view.jsx、features/notify/view.jsx。
-import { sendJson, readBody } from '../../src/host-core.js'
+import { sendJson, readBody, rejectUntrustedRequest } from '../../src/host-core.js'
 import { acquireTaskTracker } from '../../src/task-track.js'
 
 export const feature = {
@@ -47,6 +47,7 @@ export const feature = {
         kind: 'prefix',
         path: '/dsh-dock/runstate',
         async handler(req, res) {
+          if (rejectUntrustedRequest(ctx, req, res)) return
           try {
             const url = new URL(req.url || '/', 'http://dsh.internal')
             const method = url.pathname.replace(/^\/dsh-dock\/runstate\/?/, '').split('/')[0] || ''

@@ -48,6 +48,8 @@ mkdirSync(outDir, { recursive: true });
 cpSync(join(root, "src", "host-core.js"), join(outDir, "src", "host-core.js"));
 // 共享宿主内核：会话级任务追踪（动画/通知/运行状态三个模块共用；其他模块不用也一并带上，体积可忽略）
 cpSync(join(root, "src", "task-track.js"), join(outDir, "src", "task-track.js"));
+// 模型目录共享层：模型设置/模型提供商/图片理解代理三个模块共用（其余模块不用也一并带上）
+cpSync(join(root, "src", "model-directory.js"), join(outDir, "src", "model-directory.js"));
 cpSync(featDir, join(outDir, "features", featureId), { recursive: true });
 
 // 视图文件扩展名：模块可能用 view.js 或 view.jsx（生成的客户端入口要按实际文件名 import）
