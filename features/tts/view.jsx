@@ -308,8 +308,11 @@ function pickVoice(cfg) {
 }
 
 // ---------- 朗读引擎（模块级单例：全页面同时只有一个声音） ----------
+// phase：idle（没在读） / playing / paused（暂停后原位待续）。
+// session 留住当前这一篇的分片与游标——暂停/继续/重新朗读都靠它，不重头、不丢进度。
 const engine = {
-	state: { playing: false, key: "", label: "" },
+	state: { phase: "idle", key: "", label: "" },
+	session: null,
 	listeners: new Set(),
 	queue: [],
 	epoch: 0,
@@ -334,18 +337,98 @@ function setEngineState(next) {
 	notifyEngine();
 }
 
-/** 停止当前朗读（清队列）。幂等：不支持 TTS / 没在读也安全。 */
+/** 停止当前朗读（清队列、丢进度）。幂等：不支持 TTS / 没在读也安全。 */
 export function stopSpeech() {
 	engine.queue = [];
+	engine.session = null;
 	engine.epoch += 1;
 	const s = synth();
 	if (s) { try { s.cancel(); } catch { /* ignore */ } }
-	setEngineState({ playing: false, key: "", label: "" });
+	setEngineState({ phase: "idle", key: "", label: "" });
+}
+
+/** 暂停：停在当前这句的当前字上，再 resume 就地继续（浏览器原生 pause/resume）。 */
+export function pauseSpeech() {
+	if (engine.state.phase !== "playing") return false;
+	const s = synth();
+	if (s) { try { s.pause(); } catch { /* ignore */ } }
+	setEngineState({ phase: "paused" });
+	return true;
+}
+
+/** 继续：从暂停处接着读。没在暂停态则忽略（幂等）。 */
+export function resumeSpeech() {
+	if (engine.state.phase !== "paused") return false;
+	const s = synth();
+	if (s) { try { s.resume(); } catch { /* ignore */ } }
+	setEngineState({ phase: "playing" });
+	return true;
+}
+
+/** 重新朗读当前这一篇（回到第一句）。 */
+export function restartSpeech() {
+	const session = engine.session;
+	if (!session) return false;
+	const { key, raw, label, cfg } = session;
+	stopSpeech();
+	return startSession({ key, text: raw, label, cfg });
+}
+
+/**
+ * 起一篇朗读：分片、逐片顺序播（Chrome 对超长 utterance 会静默停住，分片是标准解法）。
+ * 抽成内部函数，speak() 与 restartSpeech() 共用同一套游标与 epoch 约定。
+ */
+function startSession(opts) {
+	const o = opts && typeof opts === "object" ? opts : {};
+	const text = String(o.text || "").trim();
+	if (!text) return false;
+	if (!ttsSupported()) return false;
+	const cfg = normalizeConfig(o.cfg || configStore.value);
+	const key = String(o.key || ("k" + Date.now()));
+	const chunks = chunkForSpeech(text, 180);
+	if (chunks.length === 0) return false;
+	const epoch = ++engine.epoch;
+	const voice = pickVoice(cfg);
+	const session = { key, raw: text, chunks, index: 0, epoch, cfg, label: String(o.label || "") };
+	engine.session = session;
+	setEngineState({ phase: "playing", key, label: session.label });
+	const s = synth();
+	const speakNext = () => {
+		if (epoch !== engine.epoch) return; // 已被新的播放/停止取代
+		if (session.index >= session.chunks.length) {
+			engine.session = null;
+			setEngineState({ phase: "idle", key: "", label: "" });
+			drainQueue();
+			return;
+		}
+		const piece = session.chunks[session.index];
+		session.index += 1; // 先推进：onend/onerror 只负责「继续下一片」，不再各自加一次
+		const utt = makeUtterance(piece);
+		if (!utt) {
+			engine.session = null;
+			setEngineState({ phase: "idle", key: "", label: "" });
+			return;
+		}
+		utt.rate = cfg.rate;
+		utt.pitch = cfg.pitch;
+		utt.volume = cfg.volume;
+		if (voice) { utt.voice = voice; if (voice.lang) utt.lang = voice.lang; }
+		else if (cfg.lang) utt.lang = cfg.lang;
+		utt.onend = () => { if (epoch !== engine.epoch) return; speakNext(); };
+		// 分片之间被浏览器吃掉 onend 是已知问题：onerror 同样推进，坏一片不致整段哑掉
+		utt.onerror = () => { if (epoch !== engine.epoch) return; speakNext(); };
+		try { s.speak(utt); } catch {
+			engine.session = null;
+			setEngineState({ phase: "idle", key: "", label: "" });
+		}
+	};
+	speakNext();
+	return true;
 }
 
 /**
  * 朗读一段文本。
- * @param opts.key   - 幂等键（同一 key 正在读时重复调用被忽略；自动朗读靠它防重播）。
+ * @param opts.key   - 幂等键（同一 key 正在读/暂停时重复调用被忽略，靠它防重播）。
  * @param opts.label - 显示用短标签（按钮 title）。
  * @param opts.text  - 已清洗的纯文本。
  * @param opts.cfg   - 朗读配置；interruptOnNew=false 时排队而不是打断。
@@ -358,56 +441,20 @@ export function speak(opts) {
 	if (!ttsSupported()) return false;
 	const cfg = normalizeConfig(o.cfg || configStore.value);
 	const key = String(o.key || ("k" + Date.now()));
-	if (engine.state.playing && engine.state.key === key) return false;
-	if (!cfg.interruptOnNew && engine.state.playing) {
+	// 同一篇已在读/暂停中：不重头（用户点第二下走的是暂停/继续，不是这里）
+	if (engine.state.phase !== "idle" && engine.state.key === key) return false;
+	if (engine.state.phase !== "idle" && !cfg.interruptOnNew) {
 		// 排队：只留最新一条，旧的不读（读两条没意义）
 		engine.queue = [{ key, text, label: String(o.label || ""), cfg }];
 		return false;
 	}
-	if (engine.state.playing) stopSpeech();
-	const chunks = chunkForSpeech(text, 180);
-	if (chunks.length === 0) return false;
-	const epoch = ++engine.epoch;
-	const voice = pickVoice(cfg);
-	setEngineState({ playing: true, key, label: String(o.label || "") });
-	const s = synth();
-	let index = 0;
-	const speakNext = () => {
-		if (epoch !== engine.epoch) return; // 已被新的播放/停止取代
-		if (index >= chunks.length) {
-			setEngineState({ playing: false, key: "", label: "" });
-			drainQueue();
-			return;
-		}
-		const text = chunks[index];
-		index += 1; // 先推进：onend/onerror 只负责「继续下一片」，不再各自加一次
-		const utt = makeUtterance(text);
-		if (!utt) { setEngineState({ playing: false, key: "", label: "" }); return; }
-		utt.rate = cfg.rate;
-		utt.pitch = cfg.pitch;
-		utt.volume = cfg.volume;
-		if (voice) { utt.voice = voice; if (voice.lang) utt.lang = voice.lang; }
-		else if (cfg.lang) utt.lang = cfg.lang;
-		utt.onend = () => { if (epoch !== engine.epoch) return; speakNext(); };
-		// 分片之间被浏览器吃掉 onend 是已知问题：onerror 同样推进，坏一片不致整段哑掉
-		utt.onerror = () => { if (epoch !== engine.epoch) return; speakNext(); };
-		try { s.speak(utt); } catch { setEngineState({ playing: false, key: "", label: "" }); }
-	};
-	speakNext();
-	return true;
+	if (engine.state.phase !== "idle") stopSpeech();
+	return startSession({ key, text, label: o.label, cfg });
 }
 function drainQueue() {
 	const next = engine.queue.shift();
 	engine.queue = [];
 	if (next) speak({ key: next.key, text: next.text, label: next.label, cfg: Object.assign({}, next.cfg, { interruptOnNew: true }) });
-}
-
-/** 清洗 + 截断 + 播放，一条搞定（按钮与试听都走它）。 */
-export function speakMarkdown(md, opts) {
-	const o = opts && typeof opts === "object" ? opts : {};
-	const cfg = normalizeConfig(o.cfg || configStore.value);
-	const plain = capSpeechText(plainForSpeech(md, cfg), cfg);
-	return speak({ key: o.key, label: o.label, text: plain, cfg });
 }
 
 // ---------- 从 turnTail owner 取本回合最后一条回复正文 ----------
@@ -434,6 +481,27 @@ const ICON_SPEAKER = react.createElement("svg", {
 	react.createElement("path", { d: "M15.5 8.5a5 5 0 0 1 0 7" }),
 	react.createElement("path", { d: "M18.5 5.5a9 9 0 0 1 0 13" }),
 );
+const ICON_PAUSE = react.createElement("svg", {
+	viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.2",
+	strokeLinecap: "round", "aria-hidden": "true",
+},
+	react.createElement("path", { d: "M9 6v12" }),
+	react.createElement("path", { d: "M15 6v12" }),
+);
+const ICON_RESUME = react.createElement("svg", {
+	viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8",
+	strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
+},
+	react.createElement("path", { d: "M8 5.5v13l11-6.5z" }),
+);
+const ICON_RESTART = react.createElement("svg", {
+	viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8",
+	strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
+},
+	react.createElement("path", { d: "M3.5 8.5V4.5" }),
+	react.createElement("path", { d: "M3.5 8.5h4" }),
+	react.createElement("path", { d: "M5.6 5.1a8.5 8.5 0 1 1-2.1 5.4" }),
+);
 const ICON_STOP = react.createElement("svg", {
 	viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8",
 	strokeLinejoin: "round", "aria-hidden": "true",
@@ -441,11 +509,13 @@ const ICON_STOP = react.createElement("svg", {
 	react.createElement("rect", { x: "6.5", y: "6.5", width: "11", height: "11", rx: "2" }),
 );
 
-// ---------- 回合下方的喇叭按钮（手动朗读） ----------
+// ---------- 回合下方的喇叭按钮（手动朗读：播放 / 暂停 / 继续 / 重读 / 停止） ----------
 /**
  * 宿主把本条目渲染在「已完成回合」的动作区之前（conversation.chat.turnTail 是 list 座位）。
- * 这里只负责**手动**朗读：点一下读这条回复。自动朗读在下面的 Overlay 里——
- * 它由宿主侧任务追踪驱动（与【任务通知】同一机制），不会在冷读历史会话时误播。
+ * 这里只负责**手动**朗读。三态主按钮：
+ *   没在读 → 朗读本条；正在读 → 暂停（停在当前这句的当前字上）；暂停中 → 就地继续。
+ * 暂停/继续**不重头**；「重新朗读」回到第一句；「停止」彻底收起这条的播放。
+ * 自动朗读在下面的 Overlay 里——由宿主侧任务追踪驱动，不会在冷读历史会话时误播。
  */
 function TtsTurnTail(props) {
 	const owner = props || {};
@@ -457,31 +527,50 @@ function TtsTurnTail(props) {
 	const key = String((owner && owner.sessionId) || "") + ":" + turnNo + ":" + (owner.seq || 0);
 	const hasText = Boolean(md && md.trim());
 	const supported = ttsSupported();
-	// 本条目对应的正文是否正在朗读（eng.key 与 key 对上）
-	const speaking = hasText && eng.playing && eng.key === key;
+	// 本回合的播放态：active = 这一篇正被引擎持有（playing 或 paused）
+	const active = hasText && eng.phase !== "idle" && eng.key === key;
+	const paused = active && eng.phase === "paused";
+	const playing = active && eng.phase === "playing";
 
 	useEffect(() => { ensureConfigLoaded(); }, []);
 
 	if (!hasText) return null;
-	const title = !supported
+	const startThis = () => {
+		ensureConfigLoaded();
+		const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
+		speak({ key, text: plain, cfg: configStore.value, label: "第 " + (turnNo + 1) + " 回合" });
+	};
+	const mainTitle = !supported
 		? "本浏览器不支持语音合成（Web Speech API）"
-		: speaking ? "停止朗读" : "朗读这条回复";
+		: playing ? "暂停（再点继续，不重头）"
+			: paused ? "继续朗读" : "朗读这条回复";
+	const onMain = () => {
+		if (!supported) return;
+		if (playing) { pauseSpeech(); return; }
+		if (paused) { resumeSpeech(); return; }
+		startThis();
+	};
 	return react.createElement("div", { className: "dktts-tail" },
 		react.createElement("button", {
 			type: "button",
-			className: "dktts-btn" + (speaking ? " on" : "") + (supported ? "" : " off"),
-			"aria-label": title,
-			"aria-pressed": speaking,
-			title,
-			onClick: () => {
-				if (!supported) return;
-				ensureConfigLoaded();
-				if (speaking) { stopSpeech(); return; }
-				const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
-				speak({ key, text: plain, cfg: configStore.value, label: "第 " + (turnNo + 1) + " 回合" });
-			},
-		}, speaking ? ICON_STOP : ICON_SPEAKER),
-		speaking ? react.createElement("span", { className: "dktts-hint" }, "正在朗读本回合 · 再点一下停止") : null);
+			className: "dktts-btn" + (active ? " on" : "") + (supported ? "" : " off"),
+			"aria-label": mainTitle,
+			"aria-pressed": active,
+			title: mainTitle,
+			onClick: onMain,
+		}, playing ? ICON_PAUSE : paused ? ICON_RESUME : ICON_SPEAKER),
+		active ? react.createElement("button", {
+			type: "button", className: "dktts-btn",
+			"aria-label": "重新朗读", title: "重新朗读（从头读）",
+			onClick: () => { restartSpeech(); },
+		}, ICON_RESTART) : null,
+		active ? react.createElement("button", {
+			type: "button", className: "dktts-btn",
+			"aria-label": "停止", title: "停止朗读",
+			onClick: () => { stopSpeech(); },
+		}, ICON_STOP) : null,
+		react.createElement("span", { className: "dktts-state" + (active ? " on" : "") },
+			playing ? "正在朗读本回合" : paused ? "已暂停 · 点 ▶ 继续，不重头" : ""));
 }
 
 // ---------- 自动朗读浮层：任务结束时读最后一条回复 ----------
@@ -564,23 +653,28 @@ function TtsOverlay() {
 }
 
 // ---------- 面板页 ----------
+// 行布局：左标签列固定宽，中间控件列不换行，右侧说明列占满剩余。
+// （旧版复用外壳 dock-sw + minmax 网格：中文开关被挤成一字一行、说明列错位——见截图返工。）
 function TtsRow(props) {
-	return react.createElement("label", { className: "dktts-row" },
+	return react.createElement("div", { className: "dktts-row" },
 		react.createElement("span", { className: "dktts-label" }, props.label),
 		react.createElement("span", { className: "dktts-ctl" }, props.children),
 		props.note ? react.createElement("span", { className: "dktts-note" }, props.note) : null);
 }
+// 专用开关：药丸形、文字不换行、状态点 + 「启用/停用」二字，宽度稳定。
 function TtsSwitch(props) {
 	const on = props.value === true;
 	return react.createElement("button", {
 		type: "button",
-		className: "dock-sw" + (on ? " on" : ""),
+		className: "dktts-sw" + (on ? " on" : ""),
 		role: "switch",
 		"aria-checked": on,
 		"aria-label": (on ? "停用" : "启用") + props.label,
 		title: on ? "已启用（点击停用）" : "已停用（点击启用）",
 		onClick: () => props.onChange(!on),
-	}, on ? "已启用" : "已停用");
+	},
+		react.createElement("span", { className: "dktts-sw-dot" }),
+		on ? "启用" : "停用");
 }
 
 function TtsView() {
@@ -622,6 +716,10 @@ function TtsView() {
 			label: "试听",
 		});
 	};
+	// 面板里的播放控制：正在读时给「暂停/继续 + 重新朗读 + 停止」，与回合尾按钮同一引擎。
+	const active = eng.phase !== "idle";
+	const paused = eng.phase === "paused";
+	const playing = eng.phase === "playing";
 
 	// 音色按语言分组：中文在前，其余按语言名排序，长列表也能找
 	const grouped = [];
@@ -698,33 +796,18 @@ function TtsView() {
 					["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => react.createElement("option", {
 						key: l, value: l,
 					}, l)))),
-			react.createElement(TtsRow, { label: "语速 " + cfg.rate.toFixed(2) + "×" },
-				react.createElement("input", {
-					type: "range", min: "0.5", max: "2", step: "0.05", value: String(cfg.rate),
-					"aria-label": "语速",
-					onChange: (e) => patch({ rate: Number(e.target.value) || 1 }),
-				})),
-			react.createElement(TtsRow, { label: "音调 " + cfg.pitch.toFixed(2) },
-				react.createElement("input", {
-					type: "range", min: "0", max: "2", step: "0.1", value: String(cfg.pitch),
-					"aria-label": "音调",
-					onChange: (e) => patch({ pitch: Number(e.target.value) }),
-				})),
-			react.createElement(TtsRow, { label: "音量 " + Math.round(cfg.volume * 100) + "%" },
-				react.createElement("input", {
-					type: "range", min: "0", max: "1", step: "0.05", value: String(cfg.volume),
-					"aria-label": "音量",
-					onChange: (e) => patch({ volume: Number(e.target.value) }),
-				})),
-			react.createElement("div", { className: "dktts-actions" },
-				react.createElement("button", {
-					type: "button", className: "dktts-primary", onClick: preview, disabled: !supported,
-				}, "试听"),
-				react.createElement("button", {
-					type: "button", className: "dktts-ghost", onClick: () => stopSpeech(),
-				}, "停止"),
-				eng.playing ? react.createElement("span", { className: "dktts-playing" }, "正在朗读：" + (eng.label || "内容")) : null,
-				saved ? react.createElement("span", { className: "dktts-saved" }, "✓ " + saved) : null)),
+			react.createElement(TtsSlider, {
+				label: "语速", suffix: cfg.rate.toFixed(2) + "×", min: "0.5", max: "2", step: "0.05",
+				value: cfg.rate, aria: "语速", onChange: (v) => patch({ rate: v }),
+			}),
+			react.createElement(TtsSlider, {
+				label: "音调", suffix: cfg.pitch.toFixed(2), min: "0", max: "2", step: "0.1",
+				value: cfg.pitch, aria: "音调", onChange: (v) => patch({ pitch: v }),
+			}),
+			react.createElement(TtsSlider, {
+				label: "音量", suffix: Math.round(cfg.volume * 100) + "%", min: "0", max: "1", step: "0.05",
+				value: cfg.volume, aria: "音量", onChange: (v) => patch({ volume: v }),
+			})),
 
 		react.createElement("div", { className: "dktts-card" },
 			react.createElement("div", { className: "dktts-card-h" }, "念什么（回复正文的清洗）"),
@@ -745,6 +828,28 @@ function TtsView() {
 					onChange: (e) => patch({ maxChars: Math.max(0, Math.round(Number(e.target.value) || 0)) }),
 				}))),
 
+		// —— 播放控制：试听 + 正在读时的 暂停/继续 · 重新朗读 · 停止 ——
+		react.createElement("div", { className: "dktts-card" },
+			react.createElement("div", { className: "dktts-card-h" }, "播放控制"),
+			react.createElement("div", { className: "dktts-transport" },
+				react.createElement("button", {
+					type: "button", className: "dktts-primary", onClick: preview, disabled: !supported,
+				}, "试听"),
+				active ? react.createElement("button", {
+					type: "button", className: "dktts-ghost",
+					onClick: () => { if (playing) pauseSpeech(); else resumeSpeech(); },
+				}, playing ? "暂停" : "继续") : null,
+				active ? react.createElement("button", {
+					type: "button", className: "dktts-ghost", onClick: () => { restartSpeech(); },
+				}, "重新朗读") : null,
+				active ? react.createElement("button", {
+					type: "button", className: "dktts-ghost", onClick: () => { stopSpeech(); },
+				}, "停止") : null,
+				react.createElement("span", { className: "dktts-playing" },
+					playing ? "正在朗读：" + (eng.label || "内容")
+						: paused ? "已暂停：" + (eng.label || "内容") + "（点「继续」不重头）"
+							: saved ? "✓ " + saved : "　"))),
+
 		react.createElement("div", { className: "dktts-note-line" },
 			"提示：浏览器要求「先有用户手势才允许出声」。刚打开页面就自动朗读可能被浏览器拦掉——",
 			"点一下页面上任意位置，或直接用回复下方的喇叭按钮。"),
@@ -754,6 +859,20 @@ function TtsView() {
 				type: "button", className: "dktts-ghost",
 				onClick: () => { configStore.routeGone = false; hostConfigRequested = false; ensureConfigLoaded(); force((n) => n + 1); },
 			}, "重试连接宿主")) : null);
+}
+
+// 滑块行：标签 + 滑块 + 数值后缀，三列对齐，避免旧版数值挤在标签里。
+function TtsSlider(props) {
+	return react.createElement("div", { className: "dktts-row" },
+		react.createElement("span", { className: "dktts-label" }, props.label),
+		react.createElement("span", { className: "dktts-slider" },
+			react.createElement("input", {
+				type: "range", min: props.min, max: props.max, step: props.step,
+				value: String(props.value), "aria-label": props.aria,
+				onChange: (e) => props.onChange(Number(e.target.value)),
+			}),
+			react.createElement("span", { className: "dktts-slider-val" }, props.suffix)),
+		null);
 }
 
 // ---------- 首页总揽 ----------
@@ -770,33 +889,45 @@ const CSS = [
 	".dktts-root{display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);font-size:13px;}",
 	".dktts-intro{color:var(--dsw-alias-label-secondary);line-height:1.7;}",
 	".dktts-intro b{color:var(--dsw-alias-label-primary);}",
-	".dktts-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}",
-	".dktts-card-h{font-weight:600;color:var(--dsw-alias-label-primary);padding-bottom:2px;border-bottom:1px solid var(--dsw-alias-border-l1);margin-bottom:2px;}",
-	".dktts-row{display:grid;grid-template-columns:132px minmax(120px,220px) 1fr;align-items:center;gap:10px;padding:3px 0;}",
-	".dktts-label{color:var(--dsw-alias-label-primary);}",
+	".dktts-card{border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;}",
+	".dktts-card-h{font-weight:600;color:var(--dsw-alias-label-primary);padding-bottom:6px;border-bottom:1px solid var(--dsw-alias-border-l1);margin-bottom:4px;}",
+	// 行：标签列固定 116px 不换行 · 控件列不伸缩 · 说明列吃掉剩余（窄屏整块纵排）
+	".dktts-row{display:grid;grid-template-columns:116px 220px minmax(0,1fr);align-items:center;gap:12px;padding:4px 0;min-width:0;}",
+	".dktts-label{color:var(--dsw-alias-label-primary);white-space:nowrap;}",
 	".dktts-ctl{display:flex;align-items:center;gap:8px;min-width:0;}",
-	".dktts-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
-	".dktts-select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
-	".dktts-num{width:110px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
-	".dktts-row input[type='range']{width:100%;accent-color:var(--dk-accent);}",
-	".dktts-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:2px;}",
-	".dktts-primary,.dktts-ghost{border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
+	".dktts-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;min-width:0;}",
+	".dktts-select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;min-width:0;}",
+	".dktts-num{width:110px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border-radius:8px;padding:5px 8px;font-size:12px;}",
+	// 开关：药丸形 + 状态点，文字绝不换行（旧版复用外壳 dock-sw 被挤成一字一行）
+	".dktts-sw{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:4px 12px;cursor:pointer;font-size:12px;line-height:18px;}",
+	".dktts-sw-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-label-tertiary);}",
+	".dktts-sw.on{color:var(--dk-ok);border-color:var(--dk-ok);}",
+	".dktts-sw.on .dktts-sw-dot{background:var(--dk-ok);}",
+	// 滑块行：滑块占满控件列，数值右对齐固定宽
+	".dktts-slider{display:flex;align-items:center;gap:8px;min-width:0;}",
+	".dktts-slider input[type='range']{flex:1;min-width:0;accent-color:var(--dk-accent);}",
+	".dktts-slider-val{flex:none;width:46px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);font-size:12px;}",
+	".dktts-transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+	".dktts-primary,.dktts-ghost{flex:none;white-space:nowrap;border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
 	".dktts-primary{border-color:var(--dk-accent);color:var(--dk-accent);}",
 	".dktts-primary:disabled{opacity:.45;cursor:default;}",
-	".dktts-playing{color:var(--dk-accent);font-size:12px;}",
-	".dktts-saved{color:var(--dk-ok);font-size:12px;}",
+	".dktts-ghost:hover,.dktts-primary:not(:disabled):hover{background:var(--dk-hover-tint);}",
+	".dktts-playing{color:var(--dk-accent);font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 	".dktts-warn{border:1px solid var(--dk-warn);color:var(--dk-warn);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;}",
 	".dktts-note-line{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
 	".dktts-links{display:flex;gap:8px;}",
-	// —— 回合下方的喇叭按钮：尺寸/配色对齐宿主消息动作行（ui-chat MessageIconActions .action）——
-	".dktts-tail{display:flex;align-items:center;gap:8px;margin-top:4px;}",
+	// 窄屏（功能坞面板被压窄时）：三列改纵排，说明跟在控件下
+	"@media (max-width:720px){.dktts-row{grid-template-columns:1fr;gap:2px;padding:6px 0;}.dktts-ctl,.dktts-slider{max-width:320px;}}",
+	// —— 回合下方的播放条：尺寸/配色对齐宿主消息动作行（ui-chat MessageIconActions .action）——
+	".dktts-tail{display:flex;align-items:center;gap:2px;margin-top:4px;flex-wrap:wrap;}",
 	".dktts-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:6px;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;}",
 	".dktts-btn svg{width:17px;height:17px;}",
 	".dktts-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary);}",
 	".dktts-btn.on{color:var(--dk-accent);}",
 	".dktts-btn.off{opacity:.4;cursor:default;}",
 	".dktts-btn.off:hover{background:transparent;color:var(--dsw-alias-label-tertiary);}",
-	".dktts-hint{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+	".dktts-state{color:var(--dsw-alias-label-secondary);font-size:12px;padding-left:6px;}",
+	".dktts-state.on{color:var(--dk-accent);}",
 ].join("\n");
 
 export const feature = {
