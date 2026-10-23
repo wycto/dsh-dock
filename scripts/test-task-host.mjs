@@ -45,6 +45,9 @@ function makeHost() {
   const ctx = {
     get(name) {
       if (name === 'settings') return settings
+      // 浏览器信任栅栏：webServer 路由入口的守卫（rejectUntrustedRequest）先问它；
+      // undefined = 放行（测试桩一律视为「受信且已登录」）。
+      if (name === 'connection') return { requestRejection: () => undefined }
       return undefined
     },
     inject(keys, callback) {
