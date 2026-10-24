@@ -194,6 +194,10 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		if (String(url).includes("dsh-dock/providerconfig")) {
 			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
 		}
+		// 模型余额：宿主直接返回快照（不包 ok/data）
+		if (String(url).includes("dsh-dock/balance")) {
+			return Promise.resolve({ ok: true, status: 200, json: async () => BALANCE_SNAPSHOT });
+		}
 		let data = {};
 		// 用量记录 query 的正常响应。此前该分支缺失 → TokenLogView 渲染时读 data.counts 抛错、
 		// 被错误边界降级为一行提示，而断言用的 marker「用量」恰好能在卡片描述里命中，于是
@@ -417,6 +421,29 @@ const TTS_STATUS = {
 	},
 };
 
+// 模型余额 /dsh-dock/balance：同样不包 ok/data（宿主直接 sendJson 快照）。
+// 覆盖「DeepSeek 账号（官网账号，ok + 充值/赠送分列）」与「需登录 → 控制台链接」两条分支。
+const BALANCE_SNAPSHOT = {
+	generatedAt: 1_700_000_000_000,
+	default: { provider: "deepseek-account", model: "deepseek-flash" },
+	providers: [
+		{
+			id: "deepseek-account", displayName: "DeepSeek 账号", apiKeyEnv: null,
+			baseURL: null, api: null, models: ["deepseek-flash"], credentialConfigured: false,
+			balance: {
+				status: "ok", kind: "currency", available: true,
+				// 故意给不可整除到分的金额：官网把真实余额 77.6772 显示成 ¥77.67，四舍五入会多一分钱。
+				infos: [{ currency: "CNY", totalBalance: "77.6772", grantedBalance: "0.004", toppedUpBalance: "77.6732" }],
+			},
+		},
+		{
+			id: "kimi-coding", displayName: "Kimi Coding", apiKeyEnv: "KIMI_API_KEY",
+			baseURL: "https://api.kimi.com/coding", api: null, models: [], credentialConfigured: false,
+			balance: { status: "login-required", consoleUrl: "https://platform.moonshot.cn/console" },
+		},
+	],
+};
+
 // 模型设置 /dsh-dock/models：视图把 json() 结果直接当目录用（不包 ok/data），
 // 与真实宿主 sendJson(res, 200, payload) 一致。给一个含 pi-ai 路由的目录，
 // 覆盖 Provider 管理列表 + 新增表单 + 选中 Provider 编辑器三条渲染分支。
@@ -508,6 +535,15 @@ for (const f of FEATURES) {
 		]) {
 			if (!html.includes(needle)) { failed++; console.log(`✗ 用量记录视图缺少「${needle}」（视图可能未真正渲染）`); }
 		}
+	}
+	// 模型余额：官网账号（DeepSeek 账号）走宿主 deepseekAccount 服务，必须渲染成
+	// 「可用 + 充值/赠送分列」；需登录的 Provider 给出控制台链接（不再一律「不支持」）。
+	if (f.id === "balance" && !error) {
+		for (const needle of ["DeepSeek 账号", "77.67", "充值 77.67", "赠送 0.00", "需登录", "去控制台查看余额"]) {
+			if (!html.includes(needle)) { failed++; console.log(`✗ 模型余额视图缺少「${needle}」（官网账号余额分支未渲染）`); }
+		}
+		// 精度回归：金额按分截断（77.6772 → 77.67），不能四舍五入成 77.68 比官网多一分钱。
+		if (html.includes("77.68")) { failed++; console.log("✗ 模型余额视图出现「77.68」：金额仍四舍五入到分（应截断）"); }
 	}
 	// 模型设置：只应出现模型目录编辑相关内容；Provider 的增删改入口已拆成独立功能【模型提供商】。
 	// 这里断言主页真的渲染出模型编辑器与图片代理面板，且不再有「模型提供商」入口卡（防拆分回退）。
