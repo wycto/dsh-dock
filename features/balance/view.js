@@ -10,6 +10,7 @@ const ACCENT_PALETTE = ['#2563eb', '#0d9488', '#b45309', '#7c3aed', '#be185d', '
 const CURATED_ACCENTS = {
 	'deepseek-official': '#2563eb',
 	deepseek: '#2563eb',
+	'deepseek-account': '#2563eb',
 	'qwen-token-plan-cn': '#b45309',
 	fangzhou: '#7c3aed',
 	openai: '#15803d',
@@ -32,6 +33,16 @@ function accentOf(id) {
 	return ACCENT_PALETTE[h % ACCENT_PALETTE.length];
 }
 const fmt = (v) => (v == null || v === '' ? '—' : String(v));
+// 金额展示统一按「分」截断（不四舍五入）并固定两位小数，与官网 platform.deepseek.com 的口径一致：
+// 账号真实余额是 77.6772，官网显示 ¥77.67，四舍五入会显示成 77.68——比官网多一分钱（实际踩到过）。
+// 先 toFixed(6) 抹掉二进制浮点误差（如 0.29*100 = 28.999…）再向零截断。
+function moneyText(v) {
+	if (v == null || v === '') return fmt(v);
+	const n = Number(v);
+	if (!Number.isFinite(n)) return fmt(v);
+	const cents = Math.trunc(Number((n * 100).toFixed(6)));
+	return (cents / 100).toFixed(2);
+}
 function cnyBalanceInfo(info) {
 	if (!info) return info;
 	if (info.currency === 'CNY') return Object.assign({}, info, { currency: '人民币' });
@@ -147,10 +158,10 @@ function BalanceView(props) {
 							const i = cnyBalanceInfo(rawInfo);
 							return react.createElement("div", { key: idx, className: "dkb-main" },
 							react.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
-							react.createElement("span", { className: "dkb-main-value" }, fmt(i.totalBalance)),
+							react.createElement("span", { className: "dkb-main-value" }, moneyText(i.totalBalance)),
 							react.createElement("span", { className: "dkb-main-parts" },
-								i.grantedBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "赠送 " + fmt(i.grantedBalance)) : null,
-								i.toppedUpBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "充值 " + fmt(i.toppedUpBalance)) : null));
+								i.grantedBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "赠送 " + moneyText(i.grantedBalance)) : null,
+								i.toppedUpBalance != null ? react.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "充值 " + moneyText(i.toppedUpBalance)) : null));
 						}));
 				} else if (b && b.status === "login-required" && b.consoleUrl) {
 					balBody = react.createElement("div", { className: "dkb-main" },
@@ -265,7 +276,7 @@ function chipBalanceText(p) {
 	if (!info) return "余额 …";
 	const cur = info.currency === "CNY" || info.currency === "人民币（估算）" ? "¥" : "";
 	const v = Number(info.totalBalance);
-	const s = Number.isFinite(v) ? (v >= 10000 ? (v / 10000).toFixed(2) + "万" : String(Math.round(v * 100) / 100)) : fmt(info.totalBalance);
+	const s = Number.isFinite(v) ? (v >= 10000 ? moneyText(v / 10000) + "万" : moneyText(v)) : fmt(info.totalBalance);
 	return "余额 " + cur + s;
 }
 function BalanceChip(props) {

@@ -2,6 +2,43 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.17.0 — 2026-10-24
+
+### 新增
+
+- **模型余额支持「DeepSeek 账号」的官网余额**（用户诉求：「dsh-dock 的模型余额查询，需要支持
+  查询官网配置的余额」）。此前模型选择器选「DeepSeek 账号」这条官方 Provider（设置 → 模型里
+  「DeepSeek 账号 · 已登录」）时，输入区余额芯片只显示「余额·不支持」，功能坞里也只是一句
+  「该 Provider 没有已知的余额查询接口」。
+  - 根因：这条 Provider 是宿主账号体系（`llm-deepseek-account`）提供的，余额在官网站内
+    （platform.deepseek.com），**没有「用 API Key 查余额」的 HTTP 接口**，内置余额策略表里
+    自然没有它；账号的余额只能通过宿主 `deepseekAccount` 服务的 `getState()` / `getBalance()`
+    读取（与「已登录」徽标同一份登录态）。
+  - 改法：`features/balance/host.js` 对 `deepseek-account` 走账号服务——未登录/登录失效归为
+    `login-required`（附官网控制台链接），平台失败归为 `error`（绝不伪装成 0 余额），成功则把
+    充值钱包（`value`）与赠送钱包（`bonusWallets`）按币种汇总成统一的 currency infos
+    （`toppedUpBalance` / `grantedBalance`，全零币种隐藏、全空兜底一张 CNY 0）；显示名映射为
+    中文「DeepSeek 账号」。不新增任何 HTTP API Key 策略，也不碰宿主的账号实现。
+  - 验证：隔离 `DSH_HOME` + dsh 0.2.1-rc.2 实例（端口 3999，手签 Cookie）真机打
+    `/dsh-dock/balance`：登录态返回 `deepseek-account` = `ok` 且充值/赠送分列（金额不记录，与同账号 API Key 余额口径一致）；
+    把隔离 home 里账号 grant 删掉重启后返回 `login-required` +
+    `https://platform.deepseek.com/usage`。单测见
+    `scripts/test-balance-host.mjs`（8 组：ready/未登录/失效/平台失败/服务缺失/抛错/全零钱包/
+    不影响普通 Provider）。
+
+### 修复
+
+- **「DeepSeek 账号」余额比官网多一分钱**。现象：功能坞芯片显示 `余额 ¥77.68`，而官网
+  （platform.deepseek.com）「充值余额」是 `¥77.67`。
+  - 根因：账号余额是 4 位小数的 decimal（真实值 `77.6772`），官网展示时**按分截断**成
+    `77.67`；客户端却用 `Math.round(v * 100) / 100` 四舍五入，于是进位成 `77.68`。面板主数字
+    还直接打印了原始 4 位小数。
+  - 改法：`features/balance/view.js` 新增 `moneyText()`，金额统一「先 `toFixed(6)` 抹掉二进制
+    浮点误差、再向零截断到分、固定两位小数」，芯片与面板主数字/赠送/充值全部改用它，与官网
+    口径一致；宿主半部不动（仍返回真实精度）。
+  - 验证：`test-client-views` 把余额快照改成 `77.6772 / 赠送 0.004 / 充值 77.6732`，断言渲染出
+    「77.67」「充值 77.67」「赠送 0.00」且**不出现 77.68**（回归测试直接钉住这个一分钱）。
+
 ## v0.16.1 — 2026-10-23
 
 ### 修复

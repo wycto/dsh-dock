@@ -2545,3 +2545,115 @@ dsh 0.2.1-rc.2 实例（端口 3999），Playwright 注手签 Cookie：
 - **槽位/嵌入式 UI 改动必须真机点验**：单测只能证明注册调用发生，证明不了宿主认不认这个槽。
   已把「发版前真机点验侧栏入口」写进 `docs/workflow.md` 发版流程。
 - 判断「用户看到的界面是哪个产物」要看运行进程启动时间 + 实际 DOM 特征类名，别只看仓库代码。
+
+## 三十、续作会话（2026-10-24）· 模型余额支持官网「DeepSeek 账号」余额
+
+### 现象
+
+用户在模型选择器里选「DeepSeek 账号」这条 Provider（设置 → 模型里显示「DeepSeek 账号 · 已登录」，
+即宿主账号体系 `llm-deepseek-account`，默认模型就是 `deepseek-flash`），输入区余额芯片却显示
+「余额·不支持」；打开功能坞的模型余额面板也只是一句「该 Provider 没有已知的余额查询接口」。
+用户要求：「dsh-dock的模型余额查询，需要支持查询官网配置的余额」。
+
+### 根因
+
+这条 Provider 的余额在官网站内（`platform.deepseek.com`），**没有「用 API Key 查余额」的
+HTTP 接口**——内置 STRATEGIES 表里自然没有它，`queryProviderBalance` 于是落到最后的
+`unsupported` 分支。账号的登录态与余额只能通过宿主 `deepseekAccount` 服务读取：
+`getState()` 给 `signed-out` / `credential-stored` 与官网控制台链接，`getBalance(client)`
+给 `{ status:'ready', value, bonusWallets }`（`value`=充值钱包、`bonusWallets`=赠送钱包）或
+`{ status:'failed' }`；未登录/登录失效时 `getBalance` 返回 `null`（不抛 401）。
+
+### 改法
+
+只动 `features/balance/host.js`（宿主半部）+ `view.js` 一处配色，不新增任何 HTTP API Key 策略、
+不 import 账号包类型（开发闭包 `tmp/dsh-closure` 里没有 `dsh-deepseek-account*`）：
+
+- `ACCOUNT_PROVIDER_ID = 'deepseek-account'`；`collectProviders` 把它的显示名映射成中文
+  「DeepSeek 账号」（默认 provider 兜底条目同样映射）。
+- `queryProviderBalance` 在「1) 自定义 balance 配置」之前先判账号 Provider，走
+  `queryOfficialAccountBalance(ctx)`：
+  - `ctx.get('deepseekAccount')` 缺失或无 `getState`/`getBalance` → `unsupported`
+    「当前宿主未挂载 DeepSeek 账号服务（需在设置里登录 DeepSeek 账号）」；
+  - `getState()` 抛错 → `error`「读取 DeepSeek 账号状态失败：…」；
+  - `status !== 'credential-stored'` → `login-required`，`consoleUrl = links.usageUrl ||
+    https://platform.deepseek.com/usage`；
+  - `getBalance()` 抛错 → `error`「查询官网余额失败：…」；返回 `null` → `login-required`
+    「…登录已失效，请重新登录」；`status !== 'ready'` → `error`「官网余额查询失败（平台接口返回失败）」；
+  - 成功 → `parseAccountWallets`：按币种汇总 `totalBalance = 充值 + 赠送`、`grantedBalance = 赠送`、
+    `toppedUpBalance = 充值`，CNY 排前，有非零币种时隐藏全零币种，全零只留一张 CNY 0 兜底卡。
+- client metadata 用 `{ version: APP_IDENTITY.version, locale: 'zh-CN',
+  timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60 }`，`APP_IDENTITY` 从
+  `@deepseek-ai/dsh-llm` 导入（peerDependency 已在 package.json 声明）。
+- 客户端只需在 `view.js` 的 `CURATED_ACCENTS` 补 `'deepseek-account': '#2563eb'`；面板徽标、
+  「赠送 X / 充值 Y」两段、需登录时的「去控制台查看余额 →」、芯片「余额 ¥N」都是既有渲染逻辑。
+- 新增宿主单测 `scripts/test-balance-host.mjs`（8 组）并挂进 `npm run test:host`；客户端渲染
+  测试 `scripts/test-client-views.mjs` 补 `BALANCE_SNAPSHOT` 与 balance 断言。
+
+### 验证
+
+- 单测：`node scripts/test-balance-host.mjs` 8 组全过（ready 汇总/未登录/失效/平台失败/服务缺失/
+  读写抛错/全零钱包/不影响普通 Provider）；`npm run test:host`、`npm run test:client` 全链路通过
+  （route trust 静态扫描仍是「10 处路由注册全部挂上浏览器信任栅栏」）。
+- 真机（隔离实例，避免重启 3080 正在服务的会话）：`DSH_HOME=/tmp/dsh-dock-shot-home` 拷 web
+  profile（软链改绝对路径）+ credentials，`dsh 0.2.1-rc.2`（源码检出）起在 3999，用
+  credentials 里 `client-connection/browser-session` 的 secret 手签 `dsh-auth-*` Cookie，
+  `GET /dsh-dock/balance`：
+  - 登录态：`deepseek-account` = `ok`，CNY 有余额（充值占全部、赠送 0；具体金额不记录），
+    显示名「DeepSeek 账号」，无密钥行；同实例 `deepseek-official` 的 API Key 余额与账号余额
+    几乎一致，说明读的确实是同一个官网账号。
+  - 未登录态（删掉隔离 home 里 `deepseek-account-platform/default` grant 后重启）：
+    `login-required`、message「DeepSeek 账号未登录，登录后可查看官网余额」、
+    consoleUrl `https://platform.deepseek.com/usage`；普通 Provider 不受影响。
+  - 验证完 `rm -rf /tmp/dsh-dock-shot-home`（含凭据副本）、关闭 3999 实例。
+- 本机没有 Playwright，未做浏览器截图；界面侧以 `test-client-views` 渲染断言为准。
+
+### 部署
+
+宿主半部改动（`features/balance/host.js`）**必须重启 dsh web 才生效**（本机 profile 未开宿主
+HMR）；客户端半部 `client.js` 已重建，走 client-hmr 轮询即会自动推浏览器。开发期不动
+`package.json` 的 version 与 `DOCK_VERSION`。
+
+### 教训
+
+- 「已登录」徽标与余额是同一个 `deepseekAccount` 服务，账号类 Provider 先查它，别再往
+  STRATEGIES 表里塞假的 HTTP 接口。
+- `getBalance` 用 `null` 表示未登录/失效、用 `{status:'failed'}` 表示平台失败，两者要映射成不同
+  状态（需登录 vs 查询失败），不要把失败显示成 0 余额。
+- 账号包不在 dsh-dock 的开发闭包里，只用自己的 peerDependency（`@deepseek-ai/dsh-llm` 的
+  `APP_IDENTITY`），用无类型 `ctx.get('deepseekAccount')` 访问宿主服务。
+- 官网钱包是 decimal 字符串，`0E-16` 这类科学计数也要按 0 处理；全零时只留一张兜底卡。
+
+### 续作（2026-10-24）· 账号余额比官网多一分钱：展示四舍五入改成按分截断
+
+#### 现象
+
+重启宿主后芯片能显示官网账号余额了，但显示 `余额 ¥77.68`，官网（platform.deepseek.com）
+「充值余额」却是 `¥77.67`；功能坞面板主数字干脆显示原始 4 位小数 `77.6772`。用户报
+「账号的余额显示会多一分钱，你看下是不是精度问题」。
+
+#### 根因
+
+官网 `get_user_summary` 返回的是 4 位小数 decimal（`77.6772`），官网 UI 展示时**按分截断**成
+`77.67`；dsh-dock 的芯片用 `Math.round(v * 100) / 100` 四舍五入，于是进位成 `77.68`——正好
+多一分钱。面板主数字用的是 `fmt()` 直出字符串，所以把 4 位小数原样显示了出来。
+
+#### 改法
+
+`features/balance/view.js` 新增 `moneyText()`：`Number` → `(n * 100).toFixed(6)`（抹掉
+`0.29 * 100 = 28.999…` 这类二进制浮点误差）→ `Math.trunc` 向零截断到分 → `toFixed(2)`。
+芯片金额（含 ≥1 万折「万」的分支）与面板主数字、「赠送」「充值」两段全部改用它，统一成与官网
+一致的「按分截断、两位小数」。宿主半部不动：仍返回真实精度，展示口径只在客户端收敛。
+
+#### 验证
+
+- `test-client-views` 的余额快照改成不可整除到分的值（`totalBalance 77.6772`、
+  `grantedBalance 0.004`、`toppedUpBalance 77.6732`），断言渲染出「77.67」「充值 77.67」
+  「赠送 0.00」，并显式断言**页面不出现「77.68」**；`npm run test:client` 全过。
+- `npm run test:host` 全链路通过（宿主未改，仅回归）。
+
+#### 教训
+
+- 与官网对照金额时，先确认官网是「四舍五入」还是「截断」；金融界面常见的按分截断，用
+  `Math.round` 会稳定多出一分钱。
+- 金额展示统一走一个格式化函数（`moneyText`），别再让面板直出后端原始字符串。
