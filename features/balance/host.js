@@ -3,7 +3,10 @@
 // 在回环 webServer 上注册 /dsh-dock/balance 路由：枚举所有已配置的模型 Provider，
 // 按余额策略查询各账号余额/配额，返回归一化 JSON 给浏览器半身（同源 fetch，无需 typert）。
 // 余额策略表沿用 @wycto/dsh-balance-panel@0.1.1 的实现（MIT，同作者）。
+// 「DeepSeek 账号」这条官方 Provider 没有 API Key 余额接口，余额在官网站内：
+// 改走宿主 deepseekAccount 服务（设置里「DeepSeek 账号 · 已登录」的同一份登录态）。
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { APP_IDENTITY } from '@deepseek-ai/dsh-llm'
 import { sendJson, walkPath, rejectUntrustedRequest } from '../../src/host-core.js'
 
 /** deepseek-official 内置默认值（适配器默认配置的镜像，配置缺失时兜底）。 */
@@ -11,6 +14,13 @@ const DEEPSEEK_DEFAULTS = {
   apiKeyEnv: 'DEEPSEEK_API_KEY',
   baseURL: 'https://api.deepseek.com',
 }
+
+/** 官方 DeepSeek 账号 Provider（llm-deepseek-account 注册的 id；余额来自官网账号，不是 API Key）。 */
+const ACCOUNT_PROVIDER_ID = 'deepseek-account'
+/** 账号 Provider 的中文显示名（宿主 entry 的 displayName 是英文 'DeepSeek Account'）。 */
+const ACCOUNT_PROVIDER_NAME = 'DeepSeek 账号'
+/** 账号未登录 / 查询失败时的兜底控制台地址（正常从 getState().links 取）。 */
+const ACCOUNT_FALLBACK_URL = 'https://platform.deepseek.com/usage'
 
 function parseDeepSeek(body) {
   const infos = body && Array.isArray(body.balance_infos) ? body.balance_infos : []
@@ -127,6 +137,109 @@ function parseXai(body) {
     kind: 'currency',
     infos: [{ currency: 'USD', totalBalance: String(balance) }],
   }
+}
+
+/** 官网账号余额的 client metadata：Platform 用版本/语言/时区生成请求头
+ *  （见 dsh 的 accountClientMetadata；时区取本机，正值=东经秒）。 */
+function accountClientMetadata() {
+  return {
+    version: APP_IDENTITY.version,
+    locale: 'zh-CN',
+    timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60,
+  }
+}
+
+/** 金额字符串化：去浮点尾巴（0.1+0.2 这类），最多保留四位小数。 */
+function moneyText(value) {
+  const n = Number(value)
+  return Number.isFinite(n) ? String(Math.round(n * 1e4) / 1e4) : '0'
+}
+
+/**
+ * 把官网账号的钱包投影成前端统一的 currency infos：
+ * normal_wallets（充值钱包，AccountDetails.balance.value）→ toppedUpBalance，
+ * bonus_wallets（赠送钱包）→ grantedBalance，total = 两者之和。
+ * 有非零币种时隐藏全零币种（否则国内账号会多出一张「人民币（估算）0」的美元卡）；
+ * 钱包全空时兜底一张 CNY 0，避免前端出现空白卡片。
+ */
+function parseAccountWallets(detail) {
+  const byCurrency = new Map()
+  const add = (wallets, field) => {
+    for (const wallet of Array.isArray(wallets) ? wallets : []) {
+      if (!wallet || typeof wallet.currency !== 'string') continue
+      const amount = Number(wallet.balance)
+      if (!Number.isFinite(amount)) continue
+      const currency = wallet.currency.toUpperCase()
+      const slot = byCurrency.get(currency) || { currency, granted: 0, toppedUp: 0 }
+      slot[field] += amount
+      byCurrency.set(currency, slot)
+    }
+  }
+  add(detail.value, 'toppedUp')
+  add(detail.bonusWallets, 'granted')
+  const order = ['CNY', 'USD']
+  let infos = Array.from(byCurrency.values())
+    .sort((a, b) => order.indexOf(a.currency) - order.indexOf(b.currency))
+    .map((s) => ({
+      currency: s.currency,
+      totalBalance: moneyText(s.toppedUp + s.granted),
+      grantedBalance: moneyText(s.granted),
+      toppedUpBalance: moneyText(s.toppedUp),
+    }))
+  const nonzero = infos.filter((info) => Number(info.totalBalance) !== 0)
+  if (nonzero.length > 0) infos = nonzero
+  else if (infos.length === 0) {
+    infos = [{ currency: 'CNY', totalBalance: '0', grantedBalance: '0', toppedUpBalance: '0' }]
+  } else {
+    // 全零：只留一张兜底卡（优先 CNY），别把 0 美元的「人民币（估算）」卡也摆出来
+    infos = [infos.find((info) => info.currency === 'CNY') || infos[0]]
+  }
+  return { status: 'ok', kind: 'currency', available: true, infos }
+}
+
+/**
+ * 查询「DeepSeek 账号」的官网余额（走宿主 deepseekAccount 服务，不是 HTTP API Key）。
+ * 未登录 / 登录失效都归为 login-required（前端显示「需登录」并给控制台链接），
+ * 平台失败归为 error（绝不把失败伪装成 0 余额）。
+ */
+async function queryOfficialAccountBalance(ctx) {
+  const fallbackUrl = ACCOUNT_FALLBACK_URL
+  let account
+  try {
+    account = ctx.get('deepseekAccount')
+  } catch {
+    account = undefined
+  }
+  if (!account || typeof account.getState !== 'function' || typeof account.getBalance !== 'function') {
+    return { status: 'unsupported', message: '当前宿主未挂载 DeepSeek 账号服务（需在设置里登录 DeepSeek 账号）' }
+  }
+
+  let state
+  try {
+    state = await account.getState()
+  } catch (e) {
+    return { status: 'error', message: '读取 DeepSeek 账号状态失败：' + (e && e.message ? e.message : String(e)) }
+  }
+  const links = state && state.links ? state.links : {}
+  const consoleUrl = typeof links.usageUrl === 'string' && links.usageUrl ? links.usageUrl : fallbackUrl
+  if (!state || state.status !== 'credential-stored') {
+    return { status: 'login-required', consoleUrl, message: 'DeepSeek 账号未登录，登录后可查看官网余额' }
+  }
+
+  let detail
+  try {
+    detail = await account.getBalance(accountClientMetadata())
+  } catch (e) {
+    return { status: 'error', message: '查询官网余额失败：' + (e && e.message ? e.message : String(e)) }
+  }
+  // null = 凭证已失效/被移除（平台返回 401 时账号服务会清掉 grant，这里按需重新登录处理）
+  if (detail === null) {
+    return { status: 'login-required', consoleUrl, message: 'DeepSeek 账号登录已失效，请重新登录' }
+  }
+  if (!detail || detail.status !== 'ready') {
+    return { status: 'error', message: '官网余额查询失败（平台接口返回失败）' }
+  }
+  return parseAccountWallets(detail)
 }
 
 /** 策略表：key 为规范 provider id，aliases 为别名。 */
@@ -314,7 +427,10 @@ function collectProviders(ctx) {
 
     out.set(e.provider, {
       id: e.provider,
-      displayName: (profile && typeof profile.displayName === 'string' && profile.displayName) || e.displayName || e.provider,
+      displayName: (profile && typeof profile.displayName === 'string' && profile.displayName)
+        || (e.provider === ACCOUNT_PROVIDER_ID ? ACCOUNT_PROVIDER_NAME : undefined)
+        || e.displayName
+        || e.provider,
       apiKeyEnv,
       baseURL,
       api,
@@ -328,7 +444,7 @@ function collectProviders(ctx) {
     const isDeepseek = sel.provider === 'deepseek-official' || sel.provider === 'deepseek'
     out.set(sel.provider, {
       id: sel.provider,
-      displayName: sel.provider,
+      displayName: sel.provider === ACCOUNT_PROVIDER_ID ? ACCOUNT_PROVIDER_NAME : sel.provider,
       apiKeyEnv: isDeepseek ? DEEPSEEK_DEFAULTS.apiKeyEnv : undefined,
       baseURL: isDeepseek ? DEEPSEEK_DEFAULTS.baseURL : undefined,
       api: isDeepseek ? 'deepseek' : undefined,
@@ -403,6 +519,12 @@ async function queryProviderBalance(ctx, p) {
     } catch {
       // 保持 false
     }
+  }
+
+  // 0) 官方 DeepSeek 账号：余额在官网站内，走宿主 deepseekAccount 服务（没有 API Key 余额接口）
+  if (String(p.id).toLowerCase() === ACCOUNT_PROVIDER_ID) {
+    entry.balance = await queryOfficialAccountBalance(ctx)
+    return entry
   }
 
   // 1) 自定义 balance 配置优先
