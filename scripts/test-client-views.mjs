@@ -401,6 +401,10 @@ const NOTIFY_STATUS = {
 		notifyStayMs: 8000, systemNotify: false, soundNotify: true, soundEffect: "chime",
 		dingtalkEnabled: true, dingtalkWebhook: "https://oapi.dingtalk.com/robot/send?access_token=x",
 		feishuEnabled: true, feishuWebhook: "https://open.feishu.cn/open-apis/bot/v2/hook/x",
+		// 语音播报（默认总开关关；播报用例里显式打开）
+		voiceNotify: false, voiceMode: "brief",
+		voiceOnComplete: true, voiceOnError: true, voiceOnConfirm: true, voiceOnStuck: true,
+		voiceRate: 1, voiceVolume: 1, voiceLang: "", voiceURI: "",
 	},
 };
 
@@ -1802,5 +1806,282 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 自动朗读兜底：宿主路由不可用时刚结束回合仍自动读、冷读历史不播、重挂载不重播");
 }
 
-// 视图里挂的轮询定时器（ctx.interval / setInterval 兜底）会让事件循环不退出，显式收尾。
+// ---------- 用例 5g：点卡片/巡检按 sessionId 走（旧版位置过滤在窄窗口下全失效） ----------
+// 用户实测（2026-10-23）：完成卡点了不跳转、点进会话也不收，一直挂着。根因不是设计，
+// 是判定口径：旧版跳转与巡检都要求会话行「可见 + 右缘 ≤ 35vw」，侧栏较宽或窗口较窄时
+// 行右缘超限 → 一行都匹配不上 → 跳转失败（卡片不收）、巡检读不到选中（永不自动收）。
+// 修法：会话行有权威标识 data-row-key="session:<id>"（dsh 0.1.7+ Rows.tsx），
+// 跳转优先走宿主官方 ctx.uiWorkspace.openSession(id)（不做任何几何过滤），
+// 巡检按高亮行的 id 比对；只有拿不到 id 的旧宿主才回退标题 + 几何判定。
+// ⚠️ 两个场景各用一套 runtime：替身按渲染路径缓存组件实例，同一位置先后两张卡
+//    会复用旧实例的 closing 态（真实 React 按 key={t.id} 区分，无此问题）。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "notify";
+	const TARGET_ID = "sess-target-5g";
+	const taskOf = () => Object.assign({}, NOTIFY_STATUS.active[0], { sessionId: TARGET_ID, approvals: [] });
+	const recOf = (endTime) => Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: TARGET_ID, endTime });
+	// 会话行桩：右缘 900px（窄窗口/宽侧栏的真实形态，旧几何口径 ≤35vw 会把行全滤掉）
+	const makeDoc = (listeners) => ({
+		visibilityState: "visible",
+		body: { tag: "body-stub" },
+		head: { appendChild() {} },
+		querySelector() { return null; },
+		querySelectorAll(sel) {
+			const row = {
+				getAttribute: (k) => (k === "data-row-key" ? "session:" + TARGET_ID : null),
+				textContent: NOTIFY_STATUS.recent[0].title,
+				getBoundingClientRect: () => ({ width: 900, height: 32, top: 100, bottom: 132, right: 900, left: 8 }),
+				querySelector: () => ({ click() {} }),
+			};
+			if (sel === '[role="treeitem"][aria-selected="true"]') return [row];
+			if (sel === '[role="treeitem"]') return [row];
+			return [];
+		},
+		createElement() { return { dataset: {}, isConnected: true }; },
+		addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+		removeEventListener(type, fn) {
+			const arr = listeners[type] || [];
+			const i = arr.indexOf(fn);
+			if (i >= 0) arr.splice(i, 1);
+		},
+	});
+	const isCard = (el) => el.event === "onClick" && /(^|\s)dknt-toast(\s|$)/.test(el.className) && !el.className.includes("close");
+	// 起一套 runtime：注册带 uiWorkspace.openSession 桩的 ctx，返回驱动工具
+	function setupScenario(live, openSessionCalls) {
+		const listeners = {};
+		const { runtime, regs, dock } = loadDock(enabled, ANIMATION_STATUS, () => JSON.parse(JSON.stringify(live)), undefined, undefined, { document: makeDoc(listeners) });
+		dock.apply({
+			get: (name) => (name === "slots"
+				? { inject: () => {}, register: () => () => {} }
+				: name === "uiWorkspace" ? { openSession: (id) => { openSessionCalls.push(String(id)); } } : undefined),
+			interval: () => () => {},
+		});
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		// 空闲轮询 6 秒，用例等不起：派发 visibilitychange 强制刷新一次
+		const poke = async () => {
+			for (const fn of (listeners.visibilitychange || []).slice()) fn();
+			await new Promise((resolve) => setImmediate(resolve));
+			await renderSettled(runtime, node);
+		};
+		return { runtime, node, poke };
+	}
+	let detail = "";
+	// —— 场景① 点卡片：官方 openSession(sessionId) 精确跳转（不做几何过滤），成功即收起 ——
+	try {
+		const live = { active: [taskOf()], recent: [], config: NOTIFY_STATUS.config };
+		const openSessionCalls = [];
+		const { runtime, node, poke } = setupScenario(live, openSessionCalls);
+		await renderSettled(runtime, node);
+		await poke(); // 首轮：prevActive 登记 TARGET_ID
+		live.active = [];
+		live.recent = [recOf(Date.now() + 5000)];
+		await poke();
+		let html = runtime.render(node);
+		if (!html.includes("任务完成")) throw new Error("①任务结束没有弹出完成卡（前置条件不成立）");
+		const card = runtime.elements.find(isCard);
+		if (!card) throw new Error("①完成卡没有挂 onClick 跳转句柄");
+		card.handler({});
+		if (openSessionCalls.length !== 1 || openSessionCalls[0] !== TARGET_ID) {
+			detail = "①点卡片没有走 ctx.uiWorkspace.openSession(sessionId)（calls=" + JSON.stringify(openSessionCalls) + "）";
+		} else {
+			await renderSettled(runtime, node); // 淡出定时器在 effect 里排
+			await new Promise((resolve) => setTimeout(resolve, 600));
+			html = await renderSettled(runtime, node);
+			if (html.includes("任务完成")) detail = "①官方跳转成功后完成卡没有收起";
+		}
+	} catch (e) {
+		detail = "①用例抛错：" + ((e && e.message) || e);
+	}
+	// —— 场景② 巡检按 id 收起：高亮行 data-row-key 与卡片 sessionId 对上 → 自动收 ——
+	if (!detail) try {
+		const live = { active: [taskOf()], recent: [], config: NOTIFY_STATUS.config };
+		const { runtime, node, poke } = setupScenario(live, []);
+		await renderSettled(runtime, node);
+		await poke();
+		live.active = [];
+		live.recent = [recOf(Date.now() + 5000)];
+		await poke();
+		let html = runtime.render(node);
+		if (!html.includes("任务完成")) throw new Error("②没有弹出完成卡（前置条件不成立）");
+		// 巡检 500ms 一轮标 closing；淡出 240ms 定时器在 effect 里排——多跑几轮收敛
+		for (let i = 0; i < 6 && html.includes("任务完成"); i++) {
+			await new Promise((resolve) => setTimeout(resolve, 350));
+			html = await renderSettled(runtime, node);
+		}
+		if (html.includes("任务完成")) detail = "②高亮行 id 与卡片 sessionId 对上后仍没自动收起（id 比对未生效）";
+	} catch (e) {
+		detail = "②用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 通知卡按会话 id 跳转收起：${detail}`); process.exit(1); }
+	console.log("✓ 通知卡按会话 id 跳转收起：窄窗口/宽侧栏（行右缘超 35vw）下点卡片走官方 openSession 并收起、点进会话按 id 自动收");
+}
+
+// ---------- 用例 21：【任务通知】语音播报（完成/需授权/卡住三类事件 × 简洁/详细两档 × 总开关） ----------
+// 用户诉求：任务完成/需授权/卡住/停止时用语音播报，可设简洁与详细。播报走浏览器
+// speechSynthesis（与【语音朗读】同一能力、独立开关），只测「该说话时 speak 出去
+// 的文本对不对」——音色/分片细节由语音朗读自己的用例覆盖。
+{
+	const cfgOf = (over) => Object.assign({}, NOTIFY_STATUS.config, { voiceNotify: true }, over || {});
+	// 一套 runtime：live 状态 + speech 桩；poke 借 visibilitychange 强制立即刷新
+	function setup(live, speech) {
+		const enabled = {};
+		for (const f of FEATURES) enabled[f.id] = f.id === "notify";
+		const listeners = {};
+		const doc = {
+			visibilityState: "visible",
+			body: { tag: "body-stub" },
+			head: { appendChild() {} },
+			querySelector() { return null; },
+			querySelectorAll() { return []; },
+			createElement() { return { dataset: {}, isConnected: true }; },
+			addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+			removeEventListener() {},
+		};
+		const status = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, { document: doc, speech });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		const poke = async () => {
+			for (const fn of (listeners.visibilitychange || []).slice()) fn();
+			await new Promise((resolve) => setImmediate(resolve));
+			await renderSettled(runtime, node);
+		};
+		return { poke, node, runtime };
+	}
+	const lastSpeech = (speech) => (speech.spoken.length ? String(speech.spoken[speech.spoken.length - 1].text) : "");
+	let detail = "";
+	// —— ① 任务完成（简洁）→ 「任务完成」；总开关关 → 不说话 ——
+	try {
+		const live = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf() };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke(); // 首轮登记活跃任务
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await poke();
+		if (speech.spoken.length !== 1) throw new Error("①任务完成没有播报（spoken=" + speech.spoken.length + "）");
+		if (lastSpeech(speech) !== "任务完成") detail = "①简洁口径播报文本不对：" + lastSpeech(speech);
+		// 换详细口径的完成：应带标题与耗时
+		const live2 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf({ voiceMode: "detailed" }) };
+		const speech2 = makeSpeechStub();
+		const s2 = setup(live2, speech2);
+		await renderSettled(s2.runtime, s2.node);
+		await s2.poke();
+		live2.active = [];
+		live2.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId, duration: 125000 })];
+		await s2.poke();
+		const t2 = lastSpeech(speech2);
+		if (!t2.includes("上一个任务") || !t2.includes("已完成")) detail = "①详细口径缺少标题或结果（实际：" + t2.slice(0, 50) + "）";
+		// 总开关关：同样的结束不说话
+		const live3 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: Object.assign({}, NOTIFY_STATUS.config, { voiceNotify: false }) };
+		const speech3 = makeSpeechStub();
+		const s3 = setup(live3, speech3);
+		await renderSettled(s3.runtime, s3.node);
+		await s3.poke();
+		live3.active = [];
+		live3.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await s3.poke();
+		if (!detail && speech3.spoken.length !== 0) detail = "①总开关关闭仍播报了：" + lastSpeech(speech3);
+	} catch (e) {
+		detail = "①完成播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ② 需授权 → 「任务需要授权」，且与卡片开关正交（notifyOnConfirm=false 仍播报） ——
+	if (!detail) try {
+		const live = {
+			active: [Object.assign({}, NOTIFY_STATUS.active[0], {
+				approvals: [{ id: "ap-9", toolName: "pwsh", reason: "需要提权" }],
+			})],
+			recent: [],
+			config: cfgOf({ notifyOnConfirm: false }),
+		};
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("②出现待确认项没有播报");
+		if (lastSpeech(speech) !== "任务需要授权") detail = "②需授权简洁播报不对：" + lastSpeech(speech);
+	} catch (e) {
+		detail = "②需授权播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ③ 卡住（phase=code 且 18 秒无活动）→ 「任务卡住了」，同一停点只报一次 ——
+	if (!detail) try {
+		const stalled = Object.assign({}, NOTIFY_STATUS.active[0], {
+			phase: "code", approvals: [],
+			lastActivityAt: Date.now() - 20000, phaseAt: Date.now() - 20000,
+		});
+		const live = { active: [stalled], recent: [], config: cfgOf() };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("③卡住没有播报");
+		if (lastSpeech(speech) !== "任务卡住了") detail = "③卡住简洁播报不对：" + lastSpeech(speech);
+		const before = speech.spoken.length;
+		await poke();
+		await poke(); // 同一 lastActivityAt：不得重复轰炸
+		if (!detail && speech.spoken.length !== before) detail = "③同一停点重复播报了 " + (speech.spoken.length - before) + " 次";
+		// 恢复活动后再卡 → 可再报
+		live.active = [Object.assign({}, stalled, { lastActivityAt: Date.now() - 20000 + 1 })];
+		await poke();
+		if (!detail && speech.spoken.length !== before + 1) detail = "④活动变化后重新卡住没有再播报";
+	} catch (e) {
+		detail = "③卡住播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑤ 任务停止（endReason=aborted）→ 简洁口径「任务停止了」 ——
+	if (!detail) try {
+		const live = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf() };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], {
+			sessionId: NOTIFY_STATUS.active[0].sessionId, endReason: "aborted",
+		})];
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("⑤任务停止没有播报");
+		if (lastSpeech(speech) !== "任务停止了") detail = "⑤停止播报文本不对：" + lastSpeech(speech);
+	} catch (e) {
+		detail = "⑤停止播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑥ 指定音色：命中本机音色表则用它并把 lang 对齐；本机没有则按语言回落中文音色 ——
+	if (!detail) try {
+		const live = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf({ voiceURI: "en-US-Google" }) };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("⑥指定音色后没有播报");
+		const utt = speech.spoken[speech.spoken.length - 1];
+		if (!utt.voice || utt.voice.voiceURI !== "en-US-Google") detail = "⑥没有用选中的音色（实际：" + (utt.voice && utt.voice.voiceURI) + "）";
+		if (!detail && utt.lang !== "en-US") detail = "⑥音色的语言没有对齐到 utt.lang（实际：" + utt.lang + "）";
+		// 换设备后本机没有那个音色：不得哑掉，按语言回落到中文音色
+		const live2 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf({ voiceURI: "zh-CN-NotOnThisMachine" }) };
+		const speech2 = makeSpeechStub();
+		const s2 = setup(live2, speech2);
+		await renderSettled(s2.runtime, s2.node);
+		await s2.poke();
+		live2.active = [];
+		live2.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await s2.poke();
+		if (!detail) {
+			if (speech2.spoken.length < 1) throw new Error("⑥音色在本机不存在时没有播报（回落失效）");
+			const u2 = speech2.spoken[speech2.spoken.length - 1];
+			if (!u2.voice || !/^zh/i.test(String(u2.voice.lang || ""))) detail = "⑥音色缺失时没有回落到中文音色（实际：" + (u2.voice && u2.voice.lang) + "）";
+		}
+	} catch (e) {
+		detail = "⑥音色播报用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 任务通知语音播报：${detail}`); process.exit(1); }
+	console.log("✓ 任务通知语音播报：完成/需授权/卡住/停止按开关播报，简洁一语、详细带标题耗时，同一停点不重复，指定音色生效且换设备按语言回落");
+}
+
+// 全部用例都是顶层 await，跑完即终局。显式退出：浮层用例留下的轮询 setTimeout 挂在
+// 真实计时器上（沙箱透传 setTimeout），不退出进程就一直吊着（2026-10-27 实测）。
 process.exit(0);
