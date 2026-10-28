@@ -160,13 +160,24 @@ assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置�
 {
   const saved = await host.call('/dsh-dock/notify', 'config', {
     notifyOnError: false, soundEffect: 'bell', dingtalkEnabled: true,
+    voiceNotify: true, voiceMode: 'detailed', voiceOnStuck: false, voiceRate: 3, voiceVolume: -2,
+    voiceURI: '  zh-CN-Xiaoxiao  ',
     dingtalkWebhook: 'https://oapi.dingtalk.com/robot/send?access_token=test',
   })
   assert.equal(saved.body.data.config.notifyOnError, false)
   assert.equal(saved.body.data.config.soundEffect, 'bell')
   assert.equal(saved.body.data.config.effectMode, undefined, '通知路由必须忽略动画字段')
+  // 语音播报字段：布尔/枚举收下，数值越界钳制（rate 面板上限 2，volume 夹进 [0,1]）
+  assert.equal(saved.body.data.config.voiceNotify, true)
+  assert.equal(saved.body.data.config.voiceMode, 'detailed')
+  assert.equal(saved.body.data.config.voiceOnStuck, false)
+  assert.equal(saved.body.data.config.voiceRate, 2, 'voiceRate 越界应钳到上限 2')
+  assert.equal(saved.body.data.config.voiceVolume, 0, 'voiceVolume 越界应钳到下限 0')
+  assert.equal(saved.body.data.config.voiceURI, 'zh-CN-Xiaoxiao', 'voiceURI 应 trim 后落盘（音色可选）')
   const raw = host.settings.get(DOCK_NS)
   assert.equal(raw.notify.dingtalkEnabled, true)
+  assert.equal(raw.notify.voiceNotify, true, '语音播报开关应落 notify 段')
+  assert.equal(raw.notify.voiceURI, 'zh-CN-Xiaoxiao', '音色应落 notify 段')
   assert.equal(raw.animation.dingtalkEnabled, undefined)
   assert.equal(raw.animation.effectMode, 'stars', '通知保存不得覆盖动画段')
 }
