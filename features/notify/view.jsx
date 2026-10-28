@@ -132,6 +132,193 @@ function previewSound(effect) {
 	playTone(delayed);
 }
 
+// ---------- 语音播报（speechSynthesis 短句引擎；沙箱安全：绝不裸引用全局 speechSynthesis） ----------
+// 与【语音朗读】是同一套浏览器能力、两套独立开关：tts 读「回复正文」，本引擎只播
+// 「完成/停止/需授权/卡住」四类短句（简洁/详细两种口径）。两边共用浏览器全局队列：
+// 播报先 cancel 再播——通知语义就是要打断（正在读回复时任务完成了，先打断报信）。
+// 已知小边距：播报 cancel 掉【语音朗读】正在读的正文时，tts 引擎自己的进度态不会
+// 同步清零（它收不到被 cancel 的 onend），表现为喇叭仍显示「正在朗读」——再点一下
+// 即停；打断本身符合「先报任务信」的预期，不做跨模块耦合。
+function synthOf() {
+	try {
+		const g = typeof globalThis !== "undefined" ? globalThis : null;
+		if (g && g.speechSynthesis) return g.speechSynthesis;
+		if (typeof window !== "undefined" && window.speechSynthesis) return window.speechSynthesis;
+	} catch { /* 取不到当不支持 */ }
+	return null;
+}
+function utterCtor() {
+	try {
+		const g = typeof globalThis !== "undefined" && globalThis.SpeechSynthesisUtterance
+			? globalThis.SpeechSynthesisUtterance
+			: (typeof window !== "undefined" ? window.SpeechSynthesisUtterance : null);
+		return g;
+	} catch { return null; }
+}
+export function voiceSupported() {
+	return synthOf() !== null && utterCtor() !== null;
+}
+/** 本机音色表（可能为空：Chrome 首次调用是异步加载，靠 voiceschanged 补）。 */
+export function localVoices() {
+	const s = synthOf();
+	if (!s) return [];
+	try { return (typeof s.getVoices === "function" ? s.getVoices() : []) || []; } catch { return []; }
+}
+/**
+ * 按配置挑音色（与【语音朗读】pickVoice 同规则）：显式选过的 voiceURI 必须在**本机**
+ * 音色表里存在，否则按语言回落——音色是设备相关的，别的机器上存的 URI 在这里可能没有。
+ */
+export function pickVoice(cfg, text) {
+	const voices = localVoices();
+	if (voices.length === 0) return null;
+	const want = String((cfg && cfg.voiceURI) || "");
+	if (want) {
+		const hit = voices.find((v) => v && v.voiceURI === want);
+		if (hit) return hit;
+	}
+	const lang = String((cfg && cfg.voiceLang) || "");
+	if (lang) {
+		const base = lang.split("-")[0].toLowerCase();
+		return voices.find((v) => String(v.lang || "").toLowerCase() === lang.toLowerCase())
+			|| voices.find((v) => String(v.lang || "").toLowerCase().startsWith(base))
+			|| null;
+	}
+	// 未指定语言：播报文本大概率是中文，优先中文音色
+	if (!text || /[\u4E00-\u9FFF]/.test(text)) {
+		const zh = voices.find((v) => /^zh/i.test(String(v.lang || "")));
+		if (zh) return zh;
+	}
+	return null;
+}
+// 本机音色表（面板下拉用）：Chrome 的 getVoices() 首次是异步的，订阅 voiceschanged
+// 后再渲染一次；与【语音朗读】面板同款处理。
+function useLocalVoices() {
+	const [, force] = useState(0);
+	const ref = useRef(null);
+	if (ref.current === null) ref.current = localVoices();
+	useEffect(() => {
+		const s = synthOf();
+		const onChange = () => { ref.current = localVoices(); force((n) => n + 1); };
+		if (s && typeof s.addEventListener === "function") {
+			try { s.addEventListener("voiceschanged", onChange); } catch { /* ignore */ }
+		}
+		// 首帧可能已就绪但没触发事件：补读一次
+		if (ref.current.length === 0) onChange();
+		return () => { if (s && typeof s.removeEventListener === "function") { try { s.removeEventListener("voiceschanged", onChange); } catch { /* ignore */ } } };
+	}, []);
+	return ref.current;
+}
+let voiceEpoch = 0;
+/**
+ * 播一句话（幂等键防重）。cfg 取 voiceNotify 总开关之外的调用方已判过；这里读
+ * voiceRate/voiceVolume/voiceLang/voiceURI，voiceURI 在本机不存在时按语言回落，
+ * lang 空时中文文本优先挑中文音色。
+ * @returns 是否真的开始播（不支持/文本为空返回 false）
+ */
+export function speakVoice(text, cfg) {
+	const t = String(text || "").trim();
+	if (!t) return false;
+	const s = synthOf();
+	const Ctor = utterCtor();
+	if (!s || !Ctor) return false;
+	const c = cfg || {};
+	let utt = null;
+	try { utt = new Ctor(t); } catch { return false; }
+	if (!utt) return false;
+	utt.rate = typeof c.voiceRate === "number" ? Math.min(2, Math.max(0.5, c.voiceRate)) : 1;
+	utt.volume = typeof c.voiceVolume === "number" ? Math.min(1, Math.max(0, c.voiceVolume)) : 1;
+	let lang = String(c.voiceLang || "");
+	if (!lang && /[\u4E00-\u9FFF]/.test(t)) lang = "zh-CN";
+	if (lang) utt.lang = lang;
+	// 指定音色（与【语音朗读】同一份本机音色表）：命中就用它，并把 lang 对齐到音色自己的
+	// 语言，避免「英文音色念中文」；取不到（换设备/系统语音被删）保持按语言回落。
+	const voice = pickVoice(c, t);
+	if (voice) {
+		utt.voice = voice;
+		if (voice.lang) utt.lang = voice.lang;
+	}
+	const epoch = ++voiceEpoch;
+	// 打断式：先清掉上一句（含【语音朗读】正文朗读——Chrome cancel 是异步冲刷，
+	// 但播报都经这里串行，同一引擎连续 cancel+speak 的竞态对短句影响可忽略）。
+	try { s.cancel(); } catch { /* ignore */ }
+	const delay = () => {
+		// epoch 落后说明期间有新的播报要抢话，本句作废
+		if (epoch !== voiceEpoch) return;
+		try { s.speak(utt); } catch { /* ignore */ }
+	};
+	// cancel 后同一 tick speak 会排进未清空的旧队列（Chrome 已知异步冲刷）：
+	// 与【语音朗读】同款——等 speaking/pending 落空再播，短句轮询 20ms 足够。
+	let waited = 0;
+	const poll = () => {
+		if (epoch !== voiceEpoch) return;
+		let busy = false;
+		try { busy = s.speaking === true || s.pending === true; } catch { busy = false; }
+		if (!busy || waited >= 800) { delay(); return; }
+		waited += 20;
+		setTimeout(poll, 20);
+	};
+	poll();
+	return true;
+}
+
+// ---------- 播报文案模板（简洁 = 一句话；详细 = 带标题/耗时/统计/原因） ----------
+function endReasonSpeech(reason) {
+	if (reason === "error") return "出错了";
+	if (reason === "aborted") return "已停止";
+	if (reason === "blocked") return "受阻停止了";
+	if (reason === "max-tokens") return "达到输出上限停止了";
+	if (reason === "interrupted") return "被打断了";
+	return "完成了";
+}
+/** 结束播报文案（success 由调用方按 isSuccessReason 给）。kind: complete|error */
+export function endBroadcastText(success, record, task, cfg) {
+	const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+	const reason = (record && record.endReason) || "";
+	const title = (record && record.title) || (task && task.title) || "";
+	if (mode === "brief") {
+		// 简洁口径不分原因细念：正常完成「任务完成」，其余一律「任务停止了」
+		return success ? "任务完成" : "任务停止了";
+	}
+	const parts = [];
+	if (title) parts.push("任务：" + truncate(title, 30) + "。");
+	parts.push(success ? "已完成。" : "结束，原因：" + endReasonSpeech(reason) + "。");
+	const dur = (record && record.duration) || 0;
+	if (dur > 0) parts.push("耗时" + fmtDur(dur) + "。");
+	const turns = (record && record.turns) || (task && task.turns) || 0;
+	const steps = (record && record.steps) || (task && task.steps) || 0;
+	const tools = (record && record.toolCalls) || (task && task.toolCalls) || 0;
+	if (turns || steps) parts.push("共" + turns + "回合" + steps + "步" + (tools ? "、工具" + tools + "次" : "") + "。");
+	if (!success && record && record.errorMessage) parts.push("错误：" + truncate(String(record.errorMessage).replace(/[`*_#>\[\]()]/g, " "), 50) + "。");
+	if (success && record && record.lastText) {
+		const plain = truncate(String(record.lastText).replace(/[#*_`>\[\]()!]/g, "").replace(/\s+/g, " "), 40);
+		if (plain) parts.push("回复摘要：" + plain);
+	}
+	return parts.join("");
+}
+/** 需授权播报文案。 */
+export function confirmBroadcastText(task, approval, cfg) {
+	const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+	if (mode === "brief") return "任务需要授权";
+	const tool = (approval && approval.toolName) || "工具";
+	const scene = toolLabel(tool);
+	const parts = [];
+	if (task && task.title) parts.push("任务：" + truncate(task.title, 30) + "。");
+	parts.push("正在等待你批准" + (scene ? "执行" + scene : "") + "，工具是" + tool + "，请回到会话处理。");
+	return parts.join("");
+}
+/** 卡住播报文案。 */
+export function stuckBroadcastText(task, cfg) {
+	const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+	if (mode === "brief") return "任务卡住了";
+	const parts = [];
+	if (task && task.title) parts.push("任务：" + truncate(task.title, 30) + "。");
+	parts.push("编程阶段已经" + fmtDur(Math.max(0, (cfg && cfg.stuckMs) || STUCK_MS)) + "没有任何动静，可能卡住了，请查看。");
+	return parts.join("");
+}
+
+/** 卡住判定阈值：与【任务动画】同款——phase=code 且 18 秒无活动视为卡住（正常长任务不误报）。 */
+const STUCK_MS = 18000;
+
 // ---------- 共享快照：浮层（轮询） / 面板页 / 首页概要共用一份数据 ----------
 const notifyStore = {
 	snap: { status: null, loading: false, error: null },
@@ -173,35 +360,65 @@ function pageVisible() {
 	return typeof document === "undefined" || document.visibilityState === "visible";
 }
 
-// 当前正在看的会话标题（侧栏高亮行）。与【任务动画】的 currentSessionTitle 同款判定：
-// dsh 会话树行 = role="treeitem" + aria-selected，行文本即标题；侧栏在左，
-// 跳过正文区可能出现的同名高亮节点（右上搜索结果等）。
-function currentSelectedSessionTitle() {
-	if (typeof document === "undefined" || typeof window === "undefined") return "";
-	if (typeof document.querySelectorAll !== "function") return "";
+// 当前正在看的会话（侧栏高亮行）。返回 { id, title }：
+//  ① 首选权威标识：dsh 0.1.7+ 的会话行带 data-row-key="session:<id>"（Rows.tsx），
+//     高亮行取 id——**不做位置过滤**（旧版按「左缘 35vw 内」筛行，窄窗口/宽侧栏时
+//     行右缘超限被全部滤掉 → 跳转找不到行、巡检读不到选中 → 卡片永不收起，2026-10-23 实测）；
+//  ② 无 data-row-key 的旧宿主：回退「可见 + 左缘 35vw + 行文本」的标题判定。
+function currentSelectedSession() {
+	if (typeof document === "undefined" || typeof window === "undefined") return { id: "", title: "" };
+	if (typeof document.querySelectorAll !== "function") return { id: "", title: "" };
+	let byTitle = null;
 	for (const el of document.querySelectorAll('[role="treeitem"][aria-selected="true"]')) {
-		const r = el.getBoundingClientRect();
-		if (r.width > 0 && r.height > 0 && r.right <= window.innerWidth * .35) {
-			const text = (el.textContent || "").trim();
-			if (text) return text;
+		const k = typeof el.getAttribute === "function" ? el.getAttribute("data-row-key") : null;
+		if (typeof k === "string" && k.indexOf("session:") === 0) {
+			return { id: k.slice(8), title: (el.textContent || "").trim() };
+		}
+		if (!byTitle) {
+			const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+			if (r && r.width > 0 && r.height > 0 && r.right <= window.innerWidth * .35) {
+				const text = (el.textContent || "").trim();
+				if (text) byTitle = text;
+			}
 		}
 	}
-	return "";
+	return { id: "", title: byTitle || "" };
 }
 // 标题模糊对齐（与任务动画 taskOnScreen 同规则）：相等或互为子串即算同一会话
 function titleMatches(a, b) {
 	return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
 }
 
-// 点卡片跳转会话：在侧栏会话树里找标题对上的一行，点它（优先行内的 a/button）。
-// 判定与 currentSelectedSessionTitle 同口径（左缘 35vw 内、可见）；找不到可见行
-// （抽屉收起 / 手机端 / 会话被删）返回 false，调用方保持卡片不收起。
+// 浮层挂载时记下的 ctx（跳转会话要用宿主官方导航服务；见 NotifyOverlay 里的赋值）
+let overlayCtx = null;
+
+// 按 sessionId 精确跳转：宿主 ui-workspace 的官方 API（ctx.get('uiWorkspace')
+// .openSession(id)），选会话 + 显示其 Conversation 一步到位，抽屉收起也能跳。
+// 服务不可用（独立打包/旧宿主/测试沙箱）返回 false，调用方回退标题点行。
+function openSessionById(sessionId) {
+	if (!sessionId || !overlayCtx) return false;
+	let uiw = null;
+	try {
+		uiw = typeof overlayCtx.get === "function" ? overlayCtx.get("uiWorkspace") : overlayCtx.uiWorkspace;
+	} catch { return false; }
+	if (!uiw || typeof uiw.openSession !== "function") return false;
+	try { uiw.openSession(sessionId); return true; } catch { return false; }
+}
+
+// 点卡片跳转会话（标题回退路径）：在侧栏会话树里找标题对上的一行，点它（优先行内的 a/button）。
+// 找不到可见行（会话已删）返回 false，调用方保持卡片不收起。
 function openSessionByTitle(title) {
 	if (typeof document === "undefined" || typeof window === "undefined") return false;
 	if (typeof document.querySelectorAll !== "function" || !title) return false;
 	for (const el of document.querySelectorAll('[role="treeitem"]')) {
-		const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
-		if (!r || r.width <= 0 || r.height <= 0 || r.right > window.innerWidth * .35) continue;
+		const k = typeof el.getAttribute === "function" ? el.getAttribute("data-row-key") : null;
+		// 有权威标识的行按标识筛会话行；没有的（旧宿主/搜索行）按位置 + 文本
+		const isSessionRow = typeof k === "string" ? k.indexOf("session:") === 0 : true;
+		if (!isSessionRow) continue;
+		if (typeof k !== "string") {
+			const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+			if (!r || r.width <= 0 || r.height <= 0 || r.right > window.innerWidth * .35) continue;
+		}
 		if (!titleMatches((el.textContent || "").trim(), title)) continue;
 		const link = typeof el.querySelector === "function" ? el.querySelector("a,button") : null;
 		const target = link || el;
@@ -216,12 +433,13 @@ function Toast(props) {
 	const [closing, setClosing] = useState(!!t.closing);
 	const close = useCallback(() => { setClosing(true); }, []);
 	// 点卡片 = 跳转到对应会话。结束卡跳成功就地收起（这一看就把通知的活干完了）；
-	// 需确认卡只跳转不收——审批没处理完它就该在。找不到可见会话行（抽屉收起/
-	// 手机端/会话已删）不收起，卡片原样保留。
+	// 需确认卡只跳转不收——审批没处理完它就该在。跳转优先按 sessionId 走宿主官方
+	// 导航（抽屉收起也有效），回退按标题点侧栏行；都失败（会话已删）卡片原样保留。
 	const jump = useCallback(() => {
-		if (!t.sessionTitle) return;
-		if (openSessionByTitle(t.sessionTitle) && t.kind !== "confirm") setClosing(true);
-	}, [t.sessionTitle, t.kind]);
+		if (!t.sessionTitle && !t.sessionId) return;
+		const ok = openSessionById(t.sessionId) || (t.sessionTitle ? openSessionByTitle(t.sessionTitle) : false);
+		if (ok && t.kind !== "confirm") setClosing(true);
+	}, [t.sessionId, t.sessionTitle, t.kind]);
 	// 外部要求收起（审批已处理 / 已点进会话）走同一套淡出动画
 	useEffect(() => { if (t.closing && !closing) setClosing(true); }, [t.closing, closing]);
 	// 所有卡片都没有计时器：结束卡常驻到「看过」（点卡跳转 / 点进会话 / 手动 ✕），
@@ -241,10 +459,10 @@ function Toast(props) {
 	// 叠放收起态（collapsed）：只留标题条，正文隐藏；悬停卡片栈时整体展开
 	return (
 		<div className={"dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "")
-				+ (t.sessionTitle ? " clickable" : "")
+				+ (t.sessionTitle || t.sessionId ? " clickable" : "")
 				+ (props.collapsed ? " collapsed" : "")
 				+ (closing ? " out" : "")}
-			onClick={t.sessionTitle ? jump : undefined}>
+			onClick={t.sessionTitle || t.sessionId ? jump : undefined}>
 			<div className="dknt-toast-head">
 				<span className="dknt-toast-mark" style={{ background: markColor }} />
 				<span className="dknt-toast-title" title={t.sessionTitle || t.title}>
@@ -261,6 +479,8 @@ function Toast(props) {
 
 // ---------- 全局浮层：轮询 + 通知（功能启用即常驻） ----------
 export function NotifyOverlay(props) {
+	// 记下外壳 ctx：点卡片跳转会话要用宿主官方导航服务（openSessionById）
+	if (props && props.ctx) overlayCtx = props.ctx;
 	const snap = useNotify();
 	const [toasts, setToasts] = useState([]);
 	const [stackHover, setStackHover] = useState(false); // 卡片栈被悬停（叠放时整体展开）
@@ -326,6 +546,10 @@ export function NotifyOverlay(props) {
 			const fresh = approvals.filter((a) => a && !seen.has(a.id));
 			if (fresh.length === 0) continue;
 			for (const a of fresh) seen.add(a.id);
+			// 语音播报走自己的开关（在卡片开关判定**之前**：关掉卡片提醒不等于关掉耳朵）
+			if (cfg.voiceNotify === true && cfg.voiceOnConfirm !== false) {
+				speakVoice(confirmBroadcastText(task, fresh[0], cfg), cfg);
+			}
 			// 提醒开关在"收到新确认项"时检查，保证开关中途打开对下一项生效
 			if (cfg.notifyOnConfirm === false) continue;
 			const toolName = fresh[0].toolName || "";
@@ -342,6 +566,7 @@ export function NotifyOverlay(props) {
 				title: "任务需要确认",
 				body: lines.join("\n"),
 				// 点卡片直达该会话去处理审批（需确认卡跳转后不收起——审批没处理完它就该在）
+				sessionId: task.sessionId || "",
 				sessionTitle: task.title || "",
 				// 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
 				// 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
@@ -384,21 +609,24 @@ export function NotifyOverlay(props) {
 		});
 	}, [snap.status]);
 
-	// 结束卡（完成/异常）的"看过即收"：用户点进那个会话（侧栏高亮行标题与卡片
-	// 绑定的 sessionTitle 对上）就视为已看到结果，卡片自动收起。结束卡没有超时
-	// 自毁——没看过就一直挂着；这条巡检是它唯一的自动出口（另有手动 ✕ 与点卡跳转）。
+	// 结束卡（完成/异常）的"看过即收"：用户点进那个会话（侧栏高亮行 = 卡片绑定的
+	// sessionId，或旧宿主回退到标题对上）就视为已看到结果，卡片自动收起。结束卡没有
+	// 超时自毁——没看过就一直挂着；这条巡检是它唯一的自动出口（另有手动 ✕ 与点卡跳转）。
 	// 侧栏选中没有事件可订阅，用轻量轮询（500ms 一次 querySelectorAll）；页面在
 	// 后台不检查（回来时若仍停在该会话，收起发生在切回后）。
 	useEffect(() => {
 		const timer = setInterval(() => {
 			if (!pageVisible()) return;
-			const current = currentSelectedSessionTitle();
-			if (!current) return;
+			const cur = currentSelectedSession();
+			if (!cur.id && !cur.title) return;
 			setToasts((prev) => {
 				let changed = false;
 				const next = prev.map((x) => {
-					if (x.kind === "confirm" || x.closing || !x.sessionTitle) return x;
-					if (!titleMatches(x.sessionTitle, current)) return x;
+					if (x.kind === "confirm" || x.closing) return x;
+					if (!x.sessionTitle && !x.sessionId) return x;
+					const hit = (cur.id && x.sessionId && cur.id === x.sessionId)
+						|| (!cur.id && x.sessionTitle && titleMatches(x.sessionTitle, cur.title));
+					if (!hit) return x;
 					changed = true;
 					return Object.assign({}, x, { closing: true });
 				});
@@ -408,11 +636,45 @@ export function NotifyOverlay(props) {
 		return () => clearInterval(timer);
 	}, []);
 
+	// ===== 卡住检测：编程阶段长时间无活动 → 播报一次（与【任务动画】同口径 18s） =====
+	// 每个会话只报一次：恢复活动（lastActivityAt 变新）即清除标记，之后再卡住可再报；
+	// 会话离开活跃列表（结束/取消）同样清除。阈值到点才轮询比对，850ms 的节奏足够。
+	const stuckSeenRef = useRef(new Map()); // sessionId -> 已播报时的 lastActivityAt
+	useEffect(() => {
+		const st = snap.status;
+		if (!st || !st.active) return;
+		const cfg = st.config || {};
+		const now = st.now || Date.now();
+		const activeIds = new Set(st.active.map((x) => x.sessionId));
+		for (const sid of Array.from(stuckSeenRef.current.keys())) {
+			if (!activeIds.has(sid)) stuckSeenRef.current.delete(sid);
+		}
+		if (cfg.voiceNotify !== true || cfg.voiceOnStuck === false) return;
+		for (const task of st.active) {
+			// 等用户批准的会话不算卡住——那是「需确认」提醒的职责，别重复轰炸
+			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+			if (approvals.length > 0) { stuckSeenRef.current.delete(task.sessionId); continue; }
+			if (task.phase !== "code") { continue; }
+			const lastAct = task.lastActivityAt || task.phaseAt || 0;
+			if (!lastAct || now - lastAct < STUCK_MS) continue;
+			const prev = stuckSeenRef.current.get(task.sessionId);
+			if (prev === lastAct) continue; // 同一停点已报过
+			stuckSeenRef.current.set(task.sessionId, lastAct);
+			speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs: now - lastAct })), cfg);
+		}
+	}, [snap.status]);
+
 	const handleTaskEnd = (task, record, cfg) => {
 		const reason = (record && record.endReason) || "";
 		const success = isSuccessReason(reason);
 		const info = endInfo(reason);
 		const wanted = success ? cfg.notifyOnComplete : cfg.notifyOnError;
+		// 语音播报先走自己的开关（与卡片开关正交：关卡片不关耳朵）。
+		// 播报音量归 0 / 浏览器不支持时静默跳过即可。
+		if (cfg.voiceNotify === true
+			&& (success ? cfg.voiceOnComplete !== false : cfg.voiceOnError !== false)) {
+			speakVoice(endBroadcastText(success, record, task, cfg), cfg);
+		}
 		if (wanted === false) return;
 		const models = record && record.models && record.models.length ? record.models.join(", ")
 			: (task.models && task.models.length ? task.models.join(", ") : "未知模型");
@@ -438,8 +700,10 @@ export function NotifyOverlay(props) {
 			kind: success ? "success" : (info.cls === "err" ? "error" : "warn"),
 			title,
 			body: lines.join("\n"),
-			// 绑定会话标题：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
+			// 绑定会话：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
 			// 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
+			// sessionId 是权威标识（跳转/对账都用它），标题只作旧宿主回退。
+			sessionId: task.sessionId || "",
 			sessionTitle: (record && record.title) || task.title || "",
 		});
 		// 提示音：任务结束时播放（完成/异常配套音）；与系统通知独立开关
@@ -477,6 +741,7 @@ export function NotifyOverlay(props) {
 // ---------- 面板页 ----------
 function NotifyView(props) {
 	const snap = useNotify();
+	const voices = useLocalVoices(); // 音色下拉用（本机 speechSynthesis 音色表）
 	const [cfg, setCfg] = useState(null); // null = 尚未加载
 	const [saveErr, setSaveErr] = useState("");
 	const [testing, setTesting] = useState(false);
@@ -691,6 +956,118 @@ function NotifyView(props) {
 					) : null}
 				</div>
 			</div>,
+			<div key="voice" className="dknt-sec">
+				<div className="dknt-sec-head">
+					<span className="dknt-sec-title">语音播报</span>
+					<span className="dknt-sec-sub">任务完成 / 停止 / 需要授权 / 卡住时用浏览器语音（TTS）说一句话；与提示音、系统通知互不冲突</span>
+					<span className="dknt-sec-sw">
+						<span className={"dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : "")}>{cfg.voiceNotify ? "已开启" : "已关闭"}</span>
+						<button type="button" className={"dock-sw" + (cfg.voiceNotify ? " on" : "")}
+							role="switch" aria-checked={cfg.voiceNotify} aria-label="开关语音播报"
+							title={cfg.voiceNotify ? "关闭语音播报" : "开启语音播报"}
+							onClick={() => patch({ voiceNotify: !cfg.voiceNotify })} />
+					</span>
+				</div>
+				{cfg.voiceNotify ? <div className="dknt-rows-narrow">
+					<div className="dknt-row">
+						<span className="dknt-row-label">播报口径</span>
+						<button type="button" className={"dknt-miniswitch" + (cfg.voiceMode !== "detailed" ? " on" : "")}
+							onClick={() => patch({ voiceMode: "brief" })}>简洁</button>
+						<button type="button" className={"dknt-miniswitch" + (cfg.voiceMode === "detailed" ? " on" : "")}
+							onClick={() => patch({ voiceMode: "detailed" })}>详细</button>
+						<span className="dknt-row-sub">简洁：一句「任务完成 / 任务停止了 / 任务需要授权 / 任务卡住了」；详细：带上任务标题、耗时、回合统计与原因</span>
+					</div>
+					<div className="dknt-row">
+						<span className="dknt-row-label">播报时刻</span>
+						<span className="dknt-row-sub" style={{ minWidth: 0 }}>
+							{[
+								["voiceOnComplete", "完成", cfg.voiceOnComplete !== false],
+								["voiceOnError", "停止", cfg.voiceOnError !== false],
+								["voiceOnConfirm", "需授权", cfg.voiceOnConfirm !== false],
+								["voiceOnStuck", "卡住", cfg.voiceOnStuck !== false],
+							].map(([key, label, on]) => (
+								<button type="button" key={key} className={"dknt-miniswitch" + (on ? " on" : "")}
+									style={{ marginRight: 6 }}
+									title={key === "voiceOnStuck" ? "编程阶段 18 秒没有动静时播报一次（恢复后可再报）" : ""}
+									onClick={() => patch({ [key]: !on })}>{label}{on ? "·开" : "·关"}</button>
+							))}
+						</span>
+					</div>
+					<div className="dknt-row">
+						<span className="dknt-row-label">语速</span>
+						<input type="range" min="0.5" max="2" step="0.05" value={String(cfg.voiceRate || 1)}
+							aria-label="播报语速" style={{ width: 120, accentColor: "var(--dk-accent)" }}
+							onChange={(e) => patch({ voiceRate: Number(e.target.value) || 1 })} />
+						<span className="dknt-row-sub">{Number(cfg.voiceRate || 1).toFixed(2)}×（播报比正文朗读略快更利落）</span>
+					</div>
+					<div className="dknt-row">
+						<span className="dknt-row-label">音量</span>
+						<input type="range" min="0" max="1" step="0.05" value={String(cfg.voiceVolume == null ? 1 : cfg.voiceVolume)}
+							aria-label="播报音量" style={{ width: 120, accentColor: "var(--dk-accent)" }}
+							onChange={(e) => patch({ voiceVolume: Number(e.target.value) })} />
+						<span className="dknt-row-sub">{Math.round((cfg.voiceVolume == null ? 1 : cfg.voiceVolume) * 100)}%</span>
+					</div>
+					<div className="dknt-row">
+						<span className="dknt-row-label">音色</span>
+						<select className="dknt-input" style={{ maxWidth: 260 }} value={cfg.voiceURI || ""}
+							aria-label="播报音色"
+							onChange={(e) => patch({ voiceURI: e.target.value })}>
+							<option value="">自动（按语言挑）</option>
+							{(() => {
+								// 与【语音朗读】同款分组：中文在前，其余按语言名排序，长列表也能找
+								const zh = [], other = [];
+								for (const v of voices) {
+									if (!v || !v.voiceURI) continue;
+									if (/^zh/i.test(String(v.lang || ""))) zh.push(v); else other.push(v);
+								}
+								const groups = [];
+								if (zh.length) groups.push(["中文音色", zh]);
+								if (other.length) groups.push(["其他音色", other]);
+								return groups.map(([gname, vs]) => (
+									<optgroup key={gname} label={gname}>
+										{vs.map((v) => (
+											<option key={v.voiceURI} value={v.voiceURI}>
+												{(v.name || v.voiceURI) + "（" + (v.lang || "?") + "）"}
+											</option>
+										))}
+									</optgroup>
+								));
+							})()}
+						</select>
+						<span className="dknt-row-sub">{voices.length
+							? "音色是本机浏览器给的，换设备可能要重选；本机找不到所选音色时自动按语言回落"
+							: "本机暂未读到音色（系统语音未装/未启用），将按语言自动挑"}</span>
+					</div>
+					<div className="dknt-row">
+						<span className="dknt-row-label">试听</span>
+						<button type="button" className="dknt-btn" disabled={!voiceSupported()}
+							onClick={() => {
+								const preview = Object.assign({}, cfg, { voiceNotify: true });
+								speakVoice(endBroadcastText(true, { title: "示例任务", duration: 125000, turns: 3, steps: 9, toolCalls: 4, lastText: "好的，三份文档都已更新完毕。" }, null, preview), preview);
+							}}>播一句</button>
+						<button type="button" className="dknt-btn" disabled={!voiceSupported()}
+							onClick={() => {
+								const preview = Object.assign({}, cfg, { voiceNotify: true });
+								speakVoice(confirmBroadcastText({ title: "示例任务" }, { toolName: "pwsh" }, preview), preview);
+							}}>需授权</button>
+						<span className="dknt-row-sub">{voiceSupported()
+							? "浏览器语音合成（与【语音朗读】同一套声音，独立开关；打断式——播报信时正在朗读的正文会让位）"
+							: "本浏览器不支持语音合成（speechSynthesis 不可用）"}</span>
+					</div>
+					<div className="dknt-row">
+						<span className="dknt-row-label">语言</span>
+						<select className="dknt-input" style={{ maxWidth: 180 }} value={cfg.voiceLang || ""}
+							aria-label="播报语言"
+							onChange={(e) => patch({ voiceLang: e.target.value })}>
+							<option value="">自动（中文优先）</option>
+							{["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => (
+								<option key={l} value={l}>{l}</option>
+							))}
+						</select>
+						<span className="dknt-row-sub">未指定音色时按语言自动挑；已选音色的语言会覆盖这里</span>
+					</div>
+				</div> : <div className="dknt-note">未开启——任务事件不播报语音（提示音、系统通知不受影响）。</div>}
+			</div>,
 			<div key="dingtalk" className="dknt-sec">
 				<div className="dknt-sec-head">
 					<span className="dknt-sec-title">钉钉推送</span>
@@ -792,7 +1169,7 @@ function NotifyStat(props) {
 	if (snap.error) return <span className="dknt-err">通知状态不可用（宿主需重启加载通知路由）</span>;
 	if (!cfg) return <span>等待通知配置…</span>;
 	const events = [cfg.notifyOnComplete ? "完成" : "", cfg.notifyOnError ? "异常" : "", cfg.notifyOnConfirm !== false ? "需确认" : ""].filter(Boolean);
-	const extras = [cfg.soundNotify !== false ? "提示音" : "", cfg.systemNotify ? "系统通知" : ""].filter(Boolean);
+	const extras = [cfg.soundNotify !== false ? "提示音" : "", cfg.systemNotify ? "系统通知" : "", cfg.voiceNotify ? ("语音播报" + (cfg.voiceMode === "detailed" ? "·详" : "·简")) : ""].filter(Boolean);
 	const push = [cfg.dingtalkEnabled ? "钉钉" : "", cfg.feishuEnabled ? "飞书" : ""].filter(Boolean);
 	return <span>{(events.length ? "通知：" + events.join("/") : "通知事件全关")
 		+ (extras.length ? " · " + extras.join("/") : "")

@@ -7275,6 +7275,188 @@ function previewSound(effect) {
   const delayed = lib.notes.err.map(([f, at, dur, wave]) => [f, at + 0.55, dur, wave]);
   playTone(delayed);
 }
+function synthOf() {
+  try {
+    const g = typeof globalThis !== "undefined" ? globalThis : null;
+    if (g && g.speechSynthesis) return g.speechSynthesis;
+    if (typeof window !== "undefined" && window.speechSynthesis) return window.speechSynthesis;
+  } catch {
+  }
+  return null;
+}
+function utterCtor() {
+  try {
+    const g = typeof globalThis !== "undefined" && globalThis.SpeechSynthesisUtterance ? globalThis.SpeechSynthesisUtterance : typeof window !== "undefined" ? window.SpeechSynthesisUtterance : null;
+    return g;
+  } catch {
+    return null;
+  }
+}
+function voiceSupported() {
+  return synthOf() !== null && utterCtor() !== null;
+}
+function localVoices() {
+  const s = synthOf();
+  if (!s) return [];
+  try {
+    return (typeof s.getVoices === "function" ? s.getVoices() : []) || [];
+  } catch {
+    return [];
+  }
+}
+function pickVoice(cfg, text) {
+  const voices = localVoices();
+  if (voices.length === 0) return null;
+  const want = String(cfg && cfg.voiceURI || "");
+  if (want) {
+    const hit = voices.find((v) => v && v.voiceURI === want);
+    if (hit) return hit;
+  }
+  const lang = String(cfg && cfg.voiceLang || "");
+  if (lang) {
+    const base = lang.split("-")[0].toLowerCase();
+    return voices.find((v) => String(v.lang || "").toLowerCase() === lang.toLowerCase()) || voices.find((v) => String(v.lang || "").toLowerCase().startsWith(base)) || null;
+  }
+  if (!text || /[\u4E00-\u9FFF]/.test(text)) {
+    const zh = voices.find((v) => /^zh/i.test(String(v.lang || "")));
+    if (zh) return zh;
+  }
+  return null;
+}
+function useLocalVoices() {
+  const [, force] = (0, import_react10.useState)(0);
+  const ref = (0, import_react10.useRef)(null);
+  if (ref.current === null) ref.current = localVoices();
+  (0, import_react10.useEffect)(() => {
+    const s = synthOf();
+    const onChange = () => {
+      ref.current = localVoices();
+      force((n) => n + 1);
+    };
+    if (s && typeof s.addEventListener === "function") {
+      try {
+        s.addEventListener("voiceschanged", onChange);
+      } catch {
+      }
+    }
+    if (ref.current.length === 0) onChange();
+    return () => {
+      if (s && typeof s.removeEventListener === "function") {
+        try {
+          s.removeEventListener("voiceschanged", onChange);
+        } catch {
+        }
+      }
+    };
+  }, []);
+  return ref.current;
+}
+var voiceEpoch = 0;
+function speakVoice(text, cfg) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  const s = synthOf();
+  const Ctor = utterCtor();
+  if (!s || !Ctor) return false;
+  const c = cfg || {};
+  let utt = null;
+  try {
+    utt = new Ctor(t);
+  } catch {
+    return false;
+  }
+  if (!utt) return false;
+  utt.rate = typeof c.voiceRate === "number" ? Math.min(2, Math.max(0.5, c.voiceRate)) : 1;
+  utt.volume = typeof c.voiceVolume === "number" ? Math.min(1, Math.max(0, c.voiceVolume)) : 1;
+  let lang = String(c.voiceLang || "");
+  if (!lang && /[\u4E00-\u9FFF]/.test(t)) lang = "zh-CN";
+  if (lang) utt.lang = lang;
+  const voice = pickVoice(c, t);
+  if (voice) {
+    utt.voice = voice;
+    if (voice.lang) utt.lang = voice.lang;
+  }
+  const epoch = ++voiceEpoch;
+  try {
+    s.cancel();
+  } catch {
+  }
+  const delay = () => {
+    if (epoch !== voiceEpoch) return;
+    try {
+      s.speak(utt);
+    } catch {
+    }
+  };
+  let waited = 0;
+  const poll = () => {
+    if (epoch !== voiceEpoch) return;
+    let busy = false;
+    try {
+      busy = s.speaking === true || s.pending === true;
+    } catch {
+      busy = false;
+    }
+    if (!busy || waited >= 800) {
+      delay();
+      return;
+    }
+    waited += 20;
+    setTimeout(poll, 20);
+  };
+  poll();
+  return true;
+}
+function endReasonSpeech(reason) {
+  if (reason === "error") return "\u51FA\u9519\u4E86";
+  if (reason === "aborted") return "\u5DF2\u505C\u6B62";
+  if (reason === "blocked") return "\u53D7\u963B\u505C\u6B62\u4E86";
+  if (reason === "max-tokens") return "\u8FBE\u5230\u8F93\u51FA\u4E0A\u9650\u505C\u6B62\u4E86";
+  if (reason === "interrupted") return "\u88AB\u6253\u65AD\u4E86";
+  return "\u5B8C\u6210\u4E86";
+}
+function endBroadcastText(success, record, task, cfg) {
+  const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+  const reason = record && record.endReason || "";
+  const title = record && record.title || task && task.title || "";
+  if (mode === "brief") {
+    return success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1\u505C\u6B62\u4E86";
+  }
+  const parts = [];
+  if (title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(title, 30) + "\u3002");
+  parts.push(success ? "\u5DF2\u5B8C\u6210\u3002" : "\u7ED3\u675F\uFF0C\u539F\u56E0\uFF1A" + endReasonSpeech(reason) + "\u3002");
+  const dur = record && record.duration || 0;
+  if (dur > 0) parts.push("\u8017\u65F6" + fmtDur(dur) + "\u3002");
+  const turns = record && record.turns || task && task.turns || 0;
+  const steps = record && record.steps || task && task.steps || 0;
+  const tools = record && record.toolCalls || task && task.toolCalls || 0;
+  if (turns || steps) parts.push("\u5171" + turns + "\u56DE\u5408" + steps + "\u6B65" + (tools ? "\u3001\u5DE5\u5177" + tools + "\u6B21" : "") + "\u3002");
+  if (!success && record && record.errorMessage) parts.push("\u9519\u8BEF\uFF1A" + truncate2(String(record.errorMessage).replace(/[`*_#>\[\]()]/g, " "), 50) + "\u3002");
+  if (success && record && record.lastText) {
+    const plain = truncate2(String(record.lastText).replace(/[#*_`>\[\]()!]/g, "").replace(/\s+/g, " "), 40);
+    if (plain) parts.push("\u56DE\u590D\u6458\u8981\uFF1A" + plain);
+  }
+  return parts.join("");
+}
+function confirmBroadcastText(task, approval, cfg) {
+  const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+  if (mode === "brief") return "\u4EFB\u52A1\u9700\u8981\u6388\u6743";
+  const tool = approval && approval.toolName || "\u5DE5\u5177";
+  const scene = toolLabel(tool);
+  const parts = [];
+  if (task && task.title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(task.title, 30) + "\u3002");
+  parts.push("\u6B63\u5728\u7B49\u5F85\u4F60\u6279\u51C6" + (scene ? "\u6267\u884C" + scene : "") + "\uFF0C\u5DE5\u5177\u662F" + tool + "\uFF0C\u8BF7\u56DE\u5230\u4F1A\u8BDD\u5904\u7406\u3002");
+  return parts.join("");
+}
+function stuckBroadcastText(task, cfg) {
+  const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+  if (mode === "brief") return "\u4EFB\u52A1\u5361\u4F4F\u4E86";
+  const parts = [];
+  if (task && task.title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(task.title, 30) + "\u3002");
+  parts.push("\u7F16\u7A0B\u9636\u6BB5\u5DF2\u7ECF" + fmtDur(Math.max(0, cfg && cfg.stuckMs || STUCK_MS)) + "\u6CA1\u6709\u4EFB\u4F55\u52A8\u9759\uFF0C\u53EF\u80FD\u5361\u4F4F\u4E86\uFF0C\u8BF7\u67E5\u770B\u3002");
+  return parts.join("");
+}
+var STUCK_MS = 18e3;
 var notifyStore = {
   snap: { status: null, loading: false, error: null },
   listeners: /* @__PURE__ */ new Set(),
@@ -7314,27 +7496,56 @@ function useNotify() {
 function pageVisible() {
   return typeof document === "undefined" || document.visibilityState === "visible";
 }
-function currentSelectedSessionTitle() {
-  if (typeof document === "undefined" || typeof window === "undefined") return "";
-  if (typeof document.querySelectorAll !== "function") return "";
+function currentSelectedSession() {
+  if (typeof document === "undefined" || typeof window === "undefined") return { id: "", title: "" };
+  if (typeof document.querySelectorAll !== "function") return { id: "", title: "" };
+  let byTitle = null;
   for (const el of document.querySelectorAll('[role="treeitem"][aria-selected="true"]')) {
-    const r = el.getBoundingClientRect();
-    if (r.width > 0 && r.height > 0 && r.right <= window.innerWidth * 0.35) {
-      const text = (el.textContent || "").trim();
-      if (text) return text;
+    const k = typeof el.getAttribute === "function" ? el.getAttribute("data-row-key") : null;
+    if (typeof k === "string" && k.indexOf("session:") === 0) {
+      return { id: k.slice(8), title: (el.textContent || "").trim() };
+    }
+    if (!byTitle) {
+      const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+      if (r && r.width > 0 && r.height > 0 && r.right <= window.innerWidth * 0.35) {
+        const text = (el.textContent || "").trim();
+        if (text) byTitle = text;
+      }
     }
   }
-  return "";
+  return { id: "", title: byTitle || "" };
 }
 function titleMatches(a, b) {
   return !!a && !!b && (a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1);
+}
+var overlayCtx = null;
+function openSessionById(sessionId) {
+  if (!sessionId || !overlayCtx) return false;
+  let uiw = null;
+  try {
+    uiw = typeof overlayCtx.get === "function" ? overlayCtx.get("uiWorkspace") : overlayCtx.uiWorkspace;
+  } catch {
+    return false;
+  }
+  if (!uiw || typeof uiw.openSession !== "function") return false;
+  try {
+    uiw.openSession(sessionId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 function openSessionByTitle(title) {
   if (typeof document === "undefined" || typeof window === "undefined") return false;
   if (typeof document.querySelectorAll !== "function" || !title) return false;
   for (const el of document.querySelectorAll('[role="treeitem"]')) {
-    const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
-    if (!r || r.width <= 0 || r.height <= 0 || r.right > window.innerWidth * 0.35) continue;
+    const k = typeof el.getAttribute === "function" ? el.getAttribute("data-row-key") : null;
+    const isSessionRow = typeof k === "string" ? k.indexOf("session:") === 0 : true;
+    if (!isSessionRow) continue;
+    if (typeof k !== "string") {
+      const r = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+      if (!r || r.width <= 0 || r.height <= 0 || r.right > window.innerWidth * 0.35) continue;
+    }
     if (!titleMatches((el.textContent || "").trim(), title)) continue;
     const link = typeof el.querySelector === "function" ? el.querySelector("a,button") : null;
     const target = link || el;
@@ -7353,9 +7564,10 @@ function Toast(props) {
     setClosing(true);
   }, []);
   const jump = (0, import_react10.useCallback)(() => {
-    if (!t.sessionTitle) return;
-    if (openSessionByTitle(t.sessionTitle) && t.kind !== "confirm") setClosing(true);
-  }, [t.sessionTitle, t.kind]);
+    if (!t.sessionTitle && !t.sessionId) return;
+    const ok = openSessionById(t.sessionId) || (t.sessionTitle ? openSessionByTitle(t.sessionTitle) : false);
+    if (ok && t.kind !== "confirm") setClosing(true);
+  }, [t.sessionId, t.sessionTitle, t.kind]);
   (0, import_react10.useEffect)(() => {
     if (t.closing && !closing) setClosing(true);
   }, [t.closing, closing]);
@@ -7368,8 +7580,8 @@ function Toast(props) {
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
     "div",
     {
-      className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (t.sessionTitle ? " clickable" : "") + (props.collapsed ? " collapsed" : "") + (closing ? " out" : ""),
-      onClick: t.sessionTitle ? jump : void 0,
+      className: "dknt-toast" + (t.kind === "confirm" ? " dknt-toast-confirm" : "") + (t.sessionTitle || t.sessionId ? " clickable" : "") + (props.collapsed ? " collapsed" : "") + (closing ? " out" : ""),
+      onClick: t.sessionTitle || t.sessionId ? jump : void 0,
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
@@ -7398,6 +7610,7 @@ function Toast(props) {
   );
 }
 function NotifyOverlay(props) {
+  if (props && props.ctx) overlayCtx = props.ctx;
   const snap = useNotify();
   const [toasts, setToasts] = (0, import_react10.useState)([]);
   const [stackHover, setStackHover] = (0, import_react10.useState)(false);
@@ -7460,6 +7673,9 @@ function NotifyOverlay(props) {
       const fresh = approvals.filter((a) => a && !seen.has(a.id));
       if (fresh.length === 0) continue;
       for (const a of fresh) seen.add(a.id);
+      if (cfg.voiceNotify === true && cfg.voiceOnConfirm !== false) {
+        speakVoice(confirmBroadcastText(task, fresh[0], cfg), cfg);
+      }
       if (cfg.notifyOnConfirm === false) continue;
       const toolName = fresh[0].toolName || "";
       const scene = toolLabel(toolName);
@@ -7475,6 +7691,7 @@ function NotifyOverlay(props) {
         title: "\u4EFB\u52A1\u9700\u8981\u786E\u8BA4",
         body: lines.join("\n"),
         // 点卡片直达该会话去处理审批（需确认卡跳转后不收起——审批没处理完它就该在）
+        sessionId: task.sessionId || "",
         sessionTitle: task.title || "",
         // 卡片与这批审批项绑定：approval/decided 后宿主把它们移出 approvals，
         // 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
@@ -7515,13 +7732,15 @@ function NotifyOverlay(props) {
   (0, import_react10.useEffect)(() => {
     const timer = setInterval(() => {
       if (!pageVisible()) return;
-      const current = currentSelectedSessionTitle();
-      if (!current) return;
+      const cur = currentSelectedSession();
+      if (!cur.id && !cur.title) return;
       setToasts((prev) => {
         let changed = false;
         const next = prev.map((x) => {
-          if (x.kind === "confirm" || x.closing || !x.sessionTitle) return x;
-          if (!titleMatches(x.sessionTitle, current)) return x;
+          if (x.kind === "confirm" || x.closing) return x;
+          if (!x.sessionTitle && !x.sessionId) return x;
+          const hit = cur.id && x.sessionId && cur.id === x.sessionId || !cur.id && x.sessionTitle && titleMatches(x.sessionTitle, cur.title);
+          if (!hit) return x;
           changed = true;
           return Object.assign({}, x, { closing: true });
         });
@@ -7530,11 +7749,42 @@ function NotifyOverlay(props) {
     }, 500);
     return () => clearInterval(timer);
   }, []);
+  const stuckSeenRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  (0, import_react10.useEffect)(() => {
+    const st = snap.status;
+    if (!st || !st.active) return;
+    const cfg = st.config || {};
+    const now = st.now || Date.now();
+    const activeIds = new Set(st.active.map((x) => x.sessionId));
+    for (const sid of Array.from(stuckSeenRef.current.keys())) {
+      if (!activeIds.has(sid)) stuckSeenRef.current.delete(sid);
+    }
+    if (cfg.voiceNotify !== true || cfg.voiceOnStuck === false) return;
+    for (const task of st.active) {
+      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+      if (approvals.length > 0) {
+        stuckSeenRef.current.delete(task.sessionId);
+        continue;
+      }
+      if (task.phase !== "code") {
+        continue;
+      }
+      const lastAct = task.lastActivityAt || task.phaseAt || 0;
+      if (!lastAct || now - lastAct < STUCK_MS) continue;
+      const prev = stuckSeenRef.current.get(task.sessionId);
+      if (prev === lastAct) continue;
+      stuckSeenRef.current.set(task.sessionId, lastAct);
+      speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs: now - lastAct })), cfg);
+    }
+  }, [snap.status]);
   const handleTaskEnd = (task, record, cfg) => {
     const reason = record && record.endReason || "";
     const success = isSuccessReason2(reason);
     const info = endInfo(reason);
     const wanted = success ? cfg.notifyOnComplete : cfg.notifyOnError;
+    if (cfg.voiceNotify === true && (success ? cfg.voiceOnComplete !== false : cfg.voiceOnError !== false)) {
+      speakVoice(endBroadcastText(success, record, task, cfg), cfg);
+    }
     if (wanted === false) return;
     const models = record && record.models && record.models.length ? record.models.join(", ") : task.models && task.models.length ? task.models.join(", ") : "\u672A\u77E5\u6A21\u578B";
     const provider = record && record.provider || task.provider || "";
@@ -7555,8 +7805,10 @@ function NotifyOverlay(props) {
       kind: success ? "success" : info.cls === "err" ? "error" : "warn",
       title,
       body: lines.join("\n"),
-      // 绑定会话标题：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
+      // 绑定会话：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
       // 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
+      // sessionId 是权威标识（跳转/对账都用它），标题只作旧宿主回退。
+      sessionId: task.sessionId || "",
       sessionTitle: record && record.title || task.title || ""
     });
     if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
@@ -7593,6 +7845,7 @@ function NotifyOverlay(props) {
 }
 function NotifyView(props) {
   const snap = useNotify();
+  const voices = useLocalVoices();
   const [cfg, setCfg] = (0, import_react10.useState)(null);
   const [saveErr, setSaveErr] = (0, import_react10.useState)("");
   const [testing, setTesting] = (0, import_react10.useState)(false);
@@ -7835,6 +8088,191 @@ function NotifyView(props) {
       ] }, "style"),
       /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u8BED\u97F3\u64AD\u62A5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u5B8C\u6210 / \u505C\u6B62 / \u9700\u8981\u6388\u6743 / \u5361\u4F4F\u65F6\u7528\u6D4F\u89C8\u5668\u8BED\u97F3\uFF08TTS\uFF09\u8BF4\u4E00\u53E5\u8BDD\uFF1B\u4E0E\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u4E92\u4E0D\u51B2\u7A81" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : ""), children: cfg.voiceNotify ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dock-sw" + (cfg.voiceNotify ? " on" : ""),
+                role: "switch",
+                "aria-checked": cfg.voiceNotify,
+                "aria-label": "\u5F00\u5173\u8BED\u97F3\u64AD\u62A5",
+                title: cfg.voiceNotify ? "\u5173\u95ED\u8BED\u97F3\u64AD\u62A5" : "\u5F00\u542F\u8BED\u97F3\u64AD\u62A5",
+                onClick: () => patch({ voiceNotify: !cfg.voiceNotify })
+              }
+            )
+          ] })
+        ] }),
+        cfg.voiceNotify ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u53E3\u5F84" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.voiceMode !== "detailed" ? " on" : ""),
+                onClick: () => patch({ voiceMode: "brief" }),
+                children: "\u7B80\u6D01"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.voiceMode === "detailed" ? " on" : ""),
+                onClick: () => patch({ voiceMode: "detailed" }),
+                children: "\u8BE6\u7EC6"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1A\u4E00\u53E5\u300C\u4EFB\u52A1\u5B8C\u6210 / \u4EFB\u52A1\u505C\u6B62\u4E86 / \u4EFB\u52A1\u9700\u8981\u6388\u6743 / \u4EFB\u52A1\u5361\u4F4F\u4E86\u300D\uFF1B\u8BE6\u7EC6\uFF1A\u5E26\u4E0A\u4EFB\u52A1\u6807\u9898\u3001\u8017\u65F6\u3001\u56DE\u5408\u7EDF\u8BA1\u4E0E\u539F\u56E0" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u65F6\u523B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", style: { minWidth: 0 }, children: [
+              ["voiceOnComplete", "\u5B8C\u6210", cfg.voiceOnComplete !== false],
+              ["voiceOnError", "\u505C\u6B62", cfg.voiceOnError !== false],
+              ["voiceOnConfirm", "\u9700\u6388\u6743", cfg.voiceOnConfirm !== false],
+              ["voiceOnStuck", "\u5361\u4F4F", cfg.voiceOnStuck !== false]
+            ].map(([key, label, on]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (on ? " on" : ""),
+                style: { marginRight: 6 },
+                title: key === "voiceOnStuck" ? "\u7F16\u7A0B\u9636\u6BB5 18 \u79D2\u6CA1\u6709\u52A8\u9759\u65F6\u64AD\u62A5\u4E00\u6B21\uFF08\u6062\u590D\u540E\u53EF\u518D\u62A5\uFF09" : "",
+                onClick: () => patch({ [key]: !on }),
+                children: [
+                  label,
+                  on ? "\xB7\u5F00" : "\xB7\u5173"
+                ]
+              },
+              key
+            )) })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BED\u901F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "input",
+              {
+                type: "range",
+                min: "0.5",
+                max: "2",
+                step: "0.05",
+                value: String(cfg.voiceRate || 1),
+                "aria-label": "\u64AD\u62A5\u8BED\u901F",
+                style: { width: 120, accentColor: "var(--dk-accent)" },
+                onChange: (e) => patch({ voiceRate: Number(e.target.value) || 1 })
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub", children: [
+              Number(cfg.voiceRate || 1).toFixed(2),
+              "\xD7\uFF08\u64AD\u62A5\u6BD4\u6B63\u6587\u6717\u8BFB\u7565\u5FEB\u66F4\u5229\u843D\uFF09"
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u97F3\u91CF" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "input",
+              {
+                type: "range",
+                min: "0",
+                max: "1",
+                step: "0.05",
+                value: String(cfg.voiceVolume == null ? 1 : cfg.voiceVolume),
+                "aria-label": "\u64AD\u62A5\u97F3\u91CF",
+                style: { width: 120, accentColor: "var(--dk-accent)" },
+                onChange: (e) => patch({ voiceVolume: Number(e.target.value) })
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub", children: [
+              Math.round((cfg.voiceVolume == null ? 1 : cfg.voiceVolume) * 100),
+              "%"
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u97F3\u8272" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+              "select",
+              {
+                className: "dknt-input",
+                style: { maxWidth: 260 },
+                value: cfg.voiceURI || "",
+                "aria-label": "\u64AD\u62A5\u97F3\u8272",
+                onChange: (e) => patch({ voiceURI: e.target.value }),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "", children: "\u81EA\u52A8\uFF08\u6309\u8BED\u8A00\u6311\uFF09" }),
+                  (() => {
+                    const zh = [], other = [];
+                    for (const v of voices) {
+                      if (!v || !v.voiceURI) continue;
+                      if (/^zh/i.test(String(v.lang || ""))) zh.push(v);
+                      else other.push(v);
+                    }
+                    const groups = [];
+                    if (zh.length) groups.push(["\u4E2D\u6587\u97F3\u8272", zh]);
+                    if (other.length) groups.push(["\u5176\u4ED6\u97F3\u8272", other]);
+                    return groups.map(([gname, vs]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("optgroup", { label: gname, children: vs.map((v) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: v.voiceURI, children: (v.name || v.voiceURI) + "\uFF08" + (v.lang || "?") + "\uFF09" }, v.voiceURI)) }, gname));
+                  })()
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voices.length ? "\u97F3\u8272\u662F\u672C\u673A\u6D4F\u89C8\u5668\u7ED9\u7684\uFF0C\u6362\u8BBE\u5907\u53EF\u80FD\u8981\u91CD\u9009\uFF1B\u672C\u673A\u627E\u4E0D\u5230\u6240\u9009\u97F3\u8272\u65F6\u81EA\u52A8\u6309\u8BED\u8A00\u56DE\u843D" : "\u672C\u673A\u6682\u672A\u8BFB\u5230\u97F3\u8272\uFF08\u7CFB\u7EDF\u8BED\u97F3\u672A\u88C5/\u672A\u542F\u7528\uFF09\uFF0C\u5C06\u6309\u8BED\u8A00\u81EA\u52A8\u6311" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BD5\u542C" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-btn",
+                disabled: !voiceSupported(),
+                onClick: () => {
+                  const preview = Object.assign({}, cfg, { voiceNotify: true });
+                  speakVoice(endBroadcastText(true, { title: "\u793A\u4F8B\u4EFB\u52A1", duration: 125e3, turns: 3, steps: 9, toolCalls: 4, lastText: "\u597D\u7684\uFF0C\u4E09\u4EFD\u6587\u6863\u90FD\u5DF2\u66F4\u65B0\u5B8C\u6BD5\u3002" }, null, preview), preview);
+                },
+                children: "\u64AD\u4E00\u53E5"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-btn",
+                disabled: !voiceSupported(),
+                onClick: () => {
+                  const preview = Object.assign({}, cfg, { voiceNotify: true });
+                  speakVoice(confirmBroadcastText({ title: "\u793A\u4F8B\u4EFB\u52A1" }, { toolName: "pwsh" }, preview), preview);
+                },
+                children: "\u9700\u6388\u6743"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voiceSupported() ? "\u6D4F\u89C8\u5668\u8BED\u97F3\u5408\u6210\uFF08\u4E0E\u3010\u8BED\u97F3\u6717\u8BFB\u3011\u540C\u4E00\u5957\u58F0\u97F3\uFF0C\u72EC\u7ACB\u5F00\u5173\uFF1B\u6253\u65AD\u5F0F\u2014\u2014\u64AD\u62A5\u4FE1\u65F6\u6B63\u5728\u6717\u8BFB\u7684\u6B63\u6587\u4F1A\u8BA9\u4F4D\uFF09" : "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08speechSynthesis \u4E0D\u53EF\u7528\uFF09" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BED\u8A00" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+              "select",
+              {
+                className: "dknt-input",
+                style: { maxWidth: 180 },
+                value: cfg.voiceLang || "",
+                "aria-label": "\u64AD\u62A5\u8BED\u8A00",
+                onChange: (e) => patch({ voiceLang: e.target.value }),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "", children: "\u81EA\u52A8\uFF08\u4E2D\u6587\u4F18\u5148\uFF09" }),
+                  ["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: l, children: l }, l))
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u672A\u6307\u5B9A\u97F3\u8272\u65F6\u6309\u8BED\u8A00\u81EA\u52A8\u6311\uFF1B\u5DF2\u9009\u97F3\u8272\u7684\u8BED\u8A00\u4F1A\u8986\u76D6\u8FD9\u91CC" })
+          ] })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u4E8B\u4EF6\u4E0D\u64AD\u62A5\u8BED\u97F3\uFF08\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u4E0D\u53D7\u5F71\u54CD\uFF09\u3002" })
+      ] }, "voice"),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u9489\u9489\u63A8\u9001" }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u9489\u9489\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
@@ -7965,7 +8403,7 @@ function NotifyStat(props) {
   if (snap.error) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-err", children: "\u901A\u77E5\u72B6\u6001\u4E0D\u53EF\u7528\uFF08\u5BBF\u4E3B\u9700\u91CD\u542F\u52A0\u8F7D\u901A\u77E5\u8DEF\u7531\uFF09" });
   if (!cfg) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u7B49\u5F85\u901A\u77E5\u914D\u7F6E\u2026" });
   const events = [cfg.notifyOnComplete ? "\u5B8C\u6210" : "", cfg.notifyOnError ? "\u5F02\u5E38" : "", cfg.notifyOnConfirm !== false ? "\u9700\u786E\u8BA4" : ""].filter(Boolean);
-  const extras = [cfg.soundNotify !== false ? "\u63D0\u793A\u97F3" : "", cfg.systemNotify ? "\u7CFB\u7EDF\u901A\u77E5" : ""].filter(Boolean);
+  const extras = [cfg.soundNotify !== false ? "\u63D0\u793A\u97F3" : "", cfg.systemNotify ? "\u7CFB\u7EDF\u901A\u77E5" : "", cfg.voiceNotify ? "\u8BED\u97F3\u64AD\u62A5" + (cfg.voiceMode === "detailed" ? "\xB7\u8BE6" : "\xB7\u7B80") : ""].filter(Boolean);
   const push = [cfg.dingtalkEnabled ? "\u9489\u9489" : "", cfg.feishuEnabled ? "\u98DE\u4E66" : ""].filter(Boolean);
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: (events.length ? "\u901A\u77E5\uFF1A" + events.join("/") : "\u901A\u77E5\u4E8B\u4EF6\u5168\u5173") + (extras.length ? " \xB7 " + extras.join("/") : "") + (push.length ? " \xB7 \u63A8\u9001\uFF1A" + push.join("/") : "") });
 }
@@ -8285,7 +8723,7 @@ function makeUtterance(text) {
     return null;
   }
 }
-function localVoices() {
+function localVoices2() {
   const s = synth();
   if (!s) return [];
   try {
@@ -8545,8 +8983,8 @@ function chunkForSpeech(text, limit) {
   if (buf.trim()) chunks.push(buf);
   return chunks;
 }
-function pickVoice(cfg) {
-  const voices = localVoices();
+function pickVoice2(cfg) {
+  const voices = localVoices2();
   if (voices.length === 0) return null;
   const want = String(cfg && cfg.voiceURI || "");
   if (want) {
@@ -8648,7 +9086,7 @@ function startSession(opts) {
   const chunks = chunkForSpeech(text, 180);
   if (chunks.length === 0) return false;
   const epoch = ++engine.epoch;
-  const voice = pickVoice(cfg);
+  const voice = pickVoice2(cfg);
   const session = { key, raw: text, chunks, index: 0, epoch, cfg, label: String(o.label || "") };
   engine.session = session;
   setEngineState({ phase: "playing", key, label: session.label });
@@ -9168,13 +9606,13 @@ function TtsView() {
   const eng = useEngineState();
   const [, force] = (0, import_react12.useState)(0);
   const [saved, setSaved] = (0, import_react12.useState)("");
-  const voices = (0, import_react12.useRef)(localVoices());
+  const voices = (0, import_react12.useRef)(localVoices2());
   (0, import_react12.useEffect)(() => {
     ensureConfigLoaded();
     const s = synth();
     if (!s || typeof s.addEventListener !== "function") return;
     const onChange = () => {
-      voices.current = localVoices();
+      voices.current = localVoices2();
       force((n) => n + 1);
     };
     try {
@@ -9191,7 +9629,7 @@ function TtsView() {
   }, []);
   (0, import_react12.useEffect)(() => {
     if (voices.current.length === 0) {
-      voices.current = localVoices();
+      voices.current = localVoices2();
       force((n) => n + 1);
     }
   }, []);
@@ -13894,7 +14332,7 @@ var feature13 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.17.0";
+var DOCK_VERSION = "0.18.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12, feature13];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
