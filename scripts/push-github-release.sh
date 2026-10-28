@@ -6,8 +6,8 @@
 # 发版提交。本地 release 分支就是这条发版线；release 分支不要推到 origin。
 #
 # ⚠️ 开发库（本仓库）**不配置 github 远端**：GitHub 有自己的本地仓库
-# （默认 /Users/weiyi/develop/github/wycto/dsh-dock，可用 DSH_DOCK_GITHUB_REPO 覆盖），
-# 由它持有 origin=git@github.com:wycto/dsh-dock.git 并负责推送。本脚本在开发库造好
+# （缺省为 $HOME/develop/github/wycto/dsh-dock，机器相关，用 DSH_DOCK_GITHUB_REPO 覆盖），
+# 由它持有指向 GitHub 仓库 wycto/dsh-dock 的 origin 远端并负责推送。本脚本在开发库造好
 # 发版提交后，直接快进同步到那个本地仓库、再由它推送——开发库的远端只有 origin。
 #
 # 用法: ./scripts/push-github-release.sh <message-file> [--no-push]
@@ -28,7 +28,7 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [ -z "$(git status --porcelain)" ] || { echo "工作区不干净，先提交或清理"; exit 1; }
 
 DEV_REPO="$(git rev-parse --show-toplevel)"
-GH_REPO="${DSH_DOCK_GITHUB_REPO:-/Users/weiyi/develop/github/wycto/dsh-dock}"
+GH_REPO="${DSH_DOCK_GITHUB_REPO:-$HOME/develop/github/wycto/dsh-dock}"
 [ -d "$GH_REPO/.git" ] || { echo "找不到 GitHub 本地发版库: $GH_REPO"; echo "  可用 DSH_DOCK_GITHUB_REPO=<路径> 指定"; exit 1; }
 
 # 1) 发版提交的父提交 = 上一次发版提交。
@@ -45,8 +45,18 @@ if [ -n "$GH_MAIN" ] && ! git merge-base --is-ancestor "$GH_MAIN" "$RELEASE_BASE
   RELEASE_BASE="$GH_MAIN"
 fi
 
-# 2) 用 main 的整棵树造一条提交，父提交 = 上一次发版提交
-TREE="$(git rev-parse 'main^{tree}')"
+# 2) 用 main 的整棵树造一条提交，父提交 = 上一次发版提交。
+#    过程文档不进公开发版库（release-redaction 硬要求，2026-10-28 定）：造树时剔除
+#    下列文件——开发库照常跟踪它们，公开侧从此不再出现（历史旧副本另行决定是否清理）。
+TREE_EXCLUDE=(docs/session-notes.md docs/workflow.md)
+REL_INDEX="$(git rev-parse --git-dir)/release-tmp-index"
+rm -f "$REL_INDEX" # GIT_INDEX_FILE 要求目标文件不存在
+GIT_INDEX_FILE="$REL_INDEX" git read-tree 'main^{tree}'
+for f in "${TREE_EXCLUDE[@]}"; do
+  GIT_INDEX_FILE="$REL_INDEX" git update-index --force-remove "$f"
+done
+TREE="$(GIT_INDEX_FILE="$REL_INDEX" git write-tree)"
+rm -f "$REL_INDEX"
 COMMIT="$(git commit-tree "$TREE" -p "$RELEASE_BASE" -F "$MSG")"
 git branch -f release "$COMMIT"
 

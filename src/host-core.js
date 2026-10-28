@@ -115,6 +115,22 @@ export const DockConfig = z.object({
     // 飞书群机器人推送（宿主侧直发，浏览器关着也能推；事件跟随 notifyOnComplete/notifyOnError）
     feishuEnabled: z.boolean().default(false),
     feishuWebhook: z.string().default(''),
+    // ===== 语音播报（浏览器 speechSynthesis；与【语音朗读】同一套声音但相互独立开关） =====
+    // 总开关：关闭时下面所有播报都不发声（默认关，避免升级后突然说话吓人）。
+    voiceNotify: z.boolean().default(false),
+    // 播报口径：brief = 一句话（「任务完成」）；detailed = 带标题/耗时/回合/工具/错误原因。
+    voiceMode: z.string().default('brief'),
+    // 四个播报时刻，各自独立开关（开总开关后按这里筛选）：
+    voiceOnComplete: z.boolean().default(true),   // 任务正常完成
+    voiceOnError: z.boolean().default(true),      // 任务停止（出错/中止/受阻/达上限/中断）
+    voiceOnConfirm: z.boolean().default(true),    // 任务需要授权（工具等待批准）
+    voiceOnStuck: z.boolean().default(true),      // 任务卡住（编程阶段 18 秒无活动，与【任务动画】同口径）
+    // 播报语速/音量/语言/音色。voiceURI 与【语音朗读】同款语义：设备相关的音色标识，
+    // 空 = 按语言自动挑；本机音色表里找不到时由客户端按语言回落（见 features/notify/view.jsx）。
+    voiceRate: z.number().default(1),
+    voiceVolume: z.number().default(1),
+    voiceLang: z.string().default(''),
+    voiceURI: z.string().default(''),
     // 一次性迁移标记：animation 段的旧通知配置已搬到本段（搬完置 true，避免每次启动重复写）
     migratedFromAnimation: z.boolean().default(false),
   }).default({}).volatile(),
@@ -245,6 +261,10 @@ export const NOTIFY_FIELDS = [
   'notifyOnComplete', 'notifyOnError', 'notifyOnConfirm', 'notifyStayMs',
   'systemNotify', 'soundNotify', 'soundEffect',
   'dingtalkEnabled', 'dingtalkWebhook', 'feishuEnabled', 'feishuWebhook',
+  // 语音播报（新增段字段；旧 animation 段里不存在，迁移循环自然不会搬它们）
+  'voiceNotify', 'voiceMode',
+  'voiceOnComplete', 'voiceOnError', 'voiceOnConfirm', 'voiceOnStuck',
+  'voiceRate', 'voiceVolume', 'voiceLang', 'voiceURI',
 ]
 
 /**

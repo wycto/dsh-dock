@@ -31,6 +31,18 @@ function defaultConfig() {
     dingtalkWebhook: '',
     feishuEnabled: false,
     feishuWebhook: '',
+    // 语音播报（浏览器 speechSynthesis 短句播报；默认总开关关闭）
+    voiceNotify: false,
+    voiceMode: 'brief',
+    voiceOnComplete: true,
+    voiceOnError: true,
+    voiceOnConfirm: true,
+    voiceOnStuck: true,
+    voiceRate: 1,
+    voiceVolume: 1,
+    voiceLang: '',
+    // 指定音色（speechSynthesis voiceURI，设备相关；空 = 按语言自动挑，本机没有时客户端回落）
+    voiceURI: '',
     // 迁移标记（schema 默认 false）：settings 不可用时的兜底取 true——迁移由
     // src/host-core.js migrateNotifyConfig 统一负责，这里只是原样带回，不影响通知行为。
     migratedFromAnimation: true,
@@ -48,6 +60,7 @@ function readConfig(ctx) {
         if (n[key] !== undefined) cfg[key] = n[key]
       }
       if (!SOUND_EFFECTS.includes(cfg.soundEffect)) cfg.soundEffect = 'chime'
+      if (cfg.voiceMode !== 'brief' && cfg.voiceMode !== 'detailed') cfg.voiceMode = 'brief'
     }
   } catch { /* settings 未挂载，用默认 */ }
   return cfg
@@ -290,6 +303,23 @@ export const feature = {
                 }
                 cfg.feishuWebhook = hook
               }
+              // ===== 语音播报字段 =====
+              if (typeof p.voiceNotify === 'boolean') cfg.voiceNotify = p.voiceNotify
+              if (typeof p.voiceMode === 'string' && (p.voiceMode === 'brief' || p.voiceMode === 'detailed')) {
+                cfg.voiceMode = p.voiceMode
+              }
+              for (const key of ['voiceOnComplete', 'voiceOnError', 'voiceOnConfirm', 'voiceOnStuck']) {
+                if (typeof p[key] === 'boolean') cfg[key] = p[key]
+              }
+              if (typeof p.voiceRate === 'number' && Number.isFinite(p.voiceRate)) {
+                cfg.voiceRate = Math.min(2, Math.max(0.5, p.voiceRate))
+              }
+              if (typeof p.voiceVolume === 'number' && Number.isFinite(p.voiceVolume)) {
+                cfg.voiceVolume = Math.min(1, Math.max(0, p.voiceVolume))
+              }
+              if (typeof p.voiceLang === 'string') cfg.voiceLang = p.voiceLang.trim().slice(0, 20)
+              // 音色标识是浏览器给的字符串，与【语音朗读】同款限长即可（宿主拿不到本机音色表，不做存在性校验）
+              if (typeof p.voiceURI === 'string') cfg.voiceURI = p.voiceURI.trim().slice(0, 200)
 
               try {
                 await mutateDockSection(ctx, ['notify'], cfg)
