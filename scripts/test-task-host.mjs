@@ -40,6 +40,14 @@ function makeHost() {
   const sessionQuery = {
     readTitle: async () => ({ title: '测试会话' }),
     readSession: async () => ({ header: { title: '测试会话' } }),
+    // 一次观测同时给标题与会话头（SessionHeader.origin/delegationDepth/parentSession
+    // 是判定「主任务/子任务」的权威字段；sub 开头的会话 id 模拟子代理会话）
+    readTitleSnapshot: async (id) => ({
+      session: /^sub/.test(id)
+        ? { title: '测试会话', origin: 'subagent', delegationDepth: 1, parentSession: 'root-1' }
+        : { title: '测试会话' },
+      title: { title: '测试会话' },
+    }),
   }
 
   const ctx = {
@@ -145,6 +153,10 @@ assert.equal(notifyStatus.active[0].phase, 'code', '工具阶段应共享到通�
 assert.equal(runStateStatus.active[0].phase, 'code', '工具阶段应共享到运行状态模块')
 assert.equal(animStatus.config.effectMode, 'flow', '动画配置默认值')
 assert.equal(notifyStatus.config.notifyStayMs, 8000, '通知配置默认值')
+assert.equal(notifyStatus.config.notifyCards, true, '页内卡片总开关默认开')
+assert.equal(notifyStatus.config.notifyOnStuck, true, '卡住提醒卡默认开')
+assert.equal(notifyStatus.config.cardMode, 'detailed', '卡片口径默认详细（历史内容不缩水）')
+assert.equal(notifyStatus.config.voiceMode, 'brief', '播报口径默认简洁')
 assert.equal(animStatus.config.dingtalkEnabled, undefined, '动画配置段不得混入通知字段')
 assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置段（只读快照）')
 
@@ -160,11 +172,16 @@ assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置�
 {
   const saved = await host.call('/dsh-dock/notify', 'config', {
     notifyOnError: false, soundEffect: 'bell', dingtalkEnabled: true,
+    notifyCards: false, notifyOnStuck: false, cardMode: 'medium',
     voiceNotify: true, voiceMode: 'detailed', voiceOnStuck: false, voiceRate: 3, voiceVolume: -2,
     voiceURI: '  zh-CN-Xiaoxiao  ',
     dingtalkWebhook: 'https://oapi.dingtalk.com/robot/send?access_token=test',
   })
   assert.equal(saved.body.data.config.notifyOnError, false)
+  // 页内卡片总开关 + 卡住提醒卡：布尔收下、回包带回、落 notify 段
+  assert.equal(saved.body.data.config.notifyCards, false, '页内卡片总开关应接受并回传')
+  assert.equal(saved.body.data.config.notifyOnStuck, false, '卡住提醒开关应接受并回传')
+  assert.equal(saved.body.data.config.cardMode, 'medium', '卡片口径三挡应接受并回传')
   assert.equal(saved.body.data.config.soundEffect, 'bell')
   assert.equal(saved.body.data.config.effectMode, undefined, '通知路由必须忽略动画字段')
   // 语音播报字段：布尔/枚举收下，数值越界钳制（rate 面板上限 2，volume 夹进 [0,1]）
@@ -176,10 +193,20 @@ assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置�
   assert.equal(saved.body.data.config.voiceURI, 'zh-CN-Xiaoxiao', 'voiceURI 应 trim 后落盘（音色可选）')
   const raw = host.settings.get(DOCK_NS)
   assert.equal(raw.notify.dingtalkEnabled, true)
+  assert.equal(raw.notify.notifyCards, false, '页内卡片总开关应落 notify 段')
+  assert.equal(raw.notify.notifyOnStuck, false, '卡住提醒开关应落 notify 段')
+  assert.equal(raw.notify.cardMode, 'medium', '卡片口径应落 notify 段')
   assert.equal(raw.notify.voiceNotify, true, '语音播报开关应落 notify 段')
   assert.equal(raw.notify.voiceURI, 'zh-CN-Xiaoxiao', '音色应落 notify 段')
   assert.equal(raw.animation.dingtalkEnabled, undefined)
   assert.equal(raw.animation.effectMode, 'stars', '通知保存不得覆盖动画段')
+}
+{
+  // 口径字段的非法值：忽略（保持已存值），不报错也不写坏配置
+  const junk = await host.call('/dsh-dock/notify', 'config', { cardMode: 'huge', voiceMode: 'loud' })
+  assert.equal(junk.status, 200)
+  assert.equal(junk.body.data.config.cardMode, 'medium', '非法卡片口径应被忽略')
+  assert.equal(junk.body.data.config.voiceMode, 'detailed', '非法播报口径应被忽略')
 }
 {
   // 下面三条是「预期失败」的请求：宿主会照常 console.error，这里临时静音保持输出干净
@@ -331,4 +358,34 @@ assert.equal(host.routes.has('/dsh-dock/runstate'), false, '运行状态停用�
   assert.equal(both.settings.get(DOCK_NS).features.modelconfig, true, '新键原值保留')
 }
 
-console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移)')
+// ---------- 用例 7：卡住播报要用的快照字段——主/子任务归属（会话头）+ 最后动作 ----------
+// 用户实测（2026-10-30）：主任务进行中突然播「任务卡住了」，屏幕上却看不到卡住的东西——
+// 卡的是子任务会话，而播报完全不带身份。归属与最后动作由 task-track 从会话头
+// （origin/delegationDepth/parentSession）与 tool/call 事件里取，这里锁死它们进快照。
+{
+  const h = makeHost()
+  const dispose = notifyFeature.setup(h.ctx)
+  try {
+    h.emit('agent/status', { agent: { id: 'root-1' }, status: 'running' })
+    h.emit('session/event', { id: 'root-1' }, { type: 'tool/call', time: Date.now(), data: { name: 'bash' } })
+    h.emit('agent/status', { agent: { id: 'sub-1' }, status: 'running' })
+    h.emit('session/event', { id: 'sub-1' }, { type: 'tool/call', time: Date.now(), data: { name: 'pwsh' } })
+    await new Promise((resolve) => setTimeout(resolve, 20)) // 标题/会话头是异步读取
+    const st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const root = st.active.find((x) => x.sessionId === 'root-1')
+    const sub = st.active.find((x) => x.sessionId === 'sub-1')
+    assert.ok(root && sub, '主/子两个会话都应被追踪')
+    assert.equal(root.isSubtask, false, '根会话不得标成子任务')
+    assert.equal(root.lastToolName, 'bash', '最后调用的工具名应进快照（卡住卡「最后动作」用）')
+    assert.equal(sub.isSubtask, true, '会话头 origin=subagent / delegationDepth>0 应标为子任务')
+    assert.equal(sub.parentSessionId, 'root-1', '父会话 id 应进快照（子任务卡跳转回退到主会话）')
+    assert.equal(sub.lastToolName, 'pwsh', '子任务的最后动作也应进快照')
+    // 桩没给会话头（旧宿主/只实现 readTitle 的桩）：不崩、按主任务处理
+    assert.equal(sub.title, '测试会话', '标题仍应正常读到')
+  } finally {
+    dispose()
+    assert.equal(h.listenerCount('session/event'), 0, '用例收尾必须退订（不留常驻监听）')
+  }
+}
+
+console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移 + 卡住快照字段)')
