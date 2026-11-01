@@ -4,7 +4,9 @@
 //  1. View      —— 功能坞面板页：通知事件 / 呈现方式 / 钉钉推送 / 飞书推送 四组设置；
 //  2. HomeStat  —— 首页总揽概要（当前通知事件与推送通道）；
 //  3. Overlay   —— 全局浮层（shell.overlay 常驻，功能启用即挂载）：轮询 Host 状态，
-//                  任务结束弹通知卡片（可选提示音与浏览器系统通知），工具等待确认时弹常驻提醒卡。
+//                  任务结束弹通知卡片（可选提示音与浏览器系统通知），工具等待确认时弹常驻提醒卡，
+//                  编程阶段长时间无活动弹「卡住」提醒卡（写明主/子任务、停滞时长、最后动作）。
+//                  所有卡片受「页内卡片」总开关与各类型开关控制（见 View 的通知事件区）。
 //                  结束卡常驻到「看过」（点卡直达会话 / 点进会话 / 手动 ✕），≥3 张叠放收纳。
 //
 // 与【任务动画】【运行状态】完全独立：动效在 features/animation/、任务状态一览在
@@ -261,7 +263,18 @@ export function speakVoice(text, cfg) {
 	return true;
 }
 
-// ---------- 播报文案模板（简洁 = 一句话；详细 = 带标题/耗时/统计/原因） ----------
+// ---------- 播报文案模板（三挡：简洁 = 一句话；适中 = 带标题与关键量；详细 = 带统计与摘要） ----------
+// 口径取值 brief | medium | detailed；语音看 cfg.voiceMode（缺省 brief，与宿主 schema 同款），
+// 卡片正文看 cfg.cardMode（缺省 detailed ＝历史内容，见下方卡片正文构建处）。
+function voiceTone(cfg) {
+	const m = cfg && cfg.voiceMode;
+	return m === "detailed" || m === "medium" ? m : "brief";
+}
+/** 卡片正文口径（三挡）：缺省 detailed ＝历史内容——老宿主还没下发 cardMode 时卡片不缩水。 */
+function cardTone(cfg) {
+	const m = cfg && cfg.cardMode;
+	return m === "brief" || m === "medium" ? m : "detailed";
+}
 function endReasonSpeech(reason) {
 	if (reason === "error") return "出错了";
 	if (reason === "aborted") return "已停止";
@@ -272,12 +285,22 @@ function endReasonSpeech(reason) {
 }
 /** 结束播报文案（success 由调用方按 isSuccessReason 给）。kind: complete|error */
 export function endBroadcastText(success, record, task, cfg) {
-	const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+	const mode = voiceTone(cfg);
 	const reason = (record && record.endReason) || "";
 	const title = (record && record.title) || (task && task.title) || "";
 	if (mode === "brief") {
 		// 简洁口径不分原因细念：正常完成「任务完成」，其余一律「任务停止了」
 		return success ? "任务完成" : "任务停止了";
+	}
+	if (mode === "medium") {
+		// 适中口径：点名是哪个任务 + 结果 + （停止时）原因 + 耗时；不念回合/Token 统计
+		const who = title ? "任务「" + truncate(title, 30) + "」" : "任务";
+		const parts = [success ? who + "完成了" : who + "停止了"];
+		if (!success) parts.push("，原因：" + endReasonSpeech(reason));
+		const dur = (record && record.duration) || 0;
+		if (dur > 0) parts.push("，耗时" + fmtDur(dur));
+		parts.push("。");
+		return parts.join("");
 	}
 	const parts = [];
 	if (title) parts.push("任务：" + truncate(title, 30) + "。");
@@ -297,22 +320,41 @@ export function endBroadcastText(success, record, task, cfg) {
 }
 /** 需授权播报文案。 */
 export function confirmBroadcastText(task, approval, cfg) {
-	const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+	const mode = voiceTone(cfg);
 	if (mode === "brief") return "任务需要授权";
 	const tool = (approval && approval.toolName) || "工具";
 	const scene = toolLabel(tool);
+	if (mode === "medium") {
+		// 适中口径：点名任务 + 要批准的场景；不念工具名与「回到会话」的叮嘱
+		const who = task && task.title ? "任务「" + truncate(task.title, 30) + "」" : "任务";
+		return who + "需要授权，正在等你批准" + (scene || "工具 " + tool) + "。";
+	}
 	const parts = [];
 	if (task && task.title) parts.push("任务：" + truncate(task.title, 30) + "。");
 	parts.push("正在等待你批准" + (scene ? "执行" + scene : "") + "，工具是" + tool + "，请回到会话处理。");
 	return parts.join("");
 }
-/** 卡住播报文案。 */
+/**
+ * 卡住播报文案：必须回答「哪里卡住了」——主任务还是子任务、哪个会话、停了多久、
+ * 最后在干什么。子任务静默会把「主任务明明在跑却突然播报」放大成困惑（2026-10-30
+ * 用户实测：主任务进行中突然播「任务卡住了」，屏幕上却看不到卡住的东西），
+ * 所以简洁口径也带「主/子 + 标题」，详细口径再补停滞时长与最后动作。
+ * 归属字段来自宿主追踪快照（task-track 的 isSubtask/lastToolName）。
+ */
 export function stuckBroadcastText(task, cfg) {
-	const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
-	if (mode === "brief") return "任务卡住了";
-	const parts = [];
-	if (task && task.title) parts.push("任务：" + truncate(task.title, 30) + "。");
-	parts.push("编程阶段已经" + fmtDur(Math.max(0, (cfg && cfg.stuckMs) || STUCK_MS)) + "没有任何动静，可能卡住了，请查看。");
+	const mode = voiceTone(cfg);
+	const where = (task && task.isSubtask ? "子任务" : "主任务")
+		+ (task && task.title ? "「" + truncate(task.title, 30) + "」" : "");
+	if (mode === "brief") return where + "卡住了";
+	if (mode === "medium") {
+		return where + "卡住了，已经" + fmtDur(Math.max(0, (cfg && cfg.stuckMs) || STUCK_MS)) + "没有任何动静。";
+	}
+	const parts = [where + "卡住了。"];
+	parts.push("编程阶段已经" + fmtDur(Math.max(0, (cfg && cfg.stuckMs) || STUCK_MS)) + "没有任何动静，");
+	const tool = (task && task.lastToolName) || "";
+	const scene = tool ? toolLabel(tool) : "";
+	parts.push(tool ? "最后在执行" + tool + (scene ? "（" + scene + "）" : "") + "，" : "");
+	parts.push("请查看。");
 	return parts.join("");
 }
 
@@ -437,9 +479,14 @@ function Toast(props) {
 	// 导航（抽屉收起也有效），回退按标题点侧栏行；都失败（会话已删）卡片原样保留。
 	const jump = useCallback(() => {
 		if (!t.sessionTitle && !t.sessionId) return;
-		const ok = openSessionById(t.sessionId) || (t.sessionTitle ? openSessionByTitle(t.sessionTitle) : false);
-		if (ok && t.kind !== "confirm") setClosing(true);
-	}, [t.sessionId, t.sessionTitle, t.kind]);
+		// 子任务会话未必在侧栏里：先按自身 id 走官方导航，再试父会话 id（fallbackSessionId），
+		// 最后按标题点行。需确认卡只跳不收（审批没处理完它就该在）；卡住卡也不因跳转收起
+		// ——它由「恢复活动 / 任务结束」的对账收（跳过去还是卡着，卡片就该继续提醒）。
+		const ok = openSessionById(t.sessionId)
+			|| (t.fallbackSessionId ? openSessionById(t.fallbackSessionId) : false)
+			|| (t.sessionTitle ? openSessionByTitle(t.sessionTitle) : false);
+		if (ok && t.kind !== "confirm" && t.kind !== "stuck") setClosing(true);
+	}, [t.sessionId, t.sessionTitle, t.fallbackSessionId, t.kind]);
 	// 外部要求收起（审批已处理 / 已点进会话）走同一套淡出动画
 	useEffect(() => { if (t.closing && !closing) setClosing(true); }, [t.closing, closing]);
 	// 所有卡片都没有计时器：结束卡常驻到「看过」（点卡跳转 / 点进会话 / 手动 ✕），
@@ -466,7 +513,7 @@ function Toast(props) {
 			<div className="dknt-toast-head">
 				<span className="dknt-toast-mark" style={{ background: markColor }} />
 				<span className="dknt-toast-title" title={t.sessionTitle || t.title}>
-					{t.kind === "confirm" ? "✋ " : ""}{props.collapsed ? (t.sessionTitle || t.title) : t.title}
+					{t.kind === "confirm" ? "✋ " : t.kind === "stuck" ? "⏳ " : ""}{props.collapsed ? (t.sessionTitle || t.title) : t.title}
 					{!props.collapsed && t.sessionTitle && t.kind !== "confirm" ? " · " + t.sessionTitle : ""}
 				</span>
 				<button type="button" className="dknt-toast-close" aria-label="关闭"
@@ -489,9 +536,21 @@ export function NotifyOverlay(props) {
 	const toastSeqRef = useRef(0);
 
 	const pushToast = useCallback((toast) => {
+		// 「页内卡片」总开关（设置面板里关掉 → 右侧所有卡片都不再弹出）。只管卡片：
+		// 语音播报 / 提示音 / 系统通知 / 群推送各有独立开关，与它正交。
+		const st = notifyStore.snap.status;
+		const cfg = st && st.config;
+		if (cfg && cfg.notifyCards === false) return;
 		// 上限 12：结束卡现在常驻到看过才收，4 张容易见底；多了靠叠放收纳而不是丢弃。
 		setToasts((prev) => prev.concat([toast]).slice(-12));
 	}, []);
+
+	// 总开关中途关闭：已挂着的卡片也一并收掉（否则「设置里关了、右边还挂着」像开关失灵）。
+	// 返回原数组避免空转重渲染。
+	useEffect(() => {
+		const cfg = snap.status && snap.status.config;
+		if (cfg && cfg.notifyCards === false) setToasts((prev) => (prev.length ? [] : prev));
+	}, [snap.status]);
 
 	// 轮询：任务中 850ms，实时捕捉结束/待确认；空闲 6s / 出错 15s；页面切回立即刷新。
 	useEffect(() => {
@@ -554,12 +613,18 @@ export function NotifyOverlay(props) {
 			if (cfg.notifyOnConfirm === false) continue;
 			const toolName = fresh[0].toolName || "";
 			const scene = toolLabel(toolName);
+			// 卡片正文按「卡片口径」三挡裁剪（title 行永远在，卡片标题不受口径影响）
+			const tone = cardTone(cfg);
 			const lines = [
 				"任务：" + (task.title || "(无标题)"),
 				"工具：" + (toolName || "未知") + (scene ? "（" + scene + "）" : ""),
 			];
-			if (fresh[0].reason) lines.push("说明：" + truncate(fresh[0].reason, 140));
-			lines.push(fresh.length > 1 ? "共 " + fresh.length + " 项等待你的确认" : "请在会话里确认后继续");
+			if (tone !== "brief" && fresh[0].reason) lines.push("说明：" + truncate(fresh[0].reason, 140));
+			if (fresh.length > 1) {
+				lines.push(tone === "brief" ? "共 " + fresh.length + " 项等待确认" : "共 " + fresh.length + " 项等待你的确认");
+			} else if (tone === "detailed") {
+				lines.push("请在会话里确认后继续");
+			}
 			pushToast({
 				id: ++toastSeqRef.current,
 				kind: "confirm",
@@ -622,7 +687,8 @@ export function NotifyOverlay(props) {
 			setToasts((prev) => {
 				let changed = false;
 				const next = prev.map((x) => {
-					if (x.kind === "confirm" || x.closing) return x;
+					// 需确认卡挂到审批处理完、卡住卡挂到恢复活动——都不走「看过即收」
+					if (x.kind === "confirm" || x.kind === "stuck" || x.closing) return x;
 					if (!x.sessionTitle && !x.sessionId) return x;
 					const hit = (cur.id && x.sessionId && cur.id === x.sessionId)
 						|| (!cur.id && x.sessionTitle && titleMatches(x.sessionTitle, cur.title));
@@ -636,9 +702,11 @@ export function NotifyOverlay(props) {
 		return () => clearInterval(timer);
 	}, []);
 
-	// ===== 卡住检测：编程阶段长时间无活动 → 播报一次（与【任务动画】同口径 18s） =====
-	// 每个会话只报一次：恢复活动（lastActivityAt 变新）即清除标记，之后再卡住可再报；
+	// ===== 卡住检测：编程阶段长时间无活动 → 播报 + 弹卡（与【任务动画】同口径 18s） =====
+	// 每个会话每个停点只报一次：恢复活动（lastActivityAt 变新）即清除标记，之后再卡住可再报；
 	// 会话离开活跃列表（结束/取消）同样清除。阈值到点才轮询比对，850ms 的节奏足够。
+	// 语音与卡片**各自独立开关**（关卡片不关耳朵、关语音不关眼睛），所以停点标记要在
+	// 两个开关之外都记——否则关掉一边会在同一停点重复打扰另一边。
 	const stuckSeenRef = useRef(new Map()); // sessionId -> 已播报时的 lastActivityAt
 	useEffect(() => {
 		const st = snap.status;
@@ -649,19 +717,80 @@ export function NotifyOverlay(props) {
 		for (const sid of Array.from(stuckSeenRef.current.keys())) {
 			if (!activeIds.has(sid)) stuckSeenRef.current.delete(sid);
 		}
-		if (cfg.voiceNotify !== true || cfg.voiceOnStuck === false) return;
+		// 主任务正在跑子任务（有活跃子会话挂在自己名下）时，主会话天然安静——它在等子代理回话，
+		// 不是卡住。这类「等待子任务」的安静不计入卡住判定，交由子任务自己命中（真卡在子任务上会
+		// 说「子任务…卡住了」），避免「主任务明明在跑、却报主任务卡住」的误报（2026-11-01 用户反馈）。
+		// 先扫一遍建集合、再逐条判定：同一帧里主/子顺序不影响结果。
+		const parentsWaitingOnSubtask = new Set();
+		for (const t of st.active) {
+			if (t.isSubtask && t.parentSessionId) parentsWaitingOnSubtask.add(t.parentSessionId);
+		}
 		for (const task of st.active) {
 			// 等用户批准的会话不算卡住——那是「需确认」提醒的职责，别重复轰炸
 			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
 			if (approvals.length > 0) { stuckSeenRef.current.delete(task.sessionId); continue; }
 			if (task.phase !== "code") { continue; }
+			// 该会话有活跃子任务在跑 → 它在等子任务，不算卡住（否则主任务进行中会误报卡住）
+			if (parentsWaitingOnSubtask.has(task.sessionId)) continue;
 			const lastAct = task.lastActivityAt || task.phaseAt || 0;
 			if (!lastAct || now - lastAct < STUCK_MS) continue;
 			const prev = stuckSeenRef.current.get(task.sessionId);
 			if (prev === lastAct) continue; // 同一停点已报过
 			stuckSeenRef.current.set(task.sessionId, lastAct);
-			speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs: now - lastAct })), cfg);
+			const stuckMs = now - lastAct;
+			// —— 语音：说清主/子任务、标题、停滞时长与最后动作 ——
+			if (cfg.voiceNotify === true && cfg.voiceOnStuck !== false) {
+				speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs: stuckMs })), cfg);
+			}
+			// —— 卡片：只受「卡住提醒」与「页内卡片」总开关控制（总开关在 pushToast 里把关）——
+			if (cfg.notifyOnStuck === false) continue;
+			const label = task.isSubtask ? "子任务" : "主任务";
+			const title = task.title || "(无标题)";
+			const tool = task.lastToolName || "";
+			// 卡片正文按「卡片口径」三挡裁剪：简洁只报谁卡住；适中加停滞时长；详细再加最后动作
+			const tone = cardTone(cfg);
+			const lines = ["任务：" + label + "·" + title];
+			if (tone !== "brief") lines.push("已停滞：" + fmtDur(stuckMs) + "（编程阶段无活动）");
+			if (tone === "detailed") {
+				if (tool) lines.push("最后动作：" + tool + (toolLabel(tool) ? "（" + toolLabel(tool) + "）" : ""));
+				lines.push("恢复活动或任务结束后自动收起；点击卡片直达会话");
+			}
+			pushToast({
+				id: ++toastSeqRef.current,
+				kind: "stuck",
+				title: label + "卡住了",
+				body: lines.join("\n"),
+				sessionId: task.sessionId || "",
+				sessionTitle: title,
+				// 子任务会话通常不在侧栏里：跳不到自己时回退到父会话（看主会话里的子代理进度）
+				fallbackSessionId: (task.isSubtask && task.parentSessionId) ? task.parentSessionId : "",
+				// 停点指纹：恢复活动（lastActivityAt 变了）即由下面的对账 effect 收起
+				stuckAt: lastAct,
+			});
 		}
+	}, [snap.status]);
+
+	// 卡住卡的自动收起（与需确认卡同哲学：不设倒计时，状态没变就一直挂着）：
+	//  恢复活动（lastActivityAt 变了）/ 离开活跃列表（结束或取消）/ 转为等审批
+	// （需确认卡接管）→ 标记 closing 走同一套 240ms 淡出。只标记不直删，与手动 ✕ 退场一致。
+	useEffect(() => {
+		const st = snap.status;
+		if (!st || !st.active) return;
+		const byId = new Map(st.active.map((x) => [x.sessionId, x]));
+		setToasts((prev) => {
+			let changed = false;
+			const next = prev.map((x) => {
+				if (x.kind !== "stuck" || x.closing) return x;
+				const task = byId.get(x.sessionId);
+				const stillStalled = !!task
+					&& (task.lastActivityAt || task.phaseAt || 0) === x.stuckAt
+					&& (Array.isArray(task.approvals) ? task.approvals.length : 0) === 0;
+				if (stillStalled) return x;
+				changed = true;
+				return Object.assign({}, x, { closing: true });
+			});
+			return changed ? next : prev;
+		});
 	}, [snap.status]);
 
 	const handleTaskEnd = (task, record, cfg) => {
@@ -681,19 +810,24 @@ export function NotifyOverlay(props) {
 		const provider = (record && record.provider) || task.provider || "";
 		const startTs = (record && record.startTime) || task.startTime;
 		const endTs = (record && record.endTime) || Date.now();
-		const lines = [
-			"任务：" + ((record && record.title) || task.title || "(无标题)"),
-			"模型：" + models + (provider ? "（" + provider + "）" : ""),
-			"耗时：" + fmtDur((record && record.duration) || (endTs - startTs))
-				+ "（" + fmtTime(startTs) + " → " + fmtTime(endTs) + "）",
-			"回合 " + ((record && record.turns) || task.turns || 0)
+		// 卡片正文按「卡片口径」三挡裁剪（cfg.cardMode，缺省 detailed ＝历史内容）：
+		//  简洁＝任务+耗时；适中＝加模型与起止时间；详细＝再加回合/步骤、Token、摘要或错误。
+		const tone = cardTone(cfg);
+		const durText = fmtDur((record && record.duration) || (endTs - startTs));
+		const lines = ["任务：" + ((record && record.title) || task.title || "(无标题)")];
+		if (tone !== "brief") lines.push("模型：" + models + (provider ? "（" + provider + "）" : ""));
+		lines.push(tone === "brief"
+			? "耗时：" + durText
+			: "耗时：" + durText + "（" + fmtTime(startTs) + " → " + fmtTime(endTs) + "）");
+		if (tone === "detailed") {
+			lines.push("回合 " + ((record && record.turns) || task.turns || 0)
 				+ " · 步骤 " + ((record && record.steps) || task.steps || 0)
-				+ (((record && record.toolCalls) || task.toolCalls) ? " · 工具 " + ((record && record.toolCalls) || task.toolCalls) + " 次" : ""),
-			"Token：输入 " + fmtNum((record && record.inputTokens) || task.inputTokens)
-				+ " / 输出 " + fmtNum((record && record.outputTokens) || task.outputTokens),
-		];
-		if (record && record.lastText) lines.push("摘要：" + truncate(record.lastText, 140));
-		if (!success && record && record.errorMessage) lines.push("错误：" + truncate(record.errorMessage, 120));
+				+ (((record && record.toolCalls) || task.toolCalls) ? " · 工具 " + ((record && record.toolCalls) || task.toolCalls) + " 次" : ""));
+			lines.push("Token：输入 " + fmtNum((record && record.inputTokens) || task.inputTokens)
+				+ " / 输出 " + fmtNum((record && record.outputTokens) || task.outputTokens));
+			if (record && record.lastText) lines.push("摘要：" + truncate(record.lastText, 140));
+			if (!success && record && record.errorMessage) lines.push("错误：" + truncate(record.errorMessage, 120));
+		}
 		const title = success ? "任务完成" : "任务" + info.label;
 		pushToast({
 			id: ++toastSeqRef.current,
@@ -885,6 +1019,14 @@ function NotifyView(props) {
 				</div>
 				<div className="dknt-rows-narrow">
 					<div className="dknt-row">
+						<span className="dknt-row-label">页内卡片</span>
+						<button type="button" className={"dknt-miniswitch" + (cfg.notifyCards !== false ? " on" : "")}
+							onClick={() => patch({ notifyCards: cfg.notifyCards === false })}>
+							{cfg.notifyCards !== false ? "开" : "关"}
+						</button>
+						<span className="dknt-row-sub">右侧通知卡片总开关：关闭后下面各类卡片（完成 / 异常 / 需确认 / 卡住）一律不弹，已挂着的一并收起；语音播报、提示音、系统通知、钉钉飞书推送不受影响</span>
+					</div>
+					<div className="dknt-row">
 						<span className="dknt-row-label">完成通知</span>
 						<button type="button" className={"dknt-miniswitch" + (cfg.notifyOnComplete ? " on" : "")}
 							onClick={() => patch({ notifyOnComplete: !cfg.notifyOnComplete })}>
@@ -908,6 +1050,14 @@ function NotifyView(props) {
 						</button>
 						<span className="dknt-row-sub">工具等待你批准时弹卡片并响确认音；审批处理完自动收起，没处理完就一直显示（点卡片直达会话）</span>
 					</div>
+					<div className="dknt-row">
+						<span className="dknt-row-label">卡住提醒</span>
+						<button type="button" className={"dknt-miniswitch" + (cfg.notifyOnStuck !== false ? " on" : "")}
+							onClick={() => patch({ notifyOnStuck: cfg.notifyOnStuck === false })}>
+							{cfg.notifyOnStuck !== false ? "开" : "关"}
+						</button>
+						<span className="dknt-row-sub">编程阶段 18 秒没有动静时弹卡片，写明是主任务还是子任务、停滞了多久、最后在执行什么；恢复活动 / 任务结束自动收起，同一停点只弹一次（语音播报走「语音播报」区的卡住开关，互不干扰）</span>
+					</div>
 				</div>
 			</div>,
 			<div key="style" className="dknt-sec">
@@ -917,8 +1067,19 @@ function NotifyView(props) {
 				</div>
 				<div className="dknt-rows-narrow">
 					<div className="dknt-row">
+						<span className="dknt-row-label">卡片口径</span>
+						{[["brief", "简洁"], ["medium", "适中"], ["detailed", "详细"]].map(([v, label]) => (
+							<button type="button" key={v}
+								className={"dknt-miniswitch" + (cardTone(cfg) === v ? " on" : "")}
+								style={{ marginRight: 6 }}
+								title={"右侧通知卡片正文按" + label + "档显示"}
+								onClick={() => patch({ cardMode: v })}>{label}</button>
+						))}
+						<span className="dknt-row-sub">右侧卡片正文写多少（与各类型开关、语音播报互不影响）：简洁＝任务与耗时 / 谁卡住；适中＝加模型、起止时间、停滞时长；详细＝全部（回合步骤、Token、摘要或错误、最后动作）</span>
+					</div>
+					<div className="dknt-row">
 						<span className="dknt-row-label">卡片收纳</span>
-						<span className="dknt-row-sub">所有卡片都不超时自动消失：结束卡片没看过就一直挂着（后台跑完的切回来也在），点卡片直达对应会话，或点进该会话，卡片自动收起；需确认卡片挂到审批处理完。3 张及以上自动叠放成标题条，鼠标移上去整体展开</span>
+						<span className="dknt-row-sub">所有卡片都不超时自动消失：结束卡片没看过就一直挂着（后台跑完的切回来也在），点卡片直达对应会话，或点进该会话，卡片自动收起；需确认卡片挂到审批处理完；卡住卡片挂到恢复活动。3 张及以上自动叠放成标题条，鼠标移上去整体展开；要整体不弹看上面「页内卡片」总开关</span>
 					</div>
 					<div className="dknt-row">
 						<span className="dknt-row-label">系统通知</span>
@@ -971,11 +1132,14 @@ function NotifyView(props) {
 				{cfg.voiceNotify ? <div className="dknt-rows-narrow">
 					<div className="dknt-row">
 						<span className="dknt-row-label">播报口径</span>
-						<button type="button" className={"dknt-miniswitch" + (cfg.voiceMode !== "detailed" ? " on" : "")}
-							onClick={() => patch({ voiceMode: "brief" })}>简洁</button>
-						<button type="button" className={"dknt-miniswitch" + (cfg.voiceMode === "detailed" ? " on" : "")}
-							onClick={() => patch({ voiceMode: "detailed" })}>详细</button>
-						<span className="dknt-row-sub">简洁：一句「任务完成 / 任务停止了 / 任务需要授权 / 任务卡住了」；详细：带上任务标题、耗时、回合统计与原因</span>
+						{[["brief", "简洁"], ["medium", "适中"], ["detailed", "详细"]].map(([v, label]) => (
+							<button type="button" key={v}
+								className={"dknt-miniswitch" + (voiceTone(cfg) === v ? " on" : "")}
+								style={{ marginRight: 6 }}
+								title={"语音播报按" + label + "档说"}
+								onClick={() => patch({ voiceMode: v })}>{label}</button>
+						))}
+						<span className="dknt-row-sub">简洁：一句「任务完成 / 任务停止了 / 任务需要授权 / 主任务（或子任务）·标题 卡住了」；适中：点名任务，结束带原因与耗时、卡住带停滞时长；详细：结束带回合统计与回复摘要，需授权带工具名，卡住带最后动作</span>
 					</div>
 					<div className="dknt-row">
 						<span className="dknt-row-label">播报时刻</span>
@@ -1169,7 +1333,7 @@ function NotifyStat(props) {
 	if (snap.error) return <span className="dknt-err">通知状态不可用（宿主需重启加载通知路由）</span>;
 	if (!cfg) return <span>等待通知配置…</span>;
 	const events = [cfg.notifyOnComplete ? "完成" : "", cfg.notifyOnError ? "异常" : "", cfg.notifyOnConfirm !== false ? "需确认" : ""].filter(Boolean);
-	const extras = [cfg.soundNotify !== false ? "提示音" : "", cfg.systemNotify ? "系统通知" : "", cfg.voiceNotify ? ("语音播报" + (cfg.voiceMode === "detailed" ? "·详" : "·简")) : ""].filter(Boolean);
+	const extras = [cfg.soundNotify !== false ? "提示音" : "", cfg.systemNotify ? "系统通知" : "", cfg.voiceNotify ? ("语音播报" + (cfg.voiceMode === "detailed" ? "·详" : cfg.voiceMode === "medium" ? "·适" : "·简")) : ""].filter(Boolean);
 	const push = [cfg.dingtalkEnabled ? "钉钉" : "", cfg.feishuEnabled ? "飞书" : ""].filter(Boolean);
 	return <span>{(events.length ? "通知：" + events.join("/") : "通知事件全关")
 		+ (extras.length ? " · " + extras.join("/") : "")

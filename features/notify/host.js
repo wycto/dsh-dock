@@ -23,6 +23,12 @@ function defaultConfig() {
     notifyOnComplete: true,
     notifyOnError: true,
     notifyOnConfirm: true,
+    // 卡住提醒卡片（与 voiceOnStuck 同口径 18 秒无活动，但卡片与语音各自独立开关）
+    notifyOnStuck: true,
+    // 页内卡片总开关（关闭 → 右侧所有类型的通知卡片都不再弹出）
+    notifyCards: true,
+    // 卡片口径三挡（正文写多少）：默认 detailed ＝历史内容，未设置时卡片不缩水
+    cardMode: 'detailed',
     notifyStayMs: 8000,
     systemNotify: false,
     soundNotify: true,
@@ -60,7 +66,8 @@ function readConfig(ctx) {
         if (n[key] !== undefined) cfg[key] = n[key]
       }
       if (!SOUND_EFFECTS.includes(cfg.soundEffect)) cfg.soundEffect = 'chime'
-      if (cfg.voiceMode !== 'brief' && cfg.voiceMode !== 'detailed') cfg.voiceMode = 'brief'
+      if (cfg.voiceMode !== 'brief' && cfg.voiceMode !== 'medium' && cfg.voiceMode !== 'detailed') cfg.voiceMode = 'brief'
+      if (cfg.cardMode !== 'brief' && cfg.cardMode !== 'medium' && cfg.cardMode !== 'detailed') cfg.cardMode = 'detailed'
     }
   } catch { /* settings 未挂载，用默认 */ }
   return cfg
@@ -277,6 +284,13 @@ export const feature = {
               if (typeof p.notifyOnComplete === 'boolean') cfg.notifyOnComplete = p.notifyOnComplete
               if (typeof p.notifyOnError === 'boolean') cfg.notifyOnError = p.notifyOnError
               if (typeof p.notifyOnConfirm === 'boolean') cfg.notifyOnConfirm = p.notifyOnConfirm
+              // 卡住提醒卡 + 页内卡片总开关（总开关只管卡片弹不弹，不管语音/提示音/系统通知）
+              if (typeof p.notifyOnStuck === 'boolean') cfg.notifyOnStuck = p.notifyOnStuck
+              if (typeof p.notifyCards === 'boolean') cfg.notifyCards = p.notifyCards
+              // 卡片口径三挡（正文写多少）；非法值忽略（保持已存的值）
+              if (typeof p.cardMode === 'string' && (p.cardMode === 'brief' || p.cardMode === 'medium' || p.cardMode === 'detailed')) {
+                cfg.cardMode = p.cardMode
+              }
               if (typeof p.notifyStayMs === 'number' && Number.isFinite(p.notifyStayMs)) {
                 cfg.notifyStayMs = Math.max(0, Math.min(600000, Math.round(p.notifyStayMs)))
               }
@@ -305,7 +319,7 @@ export const feature = {
               }
               // ===== 语音播报字段 =====
               if (typeof p.voiceNotify === 'boolean') cfg.voiceNotify = p.voiceNotify
-              if (typeof p.voiceMode === 'string' && (p.voiceMode === 'brief' || p.voiceMode === 'detailed')) {
+              if (typeof p.voiceMode === 'string' && (p.voiceMode === 'brief' || p.voiceMode === 'medium' || p.voiceMode === 'detailed')) {
                 cfg.voiceMode = p.voiceMode
               }
               for (const key of ['voiceOnComplete', 'voiceOnError', 'voiceOnConfirm', 'voiceOnStuck']) {

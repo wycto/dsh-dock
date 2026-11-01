@@ -40,18 +40,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js
+// node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js
+// node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/utils.js"(exports) {
+  "node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -128,9 +128,9 @@ var require_utils = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js
+// node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -173,9 +173,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js
+// node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -208,9 +208,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js
+// node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -237,9 +237,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js
+// node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -272,9 +272,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js
+// node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -291,9 +291,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js
+// node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -433,9 +433,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js
+// node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -794,9 +794,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js
+// node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -827,9 +827,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js
+// node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -863,9 +863,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -895,18 +895,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js
+// node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version-check.js"(exports) {
+  "node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js
+// node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/regex.js"(exports) {
+  "node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -932,9 +932,9 @@ var require_regex = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js
+// node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/mode.js"(exports) {
+  "node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1013,9 +1013,9 @@ var require_mode = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js
+// node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/version.js"(exports) {
+  "node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1108,9 +1108,9 @@ var require_version = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js
+// node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/format-info.js"(exports) {
+  "node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1126,9 +1126,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js
+// node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1161,9 +1161,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js
+// node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1240,9 +1240,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js
+// node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1270,9 +1270,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js
+// node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1309,9 +1309,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js
+// node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  ".devdeps/node_modules/.pnpm/dijkstrajs@1.0.3/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1410,9 +1410,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js
+// node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/segments.js"(exports) {
+  "node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1596,9 +1596,9 @@ var require_segments = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js
+// node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1857,9 +1857,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js
+// node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1937,9 +1937,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js
+// node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1990,9 +1990,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js
+// node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2048,9 +2048,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// .devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js
+// node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  ".devdeps/node_modules/.pnpm/qrcode@1.5.4/node_modules/qrcode/lib/browser.js"(exports) {
+  "node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -7407,6 +7407,14 @@ function speakVoice(text, cfg) {
   poll();
   return true;
 }
+function voiceTone(cfg) {
+  const m = cfg && cfg.voiceMode;
+  return m === "detailed" || m === "medium" ? m : "brief";
+}
+function cardTone(cfg) {
+  const m = cfg && cfg.cardMode;
+  return m === "brief" || m === "medium" ? m : "detailed";
+}
 function endReasonSpeech(reason) {
   if (reason === "error") return "\u51FA\u9519\u4E86";
   if (reason === "aborted") return "\u5DF2\u505C\u6B62";
@@ -7416,11 +7424,20 @@ function endReasonSpeech(reason) {
   return "\u5B8C\u6210\u4E86";
 }
 function endBroadcastText(success, record, task, cfg) {
-  const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+  const mode = voiceTone(cfg);
   const reason = record && record.endReason || "";
   const title = record && record.title || task && task.title || "";
   if (mode === "brief") {
     return success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1\u505C\u6B62\u4E86";
+  }
+  if (mode === "medium") {
+    const who = title ? "\u4EFB\u52A1\u300C" + truncate2(title, 30) + "\u300D" : "\u4EFB\u52A1";
+    const parts2 = [success ? who + "\u5B8C\u6210\u4E86" : who + "\u505C\u6B62\u4E86"];
+    if (!success) parts2.push("\uFF0C\u539F\u56E0\uFF1A" + endReasonSpeech(reason));
+    const dur2 = record && record.duration || 0;
+    if (dur2 > 0) parts2.push("\uFF0C\u8017\u65F6" + fmtDur(dur2));
+    parts2.push("\u3002");
+    return parts2.join("");
   }
   const parts = [];
   if (title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(title, 30) + "\u3002");
@@ -7439,21 +7456,32 @@ function endBroadcastText(success, record, task, cfg) {
   return parts.join("");
 }
 function confirmBroadcastText(task, approval, cfg) {
-  const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
+  const mode = voiceTone(cfg);
   if (mode === "brief") return "\u4EFB\u52A1\u9700\u8981\u6388\u6743";
   const tool = approval && approval.toolName || "\u5DE5\u5177";
   const scene = toolLabel(tool);
+  if (mode === "medium") {
+    const who = task && task.title ? "\u4EFB\u52A1\u300C" + truncate2(task.title, 30) + "\u300D" : "\u4EFB\u52A1";
+    return who + "\u9700\u8981\u6388\u6743\uFF0C\u6B63\u5728\u7B49\u4F60\u6279\u51C6" + (scene || "\u5DE5\u5177 " + tool) + "\u3002";
+  }
   const parts = [];
   if (task && task.title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(task.title, 30) + "\u3002");
   parts.push("\u6B63\u5728\u7B49\u5F85\u4F60\u6279\u51C6" + (scene ? "\u6267\u884C" + scene : "") + "\uFF0C\u5DE5\u5177\u662F" + tool + "\uFF0C\u8BF7\u56DE\u5230\u4F1A\u8BDD\u5904\u7406\u3002");
   return parts.join("");
 }
 function stuckBroadcastText(task, cfg) {
-  const mode = cfg && cfg.voiceMode === "detailed" ? "detailed" : "brief";
-  if (mode === "brief") return "\u4EFB\u52A1\u5361\u4F4F\u4E86";
-  const parts = [];
-  if (task && task.title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(task.title, 30) + "\u3002");
-  parts.push("\u7F16\u7A0B\u9636\u6BB5\u5DF2\u7ECF" + fmtDur(Math.max(0, cfg && cfg.stuckMs || STUCK_MS)) + "\u6CA1\u6709\u4EFB\u4F55\u52A8\u9759\uFF0C\u53EF\u80FD\u5361\u4F4F\u4E86\uFF0C\u8BF7\u67E5\u770B\u3002");
+  const mode = voiceTone(cfg);
+  const where = (task && task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1") + (task && task.title ? "\u300C" + truncate2(task.title, 30) + "\u300D" : "");
+  if (mode === "brief") return where + "\u5361\u4F4F\u4E86";
+  if (mode === "medium") {
+    return where + "\u5361\u4F4F\u4E86\uFF0C\u5DF2\u7ECF" + fmtDur(Math.max(0, cfg && cfg.stuckMs || STUCK_MS)) + "\u6CA1\u6709\u4EFB\u4F55\u52A8\u9759\u3002";
+  }
+  const parts = [where + "\u5361\u4F4F\u4E86\u3002"];
+  parts.push("\u7F16\u7A0B\u9636\u6BB5\u5DF2\u7ECF" + fmtDur(Math.max(0, cfg && cfg.stuckMs || STUCK_MS)) + "\u6CA1\u6709\u4EFB\u4F55\u52A8\u9759\uFF0C");
+  const tool = task && task.lastToolName || "";
+  const scene = tool ? toolLabel(tool) : "";
+  parts.push(tool ? "\u6700\u540E\u5728\u6267\u884C" + tool + (scene ? "\uFF08" + scene + "\uFF09" : "") + "\uFF0C" : "");
+  parts.push("\u8BF7\u67E5\u770B\u3002");
   return parts.join("");
 }
 var STUCK_MS = 18e3;
@@ -7565,9 +7593,9 @@ function Toast(props) {
   }, []);
   const jump = (0, import_react10.useCallback)(() => {
     if (!t.sessionTitle && !t.sessionId) return;
-    const ok = openSessionById(t.sessionId) || (t.sessionTitle ? openSessionByTitle(t.sessionTitle) : false);
-    if (ok && t.kind !== "confirm") setClosing(true);
-  }, [t.sessionId, t.sessionTitle, t.kind]);
+    const ok = openSessionById(t.sessionId) || (t.fallbackSessionId ? openSessionById(t.fallbackSessionId) : false) || (t.sessionTitle ? openSessionByTitle(t.sessionTitle) : false);
+    if (ok && t.kind !== "confirm" && t.kind !== "stuck") setClosing(true);
+  }, [t.sessionId, t.sessionTitle, t.fallbackSessionId, t.kind]);
   (0, import_react10.useEffect)(() => {
     if (t.closing && !closing) setClosing(true);
   }, [t.closing, closing]);
@@ -7586,7 +7614,7 @@ function Toast(props) {
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-toast-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-toast-mark", style: { background: markColor } }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-toast-title", title: t.sessionTitle || t.title, children: [
-            t.kind === "confirm" ? "\u270B " : "",
+            t.kind === "confirm" ? "\u270B " : t.kind === "stuck" ? "\u23F3 " : "",
             props.collapsed ? t.sessionTitle || t.title : t.title,
             !props.collapsed && t.sessionTitle && t.kind !== "confirm" ? " \xB7 " + t.sessionTitle : ""
           ] }),
@@ -7618,8 +7646,15 @@ function NotifyOverlay(props) {
   const remindedApprovalsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
   const toastSeqRef = (0, import_react10.useRef)(0);
   const pushToast = (0, import_react10.useCallback)((toast) => {
+    const st = notifyStore.snap.status;
+    const cfg = st && st.config;
+    if (cfg && cfg.notifyCards === false) return;
     setToasts((prev) => prev.concat([toast]).slice(-12));
   }, []);
+  (0, import_react10.useEffect)(() => {
+    const cfg = snap.status && snap.status.config;
+    if (cfg && cfg.notifyCards === false) setToasts((prev) => prev.length ? [] : prev);
+  }, [snap.status]);
   (0, import_react10.useEffect)(() => {
     let stopped = false;
     let timer = null;
@@ -7679,12 +7714,17 @@ function NotifyOverlay(props) {
       if (cfg.notifyOnConfirm === false) continue;
       const toolName = fresh[0].toolName || "";
       const scene = toolLabel(toolName);
+      const tone = cardTone(cfg);
       const lines = [
         "\u4EFB\u52A1\uFF1A" + (task.title || "(\u65E0\u6807\u9898)"),
         "\u5DE5\u5177\uFF1A" + (toolName || "\u672A\u77E5") + (scene ? "\uFF08" + scene + "\uFF09" : "")
       ];
-      if (fresh[0].reason) lines.push("\u8BF4\u660E\uFF1A" + truncate2(fresh[0].reason, 140));
-      lines.push(fresh.length > 1 ? "\u5171 " + fresh.length + " \u9879\u7B49\u5F85\u4F60\u7684\u786E\u8BA4" : "\u8BF7\u5728\u4F1A\u8BDD\u91CC\u786E\u8BA4\u540E\u7EE7\u7EED");
+      if (tone !== "brief" && fresh[0].reason) lines.push("\u8BF4\u660E\uFF1A" + truncate2(fresh[0].reason, 140));
+      if (fresh.length > 1) {
+        lines.push(tone === "brief" ? "\u5171 " + fresh.length + " \u9879\u7B49\u5F85\u786E\u8BA4" : "\u5171 " + fresh.length + " \u9879\u7B49\u5F85\u4F60\u7684\u786E\u8BA4");
+      } else if (tone === "detailed") {
+        lines.push("\u8BF7\u5728\u4F1A\u8BDD\u91CC\u786E\u8BA4\u540E\u7EE7\u7EED");
+      }
       pushToast({
         id: ++toastSeqRef.current,
         kind: "confirm",
@@ -7737,7 +7777,7 @@ function NotifyOverlay(props) {
       setToasts((prev) => {
         let changed = false;
         const next = prev.map((x) => {
-          if (x.kind === "confirm" || x.closing) return x;
+          if (x.kind === "confirm" || x.kind === "stuck" || x.closing) return x;
           if (!x.sessionTitle && !x.sessionId) return x;
           const hit = cur.id && x.sessionId && cur.id === x.sessionId || !cur.id && x.sessionTitle && titleMatches(x.sessionTitle, cur.title);
           if (!hit) return x;
@@ -7759,7 +7799,10 @@ function NotifyOverlay(props) {
     for (const sid of Array.from(stuckSeenRef.current.keys())) {
       if (!activeIds.has(sid)) stuckSeenRef.current.delete(sid);
     }
-    if (cfg.voiceNotify !== true || cfg.voiceOnStuck === false) return;
+    const parentsWaitingOnSubtask = /* @__PURE__ */ new Set();
+    for (const t of st.active) {
+      if (t.isSubtask && t.parentSessionId) parentsWaitingOnSubtask.add(t.parentSessionId);
+    }
     for (const task of st.active) {
       const approvals = Array.isArray(task.approvals) ? task.approvals : [];
       if (approvals.length > 0) {
@@ -7769,13 +7812,57 @@ function NotifyOverlay(props) {
       if (task.phase !== "code") {
         continue;
       }
+      if (parentsWaitingOnSubtask.has(task.sessionId)) continue;
       const lastAct = task.lastActivityAt || task.phaseAt || 0;
       if (!lastAct || now - lastAct < STUCK_MS) continue;
       const prev = stuckSeenRef.current.get(task.sessionId);
       if (prev === lastAct) continue;
       stuckSeenRef.current.set(task.sessionId, lastAct);
-      speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs: now - lastAct })), cfg);
+      const stuckMs = now - lastAct;
+      if (cfg.voiceNotify === true && cfg.voiceOnStuck !== false) {
+        speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs })), cfg);
+      }
+      if (cfg.notifyOnStuck === false) continue;
+      const label = task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1";
+      const title = task.title || "(\u65E0\u6807\u9898)";
+      const tool = task.lastToolName || "";
+      const tone = cardTone(cfg);
+      const lines = ["\u4EFB\u52A1\uFF1A" + label + "\xB7" + title];
+      if (tone !== "brief") lines.push("\u5DF2\u505C\u6EDE\uFF1A" + fmtDur(stuckMs) + "\uFF08\u7F16\u7A0B\u9636\u6BB5\u65E0\u6D3B\u52A8\uFF09");
+      if (tone === "detailed") {
+        if (tool) lines.push("\u6700\u540E\u52A8\u4F5C\uFF1A" + tool + (toolLabel(tool) ? "\uFF08" + toolLabel(tool) + "\uFF09" : ""));
+        lines.push("\u6062\u590D\u6D3B\u52A8\u6216\u4EFB\u52A1\u7ED3\u675F\u540E\u81EA\u52A8\u6536\u8D77\uFF1B\u70B9\u51FB\u5361\u7247\u76F4\u8FBE\u4F1A\u8BDD");
+      }
+      pushToast({
+        id: ++toastSeqRef.current,
+        kind: "stuck",
+        title: label + "\u5361\u4F4F\u4E86",
+        body: lines.join("\n"),
+        sessionId: task.sessionId || "",
+        sessionTitle: title,
+        // 子任务会话通常不在侧栏里：跳不到自己时回退到父会话（看主会话里的子代理进度）
+        fallbackSessionId: task.isSubtask && task.parentSessionId ? task.parentSessionId : "",
+        // 停点指纹：恢复活动（lastActivityAt 变了）即由下面的对账 effect 收起
+        stuckAt: lastAct
+      });
     }
+  }, [snap.status]);
+  (0, import_react10.useEffect)(() => {
+    const st = snap.status;
+    if (!st || !st.active) return;
+    const byId = new Map(st.active.map((x) => [x.sessionId, x]));
+    setToasts((prev) => {
+      let changed = false;
+      const next = prev.map((x) => {
+        if (x.kind !== "stuck" || x.closing) return x;
+        const task = byId.get(x.sessionId);
+        const stillStalled = !!task && (task.lastActivityAt || task.phaseAt || 0) === x.stuckAt && (Array.isArray(task.approvals) ? task.approvals.length : 0) === 0;
+        if (stillStalled) return x;
+        changed = true;
+        return Object.assign({}, x, { closing: true });
+      });
+      return changed ? next : prev;
+    });
   }, [snap.status]);
   const handleTaskEnd = (task, record, cfg) => {
     const reason = record && record.endReason || "";
@@ -7790,15 +7877,17 @@ function NotifyOverlay(props) {
     const provider = record && record.provider || task.provider || "";
     const startTs = record && record.startTime || task.startTime;
     const endTs = record && record.endTime || Date.now();
-    const lines = [
-      "\u4EFB\u52A1\uFF1A" + (record && record.title || task.title || "(\u65E0\u6807\u9898)"),
-      "\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""),
-      "\u8017\u65F6\uFF1A" + fmtDur(record && record.duration || endTs - startTs) + "\uFF08" + fmtTime2(startTs) + " \u2192 " + fmtTime2(endTs) + "\uFF09",
-      "\u56DE\u5408 " + (record && record.turns || task.turns || 0) + " \xB7 \u6B65\u9AA4 " + (record && record.steps || task.steps || 0) + (record && record.toolCalls || task.toolCalls ? " \xB7 \u5DE5\u5177 " + (record && record.toolCalls || task.toolCalls) + " \u6B21" : ""),
-      "Token\uFF1A\u8F93\u5165 " + fmtNum2(record && record.inputTokens || task.inputTokens) + " / \u8F93\u51FA " + fmtNum2(record && record.outputTokens || task.outputTokens)
-    ];
-    if (record && record.lastText) lines.push("\u6458\u8981\uFF1A" + truncate2(record.lastText, 140));
-    if (!success && record && record.errorMessage) lines.push("\u9519\u8BEF\uFF1A" + truncate2(record.errorMessage, 120));
+    const tone = cardTone(cfg);
+    const durText = fmtDur(record && record.duration || endTs - startTs);
+    const lines = ["\u4EFB\u52A1\uFF1A" + (record && record.title || task.title || "(\u65E0\u6807\u9898)")];
+    if (tone !== "brief") lines.push("\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""));
+    lines.push(tone === "brief" ? "\u8017\u65F6\uFF1A" + durText : "\u8017\u65F6\uFF1A" + durText + "\uFF08" + fmtTime2(startTs) + " \u2192 " + fmtTime2(endTs) + "\uFF09");
+    if (tone === "detailed") {
+      lines.push("\u56DE\u5408 " + (record && record.turns || task.turns || 0) + " \xB7 \u6B65\u9AA4 " + (record && record.steps || task.steps || 0) + (record && record.toolCalls || task.toolCalls ? " \xB7 \u5DE5\u5177 " + (record && record.toolCalls || task.toolCalls) + " \u6B21" : ""));
+      lines.push("Token\uFF1A\u8F93\u5165 " + fmtNum2(record && record.inputTokens || task.inputTokens) + " / \u8F93\u51FA " + fmtNum2(record && record.outputTokens || task.outputTokens));
+      if (record && record.lastText) lines.push("\u6458\u8981\uFF1A" + truncate2(record.lastText, 140));
+      if (!success && record && record.errorMessage) lines.push("\u9519\u8BEF\uFF1A" + truncate2(record.errorMessage, 120));
+    }
     const title = success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1" + info.label;
     pushToast({
       id: ++toastSeqRef.current,
@@ -7972,6 +8061,19 @@ function NotifyView(props) {
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u9875\u5185\u5361\u7247" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.notifyCards !== false ? " on" : ""),
+                onClick: () => patch({ notifyCards: cfg.notifyCards === false }),
+                children: cfg.notifyCards !== false ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u53F3\u4FA7\u901A\u77E5\u5361\u7247\u603B\u5F00\u5173\uFF1A\u5173\u95ED\u540E\u4E0B\u9762\u5404\u7C7B\u5361\u7247\uFF08\u5B8C\u6210 / \u5F02\u5E38 / \u9700\u786E\u8BA4 / \u5361\u4F4F\uFF09\u4E00\u5F8B\u4E0D\u5F39\uFF0C\u5DF2\u6302\u7740\u7684\u4E00\u5E76\u6536\u8D77\uFF1B\u8BED\u97F3\u64AD\u62A5\u3001\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u3001\u9489\u9489\u98DE\u4E66\u63A8\u9001\u4E0D\u53D7\u5F71\u54CD" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5B8C\u6210\u901A\u77E5" }),
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
               "button",
@@ -8009,6 +8111,19 @@ function NotifyView(props) {
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF1B\u5BA1\u6279\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF0C\u6CA1\u5904\u7406\u5B8C\u5C31\u4E00\u76F4\u663E\u793A\uFF08\u70B9\u5361\u7247\u76F4\u8FBE\u4F1A\u8BDD\uFF09" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u4F4F\u63D0\u9192" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cfg.notifyOnStuck !== false ? " on" : ""),
+                onClick: () => patch({ notifyOnStuck: cfg.notifyOnStuck === false }),
+                children: cfg.notifyOnStuck !== false ? "\u5F00" : "\u5173"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7F16\u7A0B\u9636\u6BB5 18 \u79D2\u6CA1\u6709\u52A8\u9759\u65F6\u5F39\u5361\u7247\uFF0C\u5199\u660E\u662F\u4E3B\u4EFB\u52A1\u8FD8\u662F\u5B50\u4EFB\u52A1\u3001\u505C\u6EDE\u4E86\u591A\u4E45\u3001\u6700\u540E\u5728\u6267\u884C\u4EC0\u4E48\uFF1B\u6062\u590D\u6D3B\u52A8 / \u4EFB\u52A1\u7ED3\u675F\u81EA\u52A8\u6536\u8D77\uFF0C\u540C\u4E00\u505C\u70B9\u53EA\u5F39\u4E00\u6B21\uFF08\u8BED\u97F3\u64AD\u62A5\u8D70\u300C\u8BED\u97F3\u64AD\u62A5\u300D\u533A\u7684\u5361\u4F4F\u5F00\u5173\uFF0C\u4E92\u4E0D\u5E72\u6270\uFF09" })
           ] })
         ] })
       ] }, "events"),
@@ -8019,8 +8134,24 @@ function NotifyView(props) {
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u53E3\u5F84" }),
+            [["brief", "\u7B80\u6D01"], ["medium", "\u9002\u4E2D"], ["detailed", "\u8BE6\u7EC6"]].map(([v, label]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dknt-miniswitch" + (cardTone(cfg) === v ? " on" : ""),
+                style: { marginRight: 6 },
+                title: "\u53F3\u4FA7\u901A\u77E5\u5361\u7247\u6B63\u6587\u6309" + label + "\u6863\u663E\u793A",
+                onClick: () => patch({ cardMode: v }),
+                children: label
+              },
+              v
+            )),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u53F3\u4FA7\u5361\u7247\u6B63\u6587\u5199\u591A\u5C11\uFF08\u4E0E\u5404\u7C7B\u578B\u5F00\u5173\u3001\u8BED\u97F3\u64AD\u62A5\u4E92\u4E0D\u5F71\u54CD\uFF09\uFF1A\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u8017\u65F6 / \u8C01\u5361\u4F4F\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B\u3001\u8D77\u6B62\u65F6\u95F4\u3001\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1D\u5168\u90E8\uFF08\u56DE\u5408\u6B65\u9AA4\u3001Token\u3001\u6458\u8981\u6216\u9519\u8BEF\u3001\u6700\u540E\u52A8\u4F5C\uFF09" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u6536\u7EB3" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u6240\u6709\u5361\u7247\u90FD\u4E0D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u7ED3\u675F\u5361\u7247\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF08\u540E\u53F0\u8DD1\u5B8C\u7684\u5207\u56DE\u6765\u4E5F\u5728\uFF09\uFF0C\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD\uFF0C\u6216\u70B9\u8FDB\u8BE5\u4F1A\u8BDD\uFF0C\u5361\u7247\u81EA\u52A8\u6536\u8D77\uFF1B\u9700\u786E\u8BA4\u5361\u7247\u6302\u5230\u5BA1\u6279\u5904\u7406\u5B8C\u30023 \u5F20\u53CA\u4EE5\u4E0A\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u6240\u6709\u5361\u7247\u90FD\u4E0D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u7ED3\u675F\u5361\u7247\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF08\u540E\u53F0\u8DD1\u5B8C\u7684\u5207\u56DE\u6765\u4E5F\u5728\uFF09\uFF0C\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD\uFF0C\u6216\u70B9\u8FDB\u8BE5\u4F1A\u8BDD\uFF0C\u5361\u7247\u81EA\u52A8\u6536\u8D77\uFF1B\u9700\u786E\u8BA4\u5361\u7247\u6302\u5230\u5BA1\u6279\u5904\u7406\u5B8C\uFF1B\u5361\u4F4F\u5361\u7247\u6302\u5230\u6062\u590D\u6D3B\u52A8\u30023 \u5F20\u53CA\u4EE5\u4E0A\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00\uFF1B\u8981\u6574\u4F53\u4E0D\u5F39\u770B\u4E0A\u9762\u300C\u9875\u5185\u5361\u7247\u300D\u603B\u5F00\u5173" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
@@ -8109,25 +8240,19 @@ function NotifyView(props) {
         cfg.voiceNotify ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u53E3\u5F84" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            [["brief", "\u7B80\u6D01"], ["medium", "\u9002\u4E2D"], ["detailed", "\u8BE6\u7EC6"]].map(([v, label]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
               "button",
               {
                 type: "button",
-                className: "dknt-miniswitch" + (cfg.voiceMode !== "detailed" ? " on" : ""),
-                onClick: () => patch({ voiceMode: "brief" }),
-                children: "\u7B80\u6D01"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.voiceMode === "detailed" ? " on" : ""),
-                onClick: () => patch({ voiceMode: "detailed" }),
-                children: "\u8BE6\u7EC6"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1A\u4E00\u53E5\u300C\u4EFB\u52A1\u5B8C\u6210 / \u4EFB\u52A1\u505C\u6B62\u4E86 / \u4EFB\u52A1\u9700\u8981\u6388\u6743 / \u4EFB\u52A1\u5361\u4F4F\u4E86\u300D\uFF1B\u8BE6\u7EC6\uFF1A\u5E26\u4E0A\u4EFB\u52A1\u6807\u9898\u3001\u8017\u65F6\u3001\u56DE\u5408\u7EDF\u8BA1\u4E0E\u539F\u56E0" })
+                className: "dknt-miniswitch" + (voiceTone(cfg) === v ? " on" : ""),
+                style: { marginRight: 6 },
+                title: "\u8BED\u97F3\u64AD\u62A5\u6309" + label + "\u6863\u8BF4",
+                onClick: () => patch({ voiceMode: v }),
+                children: label
+              },
+              v
+            )),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1A\u4E00\u53E5\u300C\u4EFB\u52A1\u5B8C\u6210 / \u4EFB\u52A1\u505C\u6B62\u4E86 / \u4EFB\u52A1\u9700\u8981\u6388\u6743 / \u4E3B\u4EFB\u52A1\uFF08\u6216\u5B50\u4EFB\u52A1\uFF09\xB7\u6807\u9898 \u5361\u4F4F\u4E86\u300D\uFF1B\u9002\u4E2D\uFF1A\u70B9\u540D\u4EFB\u52A1\uFF0C\u7ED3\u675F\u5E26\u539F\u56E0\u4E0E\u8017\u65F6\u3001\u5361\u4F4F\u5E26\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1A\u7ED3\u675F\u5E26\u56DE\u5408\u7EDF\u8BA1\u4E0E\u56DE\u590D\u6458\u8981\uFF0C\u9700\u6388\u6743\u5E26\u5DE5\u5177\u540D\uFF0C\u5361\u4F4F\u5E26\u6700\u540E\u52A8\u4F5C" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u65F6\u523B" }),
@@ -8403,7 +8528,7 @@ function NotifyStat(props) {
   if (snap.error) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-err", children: "\u901A\u77E5\u72B6\u6001\u4E0D\u53EF\u7528\uFF08\u5BBF\u4E3B\u9700\u91CD\u542F\u52A0\u8F7D\u901A\u77E5\u8DEF\u7531\uFF09" });
   if (!cfg) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u7B49\u5F85\u901A\u77E5\u914D\u7F6E\u2026" });
   const events = [cfg.notifyOnComplete ? "\u5B8C\u6210" : "", cfg.notifyOnError ? "\u5F02\u5E38" : "", cfg.notifyOnConfirm !== false ? "\u9700\u786E\u8BA4" : ""].filter(Boolean);
-  const extras = [cfg.soundNotify !== false ? "\u63D0\u793A\u97F3" : "", cfg.systemNotify ? "\u7CFB\u7EDF\u901A\u77E5" : "", cfg.voiceNotify ? "\u8BED\u97F3\u64AD\u62A5" + (cfg.voiceMode === "detailed" ? "\xB7\u8BE6" : "\xB7\u7B80") : ""].filter(Boolean);
+  const extras = [cfg.soundNotify !== false ? "\u63D0\u793A\u97F3" : "", cfg.systemNotify ? "\u7CFB\u7EDF\u901A\u77E5" : "", cfg.voiceNotify ? "\u8BED\u97F3\u64AD\u62A5" + (cfg.voiceMode === "detailed" ? "\xB7\u8BE6" : cfg.voiceMode === "medium" ? "\xB7\u9002" : "\xB7\u7B80") : ""].filter(Boolean);
   const push = [cfg.dingtalkEnabled ? "\u9489\u9489" : "", cfg.feishuEnabled ? "\u98DE\u4E66" : ""].filter(Boolean);
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: (events.length ? "\u901A\u77E5\uFF1A" + events.join("/") : "\u901A\u77E5\u4E8B\u4EF6\u5168\u5173") + (extras.length ? " \xB7 " + extras.join("/") : "") + (push.length ? " \xB7 \u63A8\u9001\uFF1A" + push.join("/") : "") });
 }
@@ -14332,7 +14457,7 @@ var feature13 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.18.0";
+var DOCK_VERSION = "0.19.0";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12, feature13];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};

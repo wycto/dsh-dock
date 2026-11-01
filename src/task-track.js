@@ -88,6 +88,32 @@ function createTracker(ctx) {
 		return ''
 	}
 
+	/**
+	 * 会话标题 + 主/子任务归属：优先 readTitleSnapshot（一次观测同时拿到标题与会话头），
+	 * 会话头里的 origin === 'subagent' / delegationDepth 是权威的子任务标记（见 dsh-session
+	 * SessionHeader），fallback 路径只拿标题、按主任务处理。取不到头不报错——播报退化为
+	 * 不带归属的旧口径，功能不受影响（测试桩只需实现 readTitle/readSession 也能跑）。
+	 * @returns {Promise<{ title: string, header: object|null }>}
+	 */
+	async function readSessionFacts(sessionId, sessionQuery) {
+		const facts = { title: '', header: null }
+		if (!sessionQuery) return facts
+		try {
+			if (typeof sessionQuery.readTitleSnapshot === 'function') {
+				const obs = await sessionQuery.readTitleSnapshot(sessionId)
+				if (obs) {
+					const t = obs.title
+					if (typeof t === 'string') facts.title = t
+					else if (t && typeof t.title === 'string') facts.title = t.title
+					if (obs.session && typeof obs.session === 'object') facts.header = obs.session
+					if (facts.title || facts.header) return facts
+				}
+			}
+		} catch { /* 换下一种读法 */ }
+		facts.title = await getSessionTitle(sessionId, sessionQuery)
+		return facts
+	}
+
 	function addActiveSession(sid, sessionQuery, extra = {}) {
 		if (activeSessions.has(sid)) return activeSessions.get(sid)
 		// 不在终端打「任务开始」日志：开始/结束状态界面（运行状态页）已实时可见
@@ -108,6 +134,11 @@ function createTracker(ctx) {
 			errorMessage: '',
 			lastText: '',
 			firstPrompt: '',
+			// 主/子任务归属 + 最近一次调用的工具：卡住播报与卡住卡要说清「哪里卡住、最后在干什么」
+			//（isSubtask 由会话头 origin/delegationDepth 异步判定，判定前按主任务处理）
+			isSubtask: false,
+			parentSessionId: '',
+			lastToolName: '',
 			// 工具等待用户确认（dsh 会话流 approval/asked）：浏览器侧据此弹"需确认"通知
 			approvals: new Map(), // approvalId -> { toolName, reason, askedAt }
 			phase: 'think',
@@ -120,10 +151,17 @@ function createTracker(ctx) {
 			...extra,
 		}
 		activeSessions.set(sid, record)
-		getSessionTitle(sid, sessionQuery).then((title) => {
+		readSessionFacts(sid, sessionQuery).then((facts) => {
 			const s = activeSessions.get(sid)
-			if (s) s.title = title
-		})
+			if (!s) return
+			if (facts.title) s.title = facts.title
+			const h = facts.header
+			if (h) {
+				s.isSubtask = h.origin === 'subagent'
+					|| (typeof h.delegationDepth === 'number' && h.delegationDepth > 0)
+				s.parentSessionId = typeof h.parentSession === 'string' && h.parentSession ? h.parentSession : ''
+			}
+		}).catch(() => { /* 标题/归属读失败：title 走 firstPrompt 兜底，归属按主任务 */ })
 		return record
 	}
 
@@ -229,6 +267,9 @@ function createTracker(ctx) {
 			s.toolCalls++
 			s.phase = phaseOfToolName(event.data && event.data.name)
 			s.phaseAt = now
+			// 记下最后调用的工具名：卡住播报/卡住卡要回答「最后在干什么」
+			const called = event.data && typeof event.data.name === 'string' ? event.data.name : ''
+			if (called) s.lastToolName = called
 			// 工具启动是稀疏事件，给一个更明显的短促动作，检索/写文件也不会显得停住。
 			s.motionTicks += s.phase === 'search' ? 7 : 9
 			s.lastMotionAt = now
@@ -329,6 +370,10 @@ function createTracker(ctx) {
 					lastActivityAt: s.lastActivityAt,
 					motionTicks: s.motionTicks,
 					lastMotionAt: s.lastMotionAt,
+					// 卡住播报/卡住卡专用：主/子归属（会话头判定）与最后调用的工具
+					isSubtask: !!s.isSubtask,
+					parentSessionId: s.parentSessionId || '',
+					lastToolName: s.lastToolName || '',
 					approvals: [...s.approvals.entries()].map(([id, v]) => ({ id, ...v })),
 				})
 			}

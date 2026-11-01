@@ -101,6 +101,15 @@ export const DockConfig = z.object({
     notifyOnError: z.boolean().default(true),
     // 工具等待用户确认/批准时提醒（dsh 会话流 approval/asked → decided）
     notifyOnConfirm: z.boolean().default(true),
+    // 卡住提醒卡片：编程阶段长时间无活动时弹一张（与 voiceOnStuck 同口径，但开关独立）
+    notifyOnStuck: z.boolean().default(true),
+    // 页内卡片总开关：关闭后右侧所有通知卡片一律不再弹出（含已挂着的）。
+    // 只管卡片——语音播报、提示音、系统通知、钉钉/飞书推送各有独立开关，不受它影响。
+    notifyCards: z.boolean().default(true),
+    // 卡片口径三挡（右侧卡片正文写多少）：brief = 任务与耗时/谁卡住；medium = 加模型、
+    // 起止时间、停滞时长；detailed = 全部（回合步骤、Token、摘要或错误、最后动作）。
+    // 默认 detailed ＝历史内容——未设置时卡片不缩水。
+    cardMode: z.string().default('detailed'),
     // 通知停留毫秒数（0 = 常驻直到手动关闭）
     notifyStayMs: z.number().default(8000),
     // 浏览器系统通知（页面后台时推送）
@@ -118,7 +127,8 @@ export const DockConfig = z.object({
     // ===== 语音播报（浏览器 speechSynthesis；与【语音朗读】同一套声音但相互独立开关） =====
     // 总开关：关闭时下面所有播报都不发声（默认关，避免升级后突然说话吓人）。
     voiceNotify: z.boolean().default(false),
-    // 播报口径：brief = 一句话（「任务完成」）；detailed = 带标题/耗时/回合/工具/错误原因。
+    // 播报口径三挡：brief = 一句话；medium = 点名任务 + 原因/耗时/停滞时长；
+    // detailed = 带标题/耗时/回合统计/工具名/最后动作。
     voiceMode: z.string().default('brief'),
     // 四个播报时刻，各自独立开关（开总开关后按这里筛选）：
     voiceOnComplete: z.boolean().default(true),   // 任务正常完成
@@ -259,6 +269,7 @@ export async function mutateDockSection(ctx, path, value, expectedRevision) {
 /** 通知配置字段清单（schema、迁移、客户端默认值三处共用同一份键名）。 */
 export const NOTIFY_FIELDS = [
   'notifyOnComplete', 'notifyOnError', 'notifyOnConfirm', 'notifyStayMs',
+  'notifyOnStuck', 'notifyCards', 'cardMode',
   'systemNotify', 'soundNotify', 'soundEffect',
   'dingtalkEnabled', 'dingtalkWebhook', 'feishuEnabled', 'feishuWebhook',
   // 语音播报（新增段字段；旧 animation 段里不存在，迁移循环自然不会搬它们）

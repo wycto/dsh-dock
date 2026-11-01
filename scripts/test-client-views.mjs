@@ -398,6 +398,8 @@ const NOTIFY_STATUS = {
 	recent: ANIMATION_STATUS.recent,
 	config: {
 		notifyOnComplete: true, notifyOnError: true, notifyOnConfirm: true,
+		// 页内卡片总开关（关 → 右侧所有卡不弹）+ 卡住提醒卡（类型开关之一）+ 卡片口径三挡
+		notifyCards: true, notifyOnStuck: true, cardMode: "detailed",
 		notifyStayMs: 8000, systemNotify: false, soundNotify: true, soundEffect: "chime",
 		dingtalkEnabled: true, dingtalkWebhook: "https://oapi.dingtalk.com/robot/send?access_token=x",
 		feishuEnabled: true, feishuWebhook: "https://open.feishu.cn/open-apis/bot/v2/hook/x",
@@ -2006,7 +2008,9 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	} catch (e) {
 		detail = "②需授权播报用例抛错：" + ((e && e.message) || e);
 	}
-	// —— ③ 卡住（phase=code 且 18 秒无活动）→ 「任务卡住了」，同一停点只报一次 ——
+	// —— ③ 卡住（phase=code 且 18 秒无活动）→ 必须说清「主/子任务 + 标题」，同一停点只报一次 ——
+	// 2026-10-30 用户实测：主任务进行中突然播「任务卡住了」却看不到卡住的东西——卡的是子任务，
+	// 而旧口径一句话不带身份。这里锁死：简洁口径 = 主任务/子任务 + 「标题」+ 卡住了。
 	if (!detail) try {
 		const stalled = Object.assign({}, NOTIFY_STATUS.active[0], {
 			phase: "code", approvals: [],
@@ -2018,7 +2022,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await renderSettled(runtime, node);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("③卡住没有播报");
-		if (lastSpeech(speech) !== "任务卡住了") detail = "③卡住简洁播报不对：" + lastSpeech(speech);
+		if (lastSpeech(speech) !== "主任务「回归测试任务」卡住了") detail = "③卡住简洁播报没带主任务与标题：" + lastSpeech(speech);
 		const before = speech.spoken.length;
 		await poke();
 		await poke(); // 同一 lastActivityAt：不得重复轰炸
@@ -2029,6 +2033,41 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		if (!detail && speech.spoken.length !== before + 1) detail = "④活动变化后重新卡住没有再播报";
 	} catch (e) {
 		detail = "③卡住播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ④b 子任务会话卡住 → 播「子任务…卡住了」（主任务在跑时的突然播报必须能定位） ——
+	if (!detail) try {
+		const stalled = Object.assign({}, NOTIFY_STATUS.active[0], {
+			phase: "code", approvals: [], isSubtask: true,
+			lastActivityAt: Date.now() - 20000, phaseAt: Date.now() - 20000,
+		});
+		const live = { active: [stalled], recent: [], config: cfgOf() };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("④b子任务卡住没有播报");
+		if (lastSpeech(speech) !== "子任务「回归测试任务」卡住了") detail = "④b子任务卡住播报没带子任务标识：" + lastSpeech(speech);
+	} catch (e) {
+		detail = "④b子任务卡住播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ④c 详细口径 → 补停滞时长与最后动作（lastToolName 来自宿主 tool/call 记录） ——
+	if (!detail) try {
+		const stalled = Object.assign({}, NOTIFY_STATUS.active[0], {
+			phase: "code", approvals: [], lastToolName: "bash",
+			lastActivityAt: Date.now() - 20000, phaseAt: Date.now() - 20000,
+		});
+		const live = { active: [stalled], recent: [], config: cfgOf({ voiceMode: "detailed" }) };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("④c详细口径卡住没有播报");
+		const t = lastSpeech(speech);
+		if (!/^主任务「回归测试任务」卡住了/.test(t)) detail = "④c详细口径缺主任务与标题：" + t;
+		else if (!t.includes("20秒")) detail = "④c详细口径缺停滞时长：" + t;
+		else if (!t.includes("最后在执行bash（执行命令）")) detail = "④c详细口径缺最后动作：" + t;
+	} catch (e) {
+		detail = "④c详细卡住播报用例抛错：" + ((e && e.message) || e);
 	}
 	// —— ⑤ 任务停止（endReason=aborted）→ 简洁口径「任务停止了」 ——
 	if (!detail) try {
@@ -2078,8 +2117,344 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	} catch (e) {
 		detail = "⑥音色播报用例抛错：" + ((e && e.message) || e);
 	}
+	// —— ⑦ 适中口径：完成 → 点名任务 + 结果 + 耗时（不念回合/Token 统计） ——
+	if (!detail) try {
+		const live = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf({ voiceMode: "medium" }) };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("⑦适中口径完成没有播报");
+		const t = lastSpeech(speech);
+		if (t !== "任务「上一个任务」完成了，耗时30秒。") detail = "⑦适中完成播报文本不对：" + t;
+	} catch (e) {
+		detail = "⑦适中完成播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑧ 适中口径：卡住 → 主/子 + 标题 + 停滞时长（不念最后动作） ——
+	if (!detail) try {
+		const stalled = Object.assign({}, NOTIFY_STATUS.active[0], {
+			phase: "code", approvals: [], lastToolName: "bash",
+			lastActivityAt: Date.now() - 20000, phaseAt: Date.now() - 20000,
+		});
+		const live = { active: [stalled], recent: [], config: cfgOf({ voiceMode: "medium" }) };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("⑧适中口径卡住没有播报");
+		const t = lastSpeech(speech);
+		if (!/^主任务「回归测试任务」卡住了，已经2\d秒没有任何动静。$/.test(t)) detail = "⑧适中卡住播报文本不对：" + t;
+		if (!detail && t.indexOf("最后在执行") !== -1) detail = "⑧适中口径不该念最后动作：" + t;
+	} catch (e) {
+		detail = "⑧适中卡住播报用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑨ 适中口径：需授权 → 点名任务 + 要批准的场景（不念工具名与叮嘱） ——
+	if (!detail) try {
+		const live = {
+			active: [Object.assign({}, NOTIFY_STATUS.active[0], {
+				approvals: [{ id: "ap-9", toolName: "pwsh", reason: "需要提权" }],
+			})],
+			recent: [],
+			config: cfgOf({ voiceMode: "medium" }),
+		};
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("⑨适中口径需授权没有播报");
+		const t = lastSpeech(speech);
+		if (t !== "任务「回归测试任务」需要授权，正在等你批准执行命令。") detail = "⑨适中需授权播报文本不对：" + t;
+	} catch (e) {
+		detail = "⑨适中需授权播报用例抛错：" + ((e && e.message) || e);
+	}
 	if (detail) { console.log(`✗ 任务通知语音播报：${detail}`); process.exit(1); }
-	console.log("✓ 任务通知语音播报：完成/需授权/卡住/停止按开关播报，简洁一语、详细带标题耗时，同一停点不重复，指定音色生效且换设备按语言回落");
+	console.log("✓ 任务通知语音播报：完成/需授权/卡住/停止 × 简洁/适中/详细三挡逐句对账，同一停点不重复，指定音色生效且换设备按语言回落");
+}
+
+// ---------- 用例 22：【任务通知】页内卡片总开关 + 卡住卡（类型开关 / 主子标注 / 恢复自动收 / 关总开关清卡） ----------
+// 用户诉求（2026-10-30）：① 设置面板里能整体关闭右侧通知卡片（关掉后一律不弹，已挂的一并收掉）；
+// ② 每类卡片可单独开关（完成 / 异常 / 需确认 / 卡住）；③ 卡住也弹卡——此前只有语音，主任务
+//    进行中突然听到「任务卡住了」却看不到任何东西，卡的往往是子任务会话。
+{
+	const cfgOf = (over) => Object.assign({}, NOTIFY_STATUS.config, over || {});
+	function setup(live) {
+		const enabled = {};
+		for (const f of FEATURES) enabled[f.id] = f.id === "notify";
+		const listeners = {};
+		const doc = {
+			visibilityState: "visible",
+			body: { tag: "body-stub" },
+			head: { appendChild() {} },
+			querySelector() { return null; },
+			querySelectorAll() { return []; },
+			createElement() { return { dataset: {}, isConnected: true }; },
+			addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+			removeEventListener() {},
+		};
+		const speech = makeSpeechStub();
+		const status = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, { document: doc, speech });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		const poke = async () => {
+			for (const fn of (listeners.visibilitychange || []).slice()) fn();
+			await new Promise((resolve) => setImmediate(resolve));
+			await renderSettled(runtime, node);
+		};
+		return { poke, node, runtime, speech };
+	}
+	// 卡住任务桩：编程阶段 + 20 秒无活动 + 最后动作 bash（默认按主任务）
+	const stalledTask = (over) => Object.assign({}, NOTIFY_STATUS.active[0], {
+		phase: "code", approvals: [], lastToolName: "bash",
+		lastActivityAt: Date.now() - 20000, phaseAt: Date.now() - 20000,
+	}, over || {});
+	// 等收卡淡出（240ms）走完，最多 6 拍 × 300ms；返回仍含关键字的最终 html
+	const waitGone = async (render, stillThere) => {
+		let html = await render();
+		for (let i = 0; i < 6 && stillThere(html); i++) {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			html = await render();
+		}
+		return html;
+	};
+	let detail = "";
+	// —— ① 默认开：卡住 → 弹卡，正文写明主任务、停滞时长、最后动作 ——
+	try {
+		const live = { active: [stalledTask()], recent: [], config: cfgOf() };
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		const html = await renderSettled(runtime, node);
+		if (!html.includes("主任务卡住了")) throw new Error("①卡住没有弹卡（渲染里没有「主任务卡住了」）");
+		if (!html.includes("任务：主任务·回归测试任务")) detail = "①卡住卡正文缺主任务与标题";
+		else if (!/已停滞：2\d秒/.test(html)) detail = "①卡住卡正文缺停滞时长（没有「已停滞：2x 秒」）";
+		else if (!html.includes("最后动作：bash（执行命令）")) detail = "①卡住卡正文缺最后动作（没有「最后动作：bash（执行命令）」）";
+	} catch (e) {
+		detail = "①卡住弹卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ② 「页内卡片」总开关关 → 所有类型一律不弹（含卡住卡） ——
+	if (!detail) try {
+		const live = { active: [stalledTask()], recent: [], config: cfgOf({ notifyCards: false }) };
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		const html = await renderSettled(runtime, node);
+		if (html.includes("卡住了")) detail = "②页内卡片总开关关闭仍弹了卡住卡";
+	} catch (e) {
+		detail = "②总开关用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ③ 类型开关：「卡住提醒」关 → 不弹卡，但语音照播（卡片与耳朵正交） ——
+	if (!detail) try {
+		const live = { active: [stalledTask()], recent: [], config: cfgOf({ notifyOnStuck: false, voiceNotify: true }) };
+		const { runtime, node, poke, speech } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		const html = await renderSettled(runtime, node);
+		if (html.includes("卡住了")) detail = "③卡住提醒关闭仍弹了卡住卡";
+		else if (speech.spoken.length < 1) detail = "③关掉卡住卡后语音也哑了（卡片开关不得连坐语音）";
+		else if (!/主任务「回归测试任务」卡住了/.test(speech.spoken[speech.spoken.length - 1].text)) {
+			detail = "③卡住语音文本不对：" + speech.spoken[speech.spoken.length - 1].text;
+		}
+	} catch (e) {
+		detail = "③类型开关用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ④ 子任务卡住 → 标题与正文都标「子任务」（主任务在跑时的突然播报要能定位） ——
+	if (!detail) try {
+		const live = { active: [stalledTask({ isSubtask: true })], recent: [], config: cfgOf() };
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		const html = await renderSettled(runtime, node);
+		if (!html.includes("子任务卡住了")) detail = "④子任务卡住卡没有标「子任务」";
+		else if (!html.includes("任务：子任务·回归测试任务")) detail = "④子任务卡住卡正文缺子任务与标题";
+	} catch (e) {
+		detail = "④子任务卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑤ 恢复活动 → 卡住卡自动收起（不靠人点 ✕） ——
+	if (!detail) try {
+		const live = { active: [stalledTask()], recent: [], config: cfgOf() };
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("卡住了")) throw new Error("⑤前置条件不成立：没有先弹出卡住卡");
+		live.active = [Object.assign({}, live.active[0], { lastActivityAt: Date.now() })]; // 活动恢复
+		await poke();
+		html = await waitGone(() => renderSettled(runtime, node), (h) => h.includes("卡住了"));
+		if (html.includes("卡住了")) detail = "⑤恢复活动后卡住卡没有自动收起";
+	} catch (e) {
+		detail = "⑤恢复收卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑥ 中途关总开关 → 已挂着的卡也一并收掉 ——
+	if (!detail) try {
+		const live = { active: [stalledTask()], recent: [], config: cfgOf() };
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		let html = await renderSettled(runtime, node);
+		if (!html.includes("卡住了")) throw new Error("⑥前置条件不成立：没有先弹出卡住卡");
+		live.config = cfgOf({ notifyCards: false }); // 设置面板里关掉「页内卡片」
+		await poke();
+		html = await waitGone(() => renderSettled(runtime, node), (h) => h.includes("卡住了"));
+		if (html.includes("卡住了")) detail = "⑥关掉页内卡片总开关后，已挂出的卡没有收起";
+	} catch (e) {
+		detail = "⑥关总开关收卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑦ 主任务在等子任务（子任务会话活跃）→ 不算卡住；子任务未关联到主会话时仍正常报 ——
+	// 2026-11-01 用户反馈：主任务派发子任务后自己安静，被误报「主任务卡住了」；此刻主会话只是
+	// 在等子代理回话，应交给子任务自己判定（真卡在子任务上会说「子任务…卡住了」）。
+	if (!detail) try {
+		const voiceCfg = cfgOf({ voiceNotify: true, voiceMode: "brief" });
+		// ⑦a：子任务活跃且 parentSessionId 指向主会话 → 主任务不报卡住（语音与卡片都不弹）
+		let s = setup({
+			active: [
+				stalledTask({ sessionId: "root-1" }),
+				stalledTask({ isSubtask: true, parentSessionId: "root-1", sessionId: "sub-1", lastActivityAt: Date.now(), phaseAt: Date.now() }),
+			],
+			recent: [], config: voiceCfg,
+		});
+		await renderSettled(s.runtime, s.node);
+		await s.poke();
+		let html = await renderSettled(s.runtime, s.node);
+		if (html.includes("主任务卡住了")) detail = "⑦a主任务在等子任务时仍报了「主任务卡住了」";
+		else if (html.includes("子任务卡住了")) detail = "⑦a子任务活跃时被误报「子任务卡住了」";
+		else if ((s.speech.spoken || []).some((x) => /卡住了/.test(x.text || ""))) detail = "⑦a主任务在等子任务时仍语音播报「卡住了」";
+		// ⑦b：同样的安静主任务，但子任务没把它记成父亲（parentSessionId 不指向它）→ 仍应正常报卡住
+		if (!detail) {
+			s = setup({
+				active: [
+					stalledTask({ sessionId: "root-1" }),
+					stalledTask({ isSubtask: true, parentSessionId: "someone-else", sessionId: "sub-2", lastActivityAt: Date.now(), phaseAt: Date.now() }),
+				],
+				recent: [], config: voiceCfg,
+			});
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (!html.includes("主任务卡住了")) detail = "⑦b子任务未关联到主会话时，主任务卡住被错误吞掉";
+		}
+	} catch (e) {
+		detail = "⑦主任务等子任务用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 任务通知卡片开关与卡住卡：${detail}`); process.exit(1); }
+	console.log("✓ 任务通知卡片开关与卡住卡：总开关关则不弹且清已挂卡，类型开关与语音正交，卡住卡带主/子与停滞时长，恢复活动自动收，主任务在等子任务不算卡住");
+}
+
+// ---------- 用例 23：【任务通知】卡片口径三挡（简洁 / 适中 / 详细 × 结束卡 / 需确认卡 / 卡住卡） ----------
+// 用户诉求（2026-10-30 续）：右侧通知卡片正文要能选「简洁 / 适中 / 详细」三挡；
+// 语音播报同步升三挡（由用例 21 的 ⑦⑧⑨ 覆盖）。卡片缺省 detailed ＝历史内容，
+// 老宿主还没下发 cardMode 时卡片不缩水。
+{
+	const cfgOf = (over) => Object.assign({}, NOTIFY_STATUS.config, over || {});
+	function setup(live) {
+		const enabled = {};
+		for (const f of FEATURES) enabled[f.id] = f.id === "notify";
+		const listeners = {};
+		const doc = {
+			visibilityState: "visible",
+			body: { tag: "body-stub" },
+			head: { appendChild() {} },
+			querySelector() { return null; },
+			querySelectorAll() { return []; },
+			createElement() { return { dataset: {}, isConnected: true }; },
+			addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+			removeEventListener() {},
+		};
+		const speech = makeSpeechStub();
+		const status = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, { document: doc, speech });
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		const poke = async () => {
+			for (const fn of (listeners.visibilitychange || []).slice()) fn();
+			await new Promise((resolve) => setImmediate(resolve));
+			await renderSettled(runtime, node);
+		};
+		return { poke, node, runtime, speech };
+	}
+	// 跑一轮「任务结束」：活跃登记 → 挪进最近完成 → 弹结束卡
+	const endCardHtml = async (over) => {
+		const live = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf(over) };
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await poke();
+		return renderSettled(runtime, node);
+	};
+	let detail = "";
+	// —— ① 结束卡 · 简洁：只有任务与耗时（模型/回合/Token 全部不出现） ——
+	try {
+		const html = await endCardHtml({ cardMode: "brief" });
+		if (!html.includes("任务：上一个任务")) throw new Error("①简洁结束卡缺任务标题行");
+		if (!html.includes("耗时：30秒")) detail = "①简洁结束卡缺耗时行（没有「耗时：30秒」）";
+		else if (html.includes("模型：")) detail = "①简洁结束卡不该有模型行";
+		else if (html.includes("Token：") || html.includes("回合 2")) detail = "①简洁结束卡不该有 Token/回合行";
+	} catch (e) {
+		detail = "①简洁结束卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ② 结束卡 · 适中：加模型与起止时间，仍无回合/Token/摘要 ——
+	if (!detail) try {
+		const html = await endCardHtml({ cardMode: "medium" });
+		if (!html.includes("模型：deepseek-chat（deepseek）")) detail = "②适中结束卡缺模型行";
+		else if (!html.includes("耗时：30秒（")) detail = "②适中结束卡耗时行缺起止时间（应带括号时间）";
+		else if (html.includes("Token：") || html.includes("回合 2")) detail = "②适中结束卡不该有 Token/回合行";
+	} catch (e) {
+		detail = "②适中结束卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ③ 结束卡 · 详细（默认挡）：模型、回合步骤、Token 全量 ——
+	if (!detail) try {
+		const html = await endCardHtml({});
+		if (!html.includes("模型：deepseek-chat（deepseek）")) detail = "③详细结束卡缺模型行（默认挡不该缩水）";
+		else if (!html.includes("回合 2 · 步骤 4")) detail = "③详细结束卡缺回合/步骤行";
+		else if (!html.includes("Token：输入 3,000 / 输出 1,000")) detail = "③详细结束卡缺 Token 行";
+	} catch (e) {
+		detail = "③详细结束卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ④ 需确认卡 · 简洁：任务 + 工具，说明与「请确认」提示都不出现 ——
+	if (!detail) try {
+		const live = {
+			active: [Object.assign({}, NOTIFY_STATUS.active[0], {
+				approvals: [{ id: "ap-23", toolName: "bash", reason: "需要批准执行命令" }],
+			})],
+			recent: [],
+			config: cfgOf({ cardMode: "brief" }),
+		};
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		const html = await renderSettled(runtime, node);
+		if (!html.includes("任务：回归测试任务")) throw new Error("④简洁需确认卡缺任务行");
+		if (!html.includes("工具：bash（执行命令）")) detail = "④简洁需确认卡缺工具行";
+		else if (html.includes("说明：")) detail = "④简洁需确认卡不该有说明行";
+		else if (html.includes("请在会话里确认后继续")) detail = "④简洁需确认卡不该有确认提示行";
+	} catch (e) {
+		detail = "④简洁需确认卡用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑤ 卡住卡 · 简洁：只有归属·标题行（停滞时长与最后动作不出现），卡片标题照旧 ——
+	if (!detail) try {
+		const stalled = Object.assign({}, NOTIFY_STATUS.active[0], {
+			phase: "code", approvals: [], lastToolName: "bash",
+			lastActivityAt: Date.now() - 20000, phaseAt: Date.now() - 20000,
+		});
+		const live = { active: [stalled], recent: [], config: cfgOf({ cardMode: "brief" }) };
+		const { runtime, node, poke } = setup(live);
+		await renderSettled(runtime, node);
+		await poke();
+		const html = await renderSettled(runtime, node);
+		if (!html.includes("主任务卡住了")) throw new Error("⑤简洁卡住卡没有弹（标题缺失）");
+		if (!html.includes("任务：主任务·回归测试任务")) detail = "⑤简洁卡住卡缺归属·标题行";
+		else if (html.includes("已停滞：")) detail = "⑤简洁卡住卡不该有停滞时长行";
+		else if (html.includes("最后动作：")) detail = "⑤简洁卡住卡不该有最后动作行";
+	} catch (e) {
+		detail = "⑤简洁卡住卡用例抛错：" + ((e && e.message) || e);
+	}
+	if (detail) { console.log(`✗ 任务通知卡片口径三挡：${detail}`); process.exit(1); }
+	console.log("✓ 任务通知卡片口径三挡：结束卡/需确认卡/卡住卡按简洁·适中·详细裁剪正文，默认详细不缩水；语音三挡由用例 21 覆盖");
 }
 
 // 全部用例都是顶层 await，跑完即终局。显式退出：浮层用例留下的轮询 setTimeout 挂在

@@ -57,8 +57,21 @@ for f in "${TREE_EXCLUDE[@]}"; do
 done
 TREE="$(GIT_INDEX_FILE="$REL_INDEX" git write-tree)"
 rm -f "$REL_INDEX"
-COMMIT="$(git commit-tree "$TREE" -p "$RELEASE_BASE" -F "$MSG")"
-git branch -f release "$COMMIT"
+# 幂等重跑：上一次跑到一半（提交与 release 分支已造、发版库同步未成）会留下
+# 「树与父都等于本次」的 release——直接复用；否则重跑会在它上面再叠一条同名
+# 发版提交（2026-10-28 v0.18.0 实际踩过，靠 tag/npm 未发才来得及强推纠正）。
+COMMIT=""
+if [ -n "${GH_MAIN:-}" ] && git show-ref --verify -q refs/heads/release; then
+  if [ "$(git rev-parse 'refs/heads/release^{tree}')" = "$TREE" ] \
+    && [ "$(git rev-parse 'refs/heads/release^' 2>/dev/null || true)" = "$GH_MAIN" ]; then
+    COMMIT="$(git rev-parse refs/heads/release)"
+    echo "ℹ️ release 分支已是本次内容（树与父都对上），复用不重造: $COMMIT"
+  fi
+fi
+if [ -z "$COMMIT" ]; then
+  COMMIT="$(git commit-tree "$TREE" -p "$RELEASE_BASE" -F "$MSG")"
+  git branch -f release "$COMMIT"
+fi
 
 # 3) 快进同步到 GitHub 本地发版库（历史同源，正常是快进，无需 force）
 git -C "$GH_REPO" fetch "$DEV_REPO" release
