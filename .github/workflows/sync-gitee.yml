@@ -1,0 +1,77 @@
+name: 同步到 Gitee
+
+# 本仓库以 GitHub 为唯一源：每次 push 到 main 或打 v* 标签后，自动把分支与标签
+# 镜像到 Gitee 同名仓库（wycto/dsh-dock），方便打不开 GitHub 的用户。
+# 只同步代码与标签；发行版的附件不同步，两侧各自上传。
+#
+# 依赖仓库密钥 GITEE_TOKEN（Gitee 私人令牌，需 repo 权限）。
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 一次发版会同时推 main 与标签，GitHub 会为此起两个运行。两个运行并发地在 Gitee 上
+# 创建同一个新引用时，后到的那次会被回「reference already exists」（创建引用的竞态）。
+# 串行执行即可消除：后一个运行等前一个结束（此时引用已存在，走 --force 更新而不是创建）。
+concurrency:
+  group: sync-gitee
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: 推送分支与标签到 Gitee
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Gitee 凭据
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "缺少密钥 GITEE_TOKEN" >&2
+            exit 1
+          fi
+          git config --global url."https://wycto:${GITEE_TOKEN}@gitee.com/".insteadOf "https://gitee.com/"
+          git remote add gitee https://gitee.com/wycto/dsh-dock.git
+
+      - name: 取回远端全部分支与标签
+        # tag 触发的运行里 actions/checkout 只有标签（detached HEAD），本地没有
+        # refs/heads/main；分支触发的运行里 main 正被检出，又不能 fetch 回
+        # refs/heads/*（会 fatal: refusing to fetch into branch checked out）。
+        # 统一取到 remote-tracking 引用，配合下面按 remote-tracking 推送，prune 的
+        # 比对基准才正确——否则 tag 触发的运行会把远端 main 当成「待删分支」被 Gitee
+        # 拒绝（refusing to delete the current branch），分支触发的运行可能因本地
+        # 缺标签而把远端标签 prune 掉（发行版因此连带消失）。
+        run: |
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          git fetch origin '+refs/tags/*:refs/tags/*'
+
+      - name: 同步分支
+        # 只推真正的分支，**必须排除 refs/remotes/origin/HEAD**：它是 checkout 造出来
+        # 的符号引用，指向 origin/main。用 `refs/remotes/origin/*` 通配会把它当成普通
+        # 分支，在 Gitee 上创建出一个 refs/heads/HEAD —— 于是远端多出一条叫 HEAD 的
+        # 分支（还会被设成默认分支、删都删不掉，因为「不能删除当前分支」）。
+        # 2026-11-02 给 dsh-dock 加镜像时实际踩到：同步分支这步卡住不动，
+        # 本地复现才看出推的是 origin/HEAD -> HEAD。
+        run: |
+          refs=$(git for-each-ref --format='%(refname)' refs/remotes/origin/ \
+            | grep -v '^refs/remotes/origin/HEAD$' \
+            | sed 's|^refs/remotes/origin/|refs/heads/|')
+          if [ -z "$refs" ]; then
+            echo "没有可同步的分支" >&2
+            exit 1
+          fi
+          echo "$refs"
+          # shellcheck disable=SC2086
+          git push --force --prune gitee $refs
+
+      - name: 同步标签
+        run: git push --force --prune gitee 'refs/tags/*:refs/tags/*'
