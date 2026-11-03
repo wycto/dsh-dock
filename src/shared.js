@@ -193,3 +193,89 @@ export function subscribePanel(fn) {
 	navListeners.add(fn);
 	return () => { navListeners.delete(fn); };
 }
+
+// ---- 等人介入（等待确认 / 等待回答）的统一口径 ----
+// 宿主快照里有两类「任务停在原地等人」：
+//   approvals —— 工具等待批准（approval/asked → approval/decided）；
+//   questions —— 提问等待回答（tool/call ask_user_question → tool/result）。
+// 两者语义相同（不动手就不会继续），但来源与文案不同。历史教训（2026-11-01 用户反馈）：
+// 只有 approvals 被当成「等人」，提问挂起期间会话零事件，18 秒后被卡住判定误报成
+// 「主任务卡住了」——界面在报卡住，实际是等人选答案。凡「是否在等人」的判断都走
+// 这里的统一口径，别各处各写一份（漏一处就又是一次误报）。
+/** 任务等待批准的审批项（缺字段时给空数组，老宿主快照没有该字段）。 */
+export function taskApprovals(task) {
+	return task && Array.isArray(task.approvals) ? task.approvals : [];
+}
+/** 任务等待回答的提问（缺字段时给空数组，老宿主快照没有该字段）。 */
+export function taskQuestions(task) {
+	return task && Array.isArray(task.questions) ? task.questions : [];
+}
+/** 任务是否停在原地等人（等批准或等回答）。 */
+export function taskWaiting(task) {
+	return taskApprovals(task).length > 0 || taskQuestions(task).length > 0;
+}
+/** 等人介入的项数（审批项 + 提问数），标题、横幅与角标共用。 */
+export function waitingCountOf(active) {
+	return (active || []).reduce((n, t) => n + taskApprovals(t).length + taskQuestions(t).length, 0);
+}
+
+// ---- 「还在动」与「真的停了」的统一口径 ----
+// 卡住判定误报过两次，毛病是同一个：只看「最后一个事件的时间」，把「会话在忙但事件
+// 暂时没落地」当成停滞。
+//   · 2026-11-01：提问挂起等用户答（零事件）→ 误报「主任务卡住了」（由 taskWaiting 兜住）。
+//   · 2026-11-02：压缩上下文 / 等模型回包（零事件）→ 25 分钟里误报 18 次，最长 96.7 秒，
+//     全部落在 compaction/start → compaction/end 之间（实测会话，工具调用最长只有 7.5 秒）。
+// 所以「还在动」要看三类信号，并且只在这里定义一次（notify 的卡住判定与 animation 的
+// 卡住姿态都走这里，别各处各写一份）：
+//   1) 最近活动时间 = max(lastActivityAt, lastMotionAt, phaseAt)：流式输出（assistant/chunk）
+//      只刷 lastMotionAt，漏掉它就会把正在刷字的会话当停滞；
+//   2) 有在飞的工具调用（pendingTool）：长命令（构建 / 全量测试）期间没有事件，但确实在跑；
+//   3) 正在压缩上下文（compacting）：compaction 全程同样零事件。
+// 后两类给一个上限（TASK_BUSY_MS）：真挂死（工具永不返回 / 压缩永不结束）仍要能报出来，
+// 不能因为「有在飞的调用」就永远不报。
+/** 卡住阈值：编程阶段多久没动静算停滞（宿主可用 stuckMs 覆盖）。 */
+export const TASK_STALL_MS = 18000;
+/** 「在飞」信号的有效上限：超过这个时长仍无任何事件，就按真停滞处理。 */
+export const TASK_BUSY_MS = 180000;
+
+function numOf(v) {
+	const n = Number(v);
+	return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** 任务最近一次「有动静」的时间：取活动时间、流式动作时间、阶段切换时间三者最大值。 */
+export function taskActivityAt(task) {
+	if (!task) return 0;
+	return Math.max(numOf(task.lastActivityAt), numOf(task.lastMotionAt), numOf(task.phaseAt));
+}
+
+/** 任务是否「正在忙」（有在飞的工具调用 / 正在压缩上下文），与耗时无关的那部分信号。 */
+export function taskBusy(task, now, capMs) {
+	if (!task) return false;
+	const at = typeof now === "number" ? now : Date.now();
+	const cap = typeof capMs === "number" && capMs > 0 ? capMs : TASK_BUSY_MS;
+	if (task.compacting === true) {
+		const since = numOf(task.compactStartedAt);
+		if (!since || at - since < cap) return true;
+	}
+	if (typeof task.pendingTool === "string" && task.pendingTool) {
+		const since = numOf(task.toolStartedAt);
+		if (!since || at - since < cap) return true;
+	}
+	return false;
+}
+
+/**
+ * 卡住判定：返回已停滞时长（毫秒），不算卡住时返回 0。
+ * 等人介入、有在飞调用、正在压缩上下文一律返回 0（那都不是卡住）。
+ */
+export function taskStalled(task, now, thresholdMs) {
+	if (!task || taskWaiting(task) || taskBusy(task, now)) return 0;
+	const at = typeof now === "number" ? now : Date.now();
+	const limit = typeof thresholdMs === "number" && thresholdMs > 0 ? thresholdMs : TASK_STALL_MS;
+	const lastAct = taskActivityAt(task);
+	if (!lastAct) return 0;
+	const stalled = at - lastAct;
+	return stalled >= limit ? stalled : 0;
+}
+

@@ -15,13 +15,11 @@ import { acquireTaskTracker } from '../../src/task-track.js'
 export const feature = {
   id: 'runstate',
   name: '运行状态',
-  description: '任务运行状态一览：进行中任务（阶段 / 耗时 / 回合 / Token / 等待确认）与最近完成',
+  description: '任务运行状态一览：进行中任务（阶段 / 耗时 / 回合 / Token / 等人介入）与最近完成',
   defaultEnabled: false,
   setup(ctx) {
     const disposers = []
     const dispose = () => {
-      // 撤掉「本宿主注册了 runstate 路由」旗标（见下方注册处的说明）
-      try { if (typeof window !== 'undefined' && window.__dshDockRunstate) delete window.__dshDockRunstate } catch { /* ignore */ }
       while (disposers.length > 0) {
         const fn = disposers.pop()
         try { if (typeof fn === 'function') fn() } catch { /* 停用清理失败不阻断 */ }
@@ -35,14 +33,6 @@ export const feature = {
 
     // ===== RPC 路由 =====
     disposers.push(ctx.inject(['webServer'], (wsCtx) => {
-      // 路由注册成功后打旗标：【手机适配】的汉堡角标据此决定要不要轮询 status。
-      // 没有它的话，功能停用时角标会先打一次必然失败的请求 → 控制台一条 405/404，
-      // 与【用量记录】chip 当年同一个毛病（见 features/tokenlog/view.jsx 的 routeGone 闩锁）。
-      // 旗标与 __dshDockMobileDrawer / __dshDockWelcomeAck 同风格：宿主侧唯一事实，客户端只读。
-      wsCtx.effect(() => {
-        if (typeof window !== 'undefined') window.__dshDockRunstate = true
-        return () => { try { if (typeof window !== 'undefined' && window.__dshDockRunstate) delete window.__dshDockRunstate } catch { /* ignore */ } }
-      })
       wsCtx.effect(() => wsCtx.webServer.register({
         kind: 'prefix',
         path: '/dsh-dock/runstate',

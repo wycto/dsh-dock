@@ -72,6 +72,29 @@ function createTracker(ctx) {
 		return 'code'
 	}
 
+	/**
+	 * ask_user_question 的调用参数 → 快照里够用的提问摘要。
+	 * 解析失败不报错：参数拿不到就当「有一问在等人答」，标题留空由客户端兜底
+	 * （宁可少说一句，也不要因为解析异常把整条任务追踪打断）。
+	 * @param {unknown} rawArguments 工具调用的 arguments（JSON 字符串）
+	 * @param {number} askedAt 提问时间（事件时间，不用本地钟）
+	 * @returns {{header: string, question: string, count: number, askedAt: number}}
+	 */
+	function describeQuestion(rawArguments, askedAt) {
+		const summary = { header: '', question: '', count: 1, askedAt }
+		try {
+			const parsed = typeof rawArguments === 'string' ? JSON.parse(rawArguments) : rawArguments
+			const list = parsed && Array.isArray(parsed.questions) ? parsed.questions : []
+			if (list.length > 0) summary.count = list.length
+			const first = list[0]
+			if (first && typeof first === 'object') {
+				if (typeof first.header === 'string') summary.header = truncate(first.header, 60)
+				if (typeof first.question === 'string') summary.question = truncate(first.question, 200)
+			}
+		} catch { /* 参数不是合法 JSON：留空摘要，提问本身照样算「等人答」 */ }
+		return summary
+	}
+
 	// 会话标题：官方标题服务，取不到回退首条用户输入（firstPrompt）
 	async function getSessionTitle(sessionId, sessionQuery) {
 		try {
@@ -141,6 +164,21 @@ function createTracker(ctx) {
 			lastToolName: '',
 			// 工具等待用户确认（dsh 会话流 approval/asked）：浏览器侧据此弹"需确认"通知
 			approvals: new Map(), // approvalId -> { toolName, reason, askedAt }
+			// 用户提问等待回答（dsh 会话流 tool/call ask_user_question → tool/result）：
+			// 与 approvals 同属「等人介入」。不记它的后果是实测过的（2026-11-01 用户反馈：
+			// 会话在等用户选答案，界面却报「主任务卡住了」）——提问期间会话天然零事件，
+			// 18 秒安静被卡住判定当成停滞。提问是**等回答**，不是卡住。
+			questions: new Map(), // callId -> { header, question, count, askedAt }
+			// 在飞的工具调用（tool/call → tool/result）：长命令（构建/全量测试）期间会话零事件，
+			// 但任务确实在跑。客户端靠它区分「正在跑长命令」与「真卡住」。
+			pendingTool: '',
+			toolStartedAt: 0,
+			// 上下文压缩（compaction/start → compaction/end）：压缩全程同样零事件，
+			// 实测 2026-11-02 的 25 分钟会话里 25 次长停顿有 18 次落在压缩窗口内
+			// （最长 96.7 秒），全被卡住判定误报。压缩是**正在干活**，不是卡住。
+			compacting: false,
+			compactStartedAt: 0,
+			compactId: '',
 			phase: 'think',
 			phaseAt: Date.now(),
 			lastActivityAt: Date.now(),
@@ -270,9 +308,49 @@ function createTracker(ctx) {
 			// 记下最后调用的工具名：卡住播报/卡住卡要回答「最后在干什么」
 			const called = event.data && typeof event.data.name === 'string' ? event.data.name : ''
 			if (called) s.lastToolName = called
+			// 记下在飞调用：长命令跑起来后到结果落地之间没有事件，靠它别误报卡住
+			s.pendingTool = called || 'tool'
+			s.toolStartedAt = now
+			// ask_user_question 是**阻塞式等人回答**：调用发出后到用户提交答案之间，会话
+			// 一条事件都不会有（实测 2026-11-01：提问挂起 66 秒，其间零事件）。把它记成
+			// 「等人介入」的一种，卡住判定才不会把这段安静误判成停滞。
+			if (called === 'ask_user_question') {
+				const callId = typeof event.data.callId === 'string' ? event.data.callId : ''
+				if (callId) s.questions.set(callId, describeQuestion(event.data.arguments, now))
+			}
 			// 工具启动是稀疏事件，给一个更明显的短促动作，检索/写文件也不会显得停住。
 			s.motionTicks += s.phase === 'search' ? 7 : 9
 			s.lastMotionAt = now
+		} else if (event.type === 'tool/result') {
+			// 提问的回答（或超时/取消）落地 → 提问结束，恢复普通追踪。
+			// 时间字段用事件时间，保证「答完那一刻」就是新的活动起点。
+			const msg = event.data && event.data.message
+			const callId = msg && typeof msg.toolCallId === 'string' ? msg.toolCallId : ''
+			if (callId) s.questions.delete(callId)
+			// 调用落地 → 不再有在飞的调用（同一时刻只会有一个工具在跑）
+			s.pendingTool = ''
+			s.toolStartedAt = 0
+		} else if (event.type === 'compaction/start' && event.data) {
+			// 压缩上下文开始：期间会话零事件，但这是**正在干活**。记成在忙，别按停滞算。
+			s.compacting = true
+			s.compactStartedAt = now
+			s.compactId = typeof event.data.compactionId === 'string' ? event.data.compactionId : ''
+			s.lastActivityAt = now
+		} else if (event.type === 'compaction/summary' && event.data) {
+			// 压缩出摘要：仍在压缩中（llmStreamCall 表示还在等模型），只刷活动时间
+			s.lastActivityAt = now
+		} else if (event.type === 'compaction/end' && event.data) {
+			// 压缩收尾：解除在忙状态；compactionId 不一致说明是另一个窗口的迟到事件，不误清
+			const endId = typeof event.data.compactionId === 'string' ? event.data.compactionId : ''
+			if (!endId || !s.compactId || endId === s.compactId) {
+				s.compacting = false
+				s.compactStartedAt = 0
+				s.compactId = ''
+			}
+			s.lastActivityAt = now
+		} else if (event.type === 'compaction/prune' && event.data) {
+			// 修剪历史（不产摘要的轻量压缩）：也算在忙，但很快结束，只刷活动时间
+			s.lastActivityAt = now
 		} else if (event.type === 'user/message') {
 			if (!s.firstPrompt && event.data && event.data.content) {
 				const text = extractText(event.data.content)
@@ -370,11 +448,20 @@ function createTracker(ctx) {
 					lastActivityAt: s.lastActivityAt,
 					motionTicks: s.motionTicks,
 					lastMotionAt: s.lastMotionAt,
+					// 「在忙」信号：有在飞的工具调用 / 正在压缩上下文。卡住判定据此豁免
+					//（客户端口径见 src/shared.js 的 taskBusy / taskStalled）
+					pendingTool: s.pendingTool || '',
+					toolStartedAt: s.toolStartedAt || 0,
+					compacting: !!s.compacting,
+					compactStartedAt: s.compactStartedAt || 0,
 					// 卡住播报/卡住卡专用：主/子归属（会话头判定）与最后调用的工具
 					isSubtask: !!s.isSubtask,
 					parentSessionId: s.parentSessionId || '',
 					lastToolName: s.lastToolName || '',
 					approvals: [...s.approvals.entries()].map(([id, v]) => ({ id, ...v })),
+					// 等人回答的提问（ask_user_question 挂起中）：与 approvals 同属「等人介入」，
+					// 客户端据此显示「等待回答」而不是「卡住」。
+					questions: [...s.questions.entries()].map(([id, v]) => ({ id, ...v })),
 				})
 			}
 			return { now: at, active, recent: completedSessions.slice(0, 20) }

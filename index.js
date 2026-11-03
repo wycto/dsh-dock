@@ -18,7 +18,6 @@
 //   - tts         语音朗读：把会话回复读出来（浏览器 TTS；宿主半部只管配置 + 共享任务追踪）
 //   - modelconfig 模型设置：模型目录的输入模态与思考强度（写回官方配置）
 //   - providerconfig 模型提供商：Provider 增删改 + API Key + 拉取上游模型列表
-//   - mobile      手机适配：窄屏排版/Tab 栏/抽屉/遮罩/键盘（宿主经 tapIndex 注入 index.html）
 //   - mobile-relay 远程访问：账号密码登录的远程入口（网关 + 账号 + 浏览模式目录选择器）
 import { DockConfig, sendJson, readBody, rejectUntrustedRequest, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
 import { injectWelcomeAck } from './src/welcome-ack.js'
@@ -32,7 +31,6 @@ import { feature as fNotify } from './features/notify/host.js'
 import { feature as fRunState } from './features/runstate/host.js'
 import { feature as fTts } from './features/tts/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
-import { feature as fMobile } from './features/mobile/host.js'
 
 export const name = 'dsh-dock'
 
@@ -76,7 +74,6 @@ export function apply(ctx, config) {
     fRunState,
     fTts,
     fMobileRelay,
-    fMobile,
   ]
 
   // 绑定 Config 镜像（替代已移除的 settings.get）；volatile 字段热更时重绑。

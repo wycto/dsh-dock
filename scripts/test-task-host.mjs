@@ -388,4 +388,138 @@ assert.equal(host.routes.has('/dsh-dock/runstate'), false, '运行状态停用�
   }
 }
 
-console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移 + 卡住快照字段)')
+// ---------- 用例 8：提问挂起（ask_user_question）要进快照，答完即出 ----------
+// 真实事故（2026-11-01 用户反馈）：会话调 ask_user_question 后挂起等人选答案，
+// 界面显示提问表单的同时，任务通知却播「主任务卡住了」并弹卡。根因是宿主追踪只把
+// approval/asked 记成「等人」，提问不算——提问期间会话零事件（实测挂起 66 秒一条事件
+// 都没有），18 秒安静就被卡住判定当成停滞。这里锁死：提问进 questions、答完移出，
+// 且 questions 与 approvals 是**两条独立通道**（别互相覆盖）。
+{
+  const h = makeHost()
+  const dispose = notifyFeature.setup(h.ctx)
+  try {
+    h.emit('agent/status', { agent: { id: 'q-1' }, status: 'running' })
+    // 提问发出：参数里带 header / question / 多问
+    h.emit('session/event', { id: 'q-1' }, {
+      type: 'tool/call',
+      time: Date.now(),
+      data: {
+        name: 'ask_user_question',
+        callId: 'call_q1',
+        arguments: JSON.stringify({
+          questions: [
+            { id: 'trust', header: '是否自动信任证书', question: '「自动安装证书」到什么程度？' },
+            { id: 'default', header: '默认值', question: '脚本模式默认开还是关？' },
+          ],
+        }),
+      },
+    })
+    let st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const q = st.active.find((x) => x.sessionId === 'q-1')
+    assert.ok(q, '会话应被追踪')
+    assert.equal(q.questions.length, 1, '挂起的提问应进快照（否则客户端无法判定「在等人」）')
+    assert.equal(q.questions[0].id, 'call_q1', '提问以 callId 为键（回答落地时按它移除）')
+    assert.equal(q.questions[0].header, '是否自动信任证书', '提问标题应进快照（卡片/播报要点名问什么）')
+    assert.equal(q.questions[0].question, '「自动安装证书」到什么程度？', '问题正文应进快照')
+    assert.equal(q.questions[0].count, 2, '同一批问了几问要能读到（「共 2 个问题」用）')
+    // 未挂提问时字段照样在（客户端对老宿主/新宿主一套读取代码，不能因字段缺失崩）
+    assert.equal(q.approvals.length, 0, '提问不应污染 approvals 通道')
+
+    // 回答落地（tool/result）→ 提问移出
+    h.emit('session/event', { id: 'q-1' }, {
+      type: 'tool/result',
+      time: Date.now(),
+      data: { message: { toolCallId: 'call_q1', content: [{ type: 'text', text: '{"answers":[]}' }] } },
+    })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const q2 = st.active.find((x) => x.sessionId === 'q-1')
+    assert.equal(q2.questions.length, 0, '回答落地后提问应移出快照（卡片随之收起）')
+
+    // 参数不是合法 JSON：不崩、仍按「有一问在等人答」记（宁可少说一句，不要整条追踪崩）
+    h.emit('session/event', { id: 'q-1' }, {
+      type: 'tool/call', time: Date.now(),
+      data: { name: 'ask_user_question', callId: 'call_q2', arguments: '{坏掉的 json' },
+    })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const q3 = st.active.find((x) => x.sessionId === 'q-1')
+    assert.equal(q3.questions.length, 1, '参数解析失败也要记下「在等人」（解析异常不得打断追踪）')
+    assert.equal(q3.questions[0].header, '', '解析失败时摘要留空，由客户端兜底')
+  } finally {
+    dispose()
+    assert.equal(h.listenerCount('session/event'), 0, '用例收尾必须退订（不留常驻监听）')
+  }
+}
+
+// ---------- 用例 9：压缩上下文 / 在飞调用要进快照（卡住判定的豁免信号） ----------
+// 真实事故（2026-11-02 用户反馈）：界面明明在刷「思考中 / 运行命令 / 上下文已压缩」，
+// 任务通知却反复弹「主任务卡住了」。拿实测会话（25 分钟 316 个事件）逐条回放：
+// 25 次 ≥18 秒的停顿里 18 次落在 compaction/start → compaction/end 之间（最长 96.7 秒），
+// 工具调用从发出到返回最长只有 7.5 秒。压缩期间会话零事件，但那是**正在干活**。
+// 这里锁死：压缩窗口内置 compacting=true、结束后清除；在飞调用置 pendingTool、落地后清除。
+{
+  const h = makeHost()
+  const dispose = notifyFeature.setup(h.ctx)
+  try {
+    h.emit('agent/status', { agent: { id: 'c-1' }, status: 'running' })
+    h.emit('session/event', { id: 'c-1' }, { type: 'tool/call', time: Date.now(), data: { name: 'bash' } })
+    let st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const c0 = st.active.find((x) => x.sessionId === 'c-1')
+    assert.equal(c0.pendingTool, 'bash', '在飞的工具调用应进快照（长命令期间靠它别误报卡住）')
+    assert.ok(c0.toolStartedAt > 0, '在飞调用的起始时间应进快照（真挂死要能按上限报出来）')
+    assert.equal(c0.compacting, false, '未压缩时 compacting 应为 false')
+
+    // 调用落地 → 不再有在飞调用
+    h.emit('session/event', { id: 'c-1' }, {
+      type: 'tool/result', time: Date.now(), data: { message: { toolCallId: 'call_x' } },
+    })
+    // 压缩开始（实测载荷：compactionId + turn）
+    h.emit('session/event', { id: 'c-1' }, {
+      type: 'compaction/start', time: Date.now(), data: { compactionId: 'cmp_1', turn: 3 },
+    })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const c1 = st.active.find((x) => x.sessionId === 'c-1')
+    assert.equal(c1.pendingTool, '', '调用落地后在飞标记应清除')
+    assert.equal(c1.compacting, true, '压缩窗口内应标成在忙（客户端据此豁免卡住）')
+    assert.ok(c1.compactStartedAt > 0, '压缩起始时间应进快照（压缩永不结束要能按上限报出来）')
+
+    // 压缩出摘要（llmStreamCall 表示还在等模型）→ 仍在压缩中
+    h.emit('session/event', { id: 'c-1' }, {
+      type: 'compaction/summary', time: Date.now(),
+      data: { compactionId: 'cmp_1', summary: [], rawOutput: [], llmStreamCall: true },
+    })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const c2 = st.active.find((x) => x.sessionId === 'c-1')
+    assert.equal(c2.compacting, true, '出摘要不等于压缩结束（llmStreamCall 还要等模型）')
+
+    // 压缩收尾 → 解除在忙
+    h.emit('session/event', { id: 'c-1' }, {
+      type: 'compaction/end', time: Date.now(), data: { compactionId: 'cmp_1', turn: 3 },
+    })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const c3 = st.active.find((x) => x.sessionId === 'c-1')
+    assert.equal(c3.compacting, false, '压缩结束后应解除在忙（之后真停滞仍要能报出来）')
+
+    // compaction/prune 没有 compactionId（实测载荷只有 shadowedRange/shadowedSeqs/shadowedTokenCount）：
+    // 不得当成压缩窗口，也不能崩
+    h.emit('session/event', { id: 'c-1' }, {
+      type: 'compaction/prune', time: Date.now(),
+      data: { shadowedRange: { start: 1, end: 2 }, shadowedSeqs: [1, 2], shadowedTokenCount: 9 },
+    })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const c4 = st.active.find((x) => x.sessionId === 'c-1')
+    assert.equal(c4.compacting, false, '轻量修剪不产摘要，不算压缩窗口（否则会长期误豁免卡住）')
+
+    // 连续两次压缩（实测有 end 后 +0.0 秒又 start）：标记要能重新置位
+    h.emit('session/event', { id: 'c-1' }, {
+      type: 'compaction/start', time: Date.now(), data: { compactionId: 'cmp_2', turn: 3 },
+    })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const c5 = st.active.find((x) => x.sessionId === 'c-1')
+    assert.equal(c5.compacting, true, '紧接的第二次压缩应重新置位')
+  } finally {
+    dispose()
+    assert.equal(h.listenerCount('session/event'), 0, '用例收尾必须退订（不留常驻监听）')
+  }
+}
+
+console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移 + 卡住快照字段 + 提问挂起快照 + 压缩/在飞豁免信号)')

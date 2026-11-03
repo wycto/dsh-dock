@@ -1,8 +1,8 @@
 // dsh-dock · 功能模块【运行状态】· 客户端视图
 //
 // 两部分：
-//  1. View     —— 功能坞面板页：进行中任务（阶段 / 耗时 / 回合 / 工具 / Token / 等待确认）与最近完成一览；
-//  2. HomeStat —— 首页总揽概要（N 个任务进行中 / 等待确认 / 空闲 · 最近完成…）。
+//  1. View     —— 功能坞面板页：进行中任务（阶段 / 耗时 / 回合 / 工具 / Token / 等人介入）与最近完成一览；
+//  2. HomeStat —— 首页总揽概要（N 个任务进行中 / 等人介入 / 空闲 · 最近完成…）。
 //
 // 只读页面：数据全部来自宿主侧会话级任务追踪（src/task-track.js，与【任务动画】【任务通知】
 // 共用同一份实例），本模块不写任何配置——动效在 features/animation/、结束与确认提醒在
@@ -10,6 +10,7 @@
 //
 // Host 通信：fetch('dsh-dock/runstate/status')（见 features/runstate/host.js）。
 import { useState, useEffect } from "react";
+import { waitingCountOf, taskWaiting, taskApprovals, taskQuestions } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
@@ -108,22 +109,33 @@ function useRunState() {
 	return snap;
 }
 
-// 等待确认的审批项总数（标题、横幅与首页概要共用；任何分支之外都能引用）
+// 等人介入的项总数（审批项 + 待回答的提问；标题、横幅与首页概要共用）
+// 口径统一走 src/shared.js 的 waitingCountOf——别在这里另写一份，
+// 漏掉提问就会重演「明明在等用户答、界面却报卡住」那类误报。
 function waitingOf(active) {
-	return (active || []).reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
+	return waitingCountOf(active);
 }
 
 // ---------- 任务卡 ----------
 function TaskCard(props) {
 	const t = props.t;
 	const info = endInfo(t.endReason);
-	const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
+	const waiting = !props.done && taskWaiting(t);
+	// 等批准与等回答是不同的动作：标签与明细分开写，用户一眼知道该去点"批准"还是"选答案"
+	const approvals = taskApprovals(t);
+	const questions = taskQuestions(t);
+	const waitLabel = approvals.length > 0
+		? "等待确认"
+		: (questions.length > 0 ? "等待回答" : "");
+	const waitDetail = approvals.length > 0
+		? approvals.map((a) => (a && a.toolName ? a.toolName : "未知工具") + (a && a.reason ? "：" + truncate(a.reason, 80) : "")).join("；")
+		: questions.map((q) => (q && q.header ? q.header : "提问") + (q && q.question ? "：" + truncate(q.question, 80) : "")).join("；");
 	return (
 		<div className="dkrs-task">
 			<div className="dkrs-task-head">
 				<span className="dkrs-task-title" title={t.title}>{t.title || "(无标题)"}</span>
 				{props.done ? <span className={"dkrs-tag " + info.cls}>{info.label}</span>
-					: waiting ? <span className="dkrs-tag warn">等待确认</span>
+					: waiting ? <span className="dkrs-tag warn">{waitLabel}</span>
 						: <span className="dkrs-tag on">{phaseLabel(t.phase)}</span>}
 			</div>
 			<div className="dkrs-task-meta">
@@ -133,10 +145,8 @@ function TaskCard(props) {
 				{t.totalTokens ? <span>{"↧" + fmtCompact(t.inputTokens) + " ↥" + fmtCompact(t.outputTokens)}</span> : null}
 				{props.done && t.endTime ? <span>{fmtTime(t.endTime)}</span> : null}
 			</div>
-			{waiting ? (
-				<div className="dkrs-task-wait">
-					{t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "未知工具") + (a && a.reason ? "：" + truncate(a.reason, 80) : "")).join("；")}
-				</div>
+			{waiting && waitDetail ? (
+				<div className="dkrs-task-wait">{waitDetail}</div>
 			) : null}
 			{props.done && t.errorMessage ? <div className="dkrs-task-err">{truncate(t.errorMessage, 120)}</div> : null}
 		</div>
@@ -150,6 +160,13 @@ function RunStateView() {
 	const active = st && st.active ? st.active : [];
 	const recent = st && st.recent ? st.recent.slice(0, 10) : [];
 	const waitingCount = waitingOf(active);
+	// 等待的性质要分开说：等批准是"要不要执行"，等回答是"选哪个答案"，用户要做的动作不同。
+	// 两类同时存在时并列点名，别用一句含糊的「等待确认」把提问也吞进去。
+	const waitApprovals = (active || []).reduce((n, t) => n + taskApprovals(t).length, 0);
+	const waitQuestions = (active || []).reduce((n, t) => n + taskQuestions(t).length, 0);
+	const waitBannerHint = waitApprovals > 0 && waitQuestions > 0
+		? waitApprovals + " 项等批准、" + waitQuestions + " 项等你回答"
+		: waitApprovals > 0 ? "任务停在需要你批准的步骤上" : "任务在等你回答问题";
 	// 面板打开期间自动刷新：有任务 2s（阶段/耗时/待确认跟得上），空闲 8s，出错 15s。
 	// 本模块没有常驻浮层，所以关掉面板即停止轮询。
 	useEffect(() => {
@@ -167,7 +184,7 @@ function RunStateView() {
 
 	const sub = snap.error ? "状态拉取失败：" + snap.error
 		: !st ? (snap.loading ? "正在拉取任务状态…" : "等待任务状态")
-			: waitingCount > 0 ? waitingCount + " 项等待确认 · " + active.length + " 个任务进行中"
+			: waitingCount > 0 ? waitingCount + " 项等你介入 · " + active.length + " 个任务进行中"
 				: active.length > 0 ? active.length + " 个任务进行中"
 					: recent.length > 0 ? "空闲 · 显示最近完成" : "空闲 · 暂无任务记录";
 
@@ -182,7 +199,7 @@ function RunStateView() {
 					</button>
 				</div>
 				{waitingCount > 0 ? (
-					<div className="dkrs-waitbanner">✋ {waitingCount} 项等待确认：任务停在需要你批准的步骤上，请在会话里处理后继续。</div>
+					<div className="dkrs-waitbanner">✋ {waitingCount} 项等你介入：{waitBannerHint}，请在会话里处理后继续。</div>
 				) : null}
 				{active.length > 0 ? (
 					<div className="dkrs-tasks">{active.map((t) => <TaskCard key={t.sessionId} t={t} />)}</div>
@@ -217,7 +234,7 @@ function RunStateStat(props) {
 	if (!st) return <span>等待任务状态…</span>;
 	const active = st.active || [];
 	const waiting = waitingOf(active);
-	if (waiting > 0) return <span className="dkrs-warn">✋ {waiting} 项等待确认 · {active.length} 个任务进行中</span>;
+	if (waiting > 0) return <span className="dkrs-warn">✋ {waiting} 项等你介入 · {active.length} 个任务进行中</span>;
 	if (active.length > 0) {
 		return <span>{active.length + " 个任务进行中 · " + fmtDur(Math.max(...active.map((x) => x.elapsed || 0)))}</span>;
 	}
@@ -238,7 +255,7 @@ const css = [
 	".dkrs-sec-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:1;min-width:120px;}",
 	".dkrs-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
 	".dkrs-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-	// 等待确认横幅：琥珀描边，常驻在列表上方（任务卡各自也带「等待确认」标签）
+	// 等人介入横幅：琥珀描边，常驻在列表上方（任务卡各自也带「等待确认」/「等待回答」标签）
 	".dkrs-waitbanner{border:1px solid color-mix(in srgb,var(--dk-warn) 45%,transparent);background:color-mix(in srgb,var(--dk-warn) 10%,transparent);color:var(--dk-warn);border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.6;}",
 	".dkrs-done-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);}",
 	// 任务列表
@@ -262,7 +279,7 @@ export const feature = {
 	name: "运行状态",
 	order: 150,
 	accent: "#38bdf8",
-	description: "任务运行状态一览：进行中任务的阶段 / 耗时 / Token / 等待确认与最近完成记录（只读）",
+	description: "任务运行状态一览：进行中任务的阶段 / 耗时 / Token / 等人介入（等批准 / 等回答）与最近完成记录（只读）",
 	css,
 	View: RunStateView,
 	HomeStat: RunStateStat,

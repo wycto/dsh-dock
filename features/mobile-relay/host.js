@@ -125,10 +125,9 @@ function removeRemotePatches(list) {
 // 回环/安全上下文下 randomUUID 原生存在，脚本自我短路零副作用。
 const LAN_COMPAT_JS = "(function(){var g=typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:(typeof self!=='undefined'?self:undefined));if(!g)return;if(!g.crypto){try{g.crypto={}}catch(e){return}}var c=g.crypto;var nativeRng=typeof c.getRandomValues==='function'?c.getRandomValues.bind(c):null;function rng(bytes){if(nativeRng){nativeRng(bytes);return bytes}for(var i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256)&255;return bytes}function uuid(){var b=rng(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h=[];for(var i=0;i<16;i++)h.push((b[i]+256).toString(16).slice(1));return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('')}function fill(array){rng(array);return array}function define(obj,name,value){if(!obj||typeof obj[name]==='function')return;try{Object.defineProperty(obj,name,{value:value,configurable:true})}catch(e){try{obj[name]=value}catch(e2){}}}define(c,'randomUUID',uuid);if(!nativeRng)define(c,'getRandomValues',fill);define(g.Crypto&&g.Crypto.prototype||null,'randomUUID',uuid);if(!nativeRng)define(g.Crypto&&g.Crypto.prototype||null,'getRandomValues',fill);if(typeof c.randomUUID!=='function'){var fresh={getRandomValues:fill,randomUUID:uuid};if(c.subtle)fresh.subtle=c.subtle;var keyOrigin=Object.create(null);for(var k in c){try{keyOrigin[k]=c[k]}catch(e3){}}for(var k2 in keyOrigin){if(typeof fresh[k2]==='undefined')fresh[k2]=keyOrigin[k2]}try{Object.defineProperty(g,'crypto',{value:fresh,configurable:true})}catch(e4){try{g.crypto=fresh}catch(e5){}}}})()"
 const LAN_COMPAT_MARKER = 'data-dsh-lan-compat'
-// 手机端排版/行为补丁已迁到【手机适配】模块（features/mobile/host.js）——
-// 远程访问只保留「账号密码登录的远程入口」本身，窄屏排版与底部 Tab 栏归手机适配。
-// 这里只留 LAN 非安全上下文的 crypto.randomUUID 兜底（远程设备经 http://<局域网IP>
-// 访问时缺该 API，DSH 客户端引导会整片失败）。
+// 远程访问只注入 LAN 非安全上下文的 crypto.randomUUID 兜底（远程设备经
+// http://<局域网IP> 访问时缺该 API，DSH 客户端引导会整片失败）。
+// 手机端排版/行为（旧【手机适配】）已整体移除，本模块不再注入任何窄屏 chrome。
 /** 把 LAN 兼容脚本内联注入 index.html 的 <head> 之后（幂等）。 */
 function injectLanCompat(html) {
   let out = html

@@ -37,7 +37,8 @@ function defaultConfig() {
     dingtalkWebhook: '',
     feishuEnabled: false,
     feishuWebhook: '',
-    // 语音播报（浏览器 speechSynthesis 短句播报；默认总开关关闭）
+    // 语音播报（浏览器 speechSynthesis 短句播报）：服务端总开关，默认关闭。
+    // 客户端另有按浏览器保存的「本机播报」开关；服务端开 + 本机开才出声。
     voiceNotify: false,
     voiceMode: 'brief',
     voiceOnComplete: true,
