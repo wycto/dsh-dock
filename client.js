@@ -2126,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react26 = __toESM(require("react"), 1);
+var import_react24 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -2294,6 +2294,51 @@ function subscribePanel(fn) {
   return () => {
     navListeners.delete(fn);
   };
+}
+function taskApprovals(task) {
+  return task && Array.isArray(task.approvals) ? task.approvals : [];
+}
+function taskQuestions(task) {
+  return task && Array.isArray(task.questions) ? task.questions : [];
+}
+function taskWaiting(task) {
+  return taskApprovals(task).length > 0 || taskQuestions(task).length > 0;
+}
+function waitingCountOf(active) {
+  return (active || []).reduce((n, t) => n + taskApprovals(t).length + taskQuestions(t).length, 0);
+}
+var TASK_STALL_MS = 18e3;
+var TASK_BUSY_MS = 18e4;
+function numOf(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+function taskActivityAt(task) {
+  if (!task) return 0;
+  return Math.max(numOf(task.lastActivityAt), numOf(task.lastMotionAt), numOf(task.phaseAt));
+}
+function taskBusy(task, now, capMs) {
+  if (!task) return false;
+  const at = typeof now === "number" ? now : Date.now();
+  const cap = typeof capMs === "number" && capMs > 0 ? capMs : TASK_BUSY_MS;
+  if (task.compacting === true) {
+    const since = numOf(task.compactStartedAt);
+    if (!since || at - since < cap) return true;
+  }
+  if (typeof task.pendingTool === "string" && task.pendingTool) {
+    const since = numOf(task.toolStartedAt);
+    if (!since || at - since < cap) return true;
+  }
+  return false;
+}
+function taskStalled(task, now, thresholdMs) {
+  if (!task || taskWaiting(task) || taskBusy(task, now)) return 0;
+  const at = typeof now === "number" ? now : Date.now();
+  const limit = typeof thresholdMs === "number" && thresholdMs > 0 ? thresholdMs : TASK_STALL_MS;
+  const lastAct = taskActivityAt(task);
+  if (!lastAct) return 0;
+  const stalled = at - lastAct;
+  return stalled >= limit ? stalled : 0;
 }
 
 // features/tokenlog/view.jsx
@@ -6200,13 +6245,15 @@ function MissionDeparture(props) {
 }
 function ProgrammingStuck(props) {
   const waiting = !!props.waiting;
+  const task = props.task;
+  const label = !waiting ? "\u7F16\u7A0B\u7B49\u5F85\u4E2D" : taskApprovals(task).length > 0 ? "\u7B49\u5F85\u786E\u8BA4" : "\u7B49\u5F85\u56DE\u7B54";
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dkan-space-stuck" + (waiting ? " waiting" : ""), "aria-hidden": "true", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FreighterHull, { units: 3, empty: true }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-stuck-code", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("i", {}),
       `{ }`
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: waiting ? "\u7B49\u5F85\u786E\u8BA4" : "\u7F16\u7A0B\u7B49\u5F85\u4E2D" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: label }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("small", { children: truncate(props.task && props.task.title || "\u5DE5\u5177\u6682\u65E0\u65B0\u54CD\u5E94", 28) })
   ] });
 }
@@ -6359,7 +6406,8 @@ function AnimationOverlay(props) {
   const animOn = !!(cfg && cfg.animationEnabled && active.length > 0);
   const mode = cfg && cfg.effectMode ? cfg.effectMode : "flow";
   const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
-  const waitingTask = active.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
+  const waitingTask = active.find((x) => taskWaiting(x)) || null;
+  const waitWord = waitingTask && taskApprovals(waitingTask).length === 0 ? "\u7B49\u5F85\u56DE\u7B54" : "\u7B49\u5F85\u786E\u8BA4";
   const sessionTitleRef = (0, import_react9.useRef)({ at: 0, title: "" });
   const currentTitle = (0, import_react9.useMemo)(() => {
     const c = sessionTitleRef.current;
@@ -6370,7 +6418,7 @@ function AnimationOverlay(props) {
     return c.title;
   }, [snap.status]);
   const onScreenTasks = (0, import_react9.useMemo)(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
-  const waitingTaskOnScreen = onScreenTasks.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
+  const waitingTaskOnScreen = onScreenTasks.find((x) => taskWaiting(x)) || null;
   useTicker(ctx, animOn);
   const now = Date.now();
   const elapsed = active.length > 0 ? fmtClock(now - Math.min(...active.map((x) => x.startTime || now))) : "";
@@ -6404,7 +6452,7 @@ function AnimationOverlay(props) {
   const spaceModeOn = !!(cfg && cfg.animationEnabled && mode === "space" && !panelOpen);
   const spaceDocks = useSpaceDocks(spaceModeOn);
   const spaceGalaxies = spaceModeOn && spaceDocks ? spaceGalaxyLayout() : null;
-  const stuckTask = onScreenTasks.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18e3) || null;
+  const stuckTask = onScreenTasks.find((task) => task.phase === "code" && taskStalled(task, now, 18e3)) || null;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
   const saveRobotScale = (0, import_react9.useCallback)((robotScale) => {
@@ -6519,7 +6567,7 @@ function AnimationOverlay(props) {
     ambientOn && mode === "flow" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-line", style: speedStyle, "aria-hidden": "true" }) : null,
     ambientOn && AMBIENT_EFFECT_MODES.has(mode) && (mode !== "space" || spaceGalaxies) ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AmbientLayer, { mode, phase, speed: Number(speed).toFixed(2), tasks: active, galaxies: spaceGalaxies }) : null,
     spaceModeOn && spaceDocks && active.length === 0 && deliveries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ReadyFreighter, { dock: spaceDocks.ready }) : null,
-    spaceModeOn && stuckTask ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ProgrammingStuck, { task: stuckTask, waiting: !!(stuckTask.approvals && stuckTask.approvals.length) }) : null,
+    spaceModeOn && stuckTask ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ProgrammingStuck, { task: stuckTask, waiting: taskWaiting(stuckTask) }) : null,
     !panelOpen ? departures.map((departure) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MissionDeparture, { departure }, departure.id)) : null,
     ambientOn && mode === "orbit" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-orbit", style: speedStyle, "aria-hidden": "true" }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(BurstLayer, { bursts }),
@@ -6530,7 +6578,7 @@ function AnimationOverlay(props) {
         role: "button",
         tabIndex: 0,
         style: Object.assign({}, botCardStyle, waitingTask ? { "--dkan-phase": "#b45309" } : null),
-        title: active.length + " \u4E2A\u4EFB\u52A1 \xB7 " + (waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875 \xB7 \u53EF\u62D6\u52A8\u5230\u4EFB\u610F\u4F4D\u7F6E",
+        title: active.length + " \u4E2A\u4EFB\u52A1 \xB7 " + (waitingTask ? waitWord : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875 \xB7 \u53EF\u62D6\u52A8\u5230\u4EFB\u610F\u4F4D\u7F6E",
         onPointerDown: onBotPointerDown,
         onPointerMove: onBotPointerMove,
         onPointerUp: onBotPointerUp,
@@ -6549,7 +6597,7 @@ function AnimationOverlay(props) {
             " \u4E2A\u4EFB\u52A1",
             elapsed ? " \xB7 " + elapsed : "",
             " \xB7 ",
-            waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)
+            waitingTask ? waitWord : phaseLabel(phase)
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
             "button",
@@ -6581,7 +6629,7 @@ function AnimationOverlay(props) {
         type: "button",
         className: "dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : ""),
         style: Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) }),
-        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + (waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
+        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + (waitingTask ? waitWord : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
         onClick: () => openPanel("animation"),
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap", children: [
@@ -6594,7 +6642,7 @@ function AnimationOverlay(props) {
             " \u4E2A\u4EFB\u52A1",
             elapsed ? " \xB7 " + elapsed : "",
             " \xB7 ",
-            waitingTask ? "\u7B49\u5F85\u786E\u8BA4" : phaseLabel(phase)
+            waitingTask ? waitWord : phaseLabel(phase)
           ] })
         ]
       }
@@ -6776,7 +6824,7 @@ function AnimationView(props) {
   }
   if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note dkan-err", children: saveErr }, "err"));
   rows.push(
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u4EFB\u52A1\u8FD0\u884C\u72B6\u6001\uFF08\u8FDB\u884C\u4E2D\u4EFB\u52A1\u3001\u9636\u6BB5\u3001Token\u3001\u7B49\u5F85\u786E\u8BA4\u4E0E\u6700\u8FD1\u5B8C\u6210\uFF09\u5DF2\u72EC\u7ACB\u6210\u5DE6\u4FA7\u300C\u8FD0\u884C\u72B6\u6001\u300D\u83DC\u5355\uFF1B\u672C\u9875\u53EA\u8D1F\u8D23\u52A8\u6548\u3002" }, "hint")
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-note", children: "\u4EFB\u52A1\u8FD0\u884C\u72B6\u6001\uFF08\u8FDB\u884C\u4E2D\u4EFB\u52A1\u3001\u9636\u6BB5\u3001Token\u3001\u7B49\u4EBA\u4ECB\u5165\uFF08\u7B49\u6279\u51C6 / \u7B49\u56DE\u7B54\uFF09\u4E0E\u6700\u8FD1\u5B8C\u6210\uFF09\u5DF2\u72EC\u7ACB\u6210\u5DE6\u4FA7\u300C\u8FD0\u884C\u72B6\u6001\u300D\u83DC\u5355\uFF1B\u672C\u9875\u53EA\u8D1F\u8D23\u52A8\u6548\u3002" }, "hint")
   );
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dkan-root", children: rows });
 }
@@ -7295,6 +7343,50 @@ function utterCtor() {
 function voiceSupported() {
   return synthOf() !== null && utterCtor() !== null;
 }
+var VOICE_CLIENT_KEY = "dsh-dock/notify/voice-client/v1";
+function voiceClientEnabled() {
+  try {
+    if (typeof localStorage === "undefined") return true;
+    return localStorage.getItem(VOICE_CLIENT_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+function setVoiceClientEnabled(on) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(VOICE_CLIENT_KEY, on ? "1" : "0");
+  } catch {
+  }
+}
+function voiceAllowed(cfg) {
+  return !!cfg && cfg.voiceNotify === true && voiceClientEnabled();
+}
+function useVoiceClientEnabled() {
+  const [on, setOn] = (0, import_react10.useState)(() => voiceClientEnabled());
+  (0, import_react10.useEffect)(() => {
+    const sync = () => setOn(voiceClientEnabled());
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return void 0;
+    window.addEventListener("storage", sync);
+    return () => {
+      if (typeof window.removeEventListener === "function") window.removeEventListener("storage", sync);
+    };
+  }, []);
+  const set = (0, import_react10.useCallback)((next) => {
+    const v = next !== false;
+    setVoiceClientEnabled(v);
+    setOn(v);
+    if (!v) {
+      const s = synthOf();
+      if (s) {
+        try {
+          s.cancel();
+        } catch {
+        }
+      }
+    }
+  }, []);
+  return [on, set];
+}
 function localVoices() {
   const s = synthOf();
   if (!s) return [];
@@ -7469,6 +7561,25 @@ function confirmBroadcastText(task, approval, cfg) {
   parts.push("\u6B63\u5728\u7B49\u5F85\u4F60\u6279\u51C6" + (scene ? "\u6267\u884C" + scene : "") + "\uFF0C\u5DE5\u5177\u662F" + tool + "\uFF0C\u8BF7\u56DE\u5230\u4F1A\u8BDD\u5904\u7406\u3002");
   return parts.join("");
 }
+function questionBroadcastText(task, question, cfg) {
+  const mode = voiceTone(cfg);
+  if (mode === "brief") return "\u4EFB\u52A1\u9700\u8981\u4F60\u56DE\u7B54";
+  const who = task && task.title ? "\u4EFB\u52A1\u300C" + truncate2(task.title, 30) + "\u300D" : "\u4EFB\u52A1";
+  const head = question && question.header || "";
+  const body = question && question.question || "";
+  const what = body ? truncate2(body.replace(/[#*_`>\[\]()!]/g, ""), 40) : "";
+  if (mode === "medium") {
+    const tail = what ? "\uFF1A" + what : head ? "\uFF1A" + head : "";
+    return who + "\u5728\u7B49\u4F60\u56DE\u7B54" + tail + "\u3002";
+  }
+  const parts = [];
+  if (task && task.title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(task.title, 30) + "\u3002");
+  parts.push(what ? "\u6B63\u5728\u7B49\u4F60\u56DE\u7B54\u95EE\u9898\uFF1A" + what + "\u3002" : "\u6B63\u5728\u7B49\u4F60\u56DE\u7B54\u95EE\u9898\u3002");
+  const count = question && question.count || 0;
+  if (count > 1) parts.push("\u5171 " + count + " \u4E2A\u95EE\u9898\u3002");
+  parts.push("\u8BF7\u56DE\u5230\u4F1A\u8BDD\u9009\u62E9\u7B54\u6848\u3002");
+  return parts.join("");
+}
 function stuckBroadcastText(task, cfg) {
   const mode = voiceTone(cfg);
   const where = (task && task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1") + (task && task.title ? "\u300C" + truncate2(task.title, 30) + "\u300D" : "");
@@ -7485,6 +7596,10 @@ function stuckBroadcastText(task, cfg) {
   return parts.join("");
 }
 var STUCK_MS = 18e3;
+function stuckMsOf(cfg) {
+  const v = cfg && Number(cfg.stuckMs);
+  return Number.isFinite(v) && v > 0 ? v : STUCK_MS;
+}
 var notifyStore = {
   snap: { status: null, loading: false, error: null },
   listeners: /* @__PURE__ */ new Set(),
@@ -7644,6 +7759,7 @@ function NotifyOverlay(props) {
   const [stackHover, setStackHover] = (0, import_react10.useState)(false);
   const prevActiveRef = (0, import_react10.useRef)(null);
   const remindedApprovalsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const remindedQuestionsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
   const toastSeqRef = (0, import_react10.useRef)(0);
   const pushToast = (0, import_react10.useCallback)((toast) => {
     const st = notifyStore.snap.status;
@@ -7698,7 +7814,7 @@ function NotifyOverlay(props) {
       if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
     }
     for (const task of st.active) {
-      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+      const approvals = taskApprovals(task);
       if (approvals.length === 0) continue;
       let seen = remindedApprovalsRef.current.get(task.sessionId);
       if (!seen) {
@@ -7708,7 +7824,7 @@ function NotifyOverlay(props) {
       const fresh = approvals.filter((a) => a && !seen.has(a.id));
       if (fresh.length === 0) continue;
       for (const a of fresh) seen.add(a.id);
-      if (cfg.voiceNotify === true && cfg.voiceOnConfirm !== false) {
+      if (voiceAllowed(cfg) && cfg.voiceOnConfirm !== false) {
         speakVoice(confirmBroadcastText(task, fresh[0], cfg), cfg);
       }
       if (cfg.notifyOnConfirm === false) continue;
@@ -7752,16 +7868,71 @@ function NotifyOverlay(props) {
   (0, import_react10.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
+    const cfg = st.config || {};
+    const activeIds = new Set(st.active.map((x) => x.sessionId));
+    for (const [sid, seen] of remindedQuestionsRef.current) {
+      if (!activeIds.has(sid)) remindedQuestionsRef.current.delete(sid);
+    }
+    for (const task of st.active) {
+      const questions = taskQuestions(task);
+      if (questions.length === 0) continue;
+      let seen = remindedQuestionsRef.current.get(task.sessionId);
+      if (!seen) {
+        seen = /* @__PURE__ */ new Set();
+        remindedQuestionsRef.current.set(task.sessionId, seen);
+      }
+      const fresh = questions.filter((q) => q && q.id && !seen.has(q.id));
+      if (fresh.length === 0) continue;
+      for (const q of fresh) seen.add(q.id);
+      if (voiceAllowed(cfg) && cfg.voiceOnConfirm !== false) {
+        speakVoice(questionBroadcastText(task, fresh[0], cfg), cfg);
+      }
+      if (cfg.notifyOnConfirm === false) continue;
+      const tone = cardTone(cfg);
+      const head = fresh[0].header || "";
+      const body = fresh[0].question || "";
+      const lines = ["\u4EFB\u52A1\uFF1A" + (task.title || "(\u65E0\u6807\u9898)")];
+      if (body) lines.push((head ? head + "\uFF1A" : "\u95EE\u9898\uFF1A") + truncate2(body, 140));
+      else if (head) lines.push("\u95EE\u9898\uFF1A" + head);
+      const count = fresh[0].count || 0;
+      if (count > 1) lines.push(tone === "brief" ? "\u5171 " + count + " \u4E2A\u95EE\u9898" : "\u5171 " + count + " \u4E2A\u95EE\u9898\u7B49\u4F60\u9009\u62E9");
+      if (tone === "detailed") lines.push("\u8BF7\u5728\u4F1A\u8BDD\u91CC\u9009\u597D\u7B54\u6848\u540E\u7EE7\u7EED");
+      pushToast({
+        id: ++toastSeqRef.current,
+        kind: "confirm",
+        title: "\u4EFB\u52A1\u9700\u8981\u4F60\u56DE\u7B54",
+        body: lines.join("\n"),
+        // 点卡片直达该会话去选答案（与需确认卡同哲学：问题没答完卡片就该在）
+        sessionId: task.sessionId || "",
+        sessionTitle: task.title || "",
+        // 与这批提问绑定：回答落地后宿主把它们移出 questions，下面的对账 effect 据此收起
+        questionKeys: fresh.map((q) => task.sessionId + "|" + q.id)
+      });
+      if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
+      if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("dsh \u4EFB\u52A1\u9700\u8981\u4F60\u56DE\u7B54", {
+            body: (task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + (head || "\u6709\u4E00\u95EE\u5728\u7B49\u4F60\u9009\u62E9"),
+            tag: "dsh-dock-question-" + task.sessionId
+          });
+        } catch {
+        }
+      }
+    }
+  }, [snap.status]);
+  (0, import_react10.useEffect)(() => {
+    const st = snap.status;
+    if (!st || !st.active) return;
     const live = /* @__PURE__ */ new Set();
     for (const task of st.active) {
-      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
-      for (const a of approvals) if (a && a.id) live.add(task.sessionId + "|" + a.id);
+      for (const a of taskApprovals(task)) if (a && a.id) live.add(task.sessionId + "|" + a.id);
+      for (const q of taskQuestions(task)) if (q && q.id) live.add(task.sessionId + "|" + q.id);
     }
     setToasts((prev) => {
       let changed = false;
       const next = prev.map((x) => {
         if (x.kind !== "confirm" || x.closing) return x;
-        const keys = Array.isArray(x.approvalKeys) ? x.approvalKeys : [];
+        const keys = [].concat(Array.isArray(x.approvalKeys) ? x.approvalKeys : []).concat(Array.isArray(x.questionKeys) ? x.questionKeys : []);
         if (keys.length === 0 || keys.some((k) => live.has(k))) return x;
         changed = true;
         return Object.assign({}, x, { closing: true });
@@ -7804,8 +7975,7 @@ function NotifyOverlay(props) {
       if (t.isSubtask && t.parentSessionId) parentsWaitingOnSubtask.add(t.parentSessionId);
     }
     for (const task of st.active) {
-      const approvals = Array.isArray(task.approvals) ? task.approvals : [];
-      if (approvals.length > 0) {
+      if (taskWaiting(task)) {
         stuckSeenRef.current.delete(task.sessionId);
         continue;
       }
@@ -7813,13 +7983,13 @@ function NotifyOverlay(props) {
         continue;
       }
       if (parentsWaitingOnSubtask.has(task.sessionId)) continue;
-      const lastAct = task.lastActivityAt || task.phaseAt || 0;
-      if (!lastAct || now - lastAct < STUCK_MS) continue;
+      const lastAct = taskActivityAt(task);
+      const stuckMs = taskStalled(task, now, stuckMsOf(cfg));
+      if (!stuckMs) continue;
       const prev = stuckSeenRef.current.get(task.sessionId);
       if (prev === lastAct) continue;
       stuckSeenRef.current.set(task.sessionId, lastAct);
-      const stuckMs = now - lastAct;
-      if (cfg.voiceNotify === true && cfg.voiceOnStuck !== false) {
+      if (voiceAllowed(cfg) && cfg.voiceOnStuck !== false) {
         speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs })), cfg);
       }
       if (cfg.notifyOnStuck === false) continue;
@@ -7856,7 +8026,7 @@ function NotifyOverlay(props) {
       const next = prev.map((x) => {
         if (x.kind !== "stuck" || x.closing) return x;
         const task = byId.get(x.sessionId);
-        const stillStalled = !!task && (task.lastActivityAt || task.phaseAt || 0) === x.stuckAt && (Array.isArray(task.approvals) ? task.approvals.length : 0) === 0;
+        const stillStalled = !!task && taskActivityAt(task) === x.stuckAt && !taskWaiting(task);
         if (stillStalled) return x;
         changed = true;
         return Object.assign({}, x, { closing: true });
@@ -7869,7 +8039,7 @@ function NotifyOverlay(props) {
     const success = isSuccessReason2(reason);
     const info = endInfo(reason);
     const wanted = success ? cfg.notifyOnComplete : cfg.notifyOnError;
-    if (cfg.voiceNotify === true && (success ? cfg.voiceOnComplete !== false : cfg.voiceOnError !== false)) {
+    if (voiceAllowed(cfg) && (success ? cfg.voiceOnComplete !== false : cfg.voiceOnError !== false)) {
       speakVoice(endBroadcastText(success, record, task, cfg), cfg);
     }
     if (wanted === false) return;
@@ -7935,6 +8105,7 @@ function NotifyOverlay(props) {
 function NotifyView(props) {
   const snap = useNotify();
   const voices = useLocalVoices();
+  const [voiceClientOn, setVoiceClientOn] = useVoiceClientEnabled();
   const [cfg, setCfg] = (0, import_react10.useState)(null);
   const [saveErr, setSaveErr] = (0, import_react10.useState)("");
   const [testing, setTesting] = (0, import_react10.useState)(false);
@@ -8110,7 +8281,7 @@ function NotifyView(props) {
                 children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u5F85\u4F60\u6279\u51C6\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF1B\u5BA1\u6279\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF0C\u6CA1\u5904\u7406\u5B8C\u5C31\u4E00\u76F4\u663E\u793A\uFF08\u70B9\u5361\u7247\u76F4\u8FBE\u4F1A\u8BDD\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u4F60\u6279\u51C6\u3001\u6216\u4F1A\u8BDD\u63D0\u95EE\u7B49\u4F60\u9009\u7B54\u6848\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF1B\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF0C\u6CA1\u5904\u7406\u5B8C\u5C31\u4E00\u76F4\u663E\u793A\uFF08\u70B9\u5361\u7247\u76F4\u8FBE\u4F1A\u8BDD\uFF09\u3002\u8FD9\u4E24\u79CD\u300C\u505C\u5728\u539F\u5730\u7B49\u4EBA\u300D\u90FD\u4E0D\u7B97\u5361\u4F4F" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u4F4F\u63D0\u9192" }),
@@ -8123,7 +8294,7 @@ function NotifyView(props) {
                 children: cfg.notifyOnStuck !== false ? "\u5F00" : "\u5173"
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7F16\u7A0B\u9636\u6BB5 18 \u79D2\u6CA1\u6709\u52A8\u9759\u65F6\u5F39\u5361\u7247\uFF0C\u5199\u660E\u662F\u4E3B\u4EFB\u52A1\u8FD8\u662F\u5B50\u4EFB\u52A1\u3001\u505C\u6EDE\u4E86\u591A\u4E45\u3001\u6700\u540E\u5728\u6267\u884C\u4EC0\u4E48\uFF1B\u6062\u590D\u6D3B\u52A8 / \u4EFB\u52A1\u7ED3\u675F\u81EA\u52A8\u6536\u8D77\uFF0C\u540C\u4E00\u505C\u70B9\u53EA\u5F39\u4E00\u6B21\uFF08\u8BED\u97F3\u64AD\u62A5\u8D70\u300C\u8BED\u97F3\u64AD\u62A5\u300D\u533A\u7684\u5361\u4F4F\u5F00\u5173\uFF0C\u4E92\u4E0D\u5E72\u6270\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7F16\u7A0B\u9636\u6BB5\u957F\u65F6\u95F4\u6CA1\u6709\u52A8\u9759\u65F6\u5F39\u5361\u7247\uFF0C\u5199\u660E\u662F\u4E3B\u4EFB\u52A1\u8FD8\u662F\u5B50\u4EFB\u52A1\u3001\u505C\u6EDE\u4E86\u591A\u4E45\u3001\u6700\u540E\u5728\u6267\u884C\u4EC0\u4E48\uFF1B\u6062\u590D\u6D3B\u52A8 / \u4EFB\u52A1\u7ED3\u675F\u81EA\u52A8\u6536\u8D77\uFF0C\u540C\u4E00\u505C\u70B9\u53EA\u5F39\u4E00\u6B21\u3002\u7B49\u6279\u51C6\u3001\u7B49\u56DE\u7B54\u3001\u547D\u4EE4\u8FD8\u5728\u8DD1\u3001\u6B63\u5728\u538B\u7F29\u4E0A\u4E0B\u6587\u7684\u4F1A\u8BDD\u90FD\u4E0D\u7B97\u5361\u4F4F\uFF08\u90A3\u4E9B\u90FD\u662F\u5728\u5E72\u6D3B\uFF0C\u522B\u91CD\u590D\u8F70\u70B8\uFF09\uFF08\u8BED\u97F3\u64AD\u62A5\u8D70\u300C\u8BED\u97F3\u64AD\u62A5\u300D\u533A\u7684\u5361\u4F4F\u5F00\u5173\uFF0C\u4E92\u4E0D\u5E72\u6270\uFF09" })
           ] })
         ] })
       ] }, "events"),
@@ -8220,9 +8391,9 @@ function NotifyView(props) {
       /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u8BED\u97F3\u64AD\u62A5" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u5B8C\u6210 / \u505C\u6B62 / \u9700\u8981\u6388\u6743 / \u5361\u4F4F\u65F6\u7528\u6D4F\u89C8\u5668\u8BED\u97F3\uFF08TTS\uFF09\u8BF4\u4E00\u53E5\u8BDD\uFF1B\u4E0E\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u4E92\u4E0D\u51B2\u7A81" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u5B8C\u6210 / \u505C\u6B62 / \u9700\u8981\u6388\u6743 / \u9700\u56DE\u7B54 / \u5361\u4F4F\u65F6\u7528\u6D4F\u89C8\u5668\u8BED\u97F3\uFF08TTS\uFF09\u8BF4\u4E00\u53E5\u8BDD\uFF1B\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF08\u8DE8\u6D4F\u89C8\u5668\uFF09\u4E0E\u672C\u673A\u5F00\u5173\uFF08\u5F53\u524D\u6D4F\u89C8\u5668\uFF09\u90FD\u5F00\u542F\u624D\u64AD\u62A5" }),
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : ""), children: cfg.voiceNotify ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : ""), children: cfg.voiceNotify ? "\u670D\u52A1\u7AEF\uFF1A\u5DF2\u5F00\u542F" : "\u670D\u52A1\u7AEF\uFF1A\u5DF2\u5173\u95ED" }),
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
               "button",
               {
@@ -8230,12 +8401,29 @@ function NotifyView(props) {
                 className: "dock-sw" + (cfg.voiceNotify ? " on" : ""),
                 role: "switch",
                 "aria-checked": cfg.voiceNotify,
-                "aria-label": "\u5F00\u5173\u8BED\u97F3\u64AD\u62A5",
-                title: cfg.voiceNotify ? "\u5173\u95ED\u8BED\u97F3\u64AD\u62A5" : "\u5F00\u542F\u8BED\u97F3\u64AD\u62A5",
+                "aria-label": "\u5F00\u5173\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09",
+                title: cfg.voiceNotify ? "\u5173\u95ED\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09" : "\u5F00\u542F\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09",
                 onClick: () => patch({ voiceNotify: !cfg.voiceNotify })
               }
             )
           ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u672C\u673A\u64AD\u62A5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dknt-miniswitch" + (voiceClientOn ? " on" : ""),
+              role: "switch",
+              "aria-checked": voiceClientOn,
+              "aria-label": "\u5F00\u5173\u672C\u673A\u8BED\u97F3\u64AD\u62A5",
+              title: voiceClientOn ? "\u5173\u95ED\u672C\u673A\u8BED\u97F3\u64AD\u62A5" : "\u5F00\u542F\u672C\u673A\u8BED\u97F3\u64AD\u62A5",
+              onClick: () => setVoiceClientOn(!voiceClientOn),
+              children: voiceClientOn ? "\u5F00" : "\u5173"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voiceClientOn ? "\u672C\u6D4F\u89C8\u5668\u4F1A\u64AD\u62A5\uFF08\u8BBE\u7F6E\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF1B\u670D\u52A1\u7AEF\u603B\u5F00\u5173\u5173\u95ED\u65F6\u4E0D\u751F\u6548\uFF09" : "\u672C\u6D4F\u89C8\u5668\u4E0D\u64AD\u62A5\uFF08\u8BBE\u7F6E\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u6D4F\u89C8\u5668\uFF09" })
         ] }),
         cfg.voiceNotify ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
@@ -8259,7 +8447,7 @@ function NotifyView(props) {
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", style: { minWidth: 0 }, children: [
               ["voiceOnComplete", "\u5B8C\u6210", cfg.voiceOnComplete !== false],
               ["voiceOnError", "\u505C\u6B62", cfg.voiceOnError !== false],
-              ["voiceOnConfirm", "\u9700\u6388\u6743", cfg.voiceOnConfirm !== false],
+              ["voiceOnConfirm", "\u9700\u6388\u6743/\u9700\u56DE\u7B54", cfg.voiceOnConfirm !== false],
               ["voiceOnStuck", "\u5361\u4F4F", cfg.voiceOnStuck !== false]
             ].map(([key, label, on]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
               "button",
@@ -8267,7 +8455,7 @@ function NotifyView(props) {
                 type: "button",
                 className: "dknt-miniswitch" + (on ? " on" : ""),
                 style: { marginRight: 6 },
-                title: key === "voiceOnStuck" ? "\u7F16\u7A0B\u9636\u6BB5 18 \u79D2\u6CA1\u6709\u52A8\u9759\u65F6\u64AD\u62A5\u4E00\u6B21\uFF08\u6062\u590D\u540E\u53EF\u518D\u62A5\uFF09" : "",
+                title: key === "voiceOnStuck" ? "\u7F16\u7A0B\u9636\u6BB5\u957F\u65F6\u95F4\u6CA1\u6709\u52A8\u9759\u65F6\u64AD\u62A5\u4E00\u6B21\uFF08\u6062\u590D\u540E\u53EF\u518D\u62A5\uFF1B\u547D\u4EE4\u5728\u8DD1 / \u6B63\u5728\u538B\u7F29\u4E0A\u4E0B\u6587\u4E0D\u7B97\uFF09" : "",
                 onClick: () => patch({ [key]: !on }),
                 children: [
                   label,
@@ -8394,7 +8582,7 @@ function NotifyView(props) {
             ),
             /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u672A\u6307\u5B9A\u97F3\u8272\u65F6\u6309\u8BED\u8A00\u81EA\u52A8\u6311\uFF1B\u5DF2\u9009\u97F3\u8272\u7684\u8BED\u8A00\u4F1A\u8986\u76D6\u8FD9\u91CC" })
           ] })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u4E8B\u4EF6\u4E0D\u64AD\u62A5\u8BED\u97F3\uFF08\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u4E0D\u53D7\u5F71\u54CD\uFF09\u3002" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u670D\u52A1\u7AEF\u603B\u5F00\u5173\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u4E8B\u4EF6\u4E0D\u64AD\u62A5\u8BED\u97F3\uFF08\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u4E0D\u53D7\u5F71\u54CD\uFF09\uFF1B\u4E0A\u9762\u7684\u300C\u672C\u673A\u64AD\u62A5\u300D\u53EA\u51B3\u5B9A\u672C\u6D4F\u89C8\u5668\u662F\u5426\u51FA\u58F0\u3002" })
       ] }, "voice"),
       /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
@@ -8518,7 +8706,7 @@ function NotifyView(props) {
   }
   if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note dknt-err", children: saveErr }, "err"));
   rows.push(
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u4EFB\u52A1\u8FD0\u884C\u72B6\u6001\uFF08\u8FDB\u884C\u4E2D\u4EFB\u52A1\u3001\u7B49\u5F85\u786E\u8BA4\u4E0E\u6700\u8FD1\u5B8C\u6210\uFF09\u5DF2\u72EC\u7ACB\u6210\u5DE6\u4FA7\u300C\u8FD0\u884C\u72B6\u6001\u300D\u83DC\u5355\uFF1B\u672C\u9875\u53EA\u8D1F\u8D23\u7ED3\u675F\u4E0E\u9700\u786E\u8BA4\u65F6\u7684\u63D0\u9192\u3002" }, "hint")
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u4EFB\u52A1\u8FD0\u884C\u72B6\u6001\uFF08\u8FDB\u884C\u4E2D\u4EFB\u52A1\u3001\u7B49\u4EBA\u4ECB\u5165\uFF08\u7B49\u6279\u51C6 / \u7B49\u56DE\u7B54\uFF09\u4E0E\u6700\u8FD1\u5B8C\u6210\uFF09\u5DF2\u72EC\u7ACB\u6210\u5DE6\u4FA7\u300C\u8FD0\u884C\u72B6\u6001\u300D\u83DC\u5355\uFF1B\u672C\u9875\u53EA\u8D1F\u8D23\u7ED3\u675F\u4E0E\u9700\u786E\u8BA4 / \u9700\u56DE\u7B54\u65F6\u7684\u63D0\u9192\u3002" }, "hint")
   );
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-root", children: rows });
 }
@@ -8527,8 +8715,10 @@ function NotifyStat(props) {
   const cfg = snap.status && snap.status.config;
   if (snap.error) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-err", children: "\u901A\u77E5\u72B6\u6001\u4E0D\u53EF\u7528\uFF08\u5BBF\u4E3B\u9700\u91CD\u542F\u52A0\u8F7D\u901A\u77E5\u8DEF\u7531\uFF09" });
   if (!cfg) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u7B49\u5F85\u901A\u77E5\u914D\u7F6E\u2026" });
-  const events = [cfg.notifyOnComplete ? "\u5B8C\u6210" : "", cfg.notifyOnError ? "\u5F02\u5E38" : "", cfg.notifyOnConfirm !== false ? "\u9700\u786E\u8BA4" : ""].filter(Boolean);
-  const extras = [cfg.soundNotify !== false ? "\u63D0\u793A\u97F3" : "", cfg.systemNotify ? "\u7CFB\u7EDF\u901A\u77E5" : "", cfg.voiceNotify ? "\u8BED\u97F3\u64AD\u62A5" + (cfg.voiceMode === "detailed" ? "\xB7\u8BE6" : cfg.voiceMode === "medium" ? "\xB7\u9002" : "\xB7\u7B80") : ""].filter(Boolean);
+  const events = [cfg.notifyOnComplete ? "\u5B8C\u6210" : "", cfg.notifyOnError ? "\u5F02\u5E38" : "", cfg.notifyOnConfirm !== false ? "\u9700\u786E\u8BA4/\u9700\u56DE\u7B54" : ""].filter(Boolean);
+  const voiceMode = cfg.voiceMode === "detailed" ? "\xB7\u8BE6" : cfg.voiceMode === "medium" ? "\xB7\u9002" : "\xB7\u7B80";
+  const voice = !cfg.voiceNotify ? "" : voiceClientEnabled() ? "\u8BED\u97F3\u64AD\u62A5" + voiceMode : "\u8BED\u97F3\u64AD\u62A5\xB7\u672C\u673A\u5DF2\u5173";
+  const extras = [cfg.soundNotify !== false ? "\u63D0\u793A\u97F3" : "", cfg.systemNotify ? "\u7CFB\u7EDF\u901A\u77E5" : "", voice].filter(Boolean);
   const push = [cfg.dingtalkEnabled ? "\u9489\u9489" : "", cfg.feishuEnabled ? "\u98DE\u4E66" : ""].filter(Boolean);
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: (events.length ? "\u901A\u77E5\uFF1A" + events.join("/") : "\u901A\u77E5\u4E8B\u4EF6\u5168\u5173") + (extras.length ? " \xB7 " + extras.join("/") : "") + (push.length ? " \xB7 \u63A8\u9001\uFF1A" + push.join("/") : "") });
 }
@@ -8697,16 +8887,20 @@ function useRunState() {
   return snap;
 }
 function waitingOf(active) {
-  return (active || []).reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
+  return waitingCountOf(active);
 }
 function TaskCard(props) {
   const t = props.t;
   const info = endInfo2(t.endReason);
-  const waiting = !props.done && Array.isArray(t.approvals) && t.approvals.length > 0;
+  const waiting = !props.done && taskWaiting(t);
+  const approvals = taskApprovals(t);
+  const questions = taskQuestions(t);
+  const waitLabel = approvals.length > 0 ? "\u7B49\u5F85\u786E\u8BA4" : questions.length > 0 ? "\u7B49\u5F85\u56DE\u7B54" : "";
+  const waitDetail = approvals.length > 0 ? approvals.map((a) => (a && a.toolName ? a.toolName : "\u672A\u77E5\u5DE5\u5177") + (a && a.reason ? "\uFF1A" + truncate3(a.reason, 80) : "")).join("\uFF1B") : questions.map((q) => (q && q.header ? q.header : "\u63D0\u95EE") + (q && q.question ? "\uFF1A" + truncate3(q.question, 80) : "")).join("\uFF1B");
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dkrs-task", children: [
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dkrs-task-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-task-title", title: t.title, children: t.title || "(\u65E0\u6807\u9898)" }),
-      props.done ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-tag " + info.cls, children: info.label }) : waiting ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-tag warn", children: "\u7B49\u5F85\u786E\u8BA4" }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-tag on", children: phaseLabel2(t.phase) })
+      props.done ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-tag " + info.cls, children: info.label }) : waiting ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-tag warn", children: waitLabel }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-tag on", children: phaseLabel2(t.phase) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dkrs-task-meta", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: (t.models && t.models.length ? t.models.join(", ") : "\u672A\u77E5") + (t.provider ? "\uFF08" + t.provider + "\uFF09" : "") }),
@@ -8715,7 +8909,7 @@ function TaskCard(props) {
       t.totalTokens ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: "\u21A7" + fmtCompact3(t.inputTokens) + " \u21A5" + fmtCompact3(t.outputTokens) }) : null,
       props.done && t.endTime ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: fmtTime3(t.endTime) }) : null
     ] }),
-    waiting ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dkrs-task-wait", children: t.approvals.map((a, i) => (a && a.toolName ? a.toolName : "\u672A\u77E5\u5DE5\u5177") + (a && a.reason ? "\uFF1A" + truncate3(a.reason, 80) : "")).join("\uFF1B") }) : null,
+    waiting && waitDetail ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dkrs-task-wait", children: waitDetail }) : null,
     props.done && t.errorMessage ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dkrs-task-err", children: truncate3(t.errorMessage, 120) }) : null
   ] });
 }
@@ -8725,6 +8919,9 @@ function RunStateView() {
   const active = st && st.active ? st.active : [];
   const recent = st && st.recent ? st.recent.slice(0, 10) : [];
   const waitingCount = waitingOf(active);
+  const waitApprovals = (active || []).reduce((n, t) => n + taskApprovals(t).length, 0);
+  const waitQuestions = (active || []).reduce((n, t) => n + taskQuestions(t).length, 0);
+  const waitBannerHint = waitApprovals > 0 && waitQuestions > 0 ? waitApprovals + " \u9879\u7B49\u6279\u51C6\u3001" + waitQuestions + " \u9879\u7B49\u4F60\u56DE\u7B54" : waitApprovals > 0 ? "\u4EFB\u52A1\u505C\u5728\u9700\u8981\u4F60\u6279\u51C6\u7684\u6B65\u9AA4\u4E0A" : "\u4EFB\u52A1\u5728\u7B49\u4F60\u56DE\u7B54\u95EE\u9898";
   (0, import_react11.useEffect)(() => {
     let stopped = false;
     let timer = null;
@@ -8740,7 +8937,7 @@ function RunStateView() {
       if (timer) clearTimeout(timer);
     };
   }, []);
-  const sub = snap.error ? "\u72B6\u6001\u62C9\u53D6\u5931\u8D25\uFF1A" + snap.error : !st ? snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" : "\u7B49\u5F85\u4EFB\u52A1\u72B6\u6001" : waitingCount > 0 ? waitingCount + " \u9879\u7B49\u5F85\u786E\u8BA4 \xB7 " + active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : active.length > 0 ? active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : recent.length > 0 ? "\u7A7A\u95F2 \xB7 \u663E\u793A\u6700\u8FD1\u5B8C\u6210" : "\u7A7A\u95F2 \xB7 \u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55";
+  const sub = snap.error ? "\u72B6\u6001\u62C9\u53D6\u5931\u8D25\uFF1A" + snap.error : !st ? snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4EFB\u52A1\u72B6\u6001\u2026" : "\u7B49\u5F85\u4EFB\u52A1\u72B6\u6001" : waitingCount > 0 ? waitingCount + " \u9879\u7B49\u4F60\u4ECB\u5165 \xB7 " + active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : active.length > 0 ? active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D" : recent.length > 0 ? "\u7A7A\u95F2 \xB7 \u663E\u793A\u6700\u8FD1\u5B8C\u6210" : "\u7A7A\u95F2 \xB7 \u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dkrs-root", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dkrs-sec", children: [
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dkrs-sec-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dkrs-sec-title", children: "\u8FD0\u884C\u72B6\u6001" }),
@@ -8750,7 +8947,9 @@ function RunStateView() {
     waitingCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dkrs-waitbanner", children: [
       "\u270B ",
       waitingCount,
-      " \u9879\u7B49\u5F85\u786E\u8BA4\uFF1A\u4EFB\u52A1\u505C\u5728\u9700\u8981\u4F60\u6279\u51C6\u7684\u6B65\u9AA4\u4E0A\uFF0C\u8BF7\u5728\u4F1A\u8BDD\u91CC\u5904\u7406\u540E\u7EE7\u7EED\u3002"
+      " \u9879\u7B49\u4F60\u4ECB\u5165\uFF1A",
+      waitBannerHint,
+      "\uFF0C\u8BF7\u5728\u4F1A\u8BDD\u91CC\u5904\u7406\u540E\u7EE7\u7EED\u3002"
     ] }) : null,
     active.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dkrs-tasks", children: active.map((t) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TaskCard, { t }, t.sessionId)) }) : null,
     !snap.error && active.length === 0 && recent.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dkrs-note", children: "\u53D1\u8D77\u65B0\u4F1A\u8BDD\u4EFB\u52A1\u540E\uFF0C\u8FD9\u91CC\u4F1A\u663E\u793A\u8FDB\u884C\u4E2D\u4E0E\u6700\u8FD1\u5B8C\u6210\u7684\u4EFB\u52A1\uFF08\u52A8\u6548\u89C1\u5DE6\u4FA7\u300C\u4EFB\u52A1\u52A8\u753B\u300D\uFF0C\u63D0\u9192\u89C1\u300C\u4EFB\u52A1\u901A\u77E5\u300D\uFF09\u3002" }) : null,
@@ -8775,7 +8974,7 @@ function RunStateStat(props) {
   if (waiting > 0) return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "dkrs-warn", children: [
     "\u270B ",
     waiting,
-    " \u9879\u7B49\u5F85\u786E\u8BA4 \xB7 ",
+    " \u9879\u7B49\u4F60\u4ECB\u5165 \xB7 ",
     active.length,
     " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D"
   ] });
@@ -8797,7 +8996,7 @@ var css4 = [
   ".dkrs-sec-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:1;min-width:120px;}",
   ".dkrs-refresh{cursor:pointer;flex:none;color:var(--dsw-alias-label-primary);background:transparent;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:2px 10px;font-family:inherit;font-size:12px;}",
   ".dkrs-refresh:hover{background:var(--dsw-alias-interactive-bg-hover);}",
-  // 等待确认横幅：琥珀描边，常驻在列表上方（任务卡各自也带「等待确认」标签）
+  // 等人介入横幅：琥珀描边，常驻在列表上方（任务卡各自也带「等待确认」/「等待回答」标签）
   ".dkrs-waitbanner{border:1px solid color-mix(in srgb,var(--dk-warn) 45%,transparent);background:color-mix(in srgb,var(--dk-warn) 10%,transparent);color:var(--dk-warn);border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.6;}",
   ".dkrs-done-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);}",
   // 任务列表
@@ -8820,7 +9019,7 @@ var feature9 = {
   name: "\u8FD0\u884C\u72B6\u6001",
   order: 150,
   accent: "#38bdf8",
-  description: "\u4EFB\u52A1\u8FD0\u884C\u72B6\u6001\u4E00\u89C8\uFF1A\u8FDB\u884C\u4E2D\u4EFB\u52A1\u7684\u9636\u6BB5 / \u8017\u65F6 / Token / \u7B49\u5F85\u786E\u8BA4\u4E0E\u6700\u8FD1\u5B8C\u6210\u8BB0\u5F55\uFF08\u53EA\u8BFB\uFF09",
+  description: "\u4EFB\u52A1\u8FD0\u884C\u72B6\u6001\u4E00\u89C8\uFF1A\u8FDB\u884C\u4E2D\u4EFB\u52A1\u7684\u9636\u6BB5 / \u8017\u65F6 / Token / \u7B49\u4EBA\u4ECB\u5165\uFF08\u7B49\u6279\u51C6 / \u7B49\u56DE\u7B54\uFF09\u4E0E\u6700\u8FD1\u5B8C\u6210\u8BB0\u5F55\uFF08\u53EA\u8BFB\uFF09",
   css: css4,
   View: RunStateView,
   HomeStat: RunStateStat
@@ -14003,462 +14202,9 @@ var feature12 = {
   HomeStat: MobileRelayHomeStat
 };
 
-// features/mobile/view.js
-var import_react24 = __toESM(require("react"), 1);
-var import_react25 = require("react");
-var MOBILE_QUERY_NARROW = "(max-width: 820px)";
-var MOBILE_QUERY_COARSE = "(pointer: coarse) and (hover: none)";
-var MOBILE_QUERY_CHROME = "(max-width: 700px)";
-function mobileActive() {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  try {
-    return window.matchMedia(MOBILE_QUERY_NARROW).matches || window.matchMedia(MOBILE_QUERY_COARSE).matches;
-  } catch {
-    return false;
-  }
-}
-function watchQuery(query, onChange) {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {
-  };
-  let mq = null;
-  try {
-    mq = window.matchMedia(query);
-  } catch {
-    return () => {
-    };
-  }
-  const update = () => onChange(mq.matches);
-  update();
-  if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
-  else if (typeof mq.addListener === "function") mq.addListener(update);
-  return () => {
-    if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
-    else if (typeof mq.removeListener === "function") mq.removeListener(update);
-  };
-}
-function MobileOverlay() {
-  const [active, setActive] = (0, import_react25.useState)(() => mobileActive());
-  (0, import_react25.useEffect)(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
-    let mqs = [];
-    try {
-      mqs = [window.matchMedia(MOBILE_QUERY_NARROW), window.matchMedia(MOBILE_QUERY_COARSE)];
-    } catch {
-      return void 0;
-    }
-    const update = () => setActive(mqs.some((mq) => mq.matches));
-    update();
-    for (const mq of mqs) {
-      if (typeof mq.addEventListener === "function") mq.addEventListener("change", update);
-      else if (typeof mq.addListener === "function") mq.addListener(update);
-    }
-    return () => {
-      for (const mq of mqs) {
-        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", update);
-        else if (typeof mq.removeListener === "function") mq.removeListener(update);
-      }
-    };
-  }, []);
-  (0, import_react25.useEffect)(() => {
-    if (typeof document === "undefined") return void 0;
-    if (active) {
-      document.body.setAttribute("data-dk-mobile", "1");
-      try {
-        const meta = document.querySelector('meta[name="viewport"]');
-        if (meta && !/(^|,)\s*viewport-fit\s*=/.test(meta.content || "")) {
-          meta.setAttribute("content", (meta.content || "width=device-width, initial-scale=1") + ", viewport-fit=cover");
-        }
-      } catch {
-      }
-    } else {
-      document.body.removeAttribute("data-dk-mobile");
-    }
-    return () => {
-      document.body.removeAttribute("data-dk-mobile");
-    };
-  }, [active]);
-  (0, import_react25.useEffect)(() => mobileChrome(), []);
-  return null;
-}
-function mobileChrome() {
-  if (typeof window === "undefined" || typeof document === "undefined") return void 0;
-  const mq = window.matchMedia ? window.matchMedia(MOBILE_QUERY_CHROME) : null;
-  if (!mq) return void 0;
-  if (window.__dshDockMobileDrawer === "host") return void 0;
-  window.__dshDockMobileDrawer = "client";
-  const narrow = () => mq.matches;
-  const frameEl = () => document.querySelector('[class$="frame"]');
-  const sidebarCollapsed = () => {
-    const f = frameEl();
-    return !!f && f.hasAttribute("data-sidebar-collapsed");
-  };
-  const dialogOpen = () => !!document.querySelector('[role="dialog"][class*="panel"]');
-  const rightOpen = () => !!document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
-  const collapse = () => {
-    const b = document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
-    if (b) b.click();
-  };
-  const expand = () => {
-    const b = document.querySelector('button[aria-label="\u6253\u5F00\u4FA7\u8FB9\u680F"],button[aria-label="Open sidebar"]');
-    if (b) b.click();
-  };
-  const closeDetails = () => {
-    const panel = document.querySelector("[data-sidebar-right-panel][data-sidebar-right-open]");
-    if (!panel) return;
-    const toggle = panel.querySelector("[data-sidebar-right-toggle]");
-    if (toggle) toggle.click();
-  };
-  const scrim = document.createElement("div");
-  scrim.className = "dsh-mobile-scrim";
-  document.body.appendChild(scrim);
-  document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
-  const burger = document.createElement("button");
-  burger.type = "button";
-  burger.className = "dsh-mobile-burger";
-  burger.setAttribute("aria-label", "\u6253\u5F00\u4F1A\u8BDD\u5217\u8868");
-  burger.setAttribute("aria-expanded", "false");
-  burger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg><span class="dsh-mobile-burger-badge" hidden></span>';
-  burger.addEventListener("click", () => expand());
-  document.body.appendChild(burger);
-  const syncBurger = () => {
-    const expanded = !sidebarCollapsed();
-    burger.setAttribute("aria-expanded", expanded ? "true" : "false");
-    burger.classList.toggle("on", expanded);
-  };
-  const badge = burger.querySelector(".dsh-mobile-burger-badge");
-  let runstateGone = false;
-  const pollTasks = () => {
-    if (runstateGone || !badge || !narrow() || document.visibilityState === "hidden" || !burger.isConnected) return;
-    const on = stateOf("runstate").enabled !== false;
-    if (!on && !window.__dshDockRunstate) {
-      badge.hidden = true;
-      return;
-    }
-    fetch("dsh-dock/runstate/status", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}"
-    }).then(async (res) => {
-      if (res.status === 404 || res.status === 405) {
-        runstateGone = true;
-        badge.hidden = true;
-        return null;
-      }
-      const body = await res.json().catch(() => null);
-      if (!body) return null;
-      const active = body.data && body.data.active || [];
-      const waiting = active.reduce((n, t) => n + (Array.isArray(t.approvals) ? t.approvals.length : 0), 0);
-      if (waiting > 0) {
-        badge.textContent = waiting > 99 ? "99+" : String(waiting);
-        badge.className = "dsh-mobile-burger-badge wait";
-        badge.hidden = false;
-        burger.setAttribute("title", waiting + " \u4E2A\u4EFB\u52A1\u7B49\u5F85\u4F60\u786E\u8BA4");
-      } else if (active.length > 0) {
-        badge.textContent = active.length > 99 ? "99+" : String(active.length);
-        badge.className = "dsh-mobile-burger-badge";
-        badge.hidden = false;
-        burger.setAttribute("title", active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D");
-      } else {
-        badge.hidden = true;
-        burger.removeAttribute("title");
-      }
-    }).catch(() => {
-    });
-  };
-  const tasksTimer = setInterval(pollTasks, 3e3);
-  const onVisible = () => {
-    if (document.visibilityState === "visible") pollTasks();
-  };
-  document.addEventListener("visibilitychange", onVisible);
-  pollTasks();
-  const vv = window.visualViewport || null;
-  const kbdSync = () => {
-    if (!vv) return;
-    const kbd = vv.height > 0 && window.innerHeight - vv.height > 120;
-    document.documentElement.classList.toggle("dsh-dock-kbd", kbd);
-  };
-  const sync = () => {
-    kbdSync();
-    document.querySelectorAll(".dsh-mobile-tabbar").forEach((el) => el.remove());
-    const on = narrow() && !!frameEl() && !dialogOpen();
-    const collapsed = sidebarCollapsed();
-    const right = rightOpen();
-    if (scrim) scrim.style.display = on && !collapsed ? "" : "none";
-    burger.style.display = narrow() && !!frameEl() && !panelNav.open && !right ? "" : "none";
-    syncBurger();
-  };
-  sync();
-  const observer = typeof MutationObserver !== "undefined" ? new MutationObserver(sync) : null;
-  if (observer) observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed"], subtree: true });
-  const timer = setInterval(sync, 1500);
-  const onMq = () => sync();
-  if (mq.addEventListener) mq.addEventListener("change", onMq);
-  else if (mq.addListener) mq.addListener(onMq);
-  window.addEventListener("resize", kbdSync);
-  if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
-  const onClick = (e) => {
-    if (!narrow()) return;
-    const t = e.target;
-    if (!t || !t.closest) return;
-    if (t.closest(".dsh-mobile-burger")) return;
-    const expanded = !!document.querySelector('button[aria-label="\u6536\u8D77\u4FA7\u8FB9\u680F"],button[aria-label="Collapse sidebar"]');
-    const col = document.querySelector('[class*="sidebarCol"]');
-    const inSidebar = col && col.contains(t);
-    if (!expanded && !inSidebar) return;
-    if (inSidebar) {
-      const row = t.closest('[role="treeitem"]');
-      const rowKey = row && row.getAttribute("data-row-key") || "";
-      const sessionRow = rowKey && rowKey.startsWith("session:") || row && !rowKey && !row.querySelector('[role="treeitem"]') && row.closest('[role="tree"]');
-      const fresh = t.closest('[class*="newSession"]');
-      if (sessionRow || fresh) {
-        setTimeout(() => {
-          collapse();
-          closeDetails();
-        }, 300);
-        return;
-      }
-      if (rowKey.startsWith("workspace:")) return;
-      setTimeout(() => {
-        if (document.querySelector('[role="dialog"]')) collapse();
-      }, 260);
-      return;
-    }
-    if (t.closest('[role="dialog"],[class*="dockm"],[class*="dgfab"],[class*="dgwin"],[class*="dgame"],[data-sidebar-right-panel]')) return;
-    collapse();
-  };
-  document.addEventListener("click", onClick, true);
-  return () => {
-    document.removeEventListener("click", onClick, true);
-    if (observer) observer.disconnect();
-    clearInterval(timer);
-    clearInterval(tasksTimer);
-    document.removeEventListener("visibilitychange", onVisible);
-    if (mq.removeEventListener) mq.removeEventListener("change", onMq);
-    else if (mq.removeListener) mq.removeListener(onMq);
-    window.removeEventListener("resize", kbdSync);
-    if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
-    document.documentElement.classList.remove("dsh-dock-kbd");
-    if (scrim) scrim.remove();
-    burger.remove();
-    if (window.__dshDockMobileDrawer === "client") delete window.__dshDockMobileDrawer;
-  };
-}
-function useViewportSize() {
-  const [size, setSize] = (0, import_react25.useState)(() => typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight });
-  (0, import_react25.useEffect)(() => {
-    if (typeof window === "undefined") return void 0;
-    const update = () => setSize({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return size;
-}
-function useMobileState() {
-  const [active, setActive] = (0, import_react25.useState)(() => mobileActive());
-  const [chrome, setChrome] = (0, import_react25.useState)(() => typeof window === "undefined" || typeof window.matchMedia !== "function" ? false : window.matchMedia(MOBILE_QUERY_CHROME).matches);
-  const [owner, setOwner] = (0, import_react25.useState)(() => typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null);
-  (0, import_react25.useEffect)(() => {
-    const offChrome = watchQuery(MOBILE_QUERY_CHROME, setChrome);
-    let mqs = [];
-    try {
-      mqs = [window.matchMedia(MOBILE_QUERY_NARROW), window.matchMedia(MOBILE_QUERY_COARSE)];
-    } catch {
-      mqs = [];
-    }
-    const compute = () => setActive(mqs.some((mq) => mq.matches));
-    for (const mq of mqs) {
-      if (typeof mq.addEventListener === "function") mq.addEventListener("change", compute);
-      else if (typeof mq.addListener === "function") mq.addListener(compute);
-    }
-    const timer = setInterval(() => setOwner(typeof window === "undefined" ? null : window.__dshDockMobileDrawer || null), 1e3);
-    return () => {
-      offChrome();
-      for (const mq of mqs) {
-        if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", compute);
-        else if (typeof mq.removeListener === "function") mq.removeListener(compute);
-      }
-      clearInterval(timer);
-    };
-  }, []);
-  return { active, chrome, owner };
-}
-function MobileView() {
-  const { active, chrome, owner } = useMobileState();
-  const size = useViewportSize();
-  return import_react24.default.createElement(
-    "div",
-    { className: "dkmob-root" },
-    import_react24.default.createElement(
-      "div",
-      { className: "dkmob-row" },
-      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
-      import_react24.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
-      import_react24.default.createElement(
-        "span",
-        { className: "dkmob-dim" },
-        size ? size.w + "\xD7" + size.h + "px" : "",
-        "\uFF08\u2264820px \u5BBD\uFF0C\u6216\u4E3B\u6307\u9488\u4E3A\u89E6\u5C4F\u65E0\u60AC\u505C\u65F6\u547D\u4E2D\uFF1B\u684C\u9762\u628A\u7A97\u53E3\u62D6\u7A84\u4E5F\u4F1A\u547D\u4E2D\uFF0C\u65B9\u4FBF\u8C03\u8BD5\uFF09"
-      )
-    ),
-    import_react24.default.createElement(
-      "div",
-      { className: "dkmob-row" },
-      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u7AEF chrome"),
-      import_react24.default.createElement("span", { className: "dkmob-state" + (chrome ? " on" : "") }, chrome ? "\u2264700px\uFF0C\u751F\u6548\u4E2D" : "\u672A\u547D\u4E2D"),
-      import_react24.default.createElement(
-        "span",
-        { className: "dkmob-dim" },
-        "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\uFF08\u5C55\u5F00\u5DE6\u4FA7\u4F1A\u8BDD\u62BD\u5C49\uFF09+ \u4FA7\u680F\u62BD\u5C49\u906E\u7F69 + \u8F6F\u952E\u76D8\u8BA9\u4F4D\uFF1B\u5E95\u90E8 Tab \u680F\u5DF2\u6309\u7528\u6237\u8981\u6C42\u79FB\u9664\uFF0C\u63D2\u4EF6/\u8BBE\u7F6E\u7B49\u5165\u53E3\u5728\u62BD\u5C49\u91CC\u3002",
-        owner === "host" ? "\u5F53\u524D\u7531\u5BBF\u4E3B\u6CE8\u5165\u7248\u9A71\u52A8\uFF08\u91CD\u542F dsh web \u540E\u751F\u6548\u7684\u90A3\u5957\uFF09\u3002" : owner === "client" ? "\u5F53\u524D\u7531\u5BA2\u6237\u7AEF\u81EA\u5EFA\u7248\u9A71\u52A8\uFF08\u5237\u65B0\u5373\u751F\u6548\uFF09\u3002" : ""
-      )
-    ),
-    import_react24.default.createElement(
-      "div",
-      { className: "dkmob-note" },
-      "\u751F\u6548\u4E2D\u7684\u4F18\u5316\uFF1A\u8F93\u5165\u7C7B\u63A7\u4EF6\u5B57\u53F7\u62C9\u5230 16px\uFF08\u907F\u514D iOS \u805A\u7126\u7F29\u653E\u6574\u9875\uFF09\xB7 \u7EAF\u56FE\u6807\u6309\u94AE\u9762\u79EF\u515C\u5E95 \u226536px \xB7 ",
-      "\u53BB\u6389\u70B9\u6309\u9AD8\u4EAE\u4E0E\u53CC\u51FB\u7F29\u653E\u5224\u5B9A \xB7 \u4EE3\u7801\u5757\u6A2A\u5411\u6EDA\u52A8\u3001\u884C\u5185\u4EE3\u7801\u81EA\u52A8\u6362\u884C \xB7 \u6EDA\u52A8\u4F53 touch-action:pan-y + iOS \u60EF\u6027\u6EDA\u52A8 \xB7 ",
-      "\u8BBE\u7F6E\u5F39\u5C42\u5185\u5BB9\u5217 min-height:0\uFF08\u5426\u5219\u7A84\u5C4F\u5F39\u5C42\u88AB\u5185\u5BB9\u6491\u9AD8\u540E\u6574\u7247\u6ED1\u4E0D\u52A8\uFF09\xB7 viewport meta \u8865 viewport-fit=cover",
-      "\uFF08standalone \u5168\u5C4F\u65F6\u7ED9\u5706\u89D2/\u5218\u6D77\u7559\u5B89\u5168\u533A\uFF09\u3002\u505C\u7528\u672C\u529F\u80FD\u5373\u5168\u90E8\u8FD8\u539F\u3002"
-    )
-  );
-}
-function MobileStat() {
-  const { active, chrome } = useMobileState();
-  if (!active) return import_react24.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u6837\u5F0F\u672A\u6CE8\u5165");
-  return import_react24.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D \xB7 " + (chrome ? "\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355\u5DF2\u63A5\u7BA1\u4F1A\u8BDD\u5165\u53E3" : "chrome \u5E26\u5BBD\u672A\u547D\u4E2D\uFF08\u2264700px \u624D\u542F\u7528\uFF09"));
-}
-var css6 = [
-  // 输入类控件 16px：防 iOS 聚焦自动放大（<16px 的输入框聚焦时 Safari 强制缩放页面）
-  'body[data-dk-mobile="1"] :is(textarea, input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="password"], input[type="number"], input[type="email"], [contenteditable="true"]){font-size:16px !important;}',
-  // 触控基础：去点按高亮、消双击缩放判定
-  'body[data-dk-mobile="1"] :is(button, [role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
-  // 纯图标按钮面积兜底：实测窄屏下一批 28×28 的工具钮很难点中；36px 是不引起行高剧变的上限。
-  // 只收「唯一子元素是 svg」的按钮，避免撑坏带文字的行内控件；排除本模块 chrome 按钮。
-  'body[data-dk-mobile="1"] button:has(> svg:only-child):not(.dsh-mobile-burger){min-width:36px;min-height:36px;}',
-  // 代码块横向滚动、行内代码换行：窄屏不撑破版面
-  'body[data-dk-mobile="1"] pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}',
-  'body[data-dk-mobile="1"] code{overflow-wrap:anywhere;}',
-  'body[data-dk-mobile="1"] pre code{overflow-wrap:normal;}',
-  // 滚动兜底：所有纵向滚动体可纵向平移 + iOS 惯性滚动（祖先合成层/触控声明不再吃掉触摸滚动）。
-  'body[data-dk-mobile="1"] :is([class*="scrollBody"], [class*="sidebarCol"] [class*="list"], [role="dialog"] [class*="options"], [class*="dockm-content"]){-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;}',
-  // iOS 横竖屏切换时的字号自动膨胀关掉（:has 挂到 html 上；dsh 自身样式已依赖 :has，基线足够）
-  'html:has(body[data-dk-mobile="1"]){-webkit-text-size-adjust:100%;text-size-adjust:100%;}',
-  // 功能页自身
-  ".dkmob-root{display:flex;flex-direction:column;gap:10px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;}",
-  ".dkmob-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
-  ".dkmob-label{font-weight:600;flex:none;}",
-  ".dkmob-state{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 10px;font-size:11px;}",
-  ".dkmob-state.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
-  ".dkmob-dim{color:var(--dsw-alias-label-secondary);font-size:12px;}",
-  ".dkmob-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
-  // 手机端 chrome：左上角汉堡菜单 + 抽屉遮罩（窄屏 ≤700px；与宿主半部同款）
-  "@media (max-width:700px){",
-  ".dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);touch-action:none}",
-  // 左上角汉堡菜单（三条横线）：44×44 触控面积，避让刘海/圆角安全区；z 66 高于正文、
-  // 低于遮罩 75 / 抽屉 80——抽屉展开时被自然盖住。
-  // ⚠️ 视觉上刻意「不贴合卡片」：页面左上角本来就是空的，原生同类控件（右上的侧栏开关）
-  // 是**裸图标**——无底色、无边框、无阴影。早期版本做成白底圆角卡片 + 阴影 + 模糊，
-  // 悬浮在白底页面上像一块贴上去的异物（用户实测反馈「没有贴合边缘，很突兀」）。
-  // 现在与原生同款：透明底、无边框无阴影，只留图标；点按才给极轻的底色反馈。
-  // 视觉重量靠图标本身撑住（22px、1.9px 描边、主文字色），不靠容器。
-  ".dsh-mobile-burger{position:fixed;left:env(safe-area-inset-left,0px);top:env(safe-area-inset-top,0px);z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:0;background:transparent;color:var(--dsw-alias-label-primary,#e6eaf2);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:color .15s var(--ds-ease-in-out,ease)}",
-  ".dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}",
-  // 展开态：图标换成强调色（与原生「已激活」的语义一致），不引入额外容器。
-  ".dsh-mobile-burger.on{color:var(--dk-accent,#4d9fff)}",
-  // 点按反馈走图标本身（用 :active 的底色透出，范围就是 44×44 触控区）。
-  ".dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent)}",
-  // 待确认任务角标：锚在按钮右上角的小圆点/数字。刻意做成「贴边小圆点」而不是
-  // 底部 Tab 栏那种带容器的页签角标——汉堡是裸图标，角标再带容器就又突兀了。
-  // 等待确认（要人介入）= 红点 + 脉冲；进行中 = 蓝色数字（弱一级，不抢注意力）。
-  ".dsh-mobile-burger-badge{position:absolute;top:4px;right:4px;box-sizing:border-box;min-width:8px;height:8px;padding:0;border-radius:999px;background:#4d9fff;font:700 9px/8px inherit;font-variant-numeric:tabular-nums;text-align:center;color:#fff;pointer-events:none;box-shadow:0 0 0 2px var(--dsw-alias-bg-layer-1,#12151b)}",
-  ".dsh-mobile-burger-badge[hidden]{display:none}",
-  ".dsh-mobile-burger-badge:not([hidden]){min-width:16px;height:16px;line-height:16px;padding:0 4px}",
-  ".dsh-mobile-burger-badge.wait{background:#ef4444;animation:dsh-burger-badge-pulse 1.2s ease-in-out infinite}",
-  "@keyframes dsh-burger-badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}",
-  "@media (prefers-reduced-motion:reduce){.dsh-mobile-burger-badge.wait{animation:none}}",
-  // ⚠️ 给标题让出汉堡宽度（用户实测：标题被汉堡压住——截图里「更新所有仓库代码」的首字
-  // 直接叠在三条横线上）。汉堡是 fixed 定位（贴安全区、44×44），**不占布局**，而原生标题
-  // 从头部的 padding-left:20px 起排——真实实例 390×844 逐字实测：会话标题首字 x=28、
-  // 汉堡右缘 44 → **重叠 16px**；插件页/自动化任务页的页头（自身 padding-left:0，靠外层
-  // 容器给 24px）首字 x=24 → 重叠 20px。
-  // 改法照原生排版习惯走：**给容器补内边距**，而不是给汉堡加底色/加宽（那是把问题搬到视觉上）。
-  //   · 会话页头 header:has([class*="titleRow"])（唯一含 titleRow 的 header）：左内边距
-  //     20px → 44px，正好等于汉堡宽度；标题自带 8px 内边距 → 首字落在 x=52，与汉堡留 8px。
-  //   · 插件页/自动化任务页头 [class$="_pageHead"] / [class$="_pageHeading"]
-  //     （DSH 0.2.0-rc.2 实测：plugin-manager 的 ZVcBiW_pageHead、schedule 的
-  //     CxUija_pageHeading）：左内边距 0 → 28px → 首字 x=52，同样留 8px。
-  //     这两条页头是 flex + gap:16px（标题块 | 工具栏），补内边距会压缩内容宽度——实测
-  //     430/390/360/320px 下「添加插件」按钮与描述文案会被挤到换行（按钮从单行变两行）。
-  //     故同时把 gap 收到 4px 补回 12px：四个宽度实测行数零回归、无横向溢出。
-  // 用 `[class$=…]`（语义后缀）而非 `[class*=…]`：DSH 类名是「哈希前缀 + 语义后缀」，
-  // 后缀稳定、前缀随版本变；`$=` 也避开 `pageHeadActions` 这类同前缀的无关元素。
-  // 挂 body[data-dk-mobile="1"]：本模块 css 字段会被无条件并入全局样式，停用本功能即摘掉
-  // body 属性 → 规则空转、原生排版还原（与文件头「开关协议」一致）。
-  'body[data-dk-mobile="1"] header:has([class*="titleRow"]){padding-left:calc(44px + env(safe-area-inset-left,0px))}',
-  'body[data-dk-mobile="1"] [class$="_pageHead"],body[data-dk-mobile="1"] [class$="_pageHeading"]{padding-left:calc(28px + env(safe-area-inset-left,0px));gap:4px}',
-  // ⚠️ 「设置页滑不动」的关键兜底（客户端无条件携带 = 刷新即生效，不必等宿主重启）：
-  // 窄屏把设置弹层改成纵向堆叠后，内容列若是默认 min-height:auto 就会被内容撑高
-  // （无头 390×844 实测列高 1216px 塞在 844px 视口里）、再被 .panel 的 overflow:hidden
-  // 裁掉——列内滚动容器（[class*=options]）因此 scrollHeight==clientHeight，手指怎么滑
-  // 都不动。补 min-height:0 后 scrollTop 0 → 425。宿主半部 MOBILE_LAYOUT_CSS 同款；
-  // 两处都写是因为宿主注入要重启 dsh web 才更新，而客户端样式刷新即生效，覆盖窗口期。
-  '[role="dialog"][class*="panel"]>[class*="content"]{min-height:0!important}',
-  // 输入区吸附到视口底部 + 滚动体留白（与宿主半部同款）。
-  // ⚠️ 底部留白只保留 iPhone home indicator 的安全区，不再额外留白。沿革：原 72px 是
-  // 「底部 Tab 栏高度 + 安全区」；Tab 栏移除后先收到 24px，但实测（真实实例 390×844
-  // 像素扫描）输入卡片下方仍有 **51px** 空白带，其中 24px 是这里的滚动体内边距、
-  // 6px 是下面 composerSeat 的内边距——两者都是 Tab 栏时代的遗留，在没有底栏的页面上
-  // 纯属浪费。收窄到「只有安全区」后卡片下沿更贴近视口底，这 30px 直接变成会话区
-  // 可显示的正文（滚动体内边距在 flex 容器里会把 composerSeat 连同消息区一起下移/增高）。
-  // dsh 自带的 ~21px 底部间距（卡片 margin）保留，视觉上仍有呼吸感，不会贴死屏幕边缘。
-  // ⚠️ 绝不能给滚动体加 justify-content:flex-end/center 贴底：内容会被挤到滚动体
-  // 起点之外，Chrome 不把起点方向溢出算进 scrollHeight（手机视口实测
-  // scrollHeight==clientHeight、maxScroll==0），会话记录彻底滚不动、首条消息永远看不到。
-  // 宿主半部旧版注入里还留着那条 flex-end（要重启 dsh web 才消失），这里用更高优先级
-  // 的选择器显式复位：刷新页面即修好，不必等重启。贴底只能用输入区自己的 margin-top:auto。
-  '[class*="scrollBody"][data-conversation-scroll]{justify-content:flex-start !important;padding-bottom:env(safe-area-inset-bottom,0px) !important}',
-  'html:not(.dsh-dock-kbd) [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px) !important}',
-  'html.dsh-dock-kbd [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px) !important}',
-  '[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto;padding-bottom:0}',
-  // 输入区工具行上的 dsh-dock chip（用量/余额）：窄屏下 28cqw 的宽度上限把它们挤成
-  // 「…」「余..」（手机实测），既读不出数值又白占输入行空间。手机端整组收起，数值在
-  // 功能坞（抽屉里进）看；桌面端不动。
-  ".dockchip-row{display:none}",
-  '[class*="sidebarCol"]:has([class*="collapsed"]){visibility:hidden}',
-  // ⚠️ 列级 visibility:hidden 在 dsh 0.2.0 上挡不住：工作区浏览器给自己的
-  // headerActions/sectionLabel 显式声明 visibility:visible（展开/收拢动画用），visibility
-  // 可被后代覆盖，轨道按钮会从隐藏列里「透」出来（实测手机截图左缘游离按钮）。
-  // display:none 不可被后代翻转——但只能打在**轨道根节点**上（类名同时含 root 与
-  // collapsed 两个语义后缀），绝不能打在列上：frame 是「侧栏 0px + 中列 1fr + 右轨 0px」
-  // 的网格，列 display:none 会从网格流里摘掉，中列被自动放置顶进 0px 轨（实测整页空屏）。
-  // 弹层打开时豁免（设置弹层挂在列内部，display:none 会连坐成空气弹层），此时列退回
-  // visibility 机制（由下一条 [role=dialog] 强制可见），窄屏弹层全屏铺满盖住透出的轨道。
-  '[class*="sidebarCol"]:has([class*="collapsed"]):not(:has([role="dialog"])) [class*="root"][class*="collapsed"]{display:none !important}',
-  // 设置/插件管理弹层挂在侧栏列内部：上面隐藏整列会把它连坐隐藏（空气弹层）。
-  // visibility 可被后代覆盖，弹层关闭态整体卸载，所以只在真正打开时命中。
-  '[class*="sidebarCol"]:has([class*="collapsed"]) [role="dialog"]{visibility:visible}',
-  "html.dsh-dock-kbd .dsh-mobile-burger{display:none !important}",
-  // 功能坞面板在手机端抬到原生弹层之上：从抽屉进的官方插件管理页等原生弹层 z 序高于
-  // 面板默认的 200，功能坞开在下面会被盖住。抽屉展开时从侧栏 rail 点功能坞图标进入。
-  '[class*="dockm-backdrop"]{z-index:2000 !important}',
-  "}"
-].join("\n");
-var feature13 = {
-  id: "mobile",
-  name: "\u624B\u673A\u9002\u914D",
-  order: 170,
-  accent: "#34d399",
-  description: "\u624B\u673A/\u7A84\u5C4F\u6392\u7248\u4E0E\u89E6\u63A7\u515C\u5E95\uFF1A\u5DE6\u4E0A\u89D2\u6C49\u5821\u83DC\u5355 + \u4FA7\u680F\u62BD\u5C49\u300116px \u8F93\u5165\u9632 iOS \u7F29\u653E\u3001\u56FE\u6807\u6309\u94AE\u89E6\u63A7\u9762\u79EF\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u6EDA\u52A8\u515C\u5E95",
-  defaultEnabled: true,
-  css: css6,
-  Overlay: MobileOverlay,
-  View: MobileView,
-  HomeStat: MobileStat
-};
-
 // src/client.jsx
-var DOCK_VERSION = "0.19.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12, feature13];
+var DOCK_VERSION = "0.20.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -14665,8 +14411,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react26.default.useReducer((n) => n + 1, 0);
-  import_react26.default.useEffect(() => {
+  const [, bump] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -14676,44 +14422,44 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react26.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react26.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react26.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react26.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react24.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockEntry(props) {
   const wide = !!props.wide;
-  const [open, setOpen] = import_react26.default.useState(panelNav.open);
-  import_react26.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react26.default.createElement("button", {
+  const [open, setOpen] = import_react24.default.useState(panelNav.open);
+  import_react24.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
+  return import_react24.default.createElement("button", {
     type: "button",
     className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
     title: "\u529F\u80FD\u575E",
     "aria-label": "\u529F\u80FD\u575E",
     "aria-expanded": open,
     onClick: () => setPanelOpen(!open)
-  }, import_react26.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react26.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
+  }, import_react24.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react24.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
 }
 function DockModal() {
-  const [nav, setNav] = import_react26.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react26.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react26.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react26.default.useRef(null);
-  const contentRef = import_react26.default.useRef(null);
-  import_react26.default.useEffect(() => {
+  const [win, setWin] = import_react24.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react24.default.useRef(null);
+  const contentRef = import_react24.default.useRef(null);
+  import_react24.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react26.default.useEffect(() => {
+  import_react24.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -14751,13 +14497,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react26.default.createElement(
+  const viewNode = mod && View ? import_react24.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react26.default.createElement(
+    import_react24.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react26.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react24.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -14771,10 +14517,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react26.default.createElement(
+    import_react24.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -14782,41 +14528,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react26.default.createElement(
+      import_react24.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react26.default.createElement(DockIcon, null),
-        import_react26.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react26.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react26.default.createElement(
+        import_react24.default.createElement(DockIcon, null),
+        import_react24.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react24.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react24.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react26.default.createElement("button", {
+          import_react24.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react26.default.createElement("button", {
+          import_react24.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react26.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react24.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react26.default.createElement(
+      import_react24.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react26.default.createElement(
+          import_react24.default.createElement(
             "button",
             {
               type: "button",
@@ -14824,10 +14570,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)),
-            import_react26.default.createElement("span", null, "\u9996\u9875")
+            import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)),
+            import_react24.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react26.default.createElement(
+          MODULES.map((m) => import_react24.default.createElement(
             "button",
             {
               type: "button",
@@ -14835,42 +14581,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react26.default.createElement("span", null, m.name),
-            m.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react24.default.createElement("span", null, m.name),
+            m.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react26.default.createElement(
+          import_react24.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react26.default.createElement(
+            import_react24.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)) : import_react26.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)) : import_react24.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react26.default.createElement(
+            import_react24.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react26.default.createElement("div", { className: "dockm-view" }, import_react26.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react26.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react26.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react26.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react26.default.createElement(
+          isHome ? import_react24.default.createElement("div", { className: "dockm-view" }, import_react24.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react24.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react24.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react24.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react24.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react26.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react26.default.createElement(
+            import_react24.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react24.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react26.default.createElement("button", {
+              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react24.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -14883,11 +14629,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react26.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react24.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react26.default.createElement("button", {
+              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react24.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -14903,30 +14649,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react26.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react24.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react26.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react26.default.createElement(
+      const statNode = m.planned ? import_react24.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react24.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react26.default.createElement(Stat, { ctx })
-      ) : import_react26.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react26.default.createElement(
+        import_react24.default.createElement(Stat, { ctx })
+      ) : import_react24.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react24.default.createElement(
         "div",
         {
           key: m.id,
@@ -14941,21 +14687,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react26.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react26.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react24.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react24.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react26.default.createElement(
+          import_react24.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react26.default.createElement("span", { className: "dockh-sdot" }),
-            import_react26.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react24.default.createElement("span", { className: "dockh-sdot" }),
+            import_react24.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react26.default.createElement("button", {
+          m.planned ? null : import_react24.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -14970,12 +14716,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react26.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react26.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react26.default.createElement(
+        import_react24.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react24.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react24.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react26.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react24.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -14983,16 +14729,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react26.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -15001,25 +14747,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react26.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react24.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react26.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react24.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react26.default.createElement(
+      return import_react24.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react26.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react26.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react26.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react26.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react26.default.createElement("button", {
+          import_react24.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react24.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react24.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react24.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react24.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -15028,11 +14774,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react26.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react24.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react26.default.createElement("button", {
+            import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react24.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -15046,22 +14792,22 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react26.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react26.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react24.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react24.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockChips(props) {
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
-  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react26.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react26.default.createElement(f.Chip, {
+      import_react24.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -15071,38 +14817,38 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react26.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react24.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react26.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react26.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react24.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
+  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
 }
 function FeatureTurnTail(props) {
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
-  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
-    items.push(import_react26.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react26.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
+      import_react24.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
     ));
   }
   if (items.length === 0) return null;
-  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
+  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -15113,27 +14859,27 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.footer.action", () => slots.register(
     { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react26.default.createElement(DockEntry, props)
+    (props) => import_react24.default.createElement(DockEntry, props)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react26.default.createElement(DockModal, null)
+    () => import_react24.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react26.default.createElement(FeatureOverlays, null)
+    () => import_react24.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react26.default.createElement(DockPanel, props)
+    (props) => import_react24.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react26.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react24.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
   slots.inject("conversation.chat.turnTail", () => slots.register(
     { name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "\u529F\u80FD\u575E" },
-    (owner) => import_react26.default.createElement(FeatureTurnTail, owner)
+    (owner) => import_react24.default.createElement(FeatureTurnTail, owner)
   ));
 }
 var inject = ["timer"];

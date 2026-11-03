@@ -503,7 +503,6 @@ const FEATURES = [
 	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
 	{ id: "mobile-relay", name: "远程访问", marker: "远程", deep: true },
-	{ id: "mobile", name: "手机适配", marker: "手机模式", deep: true },
 ];
 
 let failed = 0;
@@ -1280,101 +1279,21 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 样式 data-plugin 归属：style 带 data-plugin=dsh-dock，不被其它插件 claim 后误删");
 }
 
-// ---------- 用例 10：手机端滚动体/贴底/无浮动把手的样式契约 ----------
-// 真实事故（用户实测）：远程访问手机端「会话记录不能上下滑动看」。根因是为让欢迎页
-// 输入卡贴底，给会话滚动体加了 justify-content:flex-end——内容于是从滚动体起点溢出，
-// 而 Chrome 不把起点方向的溢出算进 scrollHeight（无头 Chrome 390×844 实测
-// scrollHeight==clientHeight、maxScroll==0），整段会话定格在视口外，首条消息永远看不到。
-// 贴底只能用输入区自己的 margin-top:auto（有剩余空间才生效，不制造起点溢出）。
-// 同时锁死：窄屏收起输入区 chip（否则被 28cqw 上限挤成「余..」）；左缘浮动「抽屉把手」
-// 必须保持移除（用户实测：与抽屉入口功能重复，还悬浮在内容上）；底部 Tab 栏必须移除
-// （用户要求：三个常驻入口太占页面空间，会话入口改为左上角汉堡菜单）。
-// 宿主半部同款契约在 scripts/test-mobile-host.mjs 里，两半部必须一起改。
+// ---------- 用例 10：手机适配模块已整体移除 ----------
+// 用户要求：汉堡菜单与原生控件重叠、功能开关也关不干净，索性把【手机适配】整个模块去掉。
+// 客户端 bundle 里不得再出现该模块的任何痕迹（描述符、Overlay DOM、全局属性/样式、菜单 id），
+// 避免「开关关了仍有残留 chrome」再次发生。
 {
 	const issues = [];
-	if (/\[class\*="scrollBody"\][^{}]*\{[^}]*justify-content:\s*(?:flex-end|center)/.test(bundle)) issues.push("滚动体被设置成 flex-end/center（会让会话记录滚不动）");
-	if (!/\[class\*="scrollBody"\]\[data-conversation-scroll\]\{justify-content:flex-start !important/.test(bundle)) issues.push("会话滚动体没有显式复位成 flex-start（压不过宿主旧注入，手机刷新后仍滚不动）");
-	if (!/\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto/.test(bundle)) issues.push("输入区贴底没有走 margin-top:auto");
-	if (!/\.dockchip-row\{display:none\}/.test(bundle)) issues.push("窄屏没有收起输入区 chip");
-	if (/dsh-mobile-drawer-btn/.test(bundle)) issues.push("客户端不应再有左缘浮动抽屉把手（会话入口在左上角汉堡菜单）");
-	if (/dsh-dock-drawer-top|dsh-dock-drawer-off/.test(bundle)) issues.push("残留了把手定位的 CSS 变量/隐藏开关");
-	if (!/\[class\*="sidebarCol"\]:has\(\[class\*="collapsed"\]\):not\(:has\(\[role="dialog"\]\)\) \[class\*="root"\]\[class\*="collapsed"\]\{display:none !important\}/.test(bundle)) issues.push("收起轨道没有 display:none 主隐藏（dsh 0.2.0 的 WorkspaceBrowser 自带 visibility:visible，会从列级 hidden 里透出游离按钮）");
+	if (/id:\s*"mobile"/.test(bundle)) issues.push("仍注册了 mobile 功能描述符");
+	if (/dsh-mobile-burger|dsh-mobile-scrim|dsh-mobile-tabbar/.test(bundle)) issues.push("仍残留手机端 chrome 的 DOM/样式");
+	if (/data-dk-mobile|dkmob-/.test(bundle)) issues.push("仍残留手机适配的全局属性/样式前缀");
+	if (/dsh-dock-kbd/.test(bundle)) issues.push("仍残留软键盘让位逻辑（dsh-dock-kbd）");
 	if (issues.length) {
-		console.log(`✗ 手机端样式契约：${issues.join("；")}`);
+		console.log(`✗ 手机适配移除契约：${issues.join("；")}`);
 		process.exit(1);
 	}
-	console.log("✓ 手机端样式契约：滚动体不设 justify-content、贴底走 margin-top:auto、chip 窄屏收起、无浮动抽屉把手");
-}
-
-// ---------- 用例 11：手机端左上角汉堡菜单与软键盘适配（替代原底部 Tab 栏契约） ----------
-// 用户要求：底部三个常驻入口（会话/插件/设置）太占页面空间，全部去掉，改为左上角
-// 「三条横线」折叠菜单，点击展开左侧会话抽屉。插件/设置/运行状态等入口本来就在抽屉里
-// （原生侧栏 rail），展开抽屉即可达，不在 chrome 里重复提供。
-// 本用例钉住：汉堡存在且语义正确、底部 Tab 栏与角标彻底移除、残留 Tab 兜底摘除、
-// 软键盘让位、以及「点会话才收抽屉」的点击路由。
-{
-	const issues = [];
-	// 底部 Tab 栏/角标彻底移除（唯一允许出现的 .dsh-mobile-tabbar 是「兜底摘除残留」那一句）。
-	const withoutCleanup = bundle.replace(/querySelectorAll\("\.dsh-mobile-tabbar"\)/g, "");
-	if (/dsh-mobile-tabbar/.test(withoutCleanup)) issues.push("仍残留底部 Tab 栏代码/样式（用户要求移除）");
-	if (/dsh-mobile-tab-badge/.test(withoutCleanup)) issues.push("残留页签角标元素/样式（随 Tab 栏一并移除）");
-	if (/id: "dock",\s*label: "(插件|\\u63D2\\u4EF6)"/.test(bundle)) issues.push("残留「插件」页签定义");
-	if (/id: "settings",\s*label: "(设置|\\u8BBE\\u7F6E)"/.test(bundle)) issues.push("残留「设置」页签定义");
-	if (!/querySelectorAll\("\.dsh-mobile-tabbar"\)/.test(bundle)) issues.push("Overlay 没有兜底摘除残留旧 Tab 栏（宿主旧注入会在页面里留一份）");
-	// 左上角汉堡菜单：存在、够大、贴左上安全区、三条横线、能展开抽屉。
-	if (!/\.dsh-mobile-burger\{/.test(bundle)) issues.push("缺少左上角汉堡菜单样式");
-	// ⚠️ 产物里中文会被转义成 \\uXXXX，且 className 是赋值而非 createElement 属性。
-	if (!/className = "dsh-mobile-burger"/.test(bundle)) issues.push("缺少汉堡按钮元素创建");
-	if (!/M4 7h16"\/><path d="M4 12h16"\/><path d="M4 17h16"/.test(bundle)) issues.push("汉堡图标不是三条横线");
-	if (!/\.dsh-mobile-burger\{[^}]*width:44px;height:44px/.test(bundle)) issues.push("汉堡按钮触控面积不足 44×44");
-	if (!/\.dsh-mobile-burger\{[^}]*left:env\(safe-area-inset-left,0px\)/.test(bundle)) issues.push("汉堡没有避让左侧安全区");
-	if (!/\.dsh-mobile-burger\{[^}]*top:env\(safe-area-inset-top,0px\)/.test(bundle)) issues.push("汉堡没有避让顶部安全区（刘海）");
-	// ⚠️ 视觉契约：页面左上角本来是空的，原生同类控件（右上侧栏开关）是**裸图标**
-	// （transparent 底 / border:0 / 无阴影）。汉堡不得做成白底圆角卡片 + 阴影 + 模糊，
-	// 否则在白底页面上像一块贴上去的异物（用户实测反馈「没有贴合边缘，很突兀」）。
-	if (!/\.dsh-mobile-burger\{[^}]*background:transparent/.test(bundle)) issues.push("汉堡有底色卡片（应贴合原生裸图标，不悬浮）");
-	if (!/\.dsh-mobile-burger\{[^}]*border:0/.test(bundle)) issues.push("汉堡有边框");
-	if (/\.dsh-mobile-burger\{[^}]*box-shadow/.test(bundle)) issues.push("汉堡有投影（会显得像悬浮异物）");
-	if (/\.dsh-mobile-burger\{[^}]*backdrop-filter/.test(bundle)) issues.push("汉堡有毛玻璃底");
-	if (!/aria-label", "\\u6253\\u5F00\\u4F1A\\u8BDD\\u5217\\u8868"/.test(bundle) && !/aria-label", "打开会话列表"/.test(bundle)) issues.push("汉堡没有无障碍标签");
-	if (!/aria-expanded/.test(bundle)) issues.push("汉堡没有维护展开态语义");
-	// 给标题让出汉堡宽度（用户实测：标题首字叠在三条横线上）。
-	// 汉堡 fixed 定位、不占布局，原生标题从头部 padding-left:20px 起排 → 真实实例 390×844
-	// 逐字实测重叠 16px（会话标题首字 x=28 vs 汉堡右缘 44）；插件页/自动化任务页页头
-	// （padding-left:0、靠外层容器给 24px）首字 x=24 → 重叠 20px。
-	// 契约：会话页头补到 44px（= 汉堡宽度）；两条原生页头各补 28px（首字落 x=52、留 8px），
-	// 并把 gap 从 16px 收到 4px 补回被内边距吃掉的内容宽度（否则「添加插件」按钮会换行）。
-	if (!/body\[data-dk-mobile="1"\] header:has\(\[class\*="titleRow"\]\)\{padding-left:calc\(44px \+ env\(safe-area-inset-left,0px\)\)\}/.test(bundle)) issues.push("会话页头没有给汉堡让出宽度（标题会被压住）");
-	if (!/body\[data-dk-mobile="1"\] \[class\$="_pageHead"\],body\[data-dk-mobile="1"\] \[class\$="_pageHeading"\]\{padding-left:calc\(28px \+ env\(safe-area-inset-left,0px\)\);gap:4px\}/.test(bundle)) issues.push("插件页/任务页页头没有给汉堡让出宽度（标题会被压住）");
-	if (!/\\u6253\\u5F00\\u4FA7\\u8FB9\\u680F/.test(bundle) && !/打开侧边栏/.test(bundle)) issues.push("汉堡没有转发原生「打开侧边栏」（点它展不开抽屉）");
-	// 待确认任务角标：底部 Tab 栏移除前挂在「插件」页签上，现在必须挂在汉堡右上角，
-	// 保留「手机上一眼看到有任务卡住等人确认」的能力。钉住：元素 + 轮询 runstate +
-	// 等待确认=红点脉冲 / 进行中=蓝色数字 + 路由不存在时静默停。
-	if (!/dsh-mobile-burger-badge/.test(bundle)) issues.push("汉堡没有待确认任务角标（底部 Tab 栏移除后该提醒丢失了）");
-	if (!/dsh-dock\/runstate\/status/.test(bundle)) issues.push("汉堡角标没有轮询 runstate 路由");
-	if (!/dsh-mobile-burger-badge\.wait/.test(bundle)) issues.push("角标缺少「等待确认」红色脉冲态");
-	if (!/badge\.hidden\s*=\s*true/.test(bundle)) issues.push("角标没有在无任务时隐藏");
-	if (!/runstateGone/.test(bundle)) issues.push("runstate 路由不存在时没有静默停轮询（会一直 405）");
-	// 轮询前必须先看功能开关：【运行状态】停用时宿主不注册路由，无条件轮询会先打一次 405。
-	if (!/stateOf\("runstate"\)\.enabled/.test(bundle)) issues.push("角标轮询没有先看【运行状态】功能开关（停用时会打一次无谓的 405）");
-	if (!/__dshDockRunstate/.test(bundle)) issues.push("角标轮询没有看宿主侧 __dshDockRunstate 旗标（客户端开着、宿主没注册的情况仍会 405）");
-	// 底部留白只留安全区（用户要求：少留一点，多给会话区显示内容）。
-	// Tab 栏移除后，滚动体 24px + 输入区 6px 都是纯浪费（真实实例 390×844 像素扫描：
-	// 卡片下方空白带 51px → 收掉这 30px 后 21px，剩下的是 dsh 自带的卡片下边距）。
-	if (/padding-bottom:calc\(\d+px \+ env\(safe-area-inset-bottom/.test(bundle)) issues.push("滚动体底部仍有 Tab 栏时代的硬留白（白占会话区）");
-	if (!/\[class\*="scrollBody"\]\[data-conversation-scroll\]\{justify-content:flex-start !important;padding-bottom:env\(safe-area-inset-bottom,0px\) !important\}/.test(bundle)) issues.push("会话滚动体底部留白应只剩安全区");
-	if (!/\[class\*="scrollBody"\]>\[class\*="composerSeat"\]\{margin-top:auto;padding-bottom:0\}/.test(bundle)) issues.push("输入区不应再自带底部内边距");
-	// 其余既有契约保持。
-	if (!/\[class\*="dockm-backdrop"\]\{z-index:2000 !important\}/.test(bundle)) issues.push("手机端没有把功能坞面板抬到原生弹层之上（z 2000）");
-	if (!/dsh-dock-kbd/.test(bundle)) issues.push("缺少软键盘让位（dsh-dock-kbd）");
-	if (!/visualViewport/.test(bundle)) issues.push("软键盘判定没有用 visualViewport");
-	if (!/querySelector\('\[role="dialog"\]'\)\)\s*collapse\(\)/.test(bundle)) issues.push("侧栏入口点击后没有「面板弹出即收起抽屉」的探测（面板被抽屉盖住等于点了没反应）");
-	if (!/startsWith\(["']session:["']\)/.test(bundle)) issues.push("会话行识别没有按 data-row-key 的 session: 前缀（点工作区文件夹会被误收抽屉）");
-	if (issues.length) {
-		console.log(`✗ 手机端汉堡菜单契约：${issues.join("；")}`);
-		process.exit(1);
-	}
-	console.log("✓ 手机端汉堡菜单契约：底部 Tab 栏与角标已移除、左上角三条横线汉堡展开抽屉、软键盘让位、点击路由不变");
+	console.log("✓ 手机适配移除契约：功能描述符、汉堡/遮罩/软键盘与全局样式均无残留");
 }
 
 // ---------- 用例 12：客户端 fetch 一律用文档相对路径（反代子路径挂载契约） ----------
@@ -1927,7 +1846,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 {
 	const cfgOf = (over) => Object.assign({}, NOTIFY_STATUS.config, { voiceNotify: true }, over || {});
 	// 一套 runtime：live 状态 + speech 桩；poke 借 visibilitychange 强制立即刷新
-	function setup(live, speech) {
+	function setup(live, speech, opts) {
 		const enabled = {};
 		for (const f of FEATURES) enabled[f.id] = f.id === "notify";
 		const listeners = {};
@@ -1942,7 +1861,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 			removeEventListener() {},
 		};
 		const status = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
-		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, { document: doc, speech });
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, Object.assign({ document: doc, speech }, opts || {}));
 		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
 		const node = runtime.react.createElement(overlays.comp, null);
 		const poke = async () => {
@@ -1987,6 +1906,26 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		live3.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
 		await s3.poke();
 		if (!detail && speech3.spoken.length !== 0) detail = "①总开关关闭仍播报了：" + lastSpeech(speech3);
+		// 本机开关（当前浏览器）关：服务端总开关开着也不出声
+		const live4 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf() };
+		const speech4 = makeSpeechStub();
+		const s4 = setup(live4, speech4, { store: { "dsh-dock/notify/voice-client/v1": "0" } });
+		await renderSettled(s4.runtime, s4.node);
+		await s4.poke();
+		live4.active = [];
+		live4.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await s4.poke();
+		if (!detail && speech4.spoken.length !== 0) detail = "①本机播报开关关闭仍播报了：" + lastSpeech(speech4);
+		// 本机开关开 + 服务端总开关关：仍然不出声（本机不能绕过服务端总开关）
+		const live5 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: Object.assign({}, NOTIFY_STATUS.config, { voiceNotify: false }) };
+		const speech5 = makeSpeechStub();
+		const s5 = setup(live5, speech5, { store: { "dsh-dock/notify/voice-client/v1": "1" } });
+		await renderSettled(s5.runtime, s5.node);
+		await s5.poke();
+		live5.active = [];
+		live5.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await s5.poke();
+		if (!detail && speech5.spoken.length !== 0) detail = "①本机开、服务端关时仍播报了：" + lastSpeech(speech5);
 	} catch (e) {
 		detail = "①完成播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2174,6 +2113,29 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 任务通知语音播报：完成/需授权/卡住/停止 × 简洁/适中/详细三挡逐句对账，同一停点不重复，指定音色生效且换设备按语言回落");
 }
 
+// ---------- 用例 21b：【任务通知】语音播报「服务端总开关 + 本机开关」双层开关 UI ----------
+// 团队共用一个 dsh 实例：服务端 voiceNotify 是总开关（跨浏览器），客户端另有按浏览器
+// 保存的「本机播报」开关。面板必须同时展示两层开关，且本机开关状态来自 localStorage。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "notify";
+	const status = JSON.parse(JSON.stringify(NOTIFY_STATUS));
+	status.config.voiceNotify = true;
+	const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, {
+		store: { "dsh-dock/notify/voice-client/v1": "1" },
+	});
+	const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+	if (!reg) { console.log("✗ 语音播报双层开关 UI：没有注册 settings.section"); process.exit(1); }
+	const html = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
+	const issues = [];
+	if (!html.includes("本机播报")) issues.push("设置面板没有「本机播报」开关");
+	if (!html.includes("服务端：已开启")) issues.push("服务端总开关状态没有单独标注");
+	if (!html.includes("本浏览器会播报")) issues.push("本机开关开启态说明缺失");
+	if (!html.includes("服务端总开关（跨浏览器）与本机开关（当前浏览器）都开启才播报")) issues.push("双层开关的生效条件没有写明");
+	if (issues.length) { console.log(`✗ 语音播报双层开关 UI：${issues.join("；")}`); process.exit(1); }
+	console.log("✓ 语音播报双层开关 UI：服务端总开关 + 本机开关（localStorage）均可见，且写明两者都开才播报");
+}
+
 // ---------- 用例 22：【任务通知】页内卡片总开关 + 卡住卡（类型开关 / 主子标注 / 恢复自动收 / 关总开关清卡） ----------
 // 用户诉求（2026-10-30）：① 设置面板里能整体关闭右侧通知卡片（关掉后一律不弹，已挂的一并收掉）；
 // ② 每类卡片可单独开关（完成 / 异常 / 需确认 / 卡住）；③ 卡住也弹卡——此前只有语音，主任务
@@ -2339,8 +2301,130 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	} catch (e) {
 		detail = "⑦主任务等子任务用例抛错：" + ((e && e.message) || e);
 	}
+	// —— ⑧ 停在原地等人（等批准 / 等回答）不算卡住 ——
+	// 真实事故（2026-11-01 用户反馈，截图为证）：会话调 ask_user_question 挂起等人选答案，
+	// 界面显示提问表单，任务通知却播「主任务卡住了」并弹卡。根因是卡住判定只把 approvals
+	// 当「等人」，提问（questions）没算——提问期间会话零事件（实测 66 秒零事件），18 秒安静
+	// 就被当成停滞。这里锁死两类等待都不报卡住，且回复后该恢复的照常恢复。
+	if (!detail) try {
+		const voiceCfg = cfgOf({ voiceNotify: true, voiceMode: "brief" });
+		// ⑧a：提问挂起（phase=code + 20 秒无活动 + questions 非空）→ 不报卡住
+		let s = setup({
+			active: [stalledTask({ questions: [{ id: "call_q1", header: "是否自动信任证书", question: "到什么程度？", count: 1 }] })],
+			recent: [], config: voiceCfg,
+		});
+		await renderSettled(s.runtime, s.node);
+		await s.poke();
+		let html = await renderSettled(s.runtime, s.node);
+		if (html.includes("卡住了")) detail = "⑧a提问挂起等人回答时仍弹了「卡住了」卡（把等人的安静当成停滞）";
+		else if ((s.speech.spoken || []).some((x) => /卡住了/.test(x.text || ""))) detail = "⑧a提问挂起时仍语音播报「卡住了」";
+		// ⑧b：提问挂起 → 弹「任务需要你回答」卡（等人这件事本身要有提醒，不是干脆不管）
+		if (!detail) {
+			if (!html.includes("任务需要你回答")) detail = "⑧b提问挂起没有弹「需要你回答」卡（等人却毫无提醒）";
+			else if (!html.includes("是否自动信任证书")) detail = "⑧b需要你回答卡没有点名问的是什么";
+			else if ((s.speech.spoken || []).length < 1) detail = "⑧b提问挂起没有语音播报";
+			else if (!/任务需要你回答|等你回答/.test(s.speech.spoken[s.speech.spoken.length - 1].text)) {
+				detail = "⑧b提问播报文案不对：" + s.speech.spoken[s.speech.spoken.length - 1].text;
+			}
+		}
+		// ⑧c：提问答完（questions 清空）但仍是同一停点 → 此时该按卡住判定走（沉默不再合法）
+		if (!detail) {
+			s = setup({
+				active: [stalledTask({ questions: [] })],
+				recent: [], config: voiceCfg,
+			});
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (!html.includes("卡住了")) detail = "⑧c提问答完后（无人在等）的停滞没有被判成卡住（判定被 ⑧a 误伤）";
+		}
+		// ⑧d：等批准与等回答同时挂 → 两者都不报卡住，且「需确认」卡优先展示批准
+		if (!detail) {
+			s = setup({
+				active: [stalledTask({
+					approvals: [{ id: "ap-77", toolName: "bash", reason: "需要批准执行命令" }],
+					questions: [{ id: "call_q2", header: "选择方案", question: "用哪种？", count: 1 }],
+				})],
+				recent: [], config: voiceCfg,
+			});
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (html.includes("卡住了")) detail = "⑧d同时等批准与等回答时仍报了卡住";
+			else if (!html.includes("任务需要确认")) detail = "⑧d等批准时没有弹「任务需要确认」卡";
+		}
+	} catch (e) {
+		detail = "⑧等人不算卡住用例抛错：" + ((e && e.message) || e);
+	}
+	// —— ⑨ 正在干活（压缩上下文 / 在飞工具 / 仍在出字）不算卡住 ——
+	// 2026-11-02 用户反馈：界面在刷「思考中 / 运行命令 / 上下文已压缩」，通知却反复弹
+	// 「主任务卡住了」。实测回放（25 分钟 316 事件）：25 次 ≥18 秒停顿中 18 次落在
+	// compaction/start→end 之间（最长 96.7 秒），工具调用最长只有 7.5 秒。判据收敛在
+	// src/shared.js 的 taskStalled（taskBusy + taskActivityAt），这里锁死客户端真的用上了它。
+	if (!detail) try {
+		// ⑨a 压缩窗口内（compacting + 起始时间在有效期内）→ 不报卡住
+		let live = { active: [stalledTask({ compacting: true, compactStartedAt: Date.now() - 60000 })], recent: [], config: cfgOf() };
+		let s = setup(live);
+		await renderSettled(s.runtime, s.node);
+		await s.poke();
+		let html = await renderSettled(s.runtime, s.node);
+		if (html.includes("卡住了")) detail = "⑨a压缩上下文期间仍弹了「卡住了」卡（把正在压缩当成停滞）";
+		// ⑨b 在飞工具调用（长命令）→ 不报卡住
+		if (!detail) {
+			live = { active: [stalledTask({ pendingTool: "bash", toolStartedAt: Date.now() - 30000 })], recent: [], config: cfgOf() };
+			s = setup(live);
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (html.includes("卡住了")) detail = "⑨b命令还在跑（在飞调用）时仍弹了「卡住了」卡";
+		}
+		// ⑨c 仍在出字（lastMotionAt 新、lastActivityAt 旧）→ 不报卡住
+		// 老口径只看 lastActivityAt，流式输出的会话会被误判；新口径把「出字/工具动作」也算活动。
+		if (!detail) {
+			live = { active: [stalledTask({ lastMotionAt: Date.now() - 2000 })], recent: [], config: cfgOf() };
+			s = setup(live);
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (html.includes("卡住了")) detail = "⑨c仍在流式出字（lastMotionAt 新）时仍弹了「卡住了」卡";
+		}
+		// ⑨d 豁免有上限：压缩卡死 3 分钟以上（超过 taskBusy 上限）→ 仍要报卡住
+		// 否则「压缩」会变成永远不报警的挡箭牌，真挂死也看不见。
+		if (!detail) {
+			live = { active: [stalledTask({ compacting: true, compactStartedAt: Date.now() - 200000 })], recent: [], config: cfgOf() };
+			s = setup(live);
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (!html.includes("卡住了")) detail = "⑨d压缩卡死超过上限（3 分钟）时没有报卡住（豁免不能无上限）";
+		}
+		// ⑨e 同理：在飞工具调用超过上限（3 分钟）→ 仍要报卡住
+		if (!detail) {
+			live = { active: [stalledTask({ pendingTool: "bash", toolStartedAt: Date.now() - 200000 })], recent: [], config: cfgOf() };
+			s = setup(live);
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (!html.includes("卡住了")) detail = "⑨e命令卡死超过上限（3 分钟）时没有报卡住（豁免不能无上限）";
+		}
+		// ⑨f 压缩结束后真安静下来 → 该恢复报卡住（豁免只管压缩窗口，不能把之后的停滞一起吞掉）
+		if (!detail) {
+			live = { active: [stalledTask({ compacting: true, compactStartedAt: Date.now() - 60000 })], recent: [], config: cfgOf() };
+			s = setup(live);
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (html.includes("卡住了")) throw new Error("⑨f前置条件不成立：压缩期间不应有卡住卡");
+			live.active = [stalledTask()]; // 压缩结束、仍无新活动
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (!html.includes("卡住了")) detail = "⑨f压缩结束后真停滞时没有恢复报卡住";
+		}
+	} catch (e) {
+		detail = "⑨正在干活不算卡住用例抛错：" + ((e && e.message) || e);
+	}
 	if (detail) { console.log(`✗ 任务通知卡片开关与卡住卡：${detail}`); process.exit(1); }
-	console.log("✓ 任务通知卡片开关与卡住卡：总开关关则不弹且清已挂卡，类型开关与语音正交，卡住卡带主/子与停滞时长，恢复活动自动收，主任务在等子任务不算卡住");
+	console.log("✓ 任务通知卡片开关与卡住卡：总开关关则不弹且清已挂卡，类型开关与语音正交，卡住卡带主/子与停滞时长，恢复活动自动收，主任务在等子任务不算卡住，等批准/等回答不算卡住，正在压缩/命令在跑/仍在出字不算卡住但超上限仍报");
 }
 
 // ---------- 用例 23：【任务通知】卡片口径三挡（简洁 / 适中 / 详细 × 结束卡 / 需确认卡 / 卡住卡） ----------

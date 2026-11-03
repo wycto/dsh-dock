@@ -125,7 +125,8 @@ export const DockConfig = z.object({
     feishuEnabled: z.boolean().default(false),
     feishuWebhook: z.string().default(''),
     // ===== 语音播报（浏览器 speechSynthesis；与【语音朗读】同一套声音但相互独立开关） =====
-    // 总开关：关闭时下面所有播报都不发声（默认关，避免升级后突然说话吓人）。
+    // 服务端总开关（跨浏览器/跨设备）：关闭时所有浏览器都不播报（默认关，避免升级后突然说话吓人）。
+    // 客户端另有按浏览器保存的「本机播报」开关（localStorage，不进本配置）；两者都开才播报。
     voiceNotify: z.boolean().default(false),
     // 播报口径三挡：brief = 一句话；medium = 点名任务 + 原因/耗时/停滞时长；
     // detailed = 带标题/耗时/回合统计/工具名/最后动作。

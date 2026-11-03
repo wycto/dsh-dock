@@ -99,9 +99,8 @@ let healDispose = () => {}
 let autoDispose = () => {}
 
 // 远程访问注入（tapIndex）：只保留 LAN 非安全上下文的 crypto.randomUUID 兜底——
-// 手机端排版/行为归【手机适配】（features/mobile/host.js），
-// 远程访问就单纯的远程访问。因此注入页必须不含任何手机端 chrome（遮罩/Tab 栏/布局）。
-// 手机端 chrome 的同款契约见 scripts/test-mobile-host.mjs。
+// 旧【手机适配】模块已整体移除，远程访问就单纯的远程访问。因此注入页必须不含任何
+// 手机端 chrome（遮罩/Tab 栏/布局）。
 assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
 {
   const sample = '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>'
@@ -110,11 +109,11 @@ assert.ok(indexTransforms.length > 0, 'tapIndex transform must be registered')
   assert.match(once1, /randomUUID/, 'crypto 兜底没有补 randomUUID')
   const twice = indexTransforms.reduce((html, fn) => fn(html), once1)
   assert.equal(countOf(twice, 'data-dsh-lan-compat'), 1, 'injection must be idempotent')
-  // 不得再出现手机端 chrome：已全部迁到【手机适配】（scripts/test-mobile-host.mjs 钉它的契约）
-  assert.doesNotMatch(once1, /data-dsh-mobile-layout/, '远程访问不应再注入窄屏排版样式（已迁手机适配）')
-  assert.doesNotMatch(once1, /data-dsh-mobile-behave/, '远程访问不应再注入窄屏行为脚本（已迁手机适配）')
-  assert.doesNotMatch(once1, /dsh-mobile-scrim/, '远程访问不应再有抽屉遮罩（已迁手机适配）')
-  assert.doesNotMatch(once1, /dsh-mobile-tabbar/, '远程访问不应再有底部 Tab 栏（已迁手机适配）')
+  // 不得出现手机端 chrome：旧【手机适配】已整体移除，远程访问也不得接手这块。
+  assert.doesNotMatch(once1, /data-dsh-mobile-layout/, '远程访问不应注入窄屏排版样式（旧手机适配已移除）')
+  assert.doesNotMatch(once1, /data-dsh-mobile-behave/, '远程访问不应注入窄屏行为脚本（旧手机适配已移除）')
+  assert.doesNotMatch(once1, /dsh-mobile-scrim/, '远程访问不应有抽屉遮罩（旧手机适配已移除）')
+  assert.doesNotMatch(once1, /dsh-mobile-tabbar/, '远程访问不应有底部 Tab 栏（旧手机适配已移除）')
   assert.doesNotMatch(once1, /dsh-mobile-drawer-btn/)
   assert.doesNotMatch(once1, /dsh-dock-drawer-top|dsh-dock-drawer-off/)
 }

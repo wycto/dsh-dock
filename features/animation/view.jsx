@@ -14,7 +14,7 @@
 //
 // Host 通信：fetch('dsh-dock/animation/<method>')（见 features/animation/host.js）。
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { openPanel, panelNav, subscribePanel } from "../../src/shared.js";
+import { openPanel, panelNav, subscribePanel, taskWaiting, taskApprovals, taskStalled } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
@@ -721,7 +721,11 @@ function MissionDeparture(props) {
 }
 function ProgrammingStuck(props) {
 	const waiting = !!props.waiting;
-	return <div className={"dkan-space-stuck" + (waiting ? " waiting" : "")} aria-hidden="true"><FreighterHull units={3} empty /><span className="dkan-stuck-code"><i />{`{ }`}</span><strong>{waiting ? "等待确认" : "编程等待中"}</strong><small>{truncate((props.task && props.task.title) || "工具暂无新响应", 28)}</small></div>;
+	// 等人的性质要说清：等批准（要不要执行）与等回答（选哪个答案）是两件事
+	const task = props.task;
+	const label = !waiting ? "编程等待中"
+		: (taskApprovals(task).length > 0 ? "等待确认" : "等待回答");
+	return <div className={"dkan-space-stuck" + (waiting ? " waiting" : "")} aria-hidden="true"><FreighterHull units={3} empty /><span className="dkan-stuck-code"><i />{`{ }`}</span><strong>{label}</strong><small>{truncate((props.task && props.task.title) || "工具暂无新响应", 28)}</small></div>;
 }
 
 // ---------- 全局浮层：轮询 + 动效（功能启用即常驻；通知在 features/notify/） ----------
@@ -889,9 +893,13 @@ export function AnimationOverlay(props) {
 	const phase = active.length > 0
 		? active.reduce((best, x) => (!best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best), null).phase
 		: "think";
-	// 有会话在等用户确认时，状态文字让位给"等待确认"（优先级最高：不动手就卡住）。
+	// 有会话在等用户介入时，状态文字让位给"等待确认 / 等待回答"（优先级最高：不动手就停住）。
 	// 会话级卡片（等待确认/编程等待中）只对"当前正在看的会话"出现，别的会话等待不打扰。
-	const waitingTask = active.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
+	// 等人介入的口径统一走 src/shared.js 的 taskWaiting——只认 approvals 会把「提问等回答」
+	// 漏成"编程等待中"，甚至被卡住判定误报（2026-11-01 用户实测）。
+	const waitingTask = active.find((x) => taskWaiting(x)) || null;
+	// 等的是批准还是回答：徽标文字跟着变，别一律说「等待确认」把提问吞进去
+	const waitWord = waitingTask && taskApprovals(waitingTask).length === 0 ? "等待回答" : "等待确认";
 	const sessionTitleRef = useRef({ at: 0, title: "" });
 	const currentTitle = useMemo(() => {
 		// 标题查询要 getBoundingClientRect（强制布局），限频 1s；面板页/任务行为不受此限制
@@ -903,7 +911,7 @@ export function AnimationOverlay(props) {
 		return c.title;
 	}, [snap.status]);
 	const onScreenTasks = useMemo(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
-	const waitingTaskOnScreen = onScreenTasks.find((x) => Array.isArray(x.approvals) && x.approvals.length > 0) || null;
+	const waitingTaskOnScreen = onScreenTasks.find((x) => taskWaiting(x)) || null;
 	useTicker(ctx, animOn);
 	// 徽标计时：以最早开始的任务为基准
 	const now = Date.now();
@@ -936,7 +944,13 @@ export function AnimationOverlay(props) {
 	const spaceGalaxies = spaceModeOn && spaceDocks ? spaceGalaxyLayout() : null;
 	// Host 在编程阶段持续 18 秒没有 chunk/tool 活动，才把它视为卡住；正常长任务不会误触发。
 	// 卡住卡片同样只对当前会话出现。
-	const stuckTask = onScreenTasks.find((task) => task.phase === "code" && now - (task.lastActivityAt || task.phaseAt || now) >= 18000) || null;
+	// 停在原地等人的会话不算卡住（等批准、等回答都是合法停点，会话零事件是必然的）——
+	// 与【任务通知】的卡住判定同一口径：两处都直接调 src/shared.js 的 taskStalled，
+	// 它已经把「有在飞的工具调用」「正在压缩上下文」这两种正在干活的安静排除在外
+	//（2026-11-02 实测：25 分钟里 18 次误报全落在 compaction 窗口内，最长 96.7 秒）。
+	// 别在这里另写一份表达式，否则动画报卡住而通知不报，自相矛盾。
+	const stuckTask = onScreenTasks.find((task) => task.phase === "code"
+		&& taskStalled(task, now, 18000)) || null;
 	const robotScaleFromConfig = Math.max(.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
 	const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
 	const saveRobotScale = useCallback((robotScale) => {
@@ -1050,7 +1064,7 @@ export function AnimationOverlay(props) {
 			? <AmbientLayer mode={mode} phase={phase} speed={Number(speed).toFixed(2)} tasks={active} galaxies={spaceGalaxies} /> : null}
 		{/* 星际模式：空闲时在输入框上方待命；任务卡住时在中央呈现编程等待状态。 */}
 		{spaceModeOn && spaceDocks && active.length === 0 && deliveries.length === 0 ? <ReadyFreighter dock={spaceDocks.ready} /> : null}
-		{spaceModeOn && stuckTask ? <ProgrammingStuck task={stuckTask} waiting={!!(stuckTask.approvals && stuckTask.approvals.length)} /> : null}
+		{spaceModeOn && stuckTask ? <ProgrammingStuck task={stuckTask} waiting={taskWaiting(stuckTask)} /> : null}
 		{!panelOpen ? departures.map((departure) => <MissionDeparture key={departure.id} departure={departure} />) : null}
 		{/* 环屏巡航：一颗光点沿屏幕边缘转圈（orbit 模式） */}
 		{ambientOn && mode === "orbit" ? <div className="dkan-orbit" style={speedStyle} aria-hidden="true" /> : null}
@@ -1059,7 +1073,7 @@ export function AnimationOverlay(props) {
 		{/* 桌面伙伴：背侧视角紧凑双工位人物，阶段与任务同步；整卡可拖到任意位置（robot 模式） */}
 		{ambientOn && mode === "robot" ? (
 			<div className="dkan-botcard" role="button" tabIndex={0} style={Object.assign({}, botCardStyle, waitingTask ? { "--dkan-phase": "#b45309" } : null)}
-				title={active.length + " 个任务 · " + (waitingTask ? "等待确认" : phaseLabel(phase)) + " · 点击查看任务动画页 · 可拖动到任意位置"}
+				title={active.length + " 个任务 · " + (waitingTask ? waitWord : phaseLabel(phase)) + " · 点击查看任务动画页 · 可拖动到任意位置"}
 				onPointerDown={onBotPointerDown}
 				onPointerMove={onBotPointerMove}
 				onPointerUp={onBotPointerUp}
@@ -1068,7 +1082,7 @@ export function AnimationOverlay(props) {
 				onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onBotClick(); } }}>
 				<RobotScene phase={phase} tasks={active} />
 				<span className="dkan-bot-cap">
-					<span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {waitingTask ? "等待确认" : phaseLabel(phase)}
+					<span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {waitingTask ? waitWord : phaseLabel(phase)}
 				</span>
 				<button type="button" className="dkan-bot-resize" aria-label="调整桌面伙伴大小"
 					title="拖动调整桌面伙伴大小"
@@ -1089,14 +1103,14 @@ export function AnimationOverlay(props) {
 		{ambientOn && mode !== "robot" ? (
 			<button type="button" className={"dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : "")}
 				style={Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) })}
-				title={active.length + " 个任务进行中 · " + (waitingTask ? "等待确认" : phaseLabel(phase)) + " · 点击查看任务动画页"}
+				title={active.length + " 个任务进行中 · " + (waitingTask ? waitWord : phaseLabel(phase)) + " · 点击查看任务动画页"}
 				onClick={() => openPanel("animation")}>
 				<span className="dkan-dotwrap">
 					<span className="dkan-dot" />
 					{mode === "breathe" ? <span className="dkan-halo" /> : null}
 					{mode === "ring" ? <span className="dkan-ring" /> : null}
 				</span>
-				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {waitingTask ? "等待确认" : phaseLabel(phase)}</span>
+				<span className="dkan-badge-txt"><span className="n">{active.length}</span> 个任务{elapsed ? " · " + elapsed : ""} · {waitingTask ? waitWord : phaseLabel(phase)}</span>
 			</button>
 		) : null}
 		{/* 完成瞬间的一次性流光（成功绿 / 异常红），动画结束自动清场 */}
@@ -1261,7 +1275,7 @@ function AnimationView(props) {
 	// 运行状态（进行中任务 / 最近完成 / 等待确认）已独立成左侧菜单项，这里只留一句指路
 	rows.push(
 		<div key="hint" className="dkan-note">
-			任务运行状态（进行中任务、阶段、Token、等待确认与最近完成）已独立成左侧「运行状态」菜单；本页只负责动效。
+			任务运行状态（进行中任务、阶段、Token、等人介入（等批准 / 等回答）与最近完成）已独立成左侧「运行状态」菜单；本页只负责动效。
 		</div>
 	);
 	return <div className="dkan-root">{rows}</div>;

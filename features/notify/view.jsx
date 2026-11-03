@@ -4,17 +4,22 @@
 //  1. View      —— 功能坞面板页：通知事件 / 呈现方式 / 钉钉推送 / 飞书推送 四组设置；
 //  2. HomeStat  —— 首页总揽概要（当前通知事件与推送通道）；
 //  3. Overlay   —— 全局浮层（shell.overlay 常驻，功能启用即挂载）：轮询 Host 状态，
-//                  任务结束弹通知卡片（可选提示音与浏览器系统通知），工具等待确认时弹常驻提醒卡，
+//                  任务结束弹通知卡片（可选提示音与浏览器系统通知），工具等批准 / 提问等回答时弹常驻提醒卡，
 //                  编程阶段长时间无活动弹「卡住」提醒卡（写明主/子任务、停滞时长、最后动作）。
+//                  卡住判定的口径统一在 src/shared.js 的 taskStalled：等人介入、命令还在跑、
+//                  正在压缩上下文都不算卡住（那都是「在干活」），只有真的安静下来才报。
 //                  所有卡片受「页内卡片」总开关与各类型开关控制（见 View 的通知事件区）。
 //                  结束卡常驻到「看过」（点卡直达会话 / 点进会话 / 手动 ✕），≥3 张叠放收纳。
 //
 // 与【任务动画】【运行状态】完全独立：动效在 features/animation/、任务状态一览在
 // features/runstate/，本模块只管通知（页内卡片 / 提示音 / 系统通知 / 钉钉飞书群机器人推送）。
 // 模块启停 = 功能坞里的开关（独立菜单项），本页不再有第二个总开关。
+// 语音播报是双层开关：服务端 voiceNotify（settings，跨浏览器）+ 本机开关（localStorage，
+// 当前浏览器），两者都开才播报——团队共用一个 dsh 实例时可按浏览器各自静音。
 //
 // Host 通信：fetch('dsh-dock/notify/<method>')（见 features/notify/host.js）。
 import { useState, useEffect, useRef, useCallback } from "react";
+import { taskWaiting, taskApprovals, taskQuestions, taskStalled, taskActivityAt } from "../../src/shared.js";
 
 // ---------- Host RPC 桥接 ----------
 function rpcCall(method, args) {
@@ -160,6 +165,42 @@ function utterCtor() {
 export function voiceSupported() {
 	return synthOf() !== null && utterCtor() !== null;
 }
+// ---------- 本机播报开关（每浏览器独立，存 localStorage） ----------
+// 服务端 voiceNotify 是总开关（跨浏览器/跨设备，宿主 settings 持久化）；本机开关是
+// 「这台浏览器要不要出声」的第二层开关——团队共用一个 dsh 实例时，有人想听、有人嫌吵。
+// 两个都开才播报；默认开（保持服务端总开关打开后的既有行为），用户可在本机关闭本机开关。
+const VOICE_CLIENT_KEY = "dsh-dock/notify/voice-client/v1";
+export function voiceClientEnabled() {
+	try {
+		if (typeof localStorage === "undefined") return true;
+		return localStorage.getItem(VOICE_CLIENT_KEY) !== "0";
+	} catch { return true; }
+}
+function setVoiceClientEnabled(on) {
+	try { if (typeof localStorage !== "undefined") localStorage.setItem(VOICE_CLIENT_KEY, on ? "1" : "0"); } catch { /* 持久化失败仅在本次会话生效 */ }
+}
+/** 真正允许自动播报：服务端总开关 && 本机开关。所有自动播报统一走这里判断。 */
+export function voiceAllowed(cfg) {
+	return !!cfg && cfg.voiceNotify === true && voiceClientEnabled();
+}
+/** 本机开关的 React 状态：读写 localStorage，并跟随其它标签页的 storage 事件。 */
+function useVoiceClientEnabled() {
+	const [on, setOn] = useState(() => voiceClientEnabled());
+	useEffect(() => {
+		const sync = () => setOn(voiceClientEnabled());
+		if (typeof window === "undefined" || typeof window.addEventListener !== "function") return undefined;
+		window.addEventListener("storage", sync);
+		return () => { if (typeof window.removeEventListener === "function") window.removeEventListener("storage", sync); };
+	}, []);
+	const set = useCallback((next) => {
+		const v = next !== false;
+		setVoiceClientEnabled(v);
+		setOn(v);
+		// 关掉本机播报时立刻收声：正在念的那一句不该再继续打扰。
+		if (!v) { const s = synthOf(); if (s) { try { s.cancel(); } catch { /* ignore */ } } }
+	}, []);
+	return [on, set];
+}
 /** 本机音色表（可能为空：Chrome 首次调用是异步加载，靠 voiceschanged 补）。 */
 export function localVoices() {
 	const s = synthOf();
@@ -212,7 +253,7 @@ function useLocalVoices() {
 }
 let voiceEpoch = 0;
 /**
- * 播一句话（幂等键防重）。cfg 取 voiceNotify 总开关之外的调用方已判过；这里读
+ * 播一句话（幂等键防重）。调用方已用 voiceAllowed 判过服务端总开关 + 本机开关；这里读
  * voiceRate/voiceVolume/voiceLang/voiceURI，voiceURI 在本机不存在时按语言回落，
  * lang 空时中文文本优先挑中文音色。
  * @returns 是否真的开始播（不支持/文本为空返回 false）
@@ -335,6 +376,31 @@ export function confirmBroadcastText(task, approval, cfg) {
 	return parts.join("");
 }
 /**
+ * 需回答播报文案（ask_user_question 挂起，等人选答案）。
+ * 与「需授权」是两件事：批准是"要不要执行"，提问是"要选哪个答案"——播报不能混说。
+ * 简洁口径只说「任务需要回答」；适中点名任务与问题；详细再补"共几问"与回到会话的叮嘱。
+ */
+export function questionBroadcastText(task, question, cfg) {
+	const mode = voiceTone(cfg);
+	if (mode === "brief") return "任务需要你回答";
+	const who = task && task.title ? "任务「" + truncate(task.title, 30) + "」" : "任务";
+	const head = (question && question.header) || "";
+	const body = (question && question.question) || "";
+	const what = body ? truncate(body.replace(/[#*_`>\[\]()!]/g, ""), 40) : "";
+	if (mode === "medium") {
+		// 适中口径：点名任务 + 问的是什么（问题正文优先，没有正文退回标题）；句号统一补
+		const tail = what ? "：" + what : (head ? "：" + head : "");
+		return who + "在等你回答" + tail + "。";
+	}
+	const parts = [];
+	if (task && task.title) parts.push("任务：" + truncate(task.title, 30) + "。");
+	parts.push(what ? "正在等你回答问题：" + what + "。" : "正在等你回答问题。");
+	const count = (question && question.count) || 0;
+	if (count > 1) parts.push("共 " + count + " 个问题。");
+	parts.push("请回到会话选择答案。");
+	return parts.join("");
+}
+/**
  * 卡住播报文案：必须回答「哪里卡住了」——主任务还是子任务、哪个会话、停了多久、
  * 最后在干什么。子任务静默会把「主任务明明在跑却突然播报」放大成困惑（2026-10-30
  * 用户实测：主任务进行中突然播「任务卡住了」，屏幕上却看不到卡住的东西），
@@ -358,8 +424,14 @@ export function stuckBroadcastText(task, cfg) {
 	return parts.join("");
 }
 
-/** 卡住判定阈值：与【任务动画】同款——phase=code 且 18 秒无活动视为卡住（正常长任务不误报）。 */
+/** 卡住判定阈值：与【任务动画】同款——phase=code 且这么久没动静才视为卡住（正常长任务不误报）。
+ *  「没动静」由 src/shared.js 的 taskStalled 定义：等人介入、命令在跑、正在压缩上下文都算在干活。 */
 const STUCK_MS = 18000;
+/** 读取卡住阈值（宿主可下发 stuckMs 覆盖，缺字段回退 STUCK_MS；播报与判定共用同一口径）。 */
+function stuckMsOf(cfg) {
+	const v = cfg && Number(cfg.stuckMs);
+	return Number.isFinite(v) && v > 0 ? v : STUCK_MS;
+}
 
 // ---------- 共享快照：浮层（轮询） / 面板页 / 首页概要共用一份数据 ----------
 const notifyStore = {
@@ -533,6 +605,7 @@ export function NotifyOverlay(props) {
 	const [stackHover, setStackHover] = useState(false); // 卡片栈被悬停（叠放时整体展开）
 	const prevActiveRef = useRef(null);
 	const remindedApprovalsRef = useRef(new Map()); // sessionId -> 提醒过的 approvalId 集合
+	const remindedQuestionsRef = useRef(new Map()); // sessionId -> 提醒过的提问 callId 集合
 	const toastSeqRef = useRef(0);
 
 	const pushToast = useCallback((toast) => {
@@ -598,15 +671,16 @@ export function NotifyOverlay(props) {
 			if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
 		}
 		for (const task of st.active) {
-			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
+			const approvals = taskApprovals(task);
 			if (approvals.length === 0) continue;
 			let seen = remindedApprovalsRef.current.get(task.sessionId);
 			if (!seen) { seen = new Set(); remindedApprovalsRef.current.set(task.sessionId, seen); }
 			const fresh = approvals.filter((a) => a && !seen.has(a.id));
 			if (fresh.length === 0) continue;
 			for (const a of fresh) seen.add(a.id);
-			// 语音播报走自己的开关（在卡片开关判定**之前**：关掉卡片提醒不等于关掉耳朵）
-			if (cfg.voiceNotify === true && cfg.voiceOnConfirm !== false) {
+			// 语音播报走自己的开关（在卡片开关判定**之前**：关掉卡片提醒不等于关掉耳朵）。
+			// 服务端总开关 + 本机开关都开才出声（团队共用一个实例时各自可静音）。
+			if (voiceAllowed(cfg) && cfg.voiceOnConfirm !== false) {
 				speakVoice(confirmBroadcastText(task, fresh[0], cfg), cfg);
 			}
 			// 提醒开关在"收到新确认项"时检查，保证开关中途打开对下一项生效
@@ -650,22 +724,87 @@ export function NotifyOverlay(props) {
 		}
 	}, [snap.status]);
 
-	// 审批项消失（approval/decided 后宿主把它移出 approvals）→ 对应需确认卡自动收起。
-	// 只标记 closing 走淡出，不直接删：与手动点 ✕ 的退场一致。
-	// 卡片绑定的 approvalKeys 全部不在仍待确认的集合里才收；空 keys（老数据）不动。
+	// ===== 需回答检测：会话调 ask_user_question 后挂起等人选答案时通知 =====
+	// 与「需确认」分开成一段：来源不同（tool/call → tool/result，而非 approval/asked →
+	// decided），文案也不同（"要你选答案"不是"要你批准执行"）。但语义同属「任务停在原地等人」，
+	// 因此卡住判定把它们一并排除（见下方 stuck 检测的 taskWaiting 判断）。
+	// 真实事故（2026-11-01 用户反馈）：提问挂起期间会话零事件，18 秒后被判成「主任务卡住了」，
+	// 界面一边显示提问表单、一边报卡住——错的不是检测阈值，而是"等人"没被算作一种合法停点。
+	useEffect(() => {
+		const st = snap.status;
+		if (!st || !st.active) return;
+		const cfg = st.config || {};
+		const activeIds = new Set(st.active.map((x) => x.sessionId));
+		for (const [sid, seen] of remindedQuestionsRef.current) {
+			if (!activeIds.has(sid)) remindedQuestionsRef.current.delete(sid);
+		}
+		for (const task of st.active) {
+			const questions = taskQuestions(task);
+			if (questions.length === 0) continue;
+			let seen = remindedQuestionsRef.current.get(task.sessionId);
+			if (!seen) { seen = new Set(); remindedQuestionsRef.current.set(task.sessionId, seen); }
+			const fresh = questions.filter((q) => q && q.id && !seen.has(q.id));
+			if (fresh.length === 0) continue;
+			for (const q of fresh) seen.add(q.id);
+			// 语音播报走自己的开关（与卡片开关正交：关卡片不等于关掉耳朵）。
+			// 服务端总开关 + 本机开关都开才出声。
+			if (voiceAllowed(cfg) && cfg.voiceOnConfirm !== false) {
+				speakVoice(questionBroadcastText(task, fresh[0], cfg), cfg);
+			}
+			// 提醒开关在"收到新提问"时检查，保证开关中途打开对下一问生效
+			if (cfg.notifyOnConfirm === false) continue;
+			const tone = cardTone(cfg);
+			const head = fresh[0].header || "";
+			const body = fresh[0].question || "";
+			const lines = ["任务：" + (task.title || "(无标题)")];
+			if (body) lines.push((head ? head + "：" : "问题：") + truncate(body, 140));
+			else if (head) lines.push("问题：" + head);
+			const count = (fresh[0].count || 0);
+			if (count > 1) lines.push(tone === "brief" ? "共 " + count + " 个问题" : "共 " + count + " 个问题等你选择");
+			if (tone === "detailed") lines.push("请在会话里选好答案后继续");
+			pushToast({
+				id: ++toastSeqRef.current,
+				kind: "confirm",
+				title: "任务需要你回答",
+				body: lines.join("\n"),
+				// 点卡片直达该会话去选答案（与需确认卡同哲学：问题没答完卡片就该在）
+				sessionId: task.sessionId || "",
+				sessionTitle: task.title || "",
+				// 与这批提问绑定：回答落地后宿主把它们移出 questions，下面的对账 effect 据此收起
+				questionKeys: fresh.map((q) => task.sessionId + "|" + q.id),
+			});
+			if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
+			if (cfg.systemNotify && typeof document !== "undefined" && document.hidden
+				&& typeof Notification !== "undefined" && Notification.permission === "granted") {
+				try {
+					new Notification("dsh 任务需要你回答", {
+						body: (task.title || "(无标题)") + " · " + (head || "有一问在等你选择"),
+						tag: "dsh-dock-question-" + task.sessionId,
+					});
+				} catch { /* 系统通知失败不影响页面内通知 */ }
+			}
+		}
+	}, [snap.status]);
+
+	// 等人介入的项消失（approval/decided 移出 approvals，或回答落地移出 questions）
+	// → 对应提醒卡自动收起。只标记 closing 走淡出，不直接删：与手动点 ✕ 的退场一致。
+	// 卡片绑定的 keys 全部不在仍在等待的集合里才收；空 keys（老数据）不动。
+	// 两类卡共用这段对账：kind=confirm 的卡片要么绑 approvalKeys、要么绑 questionKeys。
 	useEffect(() => {
 		const st = snap.status;
 		if (!st || !st.active) return;
 		const live = new Set();
 		for (const task of st.active) {
-			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
-			for (const a of approvals) if (a && a.id) live.add(task.sessionId + "|" + a.id);
+			for (const a of taskApprovals(task)) if (a && a.id) live.add(task.sessionId + "|" + a.id);
+			for (const q of taskQuestions(task)) if (q && q.id) live.add(task.sessionId + "|" + q.id);
 		}
 		setToasts((prev) => {
 			let changed = false;
 			const next = prev.map((x) => {
 				if (x.kind !== "confirm" || x.closing) return x;
-				const keys = Array.isArray(x.approvalKeys) ? x.approvalKeys : [];
+				const keys = []
+					.concat(Array.isArray(x.approvalKeys) ? x.approvalKeys : [])
+					.concat(Array.isArray(x.questionKeys) ? x.questionKeys : []);
 				if (keys.length === 0 || keys.some((k) => live.has(k))) return x;
 				changed = true;
 				return Object.assign({}, x, { closing: true });
@@ -726,20 +865,27 @@ export function NotifyOverlay(props) {
 			if (t.isSubtask && t.parentSessionId) parentsWaitingOnSubtask.add(t.parentSessionId);
 		}
 		for (const task of st.active) {
-			// 等用户批准的会话不算卡住——那是「需确认」提醒的职责，别重复轰炸
-			const approvals = Array.isArray(task.approvals) ? task.approvals : [];
-			if (approvals.length > 0) { stuckSeenRef.current.delete(task.sessionId); continue; }
+			// 停在原地等人的会话不算卡住——那是「需确认 / 需回答」提醒的职责，别重复轰炸。
+			// 两类都要排除：① 工具等批准（approvals）；② 提问等回答（questions）。
+			// ②是 2026-11-01 用户实测的误报来源：会话调 ask_user_question 后挂起等人选答案，
+			// 其间会话一条事件都没有，18 秒安静被当成停滞，播报「主任务卡住了」并弹卡——
+			// 界面上明明是在等用户回答（截图为证），报「卡住」完全是错的口径。
+			if (taskWaiting(task)) { stuckSeenRef.current.delete(task.sessionId); continue; }
 			if (task.phase !== "code") { continue; }
 			// 该会话有活跃子任务在跑 → 它在等子任务，不算卡住（否则主任务进行中会误报卡住）
 			if (parentsWaitingOnSubtask.has(task.sessionId)) continue;
-			const lastAct = task.lastActivityAt || task.phaseAt || 0;
-			if (!lastAct || now - lastAct < STUCK_MS) continue;
+			// 卡住判定统一走 src/shared.js 的 taskStalled：它已经排除「有在飞的工具调用」与
+			// 「正在压缩上下文」这两种**正在干活**的安静。2026-11-02 用户实测：25 分钟里 18 次
+			// 误报全落在 compaction 窗口内（最长 96.7 秒），界面在刷「上下文已压缩」却报卡住。
+			// 停点指纹改用同一个活动表达式（taskActivityAt），对账 effect 必须一致，否则卡片闪。
+			const lastAct = taskActivityAt(task);
+			const stuckMs = taskStalled(task, now, stuckMsOf(cfg));
+			if (!stuckMs) continue;
 			const prev = stuckSeenRef.current.get(task.sessionId);
 			if (prev === lastAct) continue; // 同一停点已报过
 			stuckSeenRef.current.set(task.sessionId, lastAct);
-			const stuckMs = now - lastAct;
-			// —— 语音：说清主/子任务、标题、停滞时长与最后动作 ——
-			if (cfg.voiceNotify === true && cfg.voiceOnStuck !== false) {
+			// —— 语音：说清主/子任务、标题、停滞时长与最后动作（服务端总开关 + 本机开关）——
+			if (voiceAllowed(cfg) && cfg.voiceOnStuck !== false) {
 				speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs: stuckMs })), cfg);
 			}
 			// —— 卡片：只受「卡住提醒」与「页内卡片」总开关控制（总开关在 pushToast 里把关）——
@@ -771,8 +917,10 @@ export function NotifyOverlay(props) {
 	}, [snap.status]);
 
 	// 卡住卡的自动收起（与需确认卡同哲学：不设倒计时，状态没变就一直挂着）：
-	//  恢复活动（lastActivityAt 变了）/ 离开活跃列表（结束或取消）/ 转为等审批
-	// （需确认卡接管）→ 标记 closing 走同一套 240ms 淡出。只标记不直删，与手动 ✕ 退场一致。
+	//  恢复活动 / 离开活跃列表（结束或取消）/ 转为等人介入（需确认卡或需回答卡接管）
+	// → 标记 closing 走同一套 240ms 淡出。只标记不直删，与手动 ✕ 退场一致。
+	// 「恢复活动」的判据必须与卡住判定处**完全一致**（都走 taskActivityAt），否则同一停点
+	// 两处算出的指纹不同，卡片会反复收起又弹出。
 	useEffect(() => {
 		const st = snap.status;
 		if (!st || !st.active) return;
@@ -783,8 +931,8 @@ export function NotifyOverlay(props) {
 				if (x.kind !== "stuck" || x.closing) return x;
 				const task = byId.get(x.sessionId);
 				const stillStalled = !!task
-					&& (task.lastActivityAt || task.phaseAt || 0) === x.stuckAt
-					&& (Array.isArray(task.approvals) ? task.approvals.length : 0) === 0;
+					&& taskActivityAt(task) === x.stuckAt
+					&& !taskWaiting(task);
 				if (stillStalled) return x;
 				changed = true;
 				return Object.assign({}, x, { closing: true });
@@ -799,8 +947,8 @@ export function NotifyOverlay(props) {
 		const info = endInfo(reason);
 		const wanted = success ? cfg.notifyOnComplete : cfg.notifyOnError;
 		// 语音播报先走自己的开关（与卡片开关正交：关卡片不关耳朵）。
-		// 播报音量归 0 / 浏览器不支持时静默跳过即可。
-		if (cfg.voiceNotify === true
+		// 服务端总开关 + 本机开关都开才出声；播报音量归 0 / 浏览器不支持时静默跳过即可。
+		if (voiceAllowed(cfg)
 			&& (success ? cfg.voiceOnComplete !== false : cfg.voiceOnError !== false)) {
 			speakVoice(endBroadcastText(success, record, task, cfg), cfg);
 		}
@@ -876,6 +1024,7 @@ export function NotifyOverlay(props) {
 function NotifyView(props) {
 	const snap = useNotify();
 	const voices = useLocalVoices(); // 音色下拉用（本机 speechSynthesis 音色表）
+	const [voiceClientOn, setVoiceClientOn] = useVoiceClientEnabled(); // 本机播报开关（localStorage）
 	const [cfg, setCfg] = useState(null); // null = 尚未加载
 	const [saveErr, setSaveErr] = useState("");
 	const [testing, setTesting] = useState(false);
@@ -1048,7 +1197,7 @@ function NotifyView(props) {
 							onClick={() => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false })}>
 							{cfg.notifyOnConfirm !== false ? "开" : "关"}
 						</button>
-						<span className="dknt-row-sub">工具等待你批准时弹卡片并响确认音；审批处理完自动收起，没处理完就一直显示（点卡片直达会话）</span>
+						<span className="dknt-row-sub">工具等你批准、或会话提问等你选答案时弹卡片并响确认音；处理完自动收起，没处理完就一直显示（点卡片直达会话）。这两种「停在原地等人」都不算卡住</span>
 					</div>
 					<div className="dknt-row">
 						<span className="dknt-row-label">卡住提醒</span>
@@ -1056,7 +1205,7 @@ function NotifyView(props) {
 							onClick={() => patch({ notifyOnStuck: cfg.notifyOnStuck === false })}>
 							{cfg.notifyOnStuck !== false ? "开" : "关"}
 						</button>
-						<span className="dknt-row-sub">编程阶段 18 秒没有动静时弹卡片，写明是主任务还是子任务、停滞了多久、最后在执行什么；恢复活动 / 任务结束自动收起，同一停点只弹一次（语音播报走「语音播报」区的卡住开关，互不干扰）</span>
+						<span className="dknt-row-sub">编程阶段长时间没有动静时弹卡片，写明是主任务还是子任务、停滞了多久、最后在执行什么；恢复活动 / 任务结束自动收起，同一停点只弹一次。等批准、等回答、命令还在跑、正在压缩上下文的会话都不算卡住（那些都是在干活，别重复轰炸）（语音播报走「语音播报」区的卡住开关，互不干扰）</span>
 					</div>
 				</div>
 			</div>,
@@ -1120,14 +1269,24 @@ function NotifyView(props) {
 			<div key="voice" className="dknt-sec">
 				<div className="dknt-sec-head">
 					<span className="dknt-sec-title">语音播报</span>
-					<span className="dknt-sec-sub">任务完成 / 停止 / 需要授权 / 卡住时用浏览器语音（TTS）说一句话；与提示音、系统通知互不冲突</span>
+					<span className="dknt-sec-sub">任务完成 / 停止 / 需要授权 / 需回答 / 卡住时用浏览器语音（TTS）说一句话；服务端总开关（跨浏览器）与本机开关（当前浏览器）都开启才播报</span>
 					<span className="dknt-sec-sw">
-						<span className={"dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : "")}>{cfg.voiceNotify ? "已开启" : "已关闭"}</span>
+						<span className={"dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : "")}>{cfg.voiceNotify ? "服务端：已开启" : "服务端：已关闭"}</span>
 						<button type="button" className={"dock-sw" + (cfg.voiceNotify ? " on" : "")}
-							role="switch" aria-checked={cfg.voiceNotify} aria-label="开关语音播报"
-							title={cfg.voiceNotify ? "关闭语音播报" : "开启语音播报"}
+							role="switch" aria-checked={cfg.voiceNotify} aria-label="开关语音播报（服务端总开关）"
+							title={cfg.voiceNotify ? "关闭语音播报（服务端总开关）" : "开启语音播报（服务端总开关）"}
 							onClick={() => patch({ voiceNotify: !cfg.voiceNotify })} />
 					</span>
+				</div>
+				<div className="dknt-row">
+					<span className="dknt-row-label">本机播报</span>
+					<button type="button" className={"dknt-miniswitch" + (voiceClientOn ? " on" : "")}
+						role="switch" aria-checked={voiceClientOn} aria-label="开关本机语音播报"
+						title={voiceClientOn ? "关闭本机语音播报" : "开启本机语音播报"}
+						onClick={() => setVoiceClientOn(!voiceClientOn)}>{voiceClientOn ? "开" : "关"}</button>
+					<span className="dknt-row-sub">{voiceClientOn
+						? "本浏览器会播报（设置保存在当前浏览器；服务端总开关关闭时不生效）"
+						: "本浏览器不播报（设置保存在当前浏览器，不影响其他浏览器）"}</span>
 				</div>
 				{cfg.voiceNotify ? <div className="dknt-rows-narrow">
 					<div className="dknt-row">
@@ -1147,12 +1306,12 @@ function NotifyView(props) {
 							{[
 								["voiceOnComplete", "完成", cfg.voiceOnComplete !== false],
 								["voiceOnError", "停止", cfg.voiceOnError !== false],
-								["voiceOnConfirm", "需授权", cfg.voiceOnConfirm !== false],
+								["voiceOnConfirm", "需授权/需回答", cfg.voiceOnConfirm !== false],
 								["voiceOnStuck", "卡住", cfg.voiceOnStuck !== false],
 							].map(([key, label, on]) => (
 								<button type="button" key={key} className={"dknt-miniswitch" + (on ? " on" : "")}
 									style={{ marginRight: 6 }}
-									title={key === "voiceOnStuck" ? "编程阶段 18 秒没有动静时播报一次（恢复后可再报）" : ""}
+									title={key === "voiceOnStuck" ? "编程阶段长时间没有动静时播报一次（恢复后可再报；命令在跑 / 正在压缩上下文不算）" : ""}
 									onClick={() => patch({ [key]: !on })}>{label}{on ? "·开" : "·关"}</button>
 							))}
 						</span>
@@ -1230,7 +1389,7 @@ function NotifyView(props) {
 						</select>
 						<span className="dknt-row-sub">未指定音色时按语言自动挑；已选音色的语言会覆盖这里</span>
 					</div>
-				</div> : <div className="dknt-note">未开启——任务事件不播报语音（提示音、系统通知不受影响）。</div>}
+				</div> : <div className="dknt-note">服务端总开关未开启——任务事件不播报语音（提示音、系统通知不受影响）；上面的「本机播报」只决定本浏览器是否出声。</div>}
 			</div>,
 			<div key="dingtalk" className="dknt-sec">
 				<div className="dknt-sec-head">
@@ -1315,10 +1474,10 @@ function NotifyView(props) {
 		);
 	}
 	if (saveErr) rows.push(<div key="err" className="dknt-note dknt-err">{saveErr}</div>);
-	// 任务运行状态（进行中 / 最近完成 / 等待确认）已独立成左侧「运行状态」菜单项，这里只留一句指路
+	// 任务运行状态（进行中 / 最近完成 / 等人介入）已独立成左侧「运行状态」菜单项，这里只留一句指路
 	rows.push(
 		<div key="hint" className="dknt-note">
-			任务运行状态（进行中任务、等待确认与最近完成）已独立成左侧「运行状态」菜单；本页只负责结束与需确认时的提醒。
+			任务运行状态（进行中任务、等人介入（等批准 / 等回答）与最近完成）已独立成左侧「运行状态」菜单；本页只负责结束与需确认 / 需回答时的提醒。
 		</div>
 	);
 	return <div className="dknt-root">{rows}</div>;
@@ -1332,8 +1491,10 @@ function NotifyStat(props) {
 	const cfg = snap.status && snap.status.config;
 	if (snap.error) return <span className="dknt-err">通知状态不可用（宿主需重启加载通知路由）</span>;
 	if (!cfg) return <span>等待通知配置…</span>;
-	const events = [cfg.notifyOnComplete ? "完成" : "", cfg.notifyOnError ? "异常" : "", cfg.notifyOnConfirm !== false ? "需确认" : ""].filter(Boolean);
-	const extras = [cfg.soundNotify !== false ? "提示音" : "", cfg.systemNotify ? "系统通知" : "", cfg.voiceNotify ? ("语音播报" + (cfg.voiceMode === "detailed" ? "·详" : cfg.voiceMode === "medium" ? "·适" : "·简")) : ""].filter(Boolean);
+	const events = [cfg.notifyOnComplete ? "完成" : "", cfg.notifyOnError ? "异常" : "", cfg.notifyOnConfirm !== false ? "需确认/需回答" : ""].filter(Boolean);
+	const voiceMode = cfg.voiceMode === "detailed" ? "·详" : cfg.voiceMode === "medium" ? "·适" : "·简";
+	const voice = !cfg.voiceNotify ? "" : (voiceClientEnabled() ? "语音播报" + voiceMode : "语音播报·本机已关");
+	const extras = [cfg.soundNotify !== false ? "提示音" : "", cfg.systemNotify ? "系统通知" : "", voice].filter(Boolean);
 	const push = [cfg.dingtalkEnabled ? "钉钉" : "", cfg.feishuEnabled ? "飞书" : ""].filter(Boolean);
 	return <span>{(events.length ? "通知：" + events.join("/") : "通知事件全关")
 		+ (extras.length ? " · " + extras.join("/") : "")

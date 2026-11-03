@@ -159,8 +159,7 @@ export function MobileRelayView() {
  * 【远程访问】不再挂 Overlay：「预览版说明」自动确认已迁到插件级
  * （src/welcome-ack.js 经 index.js 注册 tapIndex，不随任何功能开关启停）——
  * 关掉远程访问、主实例直接绑 0.0.0.0 的直连形态同样每次重弹，归属不能在本模块。
- * 手机端 chrome（底部 Tab 栏 / 抽屉遮罩 / 面板互斥）归【手机适配】
- * （features/mobile/view.js + features/mobile/host.js）。远程访问只负责「远程入口」本身。
+ * 手机端排版/行为（旧【手机适配】）已整体移除，远程访问只负责「远程入口」本身。
  */
 
 export function MobileRelayHomeStat() {
