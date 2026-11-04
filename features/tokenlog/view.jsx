@@ -1433,7 +1433,8 @@ export function TokenLogChip(props) {
 		<button type="button" className={"dockchip" + (snap.err && !t && !gone ? " err" : "")} title={title} aria-label="会话用量"
 			onClick={() => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() })}>
 			<span className="dockchip-dot" style={{ background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" }} />
-			{labelIcon ? <span className="dockchip-ic">{labelIcon}</span> : null}<span>{labelMain}</span>{labelExtra ? <span className="dockchip-x">{labelExtra}</span> : null}
+			{labelIcon ? <span className="dockchip-ic">{labelIcon}</span> : null}
+			{hasData ? <span className="dockchip-pre-s">用量 </span> : null}<span>{labelMain}</span>{labelExtra ? <span className="dockchip-x">{labelExtra}</span> : null}
 		</button>
 	);
 }

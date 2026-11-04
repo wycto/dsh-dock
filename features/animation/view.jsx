@@ -1010,6 +1010,79 @@ export function AnimationOverlay(props) {
 			setTimeout(() => { botClickBlockRef.current = false; }, 0);
 		}
 	};
+	// ===== 右下角状态徽标自由拖拽：整条可拖动（localStorage 持久化），避免压住任务清单/输入卡 =====
+	// 与桌面伙伴互不干扰（两者在不同 mode 下出现）。双击复位回右下默认位。
+	const [badgePos, setBadgePos] = useState(null); // null = 默认位（右下、输入卡上方）
+	const badgePosRef = useRef(null);
+	const badgeDragRef = useRef(null); // { sx, sy, ox, oy, moved }
+	const badgeClickBlockRef = useRef(false);
+	useEffect(() => {
+		try {
+			if (typeof localStorage === "undefined") return;
+			const raw = localStorage.getItem("dsh-dock/anim/badge-pos/v1");
+			const p2 = raw ? JSON.parse(raw) : null;
+			if (p2 && typeof p2.x === "number" && typeof p2.y === "number" && typeof window !== "undefined") {
+				// 恢复时钳制回视口内（窗口可能变小了）
+				const card = document.querySelector(".dkan-badge");
+				const w = card ? card.offsetWidth : 180, h = card ? card.offsetHeight : 34;
+				const x = Math.min(Math.max(8, p2.x), Math.max(8, window.innerWidth - w - 8));
+				const y = Math.min(Math.max(8, p2.y), Math.max(8, window.innerHeight - h - 8));
+				badgePosRef.current = { x, y };
+				setBadgePos({ x, y });
+			}
+		} catch { /* localStorage 不可用时用默认位 */ }
+	}, []);
+	const onBadgePointerDown = (e) => {
+		if (e.button !== 0) return;
+		const r = e.currentTarget.getBoundingClientRect();
+		badgeDragRef.current = { sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top, moved: false };
+		try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 无指针捕获也能拖 */ }
+	};
+	const onBadgePointerMove = (e) => {
+		const d = badgeDragRef.current;
+		if (!d || typeof window === "undefined") return;
+		const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+		if (!d.moved && Math.hypot(dx, dy) < 4) return; // 小抖动不当作拖动，保证点击可进面板
+		d.moved = true;
+		const el = e.currentTarget;
+		const w = el.offsetWidth || 180, h = el.offsetHeight || 34;
+		const x = Math.min(Math.max(8, d.ox + dx), window.innerWidth - w - 8);
+		const y = Math.min(Math.max(8, d.oy + dy), window.innerHeight - h - 8);
+		badgePosRef.current = { x, y };
+		setBadgePos({ x, y });
+	};
+	const onBadgePointerUp = () => {
+		const d = badgeDragRef.current;
+		badgeDragRef.current = null;
+		if (d && d.moved) {
+			try { if (typeof localStorage !== "undefined") localStorage.setItem("dsh-dock/anim/badge-pos/v1", JSON.stringify(badgePosRef.current)); } catch { /* 持久化失败静默 */ }
+			badgeClickBlockRef.current = true; // 拖动结束的那次 click 不跳面板
+			setTimeout(() => { badgeClickBlockRef.current = false; }, 0);
+		}
+	};
+	const resetBadgePos = () => {
+		try { if (typeof localStorage !== "undefined") localStorage.removeItem("dsh-dock/anim/badge-pos/v1"); } catch { /* 忽略 */ }
+		badgePosRef.current = null;
+		setBadgePos(null);
+	};
+	// 单击进面板、双击复位：单击延后 240ms 执行，等第二次点击到来就改成复位（否则双击会先开面板）。
+	const badgeClickTimer = useRef(null);
+	const onBadgeClick = () => {
+		if (badgeClickBlockRef.current) return;
+		if (badgeClickTimer.current) {
+			clearTimeout(badgeClickTimer.current);
+			badgeClickTimer.current = null;
+			resetBadgePos();
+			return;
+		}
+		badgeClickTimer.current = setTimeout(() => {
+			badgeClickTimer.current = null;
+			openPanel("animation");
+		}, 240);
+	};
+	const badgeStyle = badgePos
+		? Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase), left: badgePos.x, top: badgePos.y, right: "auto", bottom: "auto" })
+		: Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) });
 	const onBotResizePointerDown = (e) => {
 		if (e.button !== 0) return;
 		e.preventDefault();
@@ -1102,9 +1175,13 @@ export function AnimationOverlay(props) {
 		{/* 右下角状态徽标：dot 随模式变化（breathe/ring 装饰），颜色随任务阶段、呼吸随吞吐；点击进功能坞动画页 */}
 		{ambientOn && mode !== "robot" ? (
 			<button type="button" className={"dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : "")}
-				style={Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) })}
-				title={active.length + " 个任务进行中 · " + (waitingTask ? waitWord : phaseLabel(phase)) + " · 点击查看任务动画页"}
-				onClick={() => openPanel("animation")}>
+				style={badgeStyle}
+				title={active.length + " 个任务进行中 · " + (waitingTask ? waitWord : phaseLabel(phase)) + " · 点击查看任务动画页 · 可拖动到任意位置，双击复位"}
+				onPointerDown={onBadgePointerDown}
+				onPointerMove={onBadgePointerMove}
+				onPointerUp={onBadgePointerUp}
+				onPointerCancel={onBadgePointerUp}
+				onClick={onBadgeClick}>
 				<span className="dkan-dotwrap">
 					<span className="dkan-dot" />
 					{mode === "breathe" ? <span className="dkan-halo" /> : null}
@@ -1411,7 +1488,7 @@ const css = [
 	".dkan-fx-confetti i{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;box-shadow:0 0 4px currentColor;animation:dkan-confetti 2s var(--ds-ease-in-out) forwards;}",
 	"@keyframes dkan-confetti{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(75vh) translateX(var(--dx)) rotate(var(--r))}}",
 	// 右下角状态徽标（玻璃拟态，可点击）；抬到 dsh 输入卡上方避免重叠错位
-	".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:2;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:pointer;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
+	".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:2;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
 	".dkan-badge:hover{color:var(--dsw-alias-label-primary);}",
 	".dkan-badge .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
 	"@keyframes dkan-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}",

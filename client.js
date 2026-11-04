@@ -2126,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react26 = __toESM(require("react"), 1);
+var import_react24 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -3759,6 +3759,7 @@ function TokenLogChip(props) {
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" } }),
         labelIcon ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-ic", children: labelIcon }) : null,
+        hasData ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-pre-s", children: "\u7528\u91CF " }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: labelMain }),
         labelExtra ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-x", children: labelExtra }) : null
       ]
@@ -5484,6 +5485,7 @@ function BalanceChip(props) {
     },
     import_react8.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
     mm ? import_react8.default.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
+    mm ? import_react8.default.createElement("span", { className: "dockchip-pre-s" }, "\u4F59\u989D ") : null,
     import_react8.default.createElement("span", null, mm ? mm[2] : text)
   );
 }
@@ -6524,6 +6526,85 @@ function AnimationOverlay(props) {
       }, 0);
     }
   };
+  const [badgePos, setBadgePos] = (0, import_react9.useState)(null);
+  const badgePosRef = (0, import_react9.useRef)(null);
+  const badgeDragRef = (0, import_react9.useRef)(null);
+  const badgeClickBlockRef = (0, import_react9.useRef)(false);
+  (0, import_react9.useEffect)(() => {
+    try {
+      if (typeof localStorage === "undefined") return;
+      const raw = localStorage.getItem("dsh-dock/anim/badge-pos/v1");
+      const p2 = raw ? JSON.parse(raw) : null;
+      if (p2 && typeof p2.x === "number" && typeof p2.y === "number" && typeof window !== "undefined") {
+        const card = document.querySelector(".dkan-badge");
+        const w = card ? card.offsetWidth : 180, h = card ? card.offsetHeight : 34;
+        const x = Math.min(Math.max(8, p2.x), Math.max(8, window.innerWidth - w - 8));
+        const y = Math.min(Math.max(8, p2.y), Math.max(8, window.innerHeight - h - 8));
+        badgePosRef.current = { x, y };
+        setBadgePos({ x, y });
+      }
+    } catch {
+    }
+  }, []);
+  const onBadgePointerDown = (e) => {
+    if (e.button !== 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    badgeDragRef.current = { sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top, moved: false };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+    }
+  };
+  const onBadgePointerMove = (e) => {
+    const d = badgeDragRef.current;
+    if (!d || typeof window === "undefined") return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (!d.moved && Math.hypot(dx, dy) < 4) return;
+    d.moved = true;
+    const el = e.currentTarget;
+    const w = el.offsetWidth || 180, h = el.offsetHeight || 34;
+    const x = Math.min(Math.max(8, d.ox + dx), window.innerWidth - w - 8);
+    const y = Math.min(Math.max(8, d.oy + dy), window.innerHeight - h - 8);
+    badgePosRef.current = { x, y };
+    setBadgePos({ x, y });
+  };
+  const onBadgePointerUp = () => {
+    const d = badgeDragRef.current;
+    badgeDragRef.current = null;
+    if (d && d.moved) {
+      try {
+        if (typeof localStorage !== "undefined") localStorage.setItem("dsh-dock/anim/badge-pos/v1", JSON.stringify(badgePosRef.current));
+      } catch {
+      }
+      badgeClickBlockRef.current = true;
+      setTimeout(() => {
+        badgeClickBlockRef.current = false;
+      }, 0);
+    }
+  };
+  const resetBadgePos = () => {
+    try {
+      if (typeof localStorage !== "undefined") localStorage.removeItem("dsh-dock/anim/badge-pos/v1");
+    } catch {
+    }
+    badgePosRef.current = null;
+    setBadgePos(null);
+  };
+  const badgeClickTimer = (0, import_react9.useRef)(null);
+  const onBadgeClick = () => {
+    if (badgeClickBlockRef.current) return;
+    if (badgeClickTimer.current) {
+      clearTimeout(badgeClickTimer.current);
+      badgeClickTimer.current = null;
+      resetBadgePos();
+      return;
+    }
+    badgeClickTimer.current = setTimeout(() => {
+      badgeClickTimer.current = null;
+      openPanel("animation");
+    }, 240);
+  };
+  const badgeStyle = badgePos ? Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase), left: badgePos.x, top: badgePos.y, right: "auto", bottom: "auto" }) : Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) });
   const onBotResizePointerDown = (e) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -6635,9 +6716,13 @@ function AnimationOverlay(props) {
       {
         type: "button",
         className: "dkan-badge" + (mode === "breathe" ? " dkan-badge-breathe" : ""),
-        style: Object.assign({}, speedStyle, { "--dkan-phase": phaseColor(waitingTask ? "code" : phase) }),
-        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + (waitingTask ? waitWord : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875",
-        onClick: () => openPanel("animation"),
+        style: badgeStyle,
+        title: active.length + " \u4E2A\u4EFB\u52A1\u8FDB\u884C\u4E2D \xB7 " + (waitingTask ? waitWord : phaseLabel(phase)) + " \xB7 \u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\u52A8\u753B\u9875 \xB7 \u53EF\u62D6\u52A8\u5230\u4EFB\u610F\u4F4D\u7F6E\uFF0C\u53CC\u51FB\u590D\u4F4D",
+        onPointerDown: onBadgePointerDown,
+        onPointerMove: onBadgePointerMove,
+        onPointerUp: onBadgePointerUp,
+        onPointerCancel: onBadgePointerUp,
+        onClick: onBadgeClick,
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "dkan-dotwrap", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dkan-dot" }),
@@ -6960,7 +7045,7 @@ var css2 = [
   ".dkan-fx-confetti i{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;box-shadow:0 0 4px currentColor;animation:dkan-confetti 2s var(--ds-ease-in-out) forwards;}",
   "@keyframes dkan-confetti{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(75vh) translateX(var(--dx)) rotate(var(--r))}}",
   // 右下角状态徽标（玻璃拟态，可点击）；抬到 dsh 输入卡上方避免重叠错位
-  ".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:2;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:pointer;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
+  ".dkan-badge{position:fixed;right:20px;bottom:calc(var(--dsh-composer-height,152px) + 20px);z-index:2;display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 6px 24px rgb(0 0 0 / .16);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;line-height:18px;pointer-events:auto;animation:dkan-rise .3s var(--ds-ease-in-out);transition:color .15s var(--ds-ease-in-out);}",
   ".dkan-badge:hover{color:var(--dsw-alias-label-primary);}",
   ".dkan-badge .n{color:var(--dsw-alias-label-primary);font-weight:600;}",
   "@keyframes dkan-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}",
@@ -14551,388 +14636,9 @@ var feature12 = {
   HomeStat: MobileRelayHomeStat
 };
 
-// features/mobile/view.js
-var import_react24 = __toESM(require("react"), 1);
-var import_react25 = require("react");
-var MOBILE_QUERY = "(max-width: 767px)";
-var COARSE_QUERY = "(pointer: coarse) and (hover: none)";
-function mobileActive() {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  try {
-    return window.matchMedia(MOBILE_QUERY).matches || window.matchMedia(COARSE_QUERY).matches;
-  } catch {
-    return false;
-  }
-}
-var MOBILE_CSS = [
-  "/* \u89E6\u63A7\u4E0E\u8F93\u5165\uFF1A\u7C97\u6307\u9488\u771F\u673A\uFF08\u4E0D\u5206\u5BBD\u5EA6\uFF09 */",
-  "@media (pointer: coarse) and (hover: none){",
-  '  body[data-dk-mobile="1"] :is(textarea,input:not([type]),input[type="text"],input[type="search"],input[type="url"],input[type="password"],input[type="number"],input[type="email"],[contenteditable="true"]){font-size:16px !important;}',
-  '  body[data-dk-mobile="1"] :is(button,[role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
-  "}",
-  "@media (max-width:767px){",
-  '  body[data-dk-mobile="1"] :is(textarea,input:not([type]),input[type="text"],input[type="search"],input[type="url"],input[type="password"],input[type="number"],input[type="email"],[contenteditable="true"]){font-size:16px !important;}',
-  '  body[data-dk-mobile="1"] :is(button,[role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
-  '  body[data-dk-mobile="1"] pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}',
-  '  body[data-dk-mobile="1"] code{overflow-wrap:anywhere;}',
-  '  body[data-dk-mobile="1"] pre code{overflow-wrap:normal;}',
-  '  body[data-dk-mobile="1"] .dockchip-row{display:none;}',
-  '  body[data-dk-mobile="1"] [data-sidebar-opener]{position:relative;}',
-  '  body[data-dk-mobile="1"] [data-sidebar-opener]::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%);}',
-  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"] [class*="options"]{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}',
-  '  body[data-dk-mobile="1"] [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px) !important;}',
-  "  /* \u529F\u80FD\u575E\u9762\u677F\uFF08.dockm-*\uFF09\u6302\u5728 .overlayLayer(z20) \u5185\uFF0C\u800C\u624B\u673A\u62BD\u5C49 .sidebarCol \u662F z71\u2014\u2014\u9762\u677F\u867D\u662F\u5168\u5C4F\u5374\u88AB\u62BD\u5C49\u76D6\u4F4F\u3002\u628A overlayLayer \u62AC\u5230\u62BD\u5C49\u4E4B\u4E0A\uFF0C\u529F\u80FD\u575E/\u5168\u5C40\u6D6E\u5C42\u624D\u80FD\u5168\u5C4F\u76D6\u4F4F\u62BD\u5C49\u3002 */",
-  '  body[data-dk-mobile="1"] [class*="overlayLayer"]{z-index:100 !important;}',
-  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack]{display:flex !important;flex-direction:column !important;width:100vw !important;max-width:100vw !important;height:100dvh !important;max-height:none !important;border-radius:0 !important;overflow:hidden !important;}',
-  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > [class*="header"]{order:0;flex:none;width:auto !important;height:auto !important;padding:8px 12px !important;justify-content:flex-end !important;}',
-  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > [class*="navTitle"]{order:1;flex:none;width:auto !important;padding:2px 16px 8px !important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
-  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > nav{order:2;flex:none;width:auto !important;height:auto !important;padding:0 8px 8px !important;overflow-x:auto;overflow-y:hidden;}',
-  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > nav [class*="navList"]{flex-direction:row !important;}',
-  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > [class*="options"]{order:3;flex:1 1 auto !important;min-height:0 !important;width:auto !important;overflow-y:auto !important;padding-bottom:max(16px,env(safe-area-inset-bottom,0px)) !important;}',
-  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"]{grid-template-columns:0px minmax(0,1fr) 0px !important;}',
-  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"] [class*="sidebarCol"]{position:fixed !important;top:0 !important;bottom:0 !important;left:0 !important;width:min(86vw,300px) !important;z-index:80 !important;box-shadow:0 12px 48px rgba(0,0,0,.45);transform:none !important;visibility:visible !important;transition:transform .22s ease !important;}',
-  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"][data-sidebar-collapsed] [class*="sidebarCol"]{transform:translateX(-105%) !important;visibility:hidden !important;transition:transform .22s ease, visibility 0s linear .22s !important;}',
-  '  body[data-dk-mobile="1"] .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);touch-action:none;}',
-  '  body[data-dk-mobile="1"] .dsh-mobile-burger{position:fixed;left:calc(4px + env(safe-area-inset-left,0px));top:calc(4px + env(safe-area-inset-top,0px));z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-primary,#e6eaf2);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
-  '  body[data-dk-mobile="1"] .dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;}',
-  '  body[data-dk-mobile="1"] .dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent);}',
-  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"] header:has([class*="titleRow"]){padding-left:calc(48px + env(safe-area-inset-left,0px));}',
-  '  html.dsh-dock-kbd body[data-dk-mobile="1"] .dsh-mobile-burger{display:none !important;}',
-  "}"
-].join("\n");
-var STYLE_ATTR = "data-dsh-mobile-runtime";
-var BODY_ATTR = "data-dk-mobile";
-var LEGACY_ATTR = "data-dsh-mobile-legacy";
-var currentDispose = null;
-function applyRuntime() {
-  if (typeof window === "undefined" || typeof document === "undefined") return function() {
-  };
-  const doc = document;
-  const body = doc.body;
-  if (!body) return function() {
-  };
-  if (currentDispose) {
-    try {
-      currentDispose();
-    } catch (e) {
-    }
-    currentDispose = null;
-  }
-  body.setAttribute(BODY_ATTR, "1");
-  let styleEl = doc.querySelector("style[" + STYLE_ATTR + "]");
-  if (!styleEl) {
-    styleEl = doc.createElement("style");
-    styleEl.setAttribute(STYLE_ATTR, "");
-    styleEl.textContent = MOBILE_CSS;
-    doc.head.appendChild(styleEl);
-  }
-  const mql = window.matchMedia ? window.matchMedia(MOBILE_QUERY) : null;
-  const vv = window.visualViewport || null;
-  const phone = function() {
-    return !!(mql && mql.matches);
-  };
-  const frame = function() {
-    return doc.querySelector('[class$="frame"]');
-  };
-  const isCollapsed = function() {
-    const f = frame();
-    return !!(f && f.hasAttribute("data-sidebar-collapsed"));
-  };
-  let scrim = null;
-  let burger = null;
-  let observer = null;
-  let timer = 0;
-  function sidebarOpenToggle() {
-    const b = doc.querySelector("[data-sidebar-opener]") || doc.querySelector("[data-sidebar-toggle]");
-    if (b && typeof b.click === "function") b.click();
-  }
-  function clearStack() {
-    const panels = doc.querySelectorAll('[role="dialog"][class*="panel"][data-dsh-mobile-stack]');
-    for (let i = 0; i < panels.length; i++) panels[i].removeAttribute("data-dsh-mobile-stack");
-  }
-  function dialogStackSync() {
-    const panel = doc.querySelector('[role="dialog"][class*="panel"]');
-    if (!panel) return;
-    let nav = null;
-    let opt = null;
-    const kids = panel.children;
-    for (let i = 0; i < kids.length; i++) {
-      const k = kids[i];
-      if (!nav && k.tagName === "NAV") nav = k;
-      if (!opt && k.className && String(k.className).indexOf("options") >= 0) opt = k;
-    }
-    if (!nav || !opt) {
-      panel.removeAttribute("data-dsh-mobile-stack");
-      return;
-    }
-    const a = nav.getBoundingClientRect();
-    const b = opt.getBoundingClientRect();
-    if (!a.width || !b.width) return;
-    const sideBySide = b.left >= a.right - 8 && b.top < a.bottom - 4 && b.bottom > a.top + 4;
-    if (sideBySide) panel.setAttribute("data-dsh-mobile-stack", "1");
-    else panel.removeAttribute("data-dsh-mobile-stack");
-  }
-  function removeChrome() {
-    if (scrim) {
-      scrim.remove();
-      scrim = null;
-    }
-    if (burger) {
-      burger.remove();
-      burger = null;
-    }
-    body.removeAttribute(LEGACY_ATTR);
-  }
-  function ensureChrome() {
-    if (!scrim) {
-      scrim = doc.createElement("div");
-      scrim.className = "dsh-mobile-scrim";
-      scrim.style.display = "none";
-      scrim.addEventListener("click", function() {
-        if (!isCollapsed()) sidebarOpenToggle();
-      });
-      body.appendChild(scrim);
-    }
-    if (!burger) {
-      burger = doc.createElement("button");
-      burger.type = "button";
-      burger.className = "dsh-mobile-burger";
-      burger.setAttribute("aria-label", "\u6253\u5F00\u4F1A\u8BDD\u5217\u8868");
-      burger.setAttribute("aria-expanded", "false");
-      burger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>';
-      burger.addEventListener("click", function() {
-        sidebarOpenToggle();
-      });
-      body.appendChild(burger);
-    }
-  }
-  function legacySync() {
-    const f = frame();
-    const legacy = !!f && phone() && !f.hasAttribute("data-sidebar-drawer");
-    if (!legacy) {
-      removeChrome();
-      return;
-    }
-    body.setAttribute(LEGACY_ATTR, "1");
-    ensureChrome();
-    const collapsed = isCollapsed();
-    if (scrim) scrim.style.display = collapsed ? "none" : "";
-    if (burger) {
-      burger.style.display = "";
-      burger.setAttribute("aria-expanded", collapsed ? "false" : "true");
-    }
-  }
-  function kbdSync() {
-    if (!vv) return;
-    const kbd = vv.height > 0 && window.innerHeight - vv.height > 120;
-    const de = doc.documentElement;
-    if (kbd) de.classList.add("dsh-dock-kbd");
-    else de.classList.remove("dsh-dock-kbd");
-  }
-  let dockAutoClosed = false;
-  function dockOpen() {
-    return !!doc.querySelector(".dockm-dialog");
-  }
-  function tick() {
-    try {
-      kbdSync();
-      if (phone()) {
-        const dopen = dockOpen();
-        if (dopen && !isCollapsed() && !dockAutoClosed) {
-          dockAutoClosed = true;
-          sidebarOpenToggle();
-        }
-        if (!dopen) dockAutoClosed = false;
-        dialogStackSync();
-        legacySync();
-      } else {
-        clearStack();
-        removeChrome();
-        dockAutoClosed = false;
-      }
-    } catch (e) {
-    }
-  }
-  tick();
-  if (typeof MutationObserver !== "undefined") {
-    observer = new MutationObserver(function() {
-      tick();
-    });
-    try {
-      observer.observe(doc.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed", "data-sidebar-drawer"], subtree: true });
-      observer.observe(body, { childList: true, subtree: true });
-    } catch (e) {
-    }
-  }
-  timer = window.setInterval(tick, 1200);
-  const onResize = function() {
-    tick();
-  };
-  window.addEventListener("resize", onResize);
-  if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
-  if (mql && mql.addEventListener) mql.addEventListener("change", tick);
-  else if (mql && mql.addListener) mql.addListener(tick);
-  const dispose = function() {
-    if (currentDispose === dispose) currentDispose = null;
-    try {
-      if (observer) observer.disconnect();
-    } catch (e) {
-    }
-    if (timer) window.clearInterval(timer);
-    window.removeEventListener("resize", onResize);
-    if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
-    if (mql && mql.removeEventListener) mql.removeEventListener("change", tick);
-    else if (mql && mql.removeListener) mql.removeListener(tick);
-    try {
-      doc.documentElement.classList.remove("dsh-dock-kbd");
-    } catch (e) {
-    }
-    try {
-      clearStack();
-    } catch (e) {
-    }
-    removeChrome();
-    try {
-      body.removeAttribute(BODY_ATTR);
-    } catch (e) {
-    }
-    try {
-      if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
-    } catch (e) {
-    }
-  };
-  currentDispose = dispose;
-  return dispose;
-}
-function MobileOverlay() {
-  const [active, setActive] = (0, import_react25.useState)(function() {
-    return mobileActive();
-  });
-  (0, import_react25.useEffect)(function() {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
-    let mqs = [];
-    try {
-      mqs = [window.matchMedia(MOBILE_QUERY), window.matchMedia(COARSE_QUERY)];
-    } catch (e) {
-      return void 0;
-    }
-    const update = function() {
-      setActive(mqs.some(function(m) {
-        return m.matches;
-      }));
-    };
-    update();
-    for (let i = 0; i < mqs.length; i++) {
-      const m = mqs[i];
-      if (m.addEventListener) m.addEventListener("change", update);
-      else if (m.addListener) m.addListener(update);
-    }
-    return function() {
-      for (let i = 0; i < mqs.length; i++) {
-        const m = mqs[i];
-        if (m.removeEventListener) m.removeEventListener("change", update);
-        else if (m.removeListener) m.removeListener(update);
-      }
-    };
-  }, []);
-  (0, import_react25.useEffect)(function() {
-    if (!active) return void 0;
-    return applyRuntime();
-  }, [active]);
-  return null;
-}
-function useViewport() {
-  const [size, setSize] = (0, import_react25.useState)(function() {
-    return typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight };
-  });
-  (0, import_react25.useEffect)(function() {
-    if (typeof window === "undefined") return void 0;
-    const update = function() {
-      setSize({ w: window.innerWidth, h: window.innerHeight });
-    };
-    window.addEventListener("resize", update);
-    return function() {
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-  return size;
-}
-function MobileView() {
-  const size = useViewport();
-  const [active, setActive] = (0, import_react25.useState)(function() {
-    return mobileActive();
-  });
-  const [drawer, setDrawer] = (0, import_react25.useState)(false);
-  (0, import_react25.useEffect)(function() {
-    if (typeof window === "undefined") return void 0;
-    const tick = function() {
-      setActive(mobileActive());
-      const f = document.querySelector('[class$="frame"]');
-      setDrawer(!!(f && f.hasAttribute("data-sidebar-drawer")));
-    };
-    tick();
-    const t = setInterval(tick, 1e3);
-    return function() {
-      clearInterval(t);
-    };
-  }, []);
-  const mode = !active ? "\u672A\u547D\u4E2D" : window.matchMedia && window.matchMedia(MOBILE_QUERY).matches ? drawer ? "\u62BD\u5C49\u6A21\u5F0F\uFF08\u539F\u751F\uFF09" : "\u65E7\u7248\u515C\u5E95\uFF08\u6D6E\u5C42\u62BD\u5C49\uFF09" : "\u4EC5\u89E6\u63A7\u4F18\u5316";
-  return import_react24.default.createElement(
-    "div",
-    { className: "dkmob-root" },
-    import_react24.default.createElement(
-      "div",
-      { className: "dkmob-row" },
-      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
-      import_react24.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
-      import_react24.default.createElement("span", { className: "dkmob-dim" }, size ? size.w + "\xD7" + size.h + "px" : "")
-    ),
-    import_react24.default.createElement(
-      "div",
-      { className: "dkmob-row" },
-      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u5F53\u524D\u5F62\u6001"),
-      import_react24.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, mode)
-    ),
-    import_react24.default.createElement(
-      "div",
-      { className: "dkmob-note" },
-      "\u751F\u6548\u4E2D\u7684\u4F18\u5316\uFF1A\u8F93\u5165\u7C7B\u63A7\u4EF6\u5B57\u53F7 16px\uFF08\u9632 iOS \u805A\u7126\u6574\u9875\u7F29\u653E\uFF09\xB7 \u539F\u751F\u4FA7\u680F\u5F00\u5173\u70ED\u533A\u6269\u5230 44\xD744 \xB7 ",
-      "\u53BB\u70B9\u6309\u9AD8\u4EAE\u4E0E\u53CC\u51FB\u7F29\u653E\u5224\u5B9A \xB7 \u4EE3\u7801\u5757\u6A2A\u5411\u6EDA\u52A8 / \u884C\u5185\u4EE3\u7801\u6362\u884C \xB7 \u4F1A\u8BDD\u8F93\u5165\u884C\u7684\u4F59\u989D/\u7528\u91CF chip \u6536\u8D77 \xB7 ",
-      "\u8BBE\u7F6E\u5F39\u5C42\u5185\u5BB9\u5B89\u5168\u533A\u5185\u8FB9\u8DDD\u3002\u65E7\u7248 dsh\uFF08<768 \u4ECD\u662F\u4E24\u680F\u5F39\u5C42\u6216\u9759\u6001\u56FE\u6807\u8F68\u9053\uFF09\u4F1A\u81EA\u52A8\u515C\u5E95\u4E3A\u5355\u5217 / \u6D6E\u5C42\u62BD\u5C49\u3002",
-      "\u5173\u95ED\u672C\u529F\u80FD\u5373\u5168\u90E8\u8FD8\u539F\u2014\u2014\u8FD0\u884C\u65F6\u6837\u5F0F\u3001body \u5C5E\u6027\u3001\u906E\u7F69/\u6309\u94AE\u4E0E\u6240\u6709\u76D1\u542C\u5668\u4E00\u5E76\u79FB\u9664\uFF0C\u9875\u9762\u4E0D\u6B8B\u7559\u4EFB\u4F55\u6CE8\u5165\u3002"
-    )
-  );
-}
-function MobileStat() {
-  const active = mobileActive();
-  if (!active) return import_react24.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u672A\u542F\u7528\u4EFB\u4F55\u4F18\u5316");
-  return import_react24.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D\uFF0816px \u8F93\u5165 / \u89E6\u63A7\u70ED\u533A / \u4EE3\u7801\u6EDA\u52A8 / \u5F39\u5C42\u515C\u5E95\uFF09");
-}
-var css6 = [
-  ".dkmob-root{display:flex;flex-direction:column;gap:10px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;}",
-  ".dkmob-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
-  ".dkmob-label{font-weight:600;flex:none;}",
-  ".dkmob-state{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 10px;font-size:11px;}",
-  ".dkmob-state.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
-  ".dkmob-dim{color:var(--dsw-alias-label-secondary);font-size:12px;}",
-  ".dkmob-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}"
-].join("\n");
-var feature13 = {
-  id: "mobile",
-  name: "\u624B\u673A\u9002\u914D",
-  order: 170,
-  accent: "#34d399",
-  description: "\u624B\u673A/\u7A84\u5C4F\u4F53\u9A8C\u4F18\u5316\uFF1A16px \u8F93\u5165\u9632\u7F29\u653E\u3001\u89E6\u63A7\u70ED\u533A\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u4F1A\u8BDD chip \u6536\u8D77\u3001\u8BBE\u7F6E\u5F39\u5C42\u5355\u5217\u4E0E\u65E7\u7248\u62BD\u5C49\u515C\u5E95\uFF1B\u5173\u95ED\u540E\u96F6\u6B8B\u7559",
-  defaultEnabled: false,
-  css: css6,
-  Overlay: MobileOverlay,
-  View: MobileView,
-  HomeStat: MobileStat
-};
-
 // src/client.jsx
-var DOCK_VERSION = "0.21.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12, feature13];
+var DOCK_VERSION = "0.21.1";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -15046,8 +14752,15 @@ var SHELL_CSS = [
   ".dockm-name{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;}",
   ".dockm-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
   ".dockm-view{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
-  ".dockm-page{box-sizing:border-box;height:100%;overflow:auto;padding:20px 24px 32px;}",
-  ".dockm-page-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;}",
+  ".dockm-page{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overflow:hidden;padding:16px 20px 0;}",
+  ".dockm-page-head{flex:none;display:flex;align-items:flex-start;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--dsw-alias-border-l1);}",
+  ".dockm-page-body{flex:1;min-height:0;display:flex;}",
+  ".dockm-page-wide-btn{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;cursor:pointer;}",
+  ".dockm-page-wide-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+  /* 面板页的左侧菜单收窄：给右侧列表/表格让出宽度，别留大片空白 */
+  ".dockm-page .dockm-nav{width:140px;padding:8px 6px;}",
+  ".dockm-page .dockm-nav-item{padding:7px 8px;font-size:12.5px;gap:6px;}",
+  ".dockm-page-body>.dockm-body{flex:1;min-height:0;}",
   ".dockm-page-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
   ".dockm-page-titles{min-width:0;}",
   ".dockm-page-title{font-size:17px;font-weight:600;color:var(--dsw-alias-label-primary);line-height:1.3;}",
@@ -15085,9 +14798,17 @@ var SHELL_CSS = [
   // 禁用桌面拖拽/缩放，所有导航和关闭动作保持至少 44px 的可点击面积。
   "@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:minmax(0,1fr);gap:10px;min-width:0}.dockh-card{padding:12px;box-sizing:border-box;min-width:0}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
   /* 手机端：功能坞弹层挂在 .overlayLayer(z20) 内，会被 z71 的侧栏抽屉盖住（只剩右侧一条）。\n	   把 overlayLayer 在窄屏抬到抽屉之上，面板才能全屏覆盖——且不依赖【手机适配】模块是否启用。 */
-  '@media (max-width:767px){[class*="overlayLayer"]{z-index:100 !important}}',
-  /* 手机：输入卡里的「轮/步/token/缓存」状态条移到输入框上方，压成一行不溢出；空会话时把输入卡贴底 */
-  '@media (max-width:767px){[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto!important;padding-bottom:0!important}[class*="composerSeat"] [class*="_dock"]{order:-1!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;padding:0 2px 6px!important;gap:6px!important;font-size:10px!important;overflow:hidden!important}[class*="composerSeat"] [class*="_dock"]>*{min-width:0}}',
+  /* 只在「功能坞弹层真的打开」时抬 z 序（:has 精确到 .dockm-dialog），其余时候不碰 DSH 原生浮层 */
+  '@media (max-width:767px){body:has(.dockm-dialog) [class*="overlayLayer"]{z-index:100 !important}}',
+  /* 手机：功能坞面板页的左侧菜单改成横向可滚动条，占满整行；页头与内边距收紧，「全屏」按钮在手机上无意义（侧栏本就是抽屉）故隐藏 */
+  "@media (max-width:767px){.dockm-page{padding:12px 12px 0}.dockm-page-head{gap:8px;padding-bottom:10px}.dockm-page-sub{display:none}.dockm-page-wide-btn{display:none}.dockm-page .dockm-nav{width:auto;max-width:100%;flex-direction:row;gap:6px;padding:8px 0;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none}.dockm-page .dockm-nav::-webkit-scrollbar{display:none}.dockm-page .dockm-nav-item{flex:none;min-height:40px;padding:0 10px;font-size:12.5px}.dockm-page .dockm-page-body{flex-direction:column}.dockm-page .dockm-body{flex-direction:column;min-height:0}.dockm-page .dockm-content{padding:12px 0 16px;gap:12px}}",
+  /* 手机自适应（≤767px，始终生效，不依赖任何功能开关）：
+     · 输入卡贴底（空会话时不再垂直居中留大片空白）；
+     · 输入卡里的「轮/步/token/缓存」状态条移到输入框上方，压成一行不溢出。 */
+  '@media (max-width:767px){[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto!important;padding-bottom:0!important}[class*="composerSeat"] [class*="_dock"]{order:-1!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;padding:0 2px 6px!important;gap:6px!important;font-size:10px!important;overflow:hidden!important;flex-wrap:nowrap!important;white-space:nowrap!important}[class*="composerSeat"] [class*="_dock"]>*{min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}[class*="composerSeat"] [class*="_dock"]>*:first-child{flex:0 0 auto}[class*="composerSeat"] [class*="_row"]{gap:4px!important}}',
+  /* 手机自适应：设置弹层内容给安全区内边距、会话滚动体留底部安全区、代码块横向滚动、
+     行内代码可断行（窄屏不撑破版面）。 */
+  '@media (max-width:767px){[role="dialog"][class*="panel"] [class*="options"]{padding-left:max(16px,env(safe-area-inset-left,0px))!important;padding-right:max(16px,env(safe-area-inset-right,0px))!important}[class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px)!important}pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}code{overflow-wrap:anywhere}pre code{overflow-wrap:normal}}',
   "@media (prefers-reduced-motion:reduce){.dockm-backdrop,.dockm-dialog{animation:none}.dockm-nav-item,.dockm-close,.dockm-win,.dock-sw{transition:none}}",
   ".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
   ".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
@@ -15114,8 +14835,12 @@ var SHELL_CSS = [
   ".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
   ".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
   ".dockchip.err{color:var(--dsw-alias-state-error-primary);}",
-  /* 手机：输入区工具行很窄，给 chips 稍多宽度，并隐藏费用等次要后缀（.dockchip-x），避免被截成「⛁ 2…／余…」 */
-  "@media (max-width:767px){.dockchip-row{max-width:min(216px,40cqw)}.dockchip-x{display:none}.dockchip{font-size:10px!important;padding:1px 2px!important;gap:3px!important}.dockchip .dockchip-dot{width:4px;height:4px}.dockchip-ic{display:none}.dockchip-pre{display:none}}"
+  /* 手机自适应：输入区工具行很窄——chip 字号/内距收紧、隐藏费用后缀与「余额」前缀，
+     数值完整显示且工具行保持单行不换行（完整信息仍在 title 悬浮提示里）。 */
+  ".dockchip-pre-s{display:none;}",
+  "@media (max-width:767px){.dockchip-row{max-width:min(216px,50cqw);gap:0}.dockchip-x{display:none}.dockchip-pre{display:none}.dockchip-ic{display:none}.dockchip-pre-s{display:inline}.dockchip{font-size:9.5px!important;line-height:16px!important;padding:0 1px!important;gap:2px!important}.dockchip .dockchip-dot{width:4px;height:4px}}",
+  /* 手机触控基础：去点按蓝块、消双击缩放判定延迟；原生侧栏开关热区扩到 44×44（视觉不变）。 */
+  `@media (max-width:767px){:is(button,[role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation}[data-sidebar-opener]{position:relative}[data-sidebar-opener]::after{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}}`
 ].join("\n");
 var dockCssTag = null;
 var initialCssSchedule = null;
@@ -15151,8 +14876,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react26.default.useReducer((n) => n + 1, 0);
-  import_react26.default.useEffect(() => {
+  const [, bump] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -15162,33 +14887,148 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react26.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react26.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react26.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react26.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react24.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react24.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+  );
+}
+function DockWorkspace() {
+  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const active = nav.active;
+  const navParams = nav.params;
+  const setActive = navigatePanel;
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  useExternalVersion();
+  const contentRef = import_react24.default.useRef(null);
+  import_react24.default.useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [active]);
+  const MODULES = allModules();
+  const isHome = active === "home";
+  const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
+  const st = mod ? stateOf(mod.id) : null;
+  const View = mod ? mod.View : null;
+  const viewNode = mod && View ? import_react24.default.createElement(
+    "div",
+    { className: "dockm-view" },
+    import_react24.default.createElement(
+      FeatureBoundary,
+      { key: mod.id, label: mod.name },
+      import_react24.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+    )
+  ) : null;
+  const enabledCount = MODULES.filter((m) => {
+    const s = stateOf(m.id);
+    return !!(s && s.enabled);
+  }).length;
+  return import_react24.default.createElement(
+    "div",
+    { className: "dockm-body" },
+    import_react24.default.createElement(
+      "nav",
+      { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
+      import_react24.default.createElement(
+        "button",
+        {
+          type: "button",
+          key: "home",
+          className: "dockm-nav-item" + (isHome ? " on" : ""),
+          onClick: () => setActive("home")
+        },
+        import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)),
+        import_react24.default.createElement("span", null, "\u9996\u9875")
+      ),
+      MODULES.map((m) => import_react24.default.createElement(
+        "button",
+        {
+          type: "button",
+          key: m.id,
+          className: "dockm-nav-item" + (m.id === active ? " on" : ""),
+          onClick: () => setActive(m.id)
+        },
+        import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+        import_react24.default.createElement("span", null, m.name),
+        m.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+        m.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+      ))
+    ),
+    import_react24.default.createElement(
+      "div",
+      { className: "dockm-content", ref: contentRef },
+      import_react24.default.createElement(
+        "div",
+        { className: "dockm-content-head" },
+        import_react24.default.createElement(
+          "div",
+          { className: "dockm-name" },
+          isHome ? import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)) : import_react24.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+          isHome ? "\u9996\u9875" : mod.name,
+          !isHome && mod.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+          !isHome && mod.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+        ),
+        import_react24.default.createElement(
+          "div",
+          { className: "dockm-desc" },
+          isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
+        )
+      ),
+      isHome ? import_react24.default.createElement("div", { className: "dockm-view" }, import_react24.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react24.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react24.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react24.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+      import_react24.default.createElement(
+        "div",
+        { className: "dockm-foot" },
+        import_react24.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+        !isHome && mod && !mod.planned && st ? import_react24.default.createElement(
+          "span",
+          { className: "dockm-foot-sw" },
+          import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+          import_react24.default.createElement("button", {
+            type: "button",
+            className: "dock-sw" + (st.enabled ? " on" : ""),
+            role: "switch",
+            "aria-checked": !!st.enabled,
+            "aria-label": (st.enabled ? "\u505C\u7528" : "\u542F\u7528") + mod.name,
+            title: st.enabled ? "\u505C\u7528\u300C" + mod.name + "\u300D" : "\u542F\u7528\u300C" + mod.name + "\u300D",
+            onClick: () => {
+              toggleFeature(mod.id);
+              force();
+            }
+          })
+        ) : null,
+        !isHome && mod && typeof mod.Chip === "function" ? import_react24.default.createElement(
+          "span",
+          { className: "dockm-foot-sw" },
+          import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+          import_react24.default.createElement("button", {
+            type: "button",
+            className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
+            role: "switch",
+            "aria-checked": chipShown(mod.id),
+            "aria-label": (chipShown(mod.id) ? "\u9690\u85CF" : "\u663E\u793A") + mod.name + "\u7684\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6",
+            title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
+            onClick: () => {
+              setChipShown(mod.id, !chipShown(mod.id));
+              force();
+            }
+          })
+        ) : null
+      )
+    )
   );
 }
 function DockModal() {
-  const [nav, setNav] = import_react26.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react26.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open });
+  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open })), []);
   const open = nav.open || typeof document === "undefined";
-  const active = nav.active;
-  const setActive = navigatePanel;
-  const navParams = nav.params;
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
-  useExternalVersion();
-  const [win, setWin] = import_react26.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react26.default.useRef(null);
-  const contentRef = import_react26.default.useRef(null);
-  import_react26.default.useEffect(() => {
+  const [win, setWin] = import_react24.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react24.default.useRef(null);
+  import_react24.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react26.default.useEffect(() => {
-    if (open && contentRef.current) contentRef.current.scrollTop = 0;
-  }, [active, open]);
   function beginDrag(e, type) {
     if (win.mode !== "normal" || e.button !== 0) return;
     if (type === "move" && e.target && e.target.closest && e.target.closest("button,select,input")) return;
@@ -15219,24 +15059,6 @@ function DockModal() {
     window.addEventListener("pointerup", onUp);
   }
   if (!open) return null;
-  const MODULES = allModules();
-  const isHome = active === "home";
-  const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
-  const st = mod ? stateOf(mod.id) : null;
-  const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react26.default.createElement(
-    "div",
-    { className: "dockm-view" },
-    import_react26.default.createElement(
-      FeatureBoundary,
-      { key: mod.id, label: mod.name },
-      import_react26.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
-    )
-  ) : null;
-  const enabledCount = MODULES.filter((m) => {
-    const s = stateOf(m.id);
-    return !!(s && s.enabled);
-  }).length;
   const dialogStyle = win.mode === "max" ? { position: "fixed", left: 10, top: 10, right: 10, bottom: 10, width: "auto", height: "auto" } : win.x != null || win.y != null || win.w != null || win.h != null ? {
     position: "fixed",
     left: win.x != null ? win.x : void 0,
@@ -15244,10 +15066,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react26.default.createElement(
+    import_react24.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -15255,151 +15077,59 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react26.default.createElement(
+      import_react24.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react26.default.createElement(DockIcon, null),
-        import_react26.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react26.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react26.default.createElement(
+        import_react24.default.createElement(DockIcon, null),
+        import_react24.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react24.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react24.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react26.default.createElement("button", {
+          import_react24.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react26.default.createElement("button", {
+          import_react24.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react26.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react24.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react26.default.createElement(
-        "div",
-        { className: "dockm-body" },
-        import_react26.default.createElement(
-          "nav",
-          { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react26.default.createElement(
-            "button",
-            {
-              type: "button",
-              key: "home",
-              className: "dockm-nav-item" + (isHome ? " on" : ""),
-              onClick: () => setActive("home")
-            },
-            import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)),
-            import_react26.default.createElement("span", null, "\u9996\u9875")
-          ),
-          MODULES.map((m) => import_react26.default.createElement(
-            "button",
-            {
-              type: "button",
-              key: m.id,
-              className: "dockm-nav-item" + (m.id === active ? " on" : ""),
-              onClick: () => setActive(m.id)
-            },
-            import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react26.default.createElement("span", null, m.name),
-            m.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
-          ))
-        ),
-        import_react26.default.createElement(
-          "div",
-          { className: "dockm-content", ref: contentRef },
-          import_react26.default.createElement(
-            "div",
-            { className: "dockm-content-head" },
-            import_react26.default.createElement(
-              "div",
-              { className: "dockm-name" },
-              isHome ? import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)) : import_react26.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
-              isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
-            ),
-            import_react26.default.createElement(
-              "div",
-              { className: "dockm-desc" },
-              isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
-            )
-          ),
-          isHome ? import_react26.default.createElement("div", { className: "dockm-view" }, import_react26.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react26.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react26.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react26.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react26.default.createElement(
-            "div",
-            { className: "dockm-foot" },
-            import_react26.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react26.default.createElement(
-              "span",
-              { className: "dockm-foot-sw" },
-              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react26.default.createElement("button", {
-                type: "button",
-                className: "dock-sw" + (st.enabled ? " on" : ""),
-                role: "switch",
-                "aria-checked": !!st.enabled,
-                "aria-label": (st.enabled ? "\u505C\u7528" : "\u542F\u7528") + mod.name,
-                title: st.enabled ? "\u505C\u7528\u300C" + mod.name + "\u300D" : "\u542F\u7528\u300C" + mod.name + "\u300D",
-                onClick: () => {
-                  toggleFeature(mod.id);
-                  force();
-                }
-              })
-            ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react26.default.createElement(
-              "span",
-              { className: "dockm-foot-sw" },
-              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react26.default.createElement("button", {
-                type: "button",
-                className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
-                role: "switch",
-                "aria-checked": chipShown(mod.id),
-                "aria-label": (chipShown(mod.id) ? "\u9690\u85CF" : "\u663E\u793A") + mod.name + "\u7684\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6",
-                title: "\u63A7\u5236\u4F1A\u8BDD\u8F93\u5165\u533A\uFF08\u6A21\u578B\u9009\u62E9\u5668\u5DE6\u4FA7\uFF09\u662F\u5426\u663E\u793A\u672C\u529F\u80FD\u7684\u968F\u8EAB\u5C0F\u63A7\u4EF6",
-                onClick: () => {
-                  setChipShown(mod.id, !chipShown(mod.id));
-                  force();
-                }
-              })
-            ) : null
-          )
-        )
-      ),
-      win.mode === "normal" ? import_react26.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      import_react24.default.createElement(DockWorkspace, null),
+      win.mode === "normal" ? import_react24.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react26.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react26.default.createElement(
+      const statNode = m.planned ? import_react24.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react24.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react26.default.createElement(Stat, { ctx })
-      ) : import_react26.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react26.default.createElement(
+        import_react24.default.createElement(Stat, { ctx })
+      ) : import_react24.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react24.default.createElement(
         "div",
         {
           key: m.id,
@@ -15414,21 +15144,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react26.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react26.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react24.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react24.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react26.default.createElement(
+          import_react24.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react26.default.createElement("span", { className: "dockh-sdot" }),
-            import_react26.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react24.default.createElement("span", { className: "dockh-sdot" }),
+            import_react24.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react26.default.createElement("button", {
+          m.planned ? null : import_react24.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -15443,12 +15173,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react26.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react26.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react26.default.createElement(
+        import_react24.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react24.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react24.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react26.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react24.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -15456,16 +15186,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react26.default.createElement(
+  return import_react24.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react26.default.createElement(
+    import_react24.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -15474,25 +15204,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react26.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react24.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react26.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react24.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react26.default.createElement(
+      return import_react24.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react26.default.createElement(
+        import_react24.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react26.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react26.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react26.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react26.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react26.default.createElement("button", {
+          import_react24.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react24.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react24.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react24.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react24.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -15501,11 +15231,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react26.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react24.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react26.default.createElement("button", {
+            import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react24.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -15519,40 +15249,59 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react26.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react26.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react24.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react24.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
 function DockPage() {
-  return import_react26.default.createElement(
+  const ctx = ctxRef.current;
+  const [wide, setWide] = import_react24.default.useState(false);
+  const toggleWide = () => {
+    try {
+      const layout = ctx && typeof ctx.get === "function" ? ctx.get("layout") : null;
+      if (layout && typeof layout.toggleSidebar === "function") {
+        layout.toggleSidebar();
+        setWide((v) => !v);
+      }
+    } catch (e) {
+    }
+  };
+  return import_react24.default.createElement(
     "div",
-    { className: "dockm-page" },
-    import_react26.default.createElement(
+    { className: "dockm-page" + (wide ? " dockm-page-wide" : "") },
+    import_react24.default.createElement(
       "div",
       { className: "dockm-page-head" },
-      import_react26.default.createElement("span", { className: "dockm-page-icon" }, import_react26.default.createElement(DockIcon, { size: 20 })),
-      import_react26.default.createElement(
+      import_react24.default.createElement("span", { className: "dockm-page-icon" }, import_react24.default.createElement(DockIcon, { size: 20 })),
+      import_react24.default.createElement(
         "div",
         { className: "dockm-page-titles" },
-        import_react26.default.createElement("div", { className: "dockm-page-title" }, "\u529F\u80FD\u575E"),
-        import_react26.default.createElement("div", { className: "dockm-page-sub" }, "\u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u91CC\u7BA1\u7406\u3002\u4FA7\u680F\u56FE\u6807\u53EF\u5728\u300C\u66F4\u591A\u300D\u83DC\u5355\u91CC Pin \u5230\u9876\u90E8\uFF0C\u6216\u53D6\u6D88\u56FA\u5B9A\u6536\u8FDB\u66F4\u591A\u3002")
-      )
+        import_react24.default.createElement("div", { className: "dockm-page-title" }, "\u529F\u80FD\u575E"),
+        import_react24.default.createElement("div", { className: "dockm-page-sub" }, "\u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u91CC\u7BA1\u7406\u3002\u4FA7\u680F\u56FE\u6807\u53EF\u5728\u300C\u66F4\u591A\u300D\u83DC\u5355\u91CC Pin \u5230\u9876\u90E8\uFF0C\u6216\u53D6\u6D88\u56FA\u5B9A\u6536\u8FDB\u66F4\u591A\u3002")
+      ),
+      import_react24.default.createElement("button", {
+        type: "button",
+        className: "dockm-page-wide-btn",
+        title: wide ? "\u8FD8\u539F\u4FA7\u680F\u5BBD\u5EA6" : "\u6536\u8D77\u5DE6\u4FA7\u680F\uFF0C\u5168\u5C4F\u663E\u793A\u529F\u80FD\u575E",
+        "aria-label": wide ? "\u8FD8\u539F\u5BBD\u5EA6" : "\u5168\u5C4F",
+        onClick: toggleWide
+      }, wide ? "\u2750 \u8FD8\u539F" : "\u25A2 \u5168\u5C4F")
     ),
-    import_react26.default.createElement("div", { className: "dockm-page-body" }, import_react26.default.createElement(DockPanel, { params: null }))
+    import_react24.default.createElement("div", { className: "dockm-page-body" }, import_react24.default.createElement(DockWorkspace, null))
   );
 }
 function DockChips(props) {
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
-  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react26.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react26.default.createElement(f.Chip, {
+      import_react24.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -15562,38 +15311,38 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react26.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react24.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react26.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react26.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react24.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
+  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
 }
 function FeatureTurnTail(props) {
-  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
-  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
-    items.push(import_react26.default.createElement(
+    items.push(import_react24.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react26.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
+      import_react24.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
     ));
   }
   if (items.length === 0) return null;
-  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
+  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -15604,31 +15353,31 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.panellist", () => slots.register(
     { name: "sidebar.panellist", id: "dsh-dock", order: 30, label: "\u529F\u80FD\u575E" },
-    (props) => import_react26.default.createElement(DockIcon, { size: props && props.size || 18 })
+    (props) => import_react24.default.createElement(DockIcon, { size: props && props.size || 18 })
   ));
   slots.inject("main", () => slots.register(
     { name: "main", key: "dsh-dock", label: "\u529F\u80FD\u575E" },
-    () => import_react26.default.createElement(DockPage, null)
+    () => import_react24.default.createElement(DockPage, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react26.default.createElement(DockModal, null)
+    () => import_react24.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react26.default.createElement(FeatureOverlays, null)
+    () => import_react24.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react26.default.createElement(DockPanel, props)
+    (props) => import_react24.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react26.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react24.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
   slots.inject("conversation.chat.turnTail", () => slots.register(
     { name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "\u529F\u80FD\u575E" },
-    (owner) => import_react26.default.createElement(FeatureTurnTail, owner)
+    (owner) => import_react24.default.createElement(FeatureTurnTail, owner)
   ));
 }
 var inject = ["timer"];

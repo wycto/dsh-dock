@@ -549,7 +549,6 @@ const FEATURES = [
 	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
 	{ id: "mobile-relay", name: "远程访问", marker: "远程", deep: true },
-	{ id: "mobile", name: "手机适配", marker: "手机模式", deep: false },
 ];
 
 let failed = 0;
@@ -1326,26 +1325,26 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 样式 data-plugin 归属：style 带 data-plugin=dsh-dock，不被其它插件 claim 后误删");
 }
 
-// ---------- 用例 10：手机适配恢复契约（客户端运行时注入、关闭零残留） ----------
-// 用户要求：手机适配要「改回来」，但关闭时必须彻底、不干扰原生排版。
-// 实现约定：样式/行为只在 Overlay 挂载时注入（style[data-dsh-mobile-runtime]）、卸载即移除；
-// feature.css 只含 View 自身小样式（dkmob-），不含任何全局排版；宿主半部不做 tapIndex 注入。
-// 旧版 dsh 的两栏设置弹层 / 静态图标轨道由行为脚本检测后分别打 data-dsh-mobile-stack /
-// data-dsh-mobile-legacy 兜底，现代 dsh 命中为否 → 不加 → 原生排版不动。
+// ---------- 用例 10：手机自适应内建在 dsh-dock 样式里（不再有独立【手机适配】模块） ----------
+// 用户 2026-11-04 决定：官方 DSH 已自带抽屉/单列设置/16px 输入，独立模块冗余，整块删掉；
+// 真正还需要的那点手机优化（输入卡贴底、状态条上移、chip 紧凑、触控热区、安全区、代码滚动）
+// 直接写进 dsh-dock 的 SHELL_CSS，随插件生效、按窄屏媒体查询命中，不再有开关与注入。
 {
 	const issues = [];
-	if (!/id:\s*["']mobile["']/.test(bundle)) issues.push("bundle 里没有 mobile 功能描述符");
-	if (!/data-dsh-mobile-runtime/.test(bundle)) issues.push("缺少运行时样式标记 data-dsh-mobile-runtime（关闭后无法彻底移除）");
-	if (!/data-dsh-mobile-stack/.test(bundle)) issues.push("缺少旧版设置弹层兜底标记 data-dsh-mobile-stack");
-	if (!/data-dsh-mobile-legacy/.test(bundle)) issues.push("缺少旧版抽屉兜底标记 data-dsh-mobile-legacy");
-	if (!/data-dk-mobile/.test(bundle)) issues.push("缺少 body 总开关属性 data-dk-mobile");
-	const mobileHost = readFileSync(join(root, "features", "mobile", "host.js"), "utf8");
-	if (/tapIndex\(/.test(mobileHost)) issues.push("宿主半部仍在经 tapIndex 注入（关闭需重启 dsh web 才能摘除）");
+	if (/id:\s*["']mobile["']/.test(bundle)) issues.push("bundle 里仍注册了 mobile 功能描述符");
+	if (/data-dsh-mobile-runtime|data-dsh-mobile-stack|data-dsh-mobile-legacy|data-dk-mobile/.test(bundle)) {
+		issues.push("仍残留【手机适配】模块的运行时标记/属性");
+	}
+	if (/dsh-mobile-burger|dsh-mobile-scrim|dsh-dock-kbd/.test(bundle)) issues.push("仍残留手机端 chrome/软键盘逻辑");
+	if (existsSync(join(root, "features", "mobile"))) issues.push("features/mobile 目录仍存在");
+	for (const marker of ["composerSeat", "dockchip-row", "safe-area-inset-bottom", "data-sidebar-opener"]) {
+		if (!bundle.includes(marker)) issues.push("SHELL_CSS 缺少内建手机自适应规则：" + marker);
+	}
 	if (issues.length) {
-		console.log(`✗ 手机适配恢复契约：${issues.join("；")}`);
+		console.log(`✗ 手机自适应内建契约：${issues.join("；")}`);
 		process.exit(1);
 	}
-	console.log("✓ 手机适配恢复契约：描述符在册；样式/行为运行时注入（data-dsh-mobile-runtime）随开关彻底移除；宿主无 tapIndex 注入");
+	console.log("✓ 手机自适应内建契约：独立模块已删除；贴底/状态条/chip/热区/安全区/代码滚动等窄屏规则留在 dsh-dock 自身样式");
 }
 
 // ---------- 用例 12：客户端 fetch 一律用文档相对路径（反代子路径挂载契约） ----------

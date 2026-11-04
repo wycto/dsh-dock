@@ -304,6 +304,7 @@ function BalanceChip(props) {
 	},
 		react.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
 		mm ? react.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
+		mm ? react.createElement("span", { className: "dockchip-pre-s" }, "余额 ") : null,
 		react.createElement("span", null, mm ? mm[2] : text));
 }
 
