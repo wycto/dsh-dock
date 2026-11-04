@@ -32,7 +32,7 @@ import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.21.1";
+const DOCK_VERSION = "0.21.2";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
 const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay];
@@ -249,7 +249,10 @@ const SHELL_CSS = [
 	/* 手机自适应：输入区工具行很窄——chip 字号/内距收紧、隐藏费用后缀与「余额」前缀，
 	   数值完整显示且工具行保持单行不换行（完整信息仍在 title 悬浮提示里）。 */
 	".dockchip-pre-s{display:none;}",
-	"@media (max-width:767px){.dockchip-row{max-width:min(216px,50cqw);gap:0}.dockchip-x{display:none}.dockchip-pre{display:none}.dockchip-ic{display:none}.dockchip-pre-s{display:inline}.dockchip{font-size:9.5px!important;line-height:16px!important;padding:0 1px!important;gap:2px!important}.dockchip .dockchip-dot{width:4px;height:4px}}",
+	".dockchip-svg{display:none;align-items:center;justify-content:center;}",
+	/* 手机端：输入区工具行太窄，余额/用量只留两枚小图标（点进功能坞看具体数据），
+	   文本与圆点全部隐藏，图标做成 24×24 的稳定触控块 → 工具行必定单行。 */
+	"@media (max-width:767px){.dockchip-row{max-width:min(92px,20cqw);gap:2px}.dockchip-svg{display:inline-flex}.dockchip-val,.dockchip-pre,.dockchip-pre-s,.dockchip-ic,.dockchip-x,.dockchip .dockchip-dot{display:none}.dockchip{width:24px;height:24px;box-sizing:border-box;justify-content:center;padding:0!important;gap:0!important;border-radius:6px}}",
 	/* 手机触控基础：去点按蓝块、消双击缩放判定延迟；原生侧栏开关热区扩到 44×44（视觉不变）。 */
 	"@media (max-width:767px){:is(button,[role=\"button\"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation}[data-sidebar-opener]{position:relative}[data-sidebar-opener]::after{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}}",
 ].join("\n");

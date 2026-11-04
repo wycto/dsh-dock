@@ -3757,10 +3757,15 @@ function TokenLogChip(props) {
       "aria-label": "\u4F1A\u8BDD\u7528\u91CF",
       onClick: () => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() }),
       children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-svg", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", { viewBox: "0 0 16 16", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M3.5 12.5V9" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M8 12.5V4.5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M12.5 12.5V7" })
+        ] }) }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" } }),
         labelIcon ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-ic", children: labelIcon }) : null,
         hasData ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-pre-s", children: "\u7528\u91CF " }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: labelMain }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-val", children: labelMain }),
         labelExtra ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-x", children: labelExtra }) : null
       ]
     }
@@ -5483,10 +5488,21 @@ function BalanceChip(props) {
       "aria-label": "\u6A21\u578B\u4F59\u989D",
       onClick: () => openPanel("balance", def ? { provider: def } : null)
     },
+    // 窄屏只显示这枚小图标：点它进功能坞看余额详情（title 里是完整数值）
+    import_react8.default.createElement(
+      "span",
+      { className: "dockchip-svg", "aria-hidden": "true" },
+      import_react8.default.createElement(
+        "svg",
+        { viewBox: "0 0 16 16", width: 13, height: 13, fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" },
+        import_react8.default.createElement("path", { d: "M2.8 6.2h10.4v6.3a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1z" }),
+        import_react8.default.createElement("path", { d: "M5.4 6.2V4.6a2.6 2.6 0 0 1 5.2 0v1.6" })
+      )
+    ),
     import_react8.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
     mm ? import_react8.default.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
     mm ? import_react8.default.createElement("span", { className: "dockchip-pre-s" }, "\u4F59\u989D ") : null,
-    import_react8.default.createElement("span", null, mm ? mm[2] : text)
+    import_react8.default.createElement("span", { className: "dockchip-val" }, mm ? mm[2] : text)
   );
 }
 var feature6 = {
@@ -14637,7 +14653,7 @@ var feature12 = {
 };
 
 // src/client.jsx
-var DOCK_VERSION = "0.21.1";
+var DOCK_VERSION = "0.21.2";
 var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
@@ -14838,7 +14854,10 @@ var SHELL_CSS = [
   /* 手机自适应：输入区工具行很窄——chip 字号/内距收紧、隐藏费用后缀与「余额」前缀，
      数值完整显示且工具行保持单行不换行（完整信息仍在 title 悬浮提示里）。 */
   ".dockchip-pre-s{display:none;}",
-  "@media (max-width:767px){.dockchip-row{max-width:min(216px,50cqw);gap:0}.dockchip-x{display:none}.dockchip-pre{display:none}.dockchip-ic{display:none}.dockchip-pre-s{display:inline}.dockchip{font-size:9.5px!important;line-height:16px!important;padding:0 1px!important;gap:2px!important}.dockchip .dockchip-dot{width:4px;height:4px}}",
+  ".dockchip-svg{display:none;align-items:center;justify-content:center;}",
+  /* 手机端：输入区工具行太窄，余额/用量只留两枚小图标（点进功能坞看具体数据），
+     文本与圆点全部隐藏，图标做成 24×24 的稳定触控块 → 工具行必定单行。 */
+  "@media (max-width:767px){.dockchip-row{max-width:min(92px,20cqw);gap:2px}.dockchip-svg{display:inline-flex}.dockchip-val,.dockchip-pre,.dockchip-pre-s,.dockchip-ic,.dockchip-x,.dockchip .dockchip-dot{display:none}.dockchip{width:24px;height:24px;box-sizing:border-box;justify-content:center;padding:0!important;gap:0!important;border-radius:6px}}",
   /* 手机触控基础：去点按蓝块、消双击缩放判定延迟；原生侧栏开关热区扩到 44×44（视觉不变）。 */
   `@media (max-width:767px){:is(button,[role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation}[data-sidebar-opener]{position:relative}[data-sidebar-opener]::after{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}}`
 ].join("\n");

@@ -1432,9 +1432,15 @@ export function TokenLogChip(props) {
 	return (
 		<button type="button" className={"dockchip" + (snap.err && !t && !gone ? " err" : "")} title={title} aria-label="会话用量"
 			onClick={() => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() })}>
+			{/* 窄屏只显示这枚小图标：点它进配方看具体数据（title 里是完整数值） */}
+			<span className="dockchip-svg" aria-hidden="true">
+				<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+					<path d="M3.5 12.5V9" /><path d="M8 12.5V4.5" /><path d="M12.5 12.5V7" />
+				</svg>
+			</span>
 			<span className="dockchip-dot" style={{ background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" }} />
 			{labelIcon ? <span className="dockchip-ic">{labelIcon}</span> : null}
-			{hasData ? <span className="dockchip-pre-s">用量 </span> : null}<span>{labelMain}</span>{labelExtra ? <span className="dockchip-x">{labelExtra}</span> : null}
+			{hasData ? <span className="dockchip-pre-s">用量 </span> : null}<span className="dockchip-val">{labelMain}</span>{labelExtra ? <span className="dockchip-x">{labelExtra}</span> : null}
 		</button>
 	);
 }
