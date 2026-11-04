@@ -61,17 +61,23 @@ jobs:
         # 分支（还会被设成默认分支、删都删不掉，因为「不能删除当前分支」）。
         # 2026-11-02 给 dsh-dock 加镜像时实际踩到：同步分支这步卡住不动，
         # 本地复现才看出推的是 origin/HEAD -> HEAD。
+        # ⚠️ 2026-11-03 v0.20.0 发版又踩到：tag 触发的运行是 detached HEAD，本地没有
+        # refs/heads/main，直接把 remote-tracking 名字 sed 成 refs/heads/main 再单名推送会
+        # 报「src refspec refs/heads/main does not match any」。这里必须以
+        # refs/remotes/origin/* 为源、显式映射到 refs/heads/*，不依赖本地分支存在。
         run: |
           refs=$(git for-each-ref --format='%(refname)' refs/remotes/origin/ \
-            | grep -v '^refs/remotes/origin/HEAD$' \
-            | sed 's|^refs/remotes/origin/|refs/heads/|')
+            | grep -v '^refs/remotes/origin/HEAD$')
           if [ -z "$refs" ]; then
             echo "没有可同步的分支" >&2
             exit 1
           fi
           echo "$refs"
-          # shellcheck disable=SC2086
-          git push --force --prune gitee $refs
+          args=()
+          for ref in $refs; do
+            args+=("$ref:refs/heads/${ref#refs/remotes/origin/}")
+          done
+          git push --force --prune gitee "${args[@]}"
 
       - name: 同步标签
         run: git push --force --prune gitee 'refs/tags/*:refs/tags/*'

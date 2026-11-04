@@ -157,6 +157,8 @@ assert.equal(notifyStatus.config.notifyCards, true, '页内卡片总开关默认
 assert.equal(notifyStatus.config.notifyOnStuck, true, '卡住提醒卡默认开')
 assert.equal(notifyStatus.config.cardMode, 'detailed', '卡片口径默认详细（历史内容不缩水）')
 assert.equal(notifyStatus.config.voiceMode, 'brief', '播报口径默认简洁')
+assert.equal(notifyStatus.config.pushMode, 'detailed', '群机器人消息口径默认详细')
+assert.deepEqual(notifyStatus.config.eventMatrix, {}, '事件矩阵默认空（全部回退旧字段）')
 assert.equal(animStatus.config.dingtalkEnabled, undefined, '动画配置段不得混入通知字段')
 assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置段（只读快照）')
 
@@ -176,6 +178,8 @@ assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置�
     voiceNotify: true, voiceMode: 'detailed', voiceOnStuck: false, voiceRate: 3, voiceVolume: -2,
     voiceURI: '  zh-CN-Xiaoxiao  ',
     dingtalkWebhook: 'https://oapi.dingtalk.com/robot/send?access_token=test',
+    pushMode: 'medium',
+    eventMatrix: { 'card:complete': false, 'sound:error': true, 'bogus:key': true, 'voice:stuck': 'x' },
   })
   assert.equal(saved.body.data.config.notifyOnError, false)
   // 页内卡片总开关 + 卡住提醒卡：布尔收下、回包带回、落 notify 段
@@ -191,11 +195,18 @@ assert.equal(runStateStatus.config, undefined, '运行状态模块没有配置�
   assert.equal(saved.body.data.config.voiceRate, 2, 'voiceRate 越界应钳到上限 2')
   assert.equal(saved.body.data.config.voiceVolume, 0, 'voiceVolume 越界应钳到下限 0')
   assert.equal(saved.body.data.config.voiceURI, 'zh-CN-Xiaoxiao', 'voiceURI 应 trim 后落盘（音色可选）')
+  assert.equal(saved.body.data.config.pushMode, 'medium', '群机器人消息口径应接受并回传')
+  assert.equal(saved.body.data.config.eventMatrix['card:complete'], false, '事件矩阵布尔值应接受')
+  assert.equal(saved.body.data.config.eventMatrix['sound:error'], true, '事件矩阵布尔值应接受')
+  assert.equal(saved.body.data.config.eventMatrix['bogus:key'], undefined, '事件矩阵白名单外的键应忽略')
+  assert.equal(saved.body.data.config.eventMatrix['voice:stuck'], undefined, '事件矩阵非布尔值应忽略')
   const raw = host.settings.get(DOCK_NS)
   assert.equal(raw.notify.dingtalkEnabled, true)
   assert.equal(raw.notify.notifyCards, false, '页内卡片总开关应落 notify 段')
   assert.equal(raw.notify.notifyOnStuck, false, '卡住提醒开关应落 notify 段')
   assert.equal(raw.notify.cardMode, 'medium', '卡片口径应落 notify 段')
+  assert.equal(raw.notify.pushMode, 'medium', '群机器人消息口径应落 notify 段')
+  assert.equal(raw.notify.eventMatrix['card:complete'], false, '事件矩阵应落 notify 段')
   assert.equal(raw.notify.voiceNotify, true, '语音播报开关应落 notify 段')
   assert.equal(raw.notify.voiceURI, 'zh-CN-Xiaoxiao', '音色应落 notify 段')
   assert.equal(raw.animation.dingtalkEnabled, undefined)
@@ -261,6 +272,30 @@ try {
   host.emit('agent/status', { agent: { id: 'sess-2' }, status: 'idle' })
   await new Promise((resolve) => setTimeout(resolve, 20))
   assert.equal(pushed.length, 1, 'notifyOnError=false 时异常结束不应推送')
+
+  // eventMatrix：显式关闭「完成 → 钉钉」后，即使 notifyOnComplete=true 也不推送
+  await host.call('/dsh-dock/notify', 'config', { notifyOnError: true, eventMatrix: { 'dingtalk:complete': false } })
+  host.emit('agent/status', { agent: { id: 'sess-m1' }, status: 'running' })
+  host.emit('session/event', { id: 'sess-m1' }, {
+    type: 'turn/end', time: Date.now(), data: { reason: { kind: 'completed' } },
+  })
+  host.emit('agent/status', { agent: { id: 'sess-m1' }, status: 'idle' })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(pushed.length, 1, 'eventMatrix dingtalk:complete=false 时不应推送')
+
+  // 矩阵重新打开 + pushMode=brief：应推送，且正文裁剪掉模型 / 回合 / Token 明细
+  await host.call('/dsh-dock/notify', 'config', { eventMatrix: { 'dingtalk:complete': true }, pushMode: 'brief' })
+  host.emit('agent/status', { agent: { id: 'sess-m2' }, status: 'running' })
+  host.emit('session/event', { id: 'sess-m2' }, {
+    type: 'turn/end', time: Date.now(), data: { reason: { kind: 'completed' } },
+  })
+  host.emit('agent/status', { agent: { id: 'sess-m2' }, status: 'idle' })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(pushed.length, 2, '矩阵重新打开后完成事件应推送')
+  const briefText = pushed[1].body.markdown.text
+  assert.ok(!briefText.includes('**模型**'), 'pushMode=brief 不应带模型明细')
+  assert.ok(!briefText.includes('**回合**'), 'pushMode=brief 不应带回合明细')
+  assert.ok(!briefText.includes('**Token**'), 'pushMode=brief 不应带 Token 明细')
 } finally {
   globalThis.fetch = realFetch
 }

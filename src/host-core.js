@@ -142,6 +142,12 @@ export const DockConfig = z.object({
     voiceVolume: z.number().default(1),
     voiceLang: z.string().default(''),
     voiceURI: z.string().default(''),
+    // 事件 × 渠道开关矩阵：扁平键形如 card:complete / sound:error / system:confirm /
+    // voice:stuck / dingtalk:complete / feishu:error。未设置的键由客户端回退到旧的
+    // notifyOn* / voiceOn* 字段（升级不改变既有行为）。
+    eventMatrix: z.dict(z.boolean()).default({}),
+    // 群机器人消息口径三挡：brief / medium / detailed（宿主发消息时按此裁剪正文）。
+    pushMode: z.string().default('detailed'),
     // 一次性迁移标记：animation 段的旧通知配置已搬到本段（搬完置 true，避免每次启动重复写）
     migratedFromAnimation: z.boolean().default(false),
   }).default({}).volatile(),

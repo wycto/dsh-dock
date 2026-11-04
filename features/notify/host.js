@@ -50,6 +50,11 @@ function defaultConfig() {
     voiceLang: '',
     // 指定音色（speechSynthesis voiceURI，设备相关；空 = 按语言自动挑，本机没有时客户端回落）
     voiceURI: '',
+    // 事件 × 渠道矩阵（扁平键 card:complete / sound:error / system:confirm / ...；
+    // 未设置的键回退旧字段，升级不改变既有行为）
+    eventMatrix: {},
+    // 群机器人消息口径三挡：brief / medium / detailed
+    pushMode: 'detailed',
     // 迁移标记（schema 默认 false）：settings 不可用时的兜底取 true——迁移由
     // src/host-core.js migrateNotifyConfig 统一负责，这里只是原样带回，不影响通知行为。
     migratedFromAnimation: true,
@@ -69,9 +74,19 @@ function readConfig(ctx) {
       if (!SOUND_EFFECTS.includes(cfg.soundEffect)) cfg.soundEffect = 'chime'
       if (cfg.voiceMode !== 'brief' && cfg.voiceMode !== 'medium' && cfg.voiceMode !== 'detailed') cfg.voiceMode = 'brief'
       if (cfg.cardMode !== 'brief' && cfg.cardMode !== 'medium' && cfg.cardMode !== 'detailed') cfg.cardMode = 'detailed'
+      if (cfg.pushMode !== 'brief' && cfg.pushMode !== 'medium' && cfg.pushMode !== 'detailed') cfg.pushMode = 'detailed'
+      if (!cfg.eventMatrix || typeof cfg.eventMatrix !== 'object' || Array.isArray(cfg.eventMatrix)) cfg.eventMatrix = {}
     }
   } catch { /* settings 未挂载，用默认 */ }
   return cfg
+}
+
+/** 事件 × 渠道开关：矩阵里显式设置过就用它，否则回退到旧字段（fallback）。 */
+function matrixEnabled(cfg, channel, event, fallback) {
+  const key = channel + ':' + event
+  const matrix = cfg && cfg.eventMatrix
+  if (matrix && typeof matrix === 'object' && typeof matrix[key] === 'boolean') return matrix[key]
+  return fallback !== false
 }
 
 function truncate(str, max = 160) {
@@ -106,19 +121,23 @@ const END_REASON_LABELS = {
 }
 
 // 钉钉与飞书共用的消息正文（各端再按各自 markdown 方言拼接）
-function buildMessageLines(t) {
+// mode: brief = 任务与结果；medium = 加模型/耗时；detailed = 再加回合、Token 与摘要。
+function buildMessageLines(t, mode) {
   const success = !t.endReason || t.endReason === 'completed'
   const reasonLabel = END_REASON_LABELS[t.endReason] || '✅ 完成'
   const models = t.models.length > 0 ? t.models.join(', ') : '未知'
+  const tone = mode === 'brief' || mode === 'medium' ? mode : 'detailed'
   const lines = []
   lines.push(`### ${success ? '✅' : '📢'} dsh 任务${success ? '完成' : '结束'}`)
   lines.push(`**任务**: ${t.title}`)
-  lines.push(`**模型**: ${models}${t.provider ? `（${t.provider}）` : ''}`)
-  lines.push(`**耗时**: ${fmtDurCn(t.duration)}（${fmtClockOf(t.startTime)} → ${fmtClockOf(t.endTime)}）`)
-  lines.push(`**回合**: ${t.turns} · 步骤 ${t.steps}${t.toolCalls ? ` · 工具 ${t.toolCalls} 次` : ''}`)
-  lines.push(`**Token**: 输入 ${t.inputTokens.toLocaleString()} / 输出 ${t.outputTokens.toLocaleString()} / 总计 ${t.totalTokens.toLocaleString()}`)
+  if (tone !== 'brief') lines.push(`**模型**: ${models}${t.provider ? `（${t.provider}）` : ''}`)
+  lines.push(`**耗时**: ${fmtDurCn(t.duration)}${tone === 'brief' ? '' : `（${fmtClockOf(t.startTime)} → ${fmtClockOf(t.endTime)}）`}`)
+  if (tone === 'detailed') {
+    lines.push(`**回合**: ${t.turns} · 步骤 ${t.steps}${t.toolCalls ? ` · 工具 ${t.toolCalls} 次` : ''}`)
+    lines.push(`**Token**: 输入 ${t.inputTokens.toLocaleString()} / 输出 ${t.outputTokens.toLocaleString()} / 总计 ${t.totalTokens.toLocaleString()}`)
+  }
   lines.push(`**结果**: ${reasonLabel}${t.errorMessage ? `：${truncate(t.errorMessage, 120)}` : ''}`)
-  if (t.lastText) {
+  if (tone !== 'brief' && t.lastText) {
     lines.push(`> ${truncate(t.lastText, 200)}`)
   }
   lines.push('---')
@@ -130,8 +149,8 @@ function buildMessageLines(t) {
   }
 }
 
-function buildDingtalkMessage(t) {
-  const { title, lines } = buildMessageLines(t)
+function buildDingtalkMessage(t, mode) {
+  const { title, lines } = buildMessageLines(t, mode)
   return {
     title,
     // 钉钉 markdown 不渲染单个 \n，行之间必须用空行分隔才能换行
@@ -140,8 +159,8 @@ function buildDingtalkMessage(t) {
 }
 
 // 飞书 interactive 卡片：标题进 header，正文走 lark_md（支持 **加粗** 与 \n 换行，不支持 ### 标题）
-function buildFeishuMessage(t) {
-  const { title, success, lines } = buildMessageLines(t)
+function buildFeishuMessage(t, mode) {
+  const { title, success, lines } = buildMessageLines(t, mode)
   const body = lines.filter((l) => !l.startsWith('### ')).join('\n')
   return {
     title,
@@ -223,14 +242,15 @@ export const feature = {
     disposers.push(() => lease.release())
     const tracker = lease.tracker
 
-    // ===== 群机器人推送（宿主侧直发，异步不阻塞；事件筛选跟随 notifyOnComplete/notifyOnError） =====
+    // ===== 群机器人推送（宿主侧直发，异步不阻塞；事件筛选走 eventMatrix，缺省回退 notifyOn*） =====
     async function pushDingtalkIfNeeded(record) {
       try {
         const cfg = readConfig(ctx)
         if (!cfg.dingtalkEnabled || !cfg.dingtalkWebhook) return
         const success = !record.endReason || record.endReason === 'completed'
-        if (success ? !cfg.notifyOnComplete : !cfg.notifyOnError) return
-        const { title, text } = buildDingtalkMessage(record)
+        const event = success ? 'complete' : 'error'
+        if (!matrixEnabled(cfg, 'dingtalk', event, success ? cfg.notifyOnComplete : cfg.notifyOnError)) return
+        const { title, text } = buildDingtalkMessage(record, cfg.pushMode)
         const r = await sendDingtalk(cfg.dingtalkWebhook, title, text)
         if (r.ok) console.log('[dsh-dock] notify dingtalk pushed:', title)
         else console.error('[dsh-dock] notify dingtalk push failed:', r.error)
@@ -244,8 +264,9 @@ export const feature = {
         const cfg = readConfig(ctx)
         if (!cfg.feishuEnabled || !cfg.feishuWebhook) return
         const success = !record.endReason || record.endReason === 'completed'
-        if (success ? !cfg.notifyOnComplete : !cfg.notifyOnError) return
-        const { title, card } = buildFeishuMessage(record)
+        const event = success ? 'complete' : 'error'
+        if (!matrixEnabled(cfg, 'feishu', event, success ? cfg.notifyOnComplete : cfg.notifyOnError)) return
+        const { title, card } = buildFeishuMessage(record, cfg.pushMode)
         const r = await sendFeishu(cfg.feishuWebhook, title, card)
         if (r.ok) console.log('[dsh-dock] notify feishu pushed:', title)
         else console.error('[dsh-dock] notify feishu push failed:', r.error)
@@ -298,6 +319,20 @@ export const feature = {
               if (typeof p.systemNotify === 'boolean') cfg.systemNotify = p.systemNotify
               if (typeof p.soundNotify === 'boolean') cfg.soundNotify = p.soundNotify
               if (typeof p.soundEffect === 'string' && SOUND_EFFECTS.includes(p.soundEffect)) cfg.soundEffect = p.soundEffect
+              // 群机器人消息口径三挡
+              if (typeof p.pushMode === 'string' && (p.pushMode === 'brief' || p.pushMode === 'medium' || p.pushMode === 'detailed')) {
+                cfg.pushMode = p.pushMode
+              }
+              // 事件 × 渠道矩阵：只接受白名单键 + 布尔值，合并写回
+              if (p.eventMatrix && typeof p.eventMatrix === 'object' && !Array.isArray(p.eventMatrix)) {
+                const matrix = Object.assign({}, cfg.eventMatrix || {})
+                for (const [key, value] of Object.entries(p.eventMatrix)) {
+                  if (typeof value === 'boolean' && /^(card|sound|system|voice|dingtalk|feishu):(complete|error|confirm|stuck)$/.test(key)) {
+                    matrix[key] = value
+                  }
+                }
+                cfg.eventMatrix = matrix
+              }
               if (typeof p.dingtalkEnabled === 'boolean') cfg.dingtalkEnabled = p.dingtalkEnabled
               if (typeof p.dingtalkWebhook === 'string') {
                 const hook = p.dingtalkWebhook.trim()
