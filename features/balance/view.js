@@ -302,10 +302,15 @@ function BalanceChip(props) {
 		"aria-label": "模型余额",
 		onClick: () => openPanel("balance", def ? { provider: def } : null),
 	},
+		// 窄屏只显示这枚小图标：点它进功能坞看余额详情（title 里是完整数值）
+		react.createElement("span", { className: "dockchip-svg", "aria-hidden": "true" },
+			react.createElement("svg", { viewBox: "0 0 16 16", width: 13, height: 13, fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" },
+				react.createElement("path", { d: "M2.8 6.2h10.4v6.3a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1z" }),
+				react.createElement("path", { d: "M5.4 6.2V4.6a2.6 2.6 0 0 1 5.2 0v1.6" }))),
 		react.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
 		mm ? react.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
 		mm ? react.createElement("span", { className: "dockchip-pre-s" }, "余额 ") : null,
-		react.createElement("span", null, mm ? mm[2] : text));
+		react.createElement("span", { className: "dockchip-val" }, mm ? mm[2] : text));
 }
 
 export const feature = {
