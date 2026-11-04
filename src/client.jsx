@@ -30,13 +30,12 @@ import { feature as fRunState } from "../features/runstate/view.jsx";
 import { feature as fTts } from "../features/tts/view.jsx";
 import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
-import { feature as fMobile } from "../features/mobile/view.js";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.21.0";
+const DOCK_VERSION = "0.21.1";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay, fMobile];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
@@ -164,8 +163,15 @@ const SHELL_CSS = [
 	".dockm-name{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;}",
 	".dockm-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
 	".dockm-view{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
-	".dockm-page{box-sizing:border-box;height:100%;overflow:auto;padding:20px 24px 32px;}",
-	".dockm-page-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;}",
+	".dockm-page{box-sizing:border-box;height:100%;display:flex;flex-direction:column;overflow:hidden;padding:16px 20px 0;}",
+	".dockm-page-head{flex:none;display:flex;align-items:flex-start;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--dsw-alias-border-l1);}",
+	".dockm-page-body{flex:1;min-height:0;display:flex;}",
+	".dockm-page-wide-btn{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;cursor:pointer;}",
+	".dockm-page-wide-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
+	/* 面板页的左侧菜单收窄：给右侧列表/表格让出宽度，别留大片空白 */
+	".dockm-page .dockm-nav{width:140px;padding:8px 6px;}",
+	".dockm-page .dockm-nav-item{padding:7px 8px;font-size:12.5px;gap:6px;}",
+	".dockm-page-body>.dockm-body{flex:1;min-height:0;}",
 	".dockm-page-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
 	".dockm-page-titles{min-width:0;}",
 	".dockm-page-title{font-size:17px;font-weight:600;color:var(--dsw-alias-label-primary);line-height:1.3;}",
@@ -203,9 +209,17 @@ const SHELL_CSS = [
 	// 禁用桌面拖拽/缩放，所有导航和关闭动作保持至少 44px 的可点击面积。
 	"@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:minmax(0,1fr);gap:10px;min-width:0}.dockh-card{padding:12px;box-sizing:border-box;min-width:0}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
 	/* 手机端：功能坞弹层挂在 .overlayLayer(z20) 内，会被 z71 的侧栏抽屉盖住（只剩右侧一条）。\n	   把 overlayLayer 在窄屏抬到抽屉之上，面板才能全屏覆盖——且不依赖【手机适配】模块是否启用。 */
-	"@media (max-width:767px){[class*=\"overlayLayer\"]{z-index:100 !important}}",
-	/* 手机：输入卡里的「轮/步/token/缓存」状态条移到输入框上方，压成一行不溢出；空会话时把输入卡贴底 */
-	"@media (max-width:767px){[class*=\"scrollBody\"]>[class*=\"composerSeat\"]{margin-top:auto!important;padding-bottom:0!important}[class*=\"composerSeat\"] [class*=\"_dock\"]{order:-1!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;padding:0 2px 6px!important;gap:6px!important;font-size:10px!important;overflow:hidden!important}[class*=\"composerSeat\"] [class*=\"_dock\"]>*{min-width:0}}",
+	/* 只在「功能坞弹层真的打开」时抬 z 序（:has 精确到 .dockm-dialog），其余时候不碰 DSH 原生浮层 */
+	"@media (max-width:767px){body:has(.dockm-dialog) [class*=\"overlayLayer\"]{z-index:100 !important}}",
+	/* 手机：功能坞面板页的左侧菜单改成横向可滚动条，占满整行；页头与内边距收紧，「全屏」按钮在手机上无意义（侧栏本就是抽屉）故隐藏 */
+	"@media (max-width:767px){.dockm-page{padding:12px 12px 0}.dockm-page-head{gap:8px;padding-bottom:10px}.dockm-page-sub{display:none}.dockm-page-wide-btn{display:none}.dockm-page .dockm-nav{width:auto;max-width:100%;flex-direction:row;gap:6px;padding:8px 0;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none}.dockm-page .dockm-nav::-webkit-scrollbar{display:none}.dockm-page .dockm-nav-item{flex:none;min-height:40px;padding:0 10px;font-size:12.5px}.dockm-page .dockm-page-body{flex-direction:column}.dockm-page .dockm-body{flex-direction:column;min-height:0}.dockm-page .dockm-content{padding:12px 0 16px;gap:12px}}",
+	/* 手机自适应（≤767px，始终生效，不依赖任何功能开关）：
+	   · 输入卡贴底（空会话时不再垂直居中留大片空白）；
+	   · 输入卡里的「轮/步/token/缓存」状态条移到输入框上方，压成一行不溢出。 */
+	"@media (max-width:767px){[class*=\"scrollBody\"]>[class*=\"composerSeat\"]{margin-top:auto!important;padding-bottom:0!important}[class*=\"composerSeat\"] [class*=\"_dock\"]{order:-1!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;padding:0 2px 6px!important;gap:6px!important;font-size:10px!important;overflow:hidden!important;flex-wrap:nowrap!important;white-space:nowrap!important}[class*=\"composerSeat\"] [class*=\"_dock\"]>*{min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}[class*=\"composerSeat\"] [class*=\"_dock\"]>*:first-child{flex:0 0 auto}[class*=\"composerSeat\"] [class*=\"_row\"]{gap:4px!important}}",
+	/* 手机自适应：设置弹层内容给安全区内边距、会话滚动体留底部安全区、代码块横向滚动、
+	   行内代码可断行（窄屏不撑破版面）。 */
+	"@media (max-width:767px){[role=\"dialog\"][class*=\"panel\"] [class*=\"options\"]{padding-left:max(16px,env(safe-area-inset-left,0px))!important;padding-right:max(16px,env(safe-area-inset-right,0px))!important}[class*=\"scrollBody\"]{padding-bottom:env(safe-area-inset-bottom,0px)!important}pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}code{overflow-wrap:anywhere}pre code{overflow-wrap:normal}}",
 	"@media (prefers-reduced-motion:reduce){.dockm-backdrop,.dockm-dialog{animation:none}.dockm-nav-item,.dockm-close,.dockm-win,.dock-sw{transition:none}}",
 	".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
 	".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
@@ -232,8 +246,12 @@ const SHELL_CSS = [
 	".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
 	".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
 	".dockchip.err{color:var(--dsw-alias-state-error-primary);}",
-	/* 手机：输入区工具行很窄，给 chips 稍多宽度，并隐藏费用等次要后缀（.dockchip-x），避免被截成「⛁ 2…／余…」 */
-	"@media (max-width:767px){.dockchip-row{max-width:min(216px,40cqw)}.dockchip-x{display:none}.dockchip{font-size:10px!important;padding:1px 2px!important;gap:3px!important}.dockchip .dockchip-dot{width:4px;height:4px}.dockchip-ic{display:none}.dockchip-pre{display:none}}"
+	/* 手机自适应：输入区工具行很窄——chip 字号/内距收紧、隐藏费用后缀与「余额」前缀，
+	   数值完整显示且工具行保持单行不换行（完整信息仍在 title 悬浮提示里）。 */
+	".dockchip-pre-s{display:none;}",
+	"@media (max-width:767px){.dockchip-row{max-width:min(216px,50cqw);gap:0}.dockchip-x{display:none}.dockchip-pre{display:none}.dockchip-ic{display:none}.dockchip-pre-s{display:inline}.dockchip{font-size:9.5px!important;line-height:16px!important;padding:0 1px!important;gap:2px!important}.dockchip .dockchip-dot{width:4px;height:4px}}",
+	/* 手机触控基础：去点按蓝块、消双击缩放判定延迟；原生侧栏开关热区扩到 44×44（视觉不变）。 */
+	"@media (max-width:767px){:is(button,[role=\"button\"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation}[data-sidebar-opener]{position:relative}[data-sidebar-opener]::after{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}}",
 ].join("\n");
 
 let dockCssTag = null;
@@ -328,31 +346,125 @@ function DockEntry(props) {
 	}, react.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? react.createElement("span", { className: "docke2-label" }, "功能坞") : null);
 }
 
-// ---- 功能坞弹出面板：shell.overlay（仿 dsh 设置：居中模态 = 遮罩 + 对话框） ----
-// 左侧导航：首项「首页」总揽（默认选中），其后是各功能模块（order 升序）；planned 模块只占位展示
-function DockModal() {
-	// 默认关闭；SSR/无浏览器环境下默认展开内容（便于冒烟测试渲染整棵弹层树）
-	// 导航总线（open/active/params）驱动：chips 点击 openPanel(...) 即可打开并定位
+// ---- 功能坞工作区：左侧导航（首页总揽 + 各功能模块）+ 右侧内容区 ----
+// 弹层（shell.overlay 的 DockModal）与侧栏面板页（main 的 DockPage）**共用这一套**，
+// 两处界面保持一致：都有自己的左侧菜单，不再把各功能页揉成一整页。
+function DockWorkspace() {
 	const [nav, setNav] = react.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
 	react.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
-	const open = nav.open || typeof document === "undefined";
 	const active = nav.active;
-	const setActive = navigatePanel;
 	const navParams = nav.params;
+	const setActive = navigatePanel;
 	const [, force] = react.useReducer((n) => n + 1, 0);
 	useExternalVersion();
+	const contentRef = react.useRef(null);
+	// 切换左侧模块时总是从新页面顶部开始，避免把上一页的滚动位置带进小游戏等短页面。
+	react.useEffect(() => {
+		if (contentRef.current) contentRef.current.scrollTop = 0;
+	}, [active]);
+	const MODULES = allModules();
+	const isHome = active === "home";
+	const mod = isHome ? null : (MODULES.find((m) => m.id === active) || MODULES[0]);
+	const st = mod ? stateOf(mod.id) : null;
+	// 视图统一收到 { ctx, feature, params } props
+	//（params 来自导航总线：如 { provider } 高亮余额行、{ sessionId } 按会话筛选用量）
+	const View = mod ? mod.View : null;
+	// 所有视图都包错误边界（含内置）：视图抛错只降级为一行提示，不能把整块面板打没。
+	// key 用 mod.id：切换功能时重建边界，避免上一个功能的错误态留在新页面上。
+	const viewNode = mod && View
+		? react.createElement("div", { className: "dockm-view" },
+			react.createElement(FeatureBoundary, { key: mod.id, label: mod.name },
+				react.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })))
+		: null;
+	const enabledCount = MODULES.filter((m) => { const s = stateOf(m.id); return !!(s && s.enabled); }).length;
+	return react.createElement("div", { className: "dockm-body" },
+		react.createElement("nav", { className: "dockm-nav", "aria-label": "功能模块" },
+			react.createElement("button", {
+				type: "button",
+				key: "home",
+				className: "dockm-nav-item" + (isHome ? " on" : ""),
+				onClick: () => setActive("home")
+			},
+				react.createElement("span", { className: "dockm-navhome" }, react.createElement(DockIcon, null)),
+				react.createElement("span", null, "首页")),
+			MODULES.map((m) =>
+				react.createElement("button", {
+					type: "button",
+					key: m.id,
+					className: "dockm-nav-item" + (m.id === active ? " on" : ""),
+					onClick: () => setActive(m.id)
+				},
+					react.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+					react.createElement("span", null, m.name),
+					m.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null,
+					m.external ? react.createElement("span", { className: "dockm-badge" }, "外部") : null))),
+		react.createElement("div", { className: "dockm-content", ref: contentRef },
+			react.createElement("div", { className: "dockm-content-head" },
+				react.createElement("div", { className: "dockm-name" },
+					isHome
+						? react.createElement("span", { className: "dockm-navhome" }, react.createElement(DockIcon, null))
+						: react.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+					isHome ? "首页" : mod.name,
+					!isHome && mod.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null,
+					!isHome && mod.external ? react.createElement("span", { className: "dockm-badge" }, "外部包" + (mod.package ? " · " + mod.package : "")) : null),
+				react.createElement("div", { className: "dockm-desc" },
+					isHome
+						? "所有子功能总揽：运行状态、概要与快捷开关，点击卡片进入对应功能页。"
+						: mod.description)),
+			isHome
+				? react.createElement("div", { className: "dockm-view" }, react.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force }))
+				: mod.planned
+					? react.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "待接入：见 README 路线图")
+					: st && st.enabled && viewNode
+						? viewNode
+				: st && st.error
+					? react.createElement("div", { className: "dockm-note dockm-err" }, "功能出错：" + st.error)
+					: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（开关已持久化，重启后保持）"),
+			react.createElement("div", { className: "dockm-foot" },
+				react.createElement("span", null, isHome
+					? "功能坞 v" + DOCK_VERSION + " · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
+					: "功能坞 v" + DOCK_VERSION + " · 新功能按路线图追加"),
+				!isHome && mod && !mod.planned && st
+					? react.createElement("span", { className: "dockm-foot-sw" },
+						react.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "已启用" : "已停用"),
+						react.createElement("button", {
+							type: "button",
+							className: "dock-sw" + (st.enabled ? " on" : ""),
+							role: "switch",
+							"aria-checked": !!st.enabled,
+							"aria-label": (st.enabled ? "停用" : "启用") + mod.name,
+							title: st.enabled ? "停用「" + mod.name + "」" : "启用「" + mod.name + "」",
+							onClick: () => { toggleFeature(mod.id); force(); }
+						}))
+					: null,
+				!isHome && mod && typeof mod.Chip === "function"
+					? react.createElement("span", { className: "dockm-foot-sw" },
+						react.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "会话页小控件"),
+						react.createElement("button", {
+							type: "button",
+							className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
+							role: "switch",
+							"aria-checked": chipShown(mod.id),
+							"aria-label": (chipShown(mod.id) ? "隐藏" : "显示") + mod.name + "的会话页小控件",
+							title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
+							onClick: () => { setChipShown(mod.id, !chipShown(mod.id)); force(); }
+						}))
+					: null)));
+}
+
+// ---- 功能坞弹出面板：shell.overlay（仿 dsh 设置：居中模态 = 遮罩 + 对话框） ----
+function DockModal() {
+	// 默认关闭；SSR/无浏览器环境下默认展开内容（便于冒烟测试渲染整棵弹层树）
+	const [nav, setNav] = react.useState({ open: panelNav.open });
+	react.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open })), []);
+	const open = nav.open || typeof document === "undefined";
 	// ---- 窗口几何：普通（默认居中大窗）/最大化/最小化；拖动标题栏移动、右下角缩放 ----
 	// lastGeom 记住本页生命周期内最后一次几何，重开弹层时还原
 	const [win, setWin] = react.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
 	const dlgRef = react.useRef(null);
-	const contentRef = react.useRef(null);
 	react.useEffect(() => {
 		if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
 	}, []);
-	// 切换左侧模块时总是从新页面顶部开始，避免把上一页的滚动位置带进小游戏等短页面。
-	react.useEffect(() => {
-		if (open && contentRef.current) contentRef.current.scrollTop = 0;
-	}, [active, open]);
 	function beginDrag(e, type) {
 		if (win.mode !== "normal" || e.button !== 0) return;
 		if (type === "move" && e.target && e.target.closest && e.target.closest("button,select,input")) return;
@@ -380,21 +492,6 @@ function DockModal() {
 		window.addEventListener("pointerup", onUp);
 	}
 	if (!open) return null;
-	const MODULES = allModules();
-	const isHome = active === "home";
-	const mod = isHome ? null : (MODULES.find((m) => m.id === active) || MODULES[0]);
-	const st = mod ? stateOf(mod.id) : null;
-	// 视图统一收到 { ctx, feature, params } props
-	//（params 来自导航总线：如 { provider } 高亮余额行、{ sessionId } 按会话筛选用量）
-	const View = mod ? mod.View : null;
-	// 所有视图都包错误边界（含内置）：视图抛错只降级为一行提示，不能把整块面板打没。
-	// key 用 mod.id：切换功能时重建边界，避免上一个功能的错误态留在新页面上。
-	const viewNode = mod && View
-		? react.createElement("div", { className: "dockm-view" },
-			react.createElement(FeatureBoundary, { key: mod.id, label: mod.name },
-				react.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })))
-		: null;
-	const enabledCount = MODULES.filter((m) => { const s = stateOf(m.id); return !!(s && s.enabled); }).length;
 	// 最大化：铺满视口（留 10px 边）；被拖过/缩放过：固定坐标；否则 CSS 默认居中
 	const dialogStyle = win.mode === "max"
 		? { position: "fixed", left: 10, top: 10, right: 10, bottom: 10, width: "auto", height: "auto" }
@@ -436,79 +533,7 @@ function DockModal() {
 						onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
 					}, win.mode === "max" ? "❐" : "▢"),
 					react.createElement("button", { type: "button", className: "dockm-close", "aria-label": "关闭", title: "关闭", onClick: () => setPanelOpen(false) }, "✕"))),
-			react.createElement("div", { className: "dockm-body" },
-				react.createElement("nav", { className: "dockm-nav", "aria-label": "功能模块" },
-					react.createElement("button", {
-						type: "button",
-						key: "home",
-						className: "dockm-nav-item" + (isHome ? " on" : ""),
-						onClick: () => setActive("home")
-					},
-						react.createElement("span", { className: "dockm-navhome" }, react.createElement(DockIcon, null)),
-						react.createElement("span", null, "首页")),
-					MODULES.map((m) =>
-						react.createElement("button", {
-							type: "button",
-							key: m.id,
-							className: "dockm-nav-item" + (m.id === active ? " on" : ""),
-							onClick: () => setActive(m.id)
-						},
-							react.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-							react.createElement("span", null, m.name),
-							m.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null,
-							m.external ? react.createElement("span", { className: "dockm-badge" }, "外部") : null))),
-				react.createElement("div", { className: "dockm-content", ref: contentRef },
-					react.createElement("div", { className: "dockm-content-head" },
-						react.createElement("div", { className: "dockm-name" },
-							isHome
-								? react.createElement("span", { className: "dockm-navhome" }, react.createElement(DockIcon, null))
-								: react.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
-							isHome ? "首页" : mod.name,
-							!isHome && mod.planned ? react.createElement("span", { className: "dockm-badge" }, "规划中") : null,
-							!isHome && mod.external ? react.createElement("span", { className: "dockm-badge" }, "外部包" + (mod.package ? " · " + mod.package : "")) : null),
-						react.createElement("div", { className: "dockm-desc" },
-							isHome
-								? "所有子功能总揽：运行状态、概要与快捷开关，点击卡片进入对应功能页。"
-								: mod.description)),
-					isHome
-						? react.createElement("div", { className: "dockm-view" }, react.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force }))
-						: mod.planned
-							? react.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "待接入：见 README 路线图")
-							: st && st.enabled && viewNode
-								? viewNode
-						: st && st.error
-							? react.createElement("div", { className: "dockm-note dockm-err" }, "功能出错：" + st.error)
-							: react.createElement("div", { className: "dockm-note" }, "该功能当前为停用状态（开关已持久化，重启后保持）"),
-					react.createElement("div", { className: "dockm-foot" },
-						react.createElement("span", null, isHome
-							? "功能坞 v" + DOCK_VERSION + " · 共 " + MODULES.length + " 个功能模块，" + enabledCount + " 个已启用"
-							: "功能坞 v" + DOCK_VERSION + " · 新功能按路线图追加"),
-						!isHome && mod && !mod.planned && st
-							? react.createElement("span", { className: "dockm-foot-sw" },
-								react.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "已启用" : "已停用"),
-								react.createElement("button", {
-									type: "button",
-									className: "dock-sw" + (st.enabled ? " on" : ""),
-									role: "switch",
-									"aria-checked": !!st.enabled,
-									"aria-label": (st.enabled ? "停用" : "启用") + mod.name,
-									title: st.enabled ? "停用「" + mod.name + "」" : "启用「" + mod.name + "」",
-									onClick: () => { toggleFeature(mod.id); force(); }
-								}))
-							: null,
-						!isHome && mod && typeof mod.Chip === "function"
-							? react.createElement("span", { className: "dockm-foot-sw" },
-								react.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "会话页小控件"),
-								react.createElement("button", {
-									type: "button",
-									className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
-									role: "switch",
-									"aria-checked": chipShown(mod.id),
-									"aria-label": (chipShown(mod.id) ? "隐藏" : "显示") + mod.name + "的会话页小控件",
-									title: "控制会话输入区（模型选择器左侧）是否显示本功能的随身小控件",
-									onClick: () => { setChipShown(mod.id, !chipShown(mod.id)); force(); }
-								}))
-							: null))),
+			react.createElement(DockWorkspace, null),
 			win.mode === "normal"
 				? react.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") })
 				: null));
@@ -633,13 +658,33 @@ function DockPanel(props) {
 // 作为侧栏面板入口注册后，DSH 自带的入口自定义（Pin/更多）即可让用户把它固定在侧栏顶部
 // （“放到上面”），或取消固定收进侧栏「更多」菜单（“放到更多里”）。
 function DockPage() {
-	return react.createElement("div", { className: "dockm-page" },
+	const ctx = ctxRef.current;
+	// 「全屏」= 收起 DSH 左侧栏，把整幅宽度让给功能坞内容（列表页列多时太窄）。
+	// 用官方 layout.toggleSidebar()，再点一次即还原，不直接改 DOM。
+	const [wide, setWide] = react.useState(false);
+	const toggleWide = () => {
+		try {
+			const layout = ctx && typeof ctx.get === "function" ? ctx.get("layout") : null;
+			if (layout && typeof layout.toggleSidebar === "function") {
+				layout.toggleSidebar();
+				setWide((v) => !v);
+			}
+		} catch (e) { /* layout 服务不可用时保持原样 */ }
+	};
+	return react.createElement("div", { className: "dockm-page" + (wide ? " dockm-page-wide" : "") },
 		react.createElement("div", { className: "dockm-page-head" },
 			react.createElement("span", { className: "dockm-page-icon" }, react.createElement(DockIcon, { size: 20 })),
 			react.createElement("div", { className: "dockm-page-titles" },
 				react.createElement("div", { className: "dockm-page-title" }, "功能坞"),
-				react.createElement("div", { className: "dockm-page-sub" }, "所有小功能集中在这里管理。侧栏图标可在「更多」菜单里 Pin 到顶部，或取消固定收进更多。"))),
-		react.createElement("div", { className: "dockm-page-body" }, react.createElement(DockPanel, { params: null })));
+				react.createElement("div", { className: "dockm-page-sub" }, "所有小功能集中在这里管理。侧栏图标可在「更多」菜单里 Pin 到顶部，或取消固定收进更多。")),
+			react.createElement("button", {
+				type: "button",
+				className: "dockm-page-wide-btn",
+				title: wide ? "还原侧栏宽度" : "收起左侧栏，全屏显示功能坞",
+				"aria-label": wide ? "还原宽度" : "全屏",
+				onClick: toggleWide
+			}, wide ? "❐ 还原" : "▢ 全屏")),
+		react.createElement("div", { className: "dockm-page-body" }, react.createElement(DockWorkspace, null)));
 }
 
 // ---- 会话输入区工具行 chips：已启用功能的随身小控件（模型选择器左侧） ----
