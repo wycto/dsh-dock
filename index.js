@@ -19,6 +19,7 @@
 //   - modelconfig 模型设置：模型目录的输入模态与思考强度（写回官方配置）
 //   - providerconfig 模型提供商：Provider 增删改 + API Key + 拉取上游模型列表
 //   - mobile-relay 远程访问：账号密码登录的远程入口（网关 + 账号 + 浏览模式目录选择器）
+//   - mobile      手机适配：手机/窄屏体验优化（客户端运行时注入，关闭后零残留；宿主半部只留开关占位）
 import { DockConfig, sendJson, readBody, rejectUntrustedRequest, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
 import { injectWelcomeAck } from './src/welcome-ack.js'
 import { feature as fModels } from './features/modelconfig/host.js'
@@ -31,6 +32,7 @@ import { feature as fNotify } from './features/notify/host.js'
 import { feature as fRunState } from './features/runstate/host.js'
 import { feature as fTts } from './features/tts/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
+import { feature as fMobile } from './features/mobile/host.js'
 
 export const name = 'dsh-dock'
 
@@ -74,6 +76,7 @@ export function apply(ctx, config) {
     fRunState,
     fTts,
     fMobileRelay,
+    fMobile,
   ]
 
   // 绑定 Config 镜像（替代已移除的 settings.get）；volatile 字段热更时重绑。

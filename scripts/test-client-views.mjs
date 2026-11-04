@@ -290,6 +290,45 @@ function makeSpeechStub() {
 	};
 	return { spoken, utterCtor, synth, voices };
 }
+// 音频桩：记录 playTone 起播的每个音符（频率 + 起始时间），用于通知提示音的事件矩阵断言
+function makeAudioStub() {
+	const notes = [];
+	const Param = function () {};
+	Param.prototype.setValueAtTime = function () {};
+	Param.prototype.linearRampToValueAtTime = function () {};
+	Param.prototype.exponentialRampToValueAtTime = function () {};
+	function Node() { this.connect = () => this; }
+	function AudioContextStub() {
+		this.state = "running";
+		this.currentTime = 0;
+		this.destination = new Node();
+	}
+	AudioContextStub.prototype.resume = () => Promise.resolve();
+	AudioContextStub.prototype.createOscillator = function () {
+		const node = new Node();
+		node.frequency = { value: 0 };
+		node.type = "sine";
+		node.start = (at) => notes.push({ freq: node.frequency.value, at });
+		node.stop = () => {};
+		return node;
+	};
+	AudioContextStub.prototype.createGain = function () {
+		const node = new Node();
+		node.gain = new Param();
+		return node;
+	};
+	return { AudioContext: AudioContextStub, notes };
+}
+// 系统通知桩：记录 new Notification(...) 的标题与正文
+function makeNotificationStub() {
+	const sent = [];
+	function NotificationStub(title, options) {
+		sent.push({ title, options: options || {} });
+	}
+	NotificationStub.permission = "granted";
+	NotificationStub.requestPermission = async () => "granted";
+	return { Notification: NotificationStub, sent };
+}
 let loaded = null;
 
 function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateStatus, opts, ttsStatus) {
@@ -344,6 +383,13 @@ function loadDock(enabled, animationStatus, notifyStatus, persisted, runstateSta
 		sandbox.SpeechSynthesisUtterance = opts.speech.utterCtor;
 		win.speechSynthesis = opts.speech.synth;
 		win.SpeechSynthesisUtterance = opts.speech.utterCtor;
+	}
+	// opts.globals：注入测试用全局桩（如 AudioContext / Notification），同时挂到 globalThis 与 window
+	if (opts && opts.globals) {
+		for (const [key, value] of Object.entries(opts.globals)) {
+			sandbox[key] = value;
+			win[key] = value;
+		}
 	}
 	vm.createContext(sandbox);
 	loaded = null;
@@ -503,6 +549,7 @@ const FEATURES = [
 	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
 	{ id: "mobile-relay", name: "远程访问", marker: "远程", deep: true },
+	{ id: "mobile", name: "手机适配", marker: "手机模式", deep: false },
 ];
 
 let failed = 0;
@@ -1279,21 +1326,26 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	console.log("✓ 样式 data-plugin 归属：style 带 data-plugin=dsh-dock，不被其它插件 claim 后误删");
 }
 
-// ---------- 用例 10：手机适配模块已整体移除 ----------
-// 用户要求：汉堡菜单与原生控件重叠、功能开关也关不干净，索性把【手机适配】整个模块去掉。
-// 客户端 bundle 里不得再出现该模块的任何痕迹（描述符、Overlay DOM、全局属性/样式、菜单 id），
-// 避免「开关关了仍有残留 chrome」再次发生。
+// ---------- 用例 10：手机适配恢复契约（客户端运行时注入、关闭零残留） ----------
+// 用户要求：手机适配要「改回来」，但关闭时必须彻底、不干扰原生排版。
+// 实现约定：样式/行为只在 Overlay 挂载时注入（style[data-dsh-mobile-runtime]）、卸载即移除；
+// feature.css 只含 View 自身小样式（dkmob-），不含任何全局排版；宿主半部不做 tapIndex 注入。
+// 旧版 dsh 的两栏设置弹层 / 静态图标轨道由行为脚本检测后分别打 data-dsh-mobile-stack /
+// data-dsh-mobile-legacy 兜底，现代 dsh 命中为否 → 不加 → 原生排版不动。
 {
 	const issues = [];
-	if (/id:\s*"mobile"/.test(bundle)) issues.push("仍注册了 mobile 功能描述符");
-	if (/dsh-mobile-burger|dsh-mobile-scrim|dsh-mobile-tabbar/.test(bundle)) issues.push("仍残留手机端 chrome 的 DOM/样式");
-	if (/data-dk-mobile|dkmob-/.test(bundle)) issues.push("仍残留手机适配的全局属性/样式前缀");
-	if (/dsh-dock-kbd/.test(bundle)) issues.push("仍残留软键盘让位逻辑（dsh-dock-kbd）");
+	if (!/id:\s*["']mobile["']/.test(bundle)) issues.push("bundle 里没有 mobile 功能描述符");
+	if (!/data-dsh-mobile-runtime/.test(bundle)) issues.push("缺少运行时样式标记 data-dsh-mobile-runtime（关闭后无法彻底移除）");
+	if (!/data-dsh-mobile-stack/.test(bundle)) issues.push("缺少旧版设置弹层兜底标记 data-dsh-mobile-stack");
+	if (!/data-dsh-mobile-legacy/.test(bundle)) issues.push("缺少旧版抽屉兜底标记 data-dsh-mobile-legacy");
+	if (!/data-dk-mobile/.test(bundle)) issues.push("缺少 body 总开关属性 data-dk-mobile");
+	const mobileHost = readFileSync(join(root, "features", "mobile", "host.js"), "utf8");
+	if (/tapIndex\(/.test(mobileHost)) issues.push("宿主半部仍在经 tapIndex 注入（关闭需重启 dsh web 才能摘除）");
 	if (issues.length) {
-		console.log(`✗ 手机适配移除契约：${issues.join("；")}`);
+		console.log(`✗ 手机适配恢复契约：${issues.join("；")}`);
 		process.exit(1);
 	}
-	console.log("✓ 手机适配移除契约：功能描述符、汉堡/遮罩/软键盘与全局样式均无残留");
+	console.log("✓ 手机适配恢复契约：描述符在册；样式/行为运行时注入（data-dsh-mobile-runtime）随开关彻底移除；宿主无 tapIndex 注入");
 }
 
 // ---------- 用例 12：客户端 fetch 一律用文档相对路径（反代子路径挂载契约） ----------
@@ -1864,12 +1916,13 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, Object.assign({ document: doc, speech }, opts || {}));
 		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
 		const node = runtime.react.createElement(overlays.comp, null);
+		let lastHtml = "";
 		const poke = async () => {
 			for (const fn of (listeners.visibilitychange || []).slice()) fn();
 			await new Promise((resolve) => setImmediate(resolve));
-			await renderSettled(runtime, node);
+			lastHtml = await renderSettled(runtime, node);
 		};
-		return { poke, node, runtime };
+		return { poke, node, runtime, getHtml: () => lastHtml };
 	}
 	const lastSpeech = (speech) => (speech.spoken.length ? String(speech.spoken[speech.spoken.length - 1].text) : "");
 	let detail = "";
@@ -1926,6 +1979,54 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		live5.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
 		await s5.poke();
 		if (!detail && speech5.spoken.length !== 0) detail = "①本机开、服务端关时仍播报了：" + lastSpeech(speech5);
+		// 事件矩阵：只关掉「完成」的页内卡片，语音播报仍应出声（渠道相互独立）
+		const liveM = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf({ eventMatrix: { "card:complete": false } }) };
+		const speechM = makeSpeechStub();
+		const sM = setup(liveM, speechM);
+		await renderSettled(sM.runtime, sM.node);
+		await sM.poke();
+		liveM.active = [];
+		liveM.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await sM.poke();
+		if (!detail && speechM.spoken.length !== 1) detail = "①事件矩阵关卡片后语音也被静音了（渠道未解耦）";
+		if (!detail && sM.getHtml().includes("任务完成")) detail = "①事件矩阵 card:complete=false 仍弹了完成卡片";
+		// 配置来源=本机：本机 notifyCards=true 覆盖服务端 notifyCards=false
+		const clientCfg = Object.assign({}, NOTIFY_STATUS.config, { notifyCards: true, voiceNotify: false });
+		const liveSrc = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: Object.assign({}, NOTIFY_STATUS.config, { notifyCards: false, voiceNotify: false }) };
+		const speechSrc = makeSpeechStub();
+		const sSrc = setup(liveSrc, speechSrc, { store: {
+			"dsh-dock/notify/config-source/v1": "client",
+			"dsh-dock/notify/client-config/v1": JSON.stringify(clientCfg),
+		} });
+		await renderSettled(sSrc.runtime, sSrc.node);
+		await sSrc.poke();
+		liveSrc.active = [];
+		liveSrc.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await sSrc.poke();
+		if (!detail && !sSrc.getHtml().includes("任务完成")) detail = "①本机配置未覆盖服务端配置（客户端 notifyCards=true 时不弹卡）";
+		// 本机配置的 eventMatrix 不能覆盖服务端钉钉/飞书（群机器人由宿主执行）：
+		// 本机写 dingtalk:complete=false，但服务端没设过该键（回退 notifyOnComplete=true）
+		// → 面板矩阵「完成 × 钉钉」仍应为勾选；「完成 × 页内卡片」按本机的 true 也应勾选。
+		// ⚠️ 矩阵在设置面板 View 里，不在浮层：这里渲染 settings.section 的组件。
+		const liveMatrixSrc = { active: [], recent: [], config: Object.assign({}, NOTIFY_STATUS.config, { notifyCards: true, notifyOnComplete: true }) };
+		const enabledSrc = {};
+		for (const f of FEATURES) enabledSrc[f.id] = f.id === "notify";
+		const statusSrc = () => JSON.parse(JSON.stringify({ active: liveMatrixSrc.active, recent: liveMatrixSrc.recent, config: liveMatrixSrc.config }));
+		const loadedSrc = loadDock(enabledSrc, ANIMATION_STATUS, statusSrc, undefined, undefined, { store: {
+			"dsh-dock/notify/config-source/v1": "client",
+			"dsh-dock/notify/client-config/v1": JSON.stringify({ eventMatrix: { "dingtalk:complete": false, "card:complete": true } }),
+		} });
+		const viewReg = loadedSrc.regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
+		const viewHtml = await renderSettled(loadedSrc.runtime, loadedSrc.runtime.react.createElement(viewReg.comp, null));
+		const rowMatch = viewHtml.split(/dknt-matrix-row/).find((chunk) => chunk.includes("完成") && chunk.includes("任务正常结束"));
+		if (!detail && !rowMatch) detail = "①本机模式矩阵渲染异常（找不到完成行）";
+		else if (!detail) {
+			// 完成行的 6 个格子：card / sound / system / voice / dingtalk / feishu
+			const cells = (rowMatch.match(/class="dknt-cell[^"]*"/g) || []).map((c) => c.includes(" on"));
+			if (cells.length !== 6) detail = "①完成行格子数量异常：" + cells.length;
+			else if (!cells[0]) detail = "①本机配置 card:complete=true 未生效（页内卡片格未勾选）";
+			else if (!cells[4]) detail = "①本机配置覆盖了服务端钉钉开关（钉钉格被本机 eventMatrix 关掉了）";
+		}
 	} catch (e) {
 		detail = "①完成播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2126,14 +2227,120 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	});
 	const reg = regs.find((r) => r.def && r.def.name === "settings.section" && r.def.id === "dsh-dock");
 	if (!reg) { console.log("✗ 语音播报双层开关 UI：没有注册 settings.section"); process.exit(1); }
-	const html = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
+	const firstHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
+	const tabs = runtime.elements.filter((el) => el.event === "onClick" && /(^|\s)dknt-tab(\s|$)/.test(el.className));
+	if (tabs.length < 3) { console.log("✗ 语音播报双层开关 UI：找不到「按事件提醒 / 按渠道设置 / 群机器人」页签"); process.exit(1); }
 	const issues = [];
+	if (!firstHtml.includes("按事件提醒") || !firstHtml.includes("按渠道设置") || !firstHtml.includes("群机器人")) issues.push("缺少事件/渠道/群机器人页签");
+	if (!firstHtml.includes("页内卡片") || !firstHtml.includes("语音播报") || !firstHtml.includes("钉钉")) issues.push("按事件矩阵缺少渠道列");
+	tabs[1].handler({});
+	const html = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
 	if (!html.includes("本机播报")) issues.push("设置面板没有「本机播报」开关");
 	if (!html.includes("服务端：已开启")) issues.push("服务端总开关状态没有单独标注");
 	if (!html.includes("本浏览器会播报")) issues.push("本机开关开启态说明缺失");
-	if (!html.includes("服务端总开关（跨浏览器）与本机开关（当前浏览器）都开启才播报")) issues.push("双层开关的生效条件没有写明");
+	if (!html.includes("服务端总开关 + 本机开关都开才播报")) issues.push("双层开关的生效条件没有写明");
+	if (!html.includes("配置来源")) issues.push("面板顶部没有「配置来源」总开关");
+	if (!html.includes("服务端配置") || !html.includes("本机配置")) issues.push("配置来源缺少服务端/本机两个选项");
 	if (issues.length) { console.log(`✗ 语音播报双层开关 UI：${issues.join("；")}`); process.exit(1); }
-	console.log("✓ 语音播报双层开关 UI：服务端总开关 + 本机开关（localStorage）均可见，且写明两者都开才播报");
+	console.log("✓ 语音播报双层开关 UI：按事件/按渠道/群机器人页签 + 事件矩阵齐全；服务端总开关 + 本机开关（localStorage）均可见，且写明两者都开才播报；配置来源可选服务端/本机");
+}
+
+// ---------- 用例 21c：通知事件矩阵 × 各渠道的真实生效 ----------
+// 这里不只看字符串：给提示音装 AudioContext 桩、给系统通知装 Notification 桩，
+// 逐项验证「事件 → 渠道」勾选真的决定该渠道是否动作（卡片、提示音、系统通知、语音）。
+{
+	const baseCfg = (over) => Object.assign({}, NOTIFY_STATUS.config, {
+		notifyCards: true, notifyOnComplete: true, notifyOnError: true, notifyOnConfirm: true,
+		soundNotify: true, systemNotify: true, voiceNotify: false,
+	}, over || {});
+	function setup(live, opts) {
+		const enabled = {};
+		for (const f of FEATURES) enabled[f.id] = f.id === "notify";
+		const listeners = {};
+		const doc = {
+			visibilityState: "visible", hidden: true,
+			body: { tag: "body-stub" },
+			head: { appendChild() {} },
+			querySelector() { return null; },
+			querySelectorAll() { return []; },
+			createElement() { return { dataset: {}, isConnected: true }; },
+			addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+			removeEventListener() {},
+		};
+		const status = () => JSON.parse(JSON.stringify({ active: live.active, recent: live.recent, config: live.config }));
+		const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, status, undefined, undefined, Object.assign({ document: doc }, opts || {}));
+		const overlays = regs.find((r) => r.def && r.def.id === "dsh-dock-feature-overlays");
+		const node = runtime.react.createElement(overlays.comp, null);
+		let lastHtml = "";
+		const poke = async () => {
+			for (const fn of (listeners.visibilitychange || []).slice()) fn();
+			await new Promise((resolve) => setImmediate(resolve));
+			lastHtml = await renderSettled(runtime, node);
+		};
+		return { runtime, node, poke, getHtml: () => lastHtml };
+	}
+	const finish = async (s, live) => {
+		await renderSettled(s.runtime, s.node);
+		await s.poke();
+		live.active = [];
+		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
+		await s.poke();
+	};
+	let detail = "";
+	// 提示音：sound:complete=false 不响；改为 true 后响（playDoneSound 的完成音为 2 个音符）
+	try {
+		const audio1 = makeAudioStub();
+		const live1 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: baseCfg({ eventMatrix: { "sound:complete": false } }) };
+		const s1 = setup(live1, { globals: { AudioContext: audio1.AudioContext, webkitAudioContext: audio1.AudioContext } });
+		await finish(s1, live1);
+		if (audio1.notes.length !== 0) detail = "提示音 sound:complete=false 仍响了 " + audio1.notes.length + " 个音符";
+		const audio2 = makeAudioStub();
+		const live2 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: baseCfg({ eventMatrix: { "sound:complete": true } }) };
+		const s2 = setup(live2, { globals: { AudioContext: audio2.AudioContext, webkitAudioContext: audio2.AudioContext } });
+		await finish(s2, live2);
+		if (!detail && audio2.notes.length < 2) detail = "提示音 sound:complete=true 没有播放完成音（notes=" + audio2.notes.length + "）";
+	} catch (e) { detail = "提示音矩阵用例抛错：" + ((e && e.message) || e); }
+	// 系统通知：system:complete=false 不弹；改为 true 后弹（页面后台态）
+	if (!detail) try {
+		const n1 = makeNotificationStub();
+		const live1 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: baseCfg({ eventMatrix: { "system:complete": false } }) };
+		const s1 = setup(live1, { globals: { Notification: n1.Notification } });
+		await finish(s1, live1);
+		if (n1.sent.length !== 0) detail = "系统通知 system:complete=false 仍发了 " + n1.sent.length + " 条";
+		const n2 = makeNotificationStub();
+		const live2 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: baseCfg({ eventMatrix: { "system:complete": true } }) };
+		const s2 = setup(live2, { globals: { Notification: n2.Notification } });
+		await finish(s2, live2);
+		if (!detail && n2.sent.length !== 1) detail = "系统通知 system:complete=true 没有发通知（sent=" + n2.sent.length + "）";
+	} catch (e) { detail = "系统通知矩阵用例抛错：" + ((e && e.message) || e); }
+	// 卡片：card:confirm=false 不弹需确认卡；true 后弹
+	if (!detail) try {
+		const live1 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [{ id: "mx-1", toolName: "bash", reason: "test" }] })], recent: [], config: baseCfg({ eventMatrix: { "card:confirm": false } }) };
+		const s1 = setup(live1);
+		await renderSettled(s1.runtime, s1.node);
+		await s1.poke();
+		if (s1.getHtml().includes("任务需要确认")) detail = "card:confirm=false 仍弹了需确认卡";
+		const live2 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [{ id: "mx-2", toolName: "bash", reason: "test" }] })], recent: [], config: baseCfg({ eventMatrix: { "card:confirm": true } }) };
+		const s2 = setup(live2);
+		await renderSettled(s2.runtime, s2.node);
+		await s2.poke();
+		if (!detail && !s2.getHtml().includes("任务需要确认")) detail = "card:confirm=true 没有弹需确认卡";
+	} catch (e) { detail = "卡片矩阵用例抛错：" + ((e && e.message) || e); }
+	// 语音：eventMatrix 覆盖旧 voiceOn*（true 覆盖 false、false 覆盖 true）
+	if (!detail) try {
+		const speech1 = makeSpeechStub();
+		const live1 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: baseCfg({ voiceNotify: true, voiceOnComplete: false, eventMatrix: { "voice:complete": true } }) };
+		const s1 = setup(live1, { speech: speech1 });
+		await finish(s1, live1);
+		if (speech1.spoken.length !== 1) detail = "voice:complete=true 没有覆盖 voiceOnComplete=false";
+		const speech2 = makeSpeechStub();
+		const live2 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: baseCfg({ voiceNotify: true, voiceOnComplete: true, eventMatrix: { "voice:complete": false } }) };
+		const s2 = setup(live2, { speech: speech2 });
+		await finish(s2, live2);
+		if (!detail && speech2.spoken.length !== 0) detail = "voice:complete=false 没有覆盖 voiceOnComplete=true";
+	} catch (e) { detail = "语音矩阵用例抛错：" + ((e && e.message) || e); }
+	if (detail) { console.log(`✗ 通知事件矩阵生效：${detail}`); process.exit(1); }
+	console.log("✓ 通知事件矩阵生效：提示音/系统通知/卡片/语音分别按 eventMatrix 独立开关，矩阵值覆盖旧字段");
 }
 
 // ---------- 用例 22：【任务通知】页内卡片总开关 + 卡住卡（类型开关 / 主子标注 / 恢复自动收 / 关总开关清卡） ----------

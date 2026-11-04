@@ -30,12 +30,13 @@ import { feature as fRunState } from "../features/runstate/view.jsx";
 import { feature as fTts } from "../features/tts/view.jsx";
 import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
+import { feature as fMobile } from "../features/mobile/view.js";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.20.0";
+const DOCK_VERSION = "0.21.0";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay, fMobile];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
@@ -163,6 +164,12 @@ const SHELL_CSS = [
 	".dockm-name{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;}",
 	".dockm-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
 	".dockm-view{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
+	".dockm-page{box-sizing:border-box;height:100%;overflow:auto;padding:20px 24px 32px;}",
+	".dockm-page-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;}",
+	".dockm-page-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
+	".dockm-page-titles{min-width:0;}",
+	".dockm-page-title{font-size:17px;font-weight:600;color:var(--dsw-alias-label-primary);line-height:1.3;}",
+	".dockm-page-sub{font-size:12px;color:var(--dsw-alias-label-tertiary);margin-top:2px;}",
 	".dockm-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
 	".dockm-err{color:var(--dsw-alias-state-error-primary);}",
 	".dockm-foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:11px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;flex-wrap:wrap;}",
@@ -194,7 +201,11 @@ const SHELL_CSS = [
 ".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
 	// 窄屏：功能坞是一级工作台而不是被压扁的桌面弹窗。全屏承接安全区，导航改横向，
 	// 禁用桌面拖拽/缩放，所有导航和关闭动作保持至少 44px 的可点击面积。
-	"@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:1fr;gap:10px}.dockh-card{padding:12px}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
+	"@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:minmax(0,1fr);gap:10px;min-width:0}.dockh-card{padding:12px;box-sizing:border-box;min-width:0}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
+	/* 手机端：功能坞弹层挂在 .overlayLayer(z20) 内，会被 z71 的侧栏抽屉盖住（只剩右侧一条）。\n	   把 overlayLayer 在窄屏抬到抽屉之上，面板才能全屏覆盖——且不依赖【手机适配】模块是否启用。 */
+	"@media (max-width:767px){[class*=\"overlayLayer\"]{z-index:100 !important}}",
+	/* 手机：输入卡里的「轮/步/token/缓存」状态条移到输入框上方，压成一行不溢出；空会话时把输入卡贴底 */
+	"@media (max-width:767px){[class*=\"scrollBody\"]>[class*=\"composerSeat\"]{margin-top:auto!important;padding-bottom:0!important}[class*=\"composerSeat\"] [class*=\"_dock\"]{order:-1!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;padding:0 2px 6px!important;gap:6px!important;font-size:10px!important;overflow:hidden!important}[class*=\"composerSeat\"] [class*=\"_dock\"]>*{min-width:0}}",
 	"@media (prefers-reduced-motion:reduce){.dockm-backdrop,.dockm-dialog{animation:none}.dockm-nav-item,.dockm-close,.dockm-win,.dock-sw{transition:none}}",
 	".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
 	".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
@@ -220,7 +231,9 @@ const SHELL_CSS = [
 	".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
 	".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
 	".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
-	".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
+	".dockchip.err{color:var(--dsw-alias-state-error-primary);}",
+	/* 手机：输入区工具行很窄，给 chips 稍多宽度，并隐藏费用等次要后缀（.dockchip-x），避免被截成「⛁ 2…／余…」 */
+	"@media (max-width:767px){.dockchip-row{max-width:min(216px,40cqw)}.dockchip-x{display:none}.dockchip{font-size:10px!important;padding:1px 2px!important;gap:3px!important}.dockchip .dockchip-dot{width:4px;height:4px}.dockchip-ic{display:none}.dockchip-pre{display:none}}"
 ].join("\n");
 
 let dockCssTag = null;
@@ -616,6 +629,19 @@ function DockPanel(props) {
 		}));
 }
 
+// ---- 功能坞主面板页（sidebar.panellist 一级入口 → main 面板） ----
+// 作为侧栏面板入口注册后，DSH 自带的入口自定义（Pin/更多）即可让用户把它固定在侧栏顶部
+// （“放到上面”），或取消固定收进侧栏「更多」菜单（“放到更多里”）。
+function DockPage() {
+	return react.createElement("div", { className: "dockm-page" },
+		react.createElement("div", { className: "dockm-page-head" },
+			react.createElement("span", { className: "dockm-page-icon" }, react.createElement(DockIcon, { size: 20 })),
+			react.createElement("div", { className: "dockm-page-titles" },
+				react.createElement("div", { className: "dockm-page-title" }, "功能坞"),
+				react.createElement("div", { className: "dockm-page-sub" }, "所有小功能集中在这里管理。侧栏图标可在「更多」菜单里 Pin 到顶部，或取消固定收进更多。"))),
+		react.createElement("div", { className: "dockm-page-body" }, react.createElement(DockPanel, { params: null })));
+}
+
 // ---- 会话输入区工具行 chips：已启用功能的随身小控件（模型选择器左侧） ----
 // 功能模块在 feature 描述符上挂可选 Chip 组件（props: { ctx, session, sessionId, input, feature }），
 // 启用即在 conversation.input.left 渲染；点击通常经 openPanel(...) 打开功能坞定位到对应功能页。
@@ -683,9 +709,14 @@ export function apply(ctx) {
 	const slots = ctx.get("slots");
 	if (slots === undefined) return;
 
-	slots.inject("sidebar.footer.action", () => slots.register(
-		{ name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "功能坞" },
-		(props) => react.createElement(DockEntry, props)));
+	// 侧栏一级入口（sidebar.panellist）+ 对应主面板（main）：注册成面板入口后，DSH 自带的
+	// 入口自定义可以「固定到左侧栏」= 显示在顶部图标区；取消固定 = 收进侧栏「更多」菜单。
+	slots.inject("sidebar.panellist", () => slots.register(
+		{ name: "sidebar.panellist", id: "dsh-dock", order: 30, label: "功能坞" },
+		(props) => react.createElement(DockIcon, { size: (props && props.size) || 18 })));
+	slots.inject("main", () => slots.register(
+		{ name: "main", key: "dsh-dock", label: "功能坞" },
+		() => react.createElement(DockPage, null)));
 	slots.inject("shell.overlay", () => slots.register(
 		{ name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "功能坞面板" },
 		() => react.createElement(DockModal, null)));

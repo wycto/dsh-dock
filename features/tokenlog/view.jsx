@@ -1413,11 +1413,16 @@ export function TokenLogChip(props) {
 	const gone = isTokenlogRouteGone();
 	// chip 文案用紧凑人民币金额（2 位小数），避免撑爆输入卡工具行；
 	// 完整金额在 title 悬浮提示里。
-	const label = gone
+	// 手机上输入区工具行很窄：主文案（图标 + token 数）单独一段；费用放进 .dockchip-x，
+	// 窄屏由 CSS 隐藏，避免整条被截成「⛁ 2…」。完整信息仍在 title 悬浮提示里。
+	const hasData = !!t && !gone && !(snap.err && !t);
+	const labelIcon = hasData ? "⛁ " : "";
+	const labelMain = gone
 		? "用量·未启用"
 		: snap.err && !t
 		? (snap.err.includes("重启") || snap.err.includes("启用") ? "用量·未启用" : "用量·失败")
-		: (t ? "⛁ " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " · " + fmtCostCny(t.cost, snap.rate) : "") : "⛁ …");
+		: (t ? fmtCompact(t.totalTokens) : "…");
+	const labelExtra = hasData && t.cost > 0 ? " · " + fmtCostCny(t.cost, snap.rate) : "";
 	const title = gone
 		? routeGoneMessage() + "\n（可在功能坞里启用「用量记录」）"
 		: t
@@ -1428,7 +1433,7 @@ export function TokenLogChip(props) {
 		<button type="button" className={"dockchip" + (snap.err && !t && !gone ? " err" : "")} title={title} aria-label="会话用量"
 			onClick={() => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() })}>
 			<span className="dockchip-dot" style={{ background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" }} />
-			<span>{label}</span>
+			{labelIcon ? <span className="dockchip-ic">{labelIcon}</span> : null}<span>{labelMain}</span>{labelExtra ? <span className="dockchip-x">{labelExtra}</span> : null}
 		</button>
 	);
 }

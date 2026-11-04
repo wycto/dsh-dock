@@ -260,10 +260,10 @@ function chipBalanceText(p) {
 	const b = p && p.balance;
 	if (!b) return "余额 …";
 	if (b.status !== "ok") {
-		if (b.status === "login-required") return "余额·需登录";
-		if (b.status === "no-credential") return "余额·无密钥";
-		if (b.status === "unsupported") return "余额·不支持";
-		return "余额·查询失败";
+		if (b.status === "login-required") return "余额 需登录";
+		if (b.status === "no-credential") return "余额 无密钥";
+		if (b.status === "unsupported") return "余额 不支持";
+		return "余额 查询失败";
 	}
 	if (b.kind === "quota") {
 		const v = Number(b.remaining);
@@ -289,11 +289,12 @@ function BalanceChip(props) {
 	const def = selProvider || (data && data.default ? data.default.provider : null);
 	const cur = def ? providers.find((p) => p.id === def) : null;
 	const accent = cur ? accentOf(cur.id) : "#64748b";
-	const text = snap.error ? "余额·失败" : (!data ? (snap.loading ? "余额 …" : "余额 —") : (cur ? chipBalanceText(cur) : "余额 —"));
+	const text = snap.error ? "余额 失败" : (!data ? (snap.loading ? "余额 …" : "余额 —") : (cur ? chipBalanceText(cur) : "余额 —"));
 	const selModel = sel && (sel.model || (sel.selected && sel.selected.model)) || null;
 	const title = cur
 		? (cur.displayName || cur.id) + (selModel ? " · 当前模型 " + selModel : "") + " · 点击在功能坞查看余额详情"
 		: "点击打开功能坞 · 模型余额";
+	const mm = /^(余额 )([\s\S]*)$/.exec(text);
 	return react.createElement("button", {
 		type: "button",
 		className: "dockchip" + (snap.error || (cur && cur.balance && cur.balance.status === "error") ? " err" : ""),
@@ -302,7 +303,8 @@ function BalanceChip(props) {
 		onClick: () => openPanel("balance", def ? { provider: def } : null),
 	},
 		react.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
-		react.createElement("span", null, text));
+		mm ? react.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
+		react.createElement("span", null, mm ? mm[2] : text));
 }
 
 export const feature = {

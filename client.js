@@ -2126,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react24 = __toESM(require("react"), 1);
+var import_react26 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -3743,7 +3743,10 @@ function TokenLogChip(props) {
   if (!sid) return null;
   const t = snap.totals;
   const gone = isTokenlogRouteGone();
-  const label = gone ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : snap.err && !t ? snap.err.includes("\u91CD\u542F") || snap.err.includes("\u542F\u7528") ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? "\u26C1 " + fmtCompact(t.totalTokens) + (t.cost > 0 ? " \xB7 " + fmtCostCny(t.cost, snap.rate) : "") : "\u26C1 \u2026";
+  const hasData = !!t && !gone && !(snap.err && !t);
+  const labelIcon = hasData ? "\u26C1 " : "";
+  const labelMain = gone ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : snap.err && !t ? snap.err.includes("\u91CD\u542F") || snap.err.includes("\u542F\u7528") ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? fmtCompact(t.totalTokens) : "\u2026";
+  const labelExtra = hasData && t.cost > 0 ? " \xB7 " + fmtCostCny(t.cost, snap.rate) : "";
   const title = gone ? routeGoneMessage() + "\n\uFF08\u53EF\u5728\u529F\u80FD\u575E\u91CC\u542F\u7528\u300C\u7528\u91CF\u8BB0\u5F55\u300D\uFF09" : t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCostCny(t.cost, snap.rate) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "button",
@@ -3755,7 +3758,9 @@ function TokenLogChip(props) {
       onClick: () => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() }),
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" } }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: label })
+        labelIcon ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-ic", children: labelIcon }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: labelMain }),
+        labelExtra ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-x", children: labelExtra }) : null
       ]
     }
   );
@@ -5438,10 +5443,10 @@ function chipBalanceText(p) {
   const b = p && p.balance;
   if (!b) return "\u4F59\u989D \u2026";
   if (b.status !== "ok") {
-    if (b.status === "login-required") return "\u4F59\u989D\xB7\u9700\u767B\u5F55";
-    if (b.status === "no-credential") return "\u4F59\u989D\xB7\u65E0\u5BC6\u94A5";
-    if (b.status === "unsupported") return "\u4F59\u989D\xB7\u4E0D\u652F\u6301";
-    return "\u4F59\u989D\xB7\u67E5\u8BE2\u5931\u8D25";
+    if (b.status === "login-required") return "\u4F59\u989D \u9700\u767B\u5F55";
+    if (b.status === "no-credential") return "\u4F59\u989D \u65E0\u5BC6\u94A5";
+    if (b.status === "unsupported") return "\u4F59\u989D \u4E0D\u652F\u6301";
+    return "\u4F59\u989D \u67E5\u8BE2\u5931\u8D25";
   }
   if (b.kind === "quota") {
     const v2 = Number(b.remaining);
@@ -5464,9 +5469,10 @@ function BalanceChip(props) {
   const def = selProvider || (data && data.default ? data.default.provider : null);
   const cur = def ? providers.find((p) => p.id === def) : null;
   const accent = cur ? accentOf(cur.id) : "#64748b";
-  const text = snap.error ? "\u4F59\u989D\xB7\u5931\u8D25" : !data ? snap.loading ? "\u4F59\u989D \u2026" : "\u4F59\u989D \u2014" : cur ? chipBalanceText(cur) : "\u4F59\u989D \u2014";
+  const text = snap.error ? "\u4F59\u989D \u5931\u8D25" : !data ? snap.loading ? "\u4F59\u989D \u2026" : "\u4F59\u989D \u2014" : cur ? chipBalanceText(cur) : "\u4F59\u989D \u2014";
   const selModel = sel && (sel.model || sel.selected && sel.selected.model) || null;
   const title = cur ? (cur.displayName || cur.id) + (selModel ? " \xB7 \u5F53\u524D\u6A21\u578B " + selModel : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
+  const mm = /^(余额 )([\s\S]*)$/.exec(text);
   return import_react8.default.createElement(
     "button",
     {
@@ -5477,7 +5483,8 @@ function BalanceChip(props) {
       onClick: () => openPanel("balance", def ? { provider: def } : null)
     },
     import_react8.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
-    import_react8.default.createElement("span", null, text)
+    mm ? import_react8.default.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
+    import_react8.default.createElement("span", null, mm ? mm[2] : text)
   );
 }
 var feature6 = {
@@ -7387,6 +7394,130 @@ function useVoiceClientEnabled() {
   }, []);
   return [on, set];
 }
+var CONFIG_SOURCE_KEY = "dsh-dock/notify/config-source/v1";
+var CLIENT_CONFIG_KEY = "dsh-dock/notify/client-config/v1";
+var CLIENT_CONFIG_FIELDS = [
+  "notifyOnComplete",
+  "notifyOnError",
+  "notifyOnConfirm",
+  "notifyOnStuck",
+  "notifyCards",
+  "cardMode",
+  "notifyStayMs",
+  "soundNotify",
+  "soundEffect",
+  "systemNotify",
+  "voiceMode",
+  "voiceOnComplete",
+  "voiceOnError",
+  "voiceOnConfirm",
+  "voiceOnStuck",
+  "voiceRate",
+  "voiceVolume",
+  "voiceLang",
+  "voiceURI"
+];
+function notifyConfigSource() {
+  try {
+    if (typeof localStorage === "undefined") return "server";
+    return localStorage.getItem(CONFIG_SOURCE_KEY) === "client" ? "client" : "server";
+  } catch {
+    return "server";
+  }
+}
+function setNotifyConfigSource(source) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(CONFIG_SOURCE_KEY, source === "client" ? "client" : "server");
+  } catch {
+  }
+}
+function readClientNotifyConfig() {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const raw = localStorage.getItem(CLIENT_CONFIG_KEY);
+    const obj = raw ? JSON.parse(raw) : null;
+    return obj && typeof obj === "object" && !Array.isArray(obj) ? obj : null;
+  } catch {
+    return null;
+  }
+}
+function writeClientNotifyConfig(cfg) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(CLIENT_CONFIG_KEY, JSON.stringify(cfg || {}));
+  } catch {
+  }
+}
+function pickClientConfig(serverCfg) {
+  const src = serverCfg || {};
+  const out = {};
+  for (const key of CLIENT_CONFIG_FIELDS) {
+    if (src[key] !== void 0) out[key] = src[key];
+  }
+  const matrix = {};
+  const m = src.eventMatrix;
+  if (m && typeof m === "object") {
+    for (const [key, value] of Object.entries(m)) {
+      if (typeof value === "boolean" && /^(card|sound|system|voice):/.test(key)) matrix[key] = value;
+    }
+  }
+  out.eventMatrix = matrix;
+  return out;
+}
+function mergeClientNotifyConfig(serverCfg, localCfg) {
+  const server = serverCfg || {};
+  const cfg = Object.assign({}, server, localCfg || {});
+  for (const key of ["dingtalkEnabled", "dingtalkWebhook", "feishuEnabled", "feishuWebhook", "pushMode"]) {
+    cfg[key] = server[key];
+  }
+  cfg.voiceNotify = server.voiceNotify === true;
+  const matrix = Object.assign({}, server.eventMatrix || {});
+  const localMatrix = localCfg && localCfg.eventMatrix || {};
+  for (const [key, value] of Object.entries(localMatrix)) {
+    if (typeof value === "boolean" && /^(card|sound|system|voice):/.test(key)) matrix[key] = value;
+  }
+  cfg.eventMatrix = matrix;
+  return cfg;
+}
+function effectiveNotifyConfig(serverCfg) {
+  const server = serverCfg || {};
+  if (notifyConfigSource() !== "client") return server;
+  const local = readClientNotifyConfig();
+  if (!local) return server;
+  return mergeClientNotifyConfig(server, local);
+}
+function useNotifyConfigSource() {
+  const [source, setSource] = (0, import_react10.useState)(() => notifyConfigSource());
+  const set = (0, import_react10.useCallback)((next) => {
+    const value = next === "client" ? "client" : "server";
+    setNotifyConfigSource(value);
+    setSource(value);
+  }, []);
+  return [source, set];
+}
+var EVENT_CONFIG_KEY = {
+  complete: "notifyOnComplete",
+  error: "notifyOnError",
+  confirm: "notifyOnConfirm",
+  stuck: "notifyOnStuck"
+};
+var VOICE_EVENT_KEY = {
+  complete: "voiceOnComplete",
+  error: "voiceOnError",
+  confirm: "voiceOnConfirm",
+  stuck: "voiceOnStuck"
+};
+function eventEnabled(cfg, channel, event) {
+  const key = channel + ":" + event;
+  const matrix = cfg && cfg.eventMatrix;
+  if (matrix && typeof matrix === "object" && typeof matrix[key] === "boolean") return matrix[key];
+  if (channel === "voice") return !cfg || cfg[VOICE_EVENT_KEY[event]] !== false;
+  return !cfg || cfg[EVENT_CONFIG_KEY[event]] !== false;
+}
+function withEventMatrix(cfg, channel, event, on) {
+  const matrix = Object.assign({}, cfg && cfg.eventMatrix || {});
+  matrix[channel + ":" + event] = !!on;
+  return matrix;
+}
 function localVoices() {
   const s = synthOf();
   if (!s) return [];
@@ -7618,6 +7749,12 @@ var notifyStore = {
       this.emit();
     }
   },
+  // 本机配置/配置来源变化：状态对象换一个浅拷贝，让订阅方（尤其浮层的 effect）重算。
+  touch() {
+    if (!this.snap.status) return;
+    this.snap = Object.assign({}, this.snap, { status: Object.assign({}, this.snap.status) });
+    this.emit();
+  },
   refresh() {
     if (this.snap.loading) return Promise.resolve();
     this.snap = Object.assign({}, this.snap, { loading: true });
@@ -7763,12 +7900,12 @@ function NotifyOverlay(props) {
   const toastSeqRef = (0, import_react10.useRef)(0);
   const pushToast = (0, import_react10.useCallback)((toast) => {
     const st = notifyStore.snap.status;
-    const cfg = st && st.config;
+    const cfg = st ? effectiveNotifyConfig(st.config) : null;
     if (cfg && cfg.notifyCards === false) return;
     setToasts((prev) => prev.concat([toast]).slice(-12));
   }, []);
   (0, import_react10.useEffect)(() => {
-    const cfg = snap.status && snap.status.config;
+    const cfg = snap.status ? effectiveNotifyConfig(snap.status.config) : null;
     if (cfg && cfg.notifyCards === false) setToasts((prev) => prev.length ? [] : prev);
   }, [snap.status]);
   (0, import_react10.useEffect)(() => {
@@ -7800,7 +7937,7 @@ function NotifyOverlay(props) {
       for (const task of prev) {
         if (currIds.has(task.sessionId)) continue;
         const record = (st.recent || []).find((r) => r.sessionId === task.sessionId) || null;
-        handleTaskEnd(task, record, st.config || {});
+        handleTaskEnd(task, record, effectiveNotifyConfig(st.config || {}));
       }
     }
     prevActiveRef.current = st.active.slice();
@@ -7808,7 +7945,7 @@ function NotifyOverlay(props) {
   (0, import_react10.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
-    const cfg = st.config || {};
+    const cfg = effectiveNotifyConfig(st.config || {});
     const activeIds = new Set(st.active.map((x) => x.sessionId));
     for (const [sid, seen] of remindedApprovalsRef.current) {
       if (!activeIds.has(sid)) remindedApprovalsRef.current.delete(sid);
@@ -7824,10 +7961,10 @@ function NotifyOverlay(props) {
       const fresh = approvals.filter((a) => a && !seen.has(a.id));
       if (fresh.length === 0) continue;
       for (const a of fresh) seen.add(a.id);
-      if (voiceAllowed(cfg) && cfg.voiceOnConfirm !== false) {
+      if (voiceAllowed(cfg) && eventEnabled(cfg, "voice", "confirm")) {
         speakVoice(confirmBroadcastText(task, fresh[0], cfg), cfg);
       }
-      if (cfg.notifyOnConfirm === false) continue;
+      if (!eventEnabled(cfg, "card", "confirm")) continue;
       const toolName = fresh[0].toolName || "";
       const scene = toolLabel(toolName);
       const tone = cardTone(cfg);
@@ -7853,8 +7990,8 @@ function NotifyOverlay(props) {
         // 下面的对账 effect 据此自动收起卡片（处理完就不该再占着右上角）。
         approvalKeys: fresh.filter((a) => a && a.id).map((a) => task.sessionId + "|" + a.id)
       });
-      if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
-      if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      if (cfg.soundNotify !== false && eventEnabled(cfg, "sound", "confirm")) playAskSound(cfg.soundEffect);
+      if (cfg.systemNotify && eventEnabled(cfg, "system", "confirm") && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
         try {
           new Notification("dsh \u4EFB\u52A1\u9700\u8981\u786E\u8BA4", {
             body: (task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + (toolName || "\u5DE5\u5177") + " \u7B49\u5F85\u786E\u8BA4",
@@ -7868,7 +8005,7 @@ function NotifyOverlay(props) {
   (0, import_react10.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
-    const cfg = st.config || {};
+    const cfg = effectiveNotifyConfig(st.config || {});
     const activeIds = new Set(st.active.map((x) => x.sessionId));
     for (const [sid, seen] of remindedQuestionsRef.current) {
       if (!activeIds.has(sid)) remindedQuestionsRef.current.delete(sid);
@@ -7884,10 +8021,10 @@ function NotifyOverlay(props) {
       const fresh = questions.filter((q) => q && q.id && !seen.has(q.id));
       if (fresh.length === 0) continue;
       for (const q of fresh) seen.add(q.id);
-      if (voiceAllowed(cfg) && cfg.voiceOnConfirm !== false) {
+      if (voiceAllowed(cfg) && eventEnabled(cfg, "voice", "confirm")) {
         speakVoice(questionBroadcastText(task, fresh[0], cfg), cfg);
       }
-      if (cfg.notifyOnConfirm === false) continue;
+      if (!eventEnabled(cfg, "card", "confirm")) continue;
       const tone = cardTone(cfg);
       const head = fresh[0].header || "";
       const body = fresh[0].question || "";
@@ -7908,8 +8045,8 @@ function NotifyOverlay(props) {
         // 与这批提问绑定：回答落地后宿主把它们移出 questions，下面的对账 effect 据此收起
         questionKeys: fresh.map((q) => task.sessionId + "|" + q.id)
       });
-      if (cfg.soundNotify !== false) playAskSound(cfg.soundEffect);
-      if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      if (cfg.soundNotify !== false && eventEnabled(cfg, "sound", "confirm")) playAskSound(cfg.soundEffect);
+      if (cfg.systemNotify && eventEnabled(cfg, "system", "confirm") && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
         try {
           new Notification("dsh \u4EFB\u52A1\u9700\u8981\u4F60\u56DE\u7B54", {
             body: (task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + (head || "\u6709\u4E00\u95EE\u5728\u7B49\u4F60\u9009\u62E9"),
@@ -7964,7 +8101,7 @@ function NotifyOverlay(props) {
   (0, import_react10.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
-    const cfg = st.config || {};
+    const cfg = effectiveNotifyConfig(st.config || {});
     const now = st.now || Date.now();
     const activeIds = new Set(st.active.map((x) => x.sessionId));
     for (const sid of Array.from(stuckSeenRef.current.keys())) {
@@ -7989,10 +8126,10 @@ function NotifyOverlay(props) {
       const prev = stuckSeenRef.current.get(task.sessionId);
       if (prev === lastAct) continue;
       stuckSeenRef.current.set(task.sessionId, lastAct);
-      if (voiceAllowed(cfg) && cfg.voiceOnStuck !== false) {
+      if (voiceAllowed(cfg) && eventEnabled(cfg, "voice", "stuck")) {
         speakVoice(stuckBroadcastText(task, Object.assign({}, cfg, { stuckMs })), cfg);
       }
-      if (cfg.notifyOnStuck === false) continue;
+      if (!eventEnabled(cfg, "card", "stuck")) continue;
       const label = task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1";
       const title = task.title || "(\u65E0\u6807\u9898)";
       const tool = task.lastToolName || "";
@@ -8038,43 +8175,48 @@ function NotifyOverlay(props) {
     const reason = record && record.endReason || "";
     const success = isSuccessReason2(reason);
     const info = endInfo(reason);
-    const wanted = success ? cfg.notifyOnComplete : cfg.notifyOnError;
-    if (voiceAllowed(cfg) && (success ? cfg.voiceOnComplete !== false : cfg.voiceOnError !== false)) {
+    const event = success ? "complete" : "error";
+    const cardWanted = eventEnabled(cfg, "card", event);
+    const soundWanted = cfg.soundNotify !== false && eventEnabled(cfg, "sound", event);
+    const systemWanted = !!cfg.systemNotify && eventEnabled(cfg, "system", event);
+    if (voiceAllowed(cfg) && eventEnabled(cfg, "voice", event)) {
       speakVoice(endBroadcastText(success, record, task, cfg), cfg);
     }
-    if (wanted === false) return;
     const models = record && record.models && record.models.length ? record.models.join(", ") : task.models && task.models.length ? task.models.join(", ") : "\u672A\u77E5\u6A21\u578B";
     const provider = record && record.provider || task.provider || "";
     const startTs = record && record.startTime || task.startTime;
     const endTs = record && record.endTime || Date.now();
-    const tone = cardTone(cfg);
     const durText = fmtDur(record && record.duration || endTs - startTs);
-    const lines = ["\u4EFB\u52A1\uFF1A" + (record && record.title || task.title || "(\u65E0\u6807\u9898)")];
-    if (tone !== "brief") lines.push("\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""));
-    lines.push(tone === "brief" ? "\u8017\u65F6\uFF1A" + durText : "\u8017\u65F6\uFF1A" + durText + "\uFF08" + fmtTime2(startTs) + " \u2192 " + fmtTime2(endTs) + "\uFF09");
-    if (tone === "detailed") {
-      lines.push("\u56DE\u5408 " + (record && record.turns || task.turns || 0) + " \xB7 \u6B65\u9AA4 " + (record && record.steps || task.steps || 0) + (record && record.toolCalls || task.toolCalls ? " \xB7 \u5DE5\u5177 " + (record && record.toolCalls || task.toolCalls) + " \u6B21" : ""));
-      lines.push("Token\uFF1A\u8F93\u5165 " + fmtNum2(record && record.inputTokens || task.inputTokens) + " / \u8F93\u51FA " + fmtNum2(record && record.outputTokens || task.outputTokens));
-      if (record && record.lastText) lines.push("\u6458\u8981\uFF1A" + truncate2(record.lastText, 140));
-      if (!success && record && record.errorMessage) lines.push("\u9519\u8BEF\uFF1A" + truncate2(record.errorMessage, 120));
-    }
     const title = success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1" + info.label;
-    pushToast({
-      id: ++toastSeqRef.current,
-      kind: success ? "success" : info.cls === "err" ? "error" : "warn",
-      title,
-      body: lines.join("\n"),
-      // 绑定会话：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
-      // 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
-      // sessionId 是权威标识（跳转/对账都用它），标题只作旧宿主回退。
-      sessionId: task.sessionId || "",
-      sessionTitle: record && record.title || task.title || ""
-    });
-    if (cfg.soundNotify !== false) playDoneSound(success, cfg.soundEffect);
-    if (cfg.systemNotify && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+    const showTitle = record && record.title || task.title || "(\u65E0\u6807\u9898)";
+    if (cardWanted) {
+      const tone = cardTone(cfg);
+      const lines = ["\u4EFB\u52A1\uFF1A" + showTitle];
+      if (tone !== "brief") lines.push("\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""));
+      lines.push(tone === "brief" ? "\u8017\u65F6\uFF1A" + durText : "\u8017\u65F6\uFF1A" + durText + "\uFF08" + fmtTime2(startTs) + " \u2192 " + fmtTime2(endTs) + "\uFF09");
+      if (tone === "detailed") {
+        lines.push("\u56DE\u5408 " + (record && record.turns || task.turns || 0) + " \xB7 \u6B65\u9AA4 " + (record && record.steps || task.steps || 0) + (record && record.toolCalls || task.toolCalls ? " \xB7 \u5DE5\u5177 " + (record && record.toolCalls || task.toolCalls) + " \u6B21" : ""));
+        lines.push("Token\uFF1A\u8F93\u5165 " + fmtNum2(record && record.inputTokens || task.inputTokens) + " / \u8F93\u51FA " + fmtNum2(record && record.outputTokens || task.outputTokens));
+        if (record && record.lastText) lines.push("\u6458\u8981\uFF1A" + truncate2(record.lastText, 140));
+        if (!success && record && record.errorMessage) lines.push("\u9519\u8BEF\uFF1A" + truncate2(record.errorMessage, 120));
+      }
+      pushToast({
+        id: ++toastSeqRef.current,
+        kind: success ? "success" : info.cls === "err" ? "error" : "warn",
+        title,
+        body: lines.join("\n"),
+        // 绑定会话：点卡片直达该会话；用户点进这个会话（侧栏选中）也视为
+        // 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
+        // sessionId 是权威标识（跳转/对账都用它），标题只作旧宿主回退。
+        sessionId: task.sessionId || "",
+        sessionTitle: showTitle
+      });
+    }
+    if (soundWanted) playDoneSound(success, cfg.soundEffect);
+    if (systemWanted && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
       try {
         new Notification("dsh " + title, {
-          body: (record && record.title || task.title || "(\u65E0\u6807\u9898)") + " \xB7 " + fmtDur(record && record.duration || endTs - startTs),
+          body: showTitle + " \xB7 " + durText,
           tag: "dsh-dock-notify-" + task.sessionId
         });
       } catch {
@@ -8102,11 +8244,115 @@ function NotifyOverlay(props) {
     }
   );
 }
+var MATRIX_COLUMNS = [
+  { id: "card", label: "\u9875\u5185\u5361\u7247" },
+  { id: "sound", label: "\u63D0\u793A\u97F3" },
+  { id: "system", label: "\u7CFB\u7EDF\u901A\u77E5" },
+  { id: "voice", label: "\u8BED\u97F3\u64AD\u62A5" },
+  { id: "dingtalk", label: "\u9489\u9489" },
+  { id: "feishu", label: "\u98DE\u4E66" }
+];
+var MATRIX_EVENTS = [
+  { id: "complete", label: "\u5B8C\u6210", desc: "\u4EFB\u52A1\u6B63\u5E38\u7ED3\u675F" },
+  { id: "error", label: "\u5F02\u5E38", desc: "\u51FA\u9519 / \u4E2D\u6B62 / \u53D7\u963B / \u8FBE\u4E0A\u9650" },
+  { id: "confirm", label: "\u9700\u786E\u8BA4 / \u9700\u56DE\u7B54", desc: "\u5DE5\u5177\u7B49\u6279\u51C6\u3001\u63D0\u95EE\u7B49\u56DE\u7B54" },
+  { id: "stuck", label: "\u5361\u4F4F", desc: "\u7F16\u7A0B\u9636\u6BB5\u957F\u65F6\u95F4\u65E0\u6D3B\u52A8" }
+];
+var MATRIX_SUPPORT = {
+  card: ["complete", "error", "confirm", "stuck"],
+  sound: ["complete", "error", "confirm"],
+  system: ["complete", "error", "confirm"],
+  voice: ["complete", "error", "confirm", "stuck"],
+  dingtalk: ["complete", "error"],
+  feishu: ["complete", "error"]
+};
+var MODE_OPTIONS = [["brief", "\u7B80\u6D01"], ["medium", "\u9002\u4E2D"], ["detailed", "\u8BE6\u7EC6"]];
+function ModePicker(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-modes", children: MODE_OPTIONS.map(([value, label]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+    "button",
+    {
+      type: "button",
+      className: "dknt-miniswitch" + (props.value === value ? " on" : ""),
+      title: props.title ? props.title + "\uFF08" + label + "\uFF09" : label,
+      onClick: () => props.onChange(value),
+      children: label
+    },
+    value
+  )) });
+}
+function channelMasterOn(cfg, channel, voiceClientOn) {
+  if (!cfg) return false;
+  if (channel === "card") return cfg.notifyCards !== false;
+  if (channel === "sound") return cfg.soundNotify !== false;
+  if (channel === "system") return !!cfg.systemNotify;
+  if (channel === "voice") return cfg.voiceNotify === true && voiceClientOn;
+  if (channel === "dingtalk") return !!cfg.dingtalkEnabled;
+  if (channel === "feishu") return !!cfg.feishuEnabled;
+  return false;
+}
+function EventMatrix(props) {
+  const { cfg, source, voiceClientOn, patch } = props;
+  const toggle = (channel, event, on) => patch({ eventMatrix: withEventMatrix(cfg, channel, event, on) });
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-matrix-wrap", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-matrix", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-matrix-row dknt-matrix-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-matrix-event", children: "\u901A\u77E5\u4E8B\u4EF6" }),
+        MATRIX_COLUMNS.map((column) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-matrix-col" + (channelMasterOn(cfg, column.id, voiceClientOn) ? " on" : ""), children: [
+          column.label,
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("em", { children: channelMasterOn(cfg, column.id, voiceClientOn) ? "\u5F00" : "\u5173" })
+        ] }, column.id))
+      ] }),
+      MATRIX_EVENTS.map((ev) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-matrix-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-matrix-event", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("b", { children: ev.label }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("small", { children: ev.desc })
+        ] }),
+        MATRIX_COLUMNS.map((column) => {
+          const supported = MATRIX_SUPPORT[column.id].indexOf(ev.id) !== -1;
+          const serverOnly = source === "client" && (column.id === "dingtalk" || column.id === "feishu");
+          if (!supported) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-cell dknt-cell-na", title: "\u8BE5\u6E20\u9053\u4E0D\u652F\u6301\u6B64\u4E8B\u4EF6", children: "\u2014" }, column.id);
+          const on = eventEnabled(cfg, column.id, ev.id);
+          return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dknt-cell" + (on ? " on" : "") + (serverOnly ? " disabled" : ""),
+              role: "checkbox",
+              "aria-checked": on,
+              disabled: serverOnly,
+              title: serverOnly ? "\u7FA4\u673A\u5668\u4EBA\u63A8\u9001\u7531\u670D\u52A1\u7AEF\u6267\u884C\uFF0C\u8BF7\u5207\u6362\u5230\u300C\u670D\u52A1\u7AEF\u914D\u7F6E\u300D\u4FEE\u6539" : on ? "\u53D6\u6D88\u8BE5\u4E8B\u4EF6\u901A\u8FC7\u6B64\u6E20\u9053\u63D0\u9192" : "\u8BA9\u8BE5\u4E8B\u4EF6\u901A\u8FC7\u6B64\u6E20\u9053\u63D0\u9192",
+              onClick: () => {
+                if (!serverOnly) toggle(column.id, ev.id, !on);
+              },
+              children: on ? "\u2713" : ""
+            },
+            column.id
+          );
+        })
+      ] }, ev.id))
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-matrix-legend", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: "dknt-dot on" }),
+        " \u5DF2\u52FE\u9009"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("i", { className: "dknt-dot" }),
+        " \u672A\u52FE\u9009"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u300C\u2014\u300D= \u8BE5\u6E20\u9053\u4E0D\u652F\u6301\u6B64\u4E8B\u4EF6" }),
+      source === "client" ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u9489\u9489 / \u98DE\u4E66\u4E3A\u670D\u52A1\u7AEF\u63A8\u9001\uFF0C\u9700\u5207\u56DE\u300C\u670D\u52A1\u7AEF\u914D\u7F6E\u300D\u4FEE\u6539" }) : null
+    ] })
+  ] });
+}
 function NotifyView(props) {
   const snap = useNotify();
   const voices = useLocalVoices();
   const [voiceClientOn, setVoiceClientOn] = useVoiceClientEnabled();
-  const [cfg, setCfg] = (0, import_react10.useState)(null);
+  const [source, setSource] = useNotifyConfigSource();
+  const [tab, setTab] = (0, import_react10.useState)("events");
+  const [clientCfg, setClientCfg] = (0, import_react10.useState)(() => readClientNotifyConfig());
+  const [serverDraft, setServerDraft] = (0, import_react10.useState)(null);
   const [saveErr, setSaveErr] = (0, import_react10.useState)("");
   const [testing, setTesting] = (0, import_react10.useState)(false);
   const [testState, setTestState] = (0, import_react10.useState)(null);
@@ -8116,21 +8362,36 @@ function NotifyView(props) {
   const pendingSavesRef = (0, import_react10.useRef)(0);
   const editingWebhookRef = (0, import_react10.useRef)(false);
   const editingFeishuRef = (0, import_react10.useRef)(false);
+  const serverCfg = snap.status && snap.status.config;
   (0, import_react10.useEffect)(() => {
-    const c = snap.status && snap.status.config;
-    if (!c) return;
+    if (!serverCfg) return;
     if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
-    if (c !== cfgRef.current) {
-      cfgRef.current = c;
-      setCfg(Object.assign({}, c));
+    if (serverCfg !== cfgRef.current) {
+      cfgRef.current = serverCfg;
+      setServerDraft(Object.assign({}, serverCfg));
     }
   }, [snap.status]);
   (0, import_react10.useEffect)(() => {
+    if (source !== "client" || clientCfg || !serverCfg) return;
+    const clone = pickClientConfig(serverCfg);
+    writeClientNotifyConfig(clone);
+    setClientCfg(clone);
+  }, [source, clientCfg, serverCfg]);
+  (0, import_react10.useEffect)(() => {
     if (!notifyStore.snap.status) notifyStore.refresh();
   }, []);
+  const cfg = source === "client" ? clientCfg ? mergeClientNotifyConfig(serverCfg, clientCfg) : null : serverDraft || serverCfg;
   const patch = (p) => {
     setSaveErr("");
-    setCfg(Object.assign({}, cfg, p));
+    if (source === "client") {
+      const base = clientCfg || (serverCfg ? pickClientConfig(serverCfg) : {});
+      const next = Object.assign({}, base, p);
+      writeClientNotifyConfig(next);
+      setClientCfg(next);
+      notifyStore.touch();
+      return Promise.resolve();
+    }
+    setServerDraft(Object.assign({}, cfg, p));
     pendingSavesRef.current++;
     return rpcCall3("config", p).then((d) => {
       pendingSavesRef.current--;
@@ -8140,6 +8401,22 @@ function NotifyView(props) {
       setSaveErr("\u4FDD\u5B58\u5931\u8D25\uFF1A" + (e && e.message || String(e)));
     });
   };
+  const chooseSource = (next) => {
+    if (next === "client" && !clientCfg && serverCfg) {
+      const clone = pickClientConfig(serverCfg);
+      writeClientNotifyConfig(clone);
+      setClientCfg(clone);
+    }
+    setSource(next);
+    notifyStore.touch();
+  };
+  const copyFromServer = () => {
+    if (!serverCfg) return;
+    const clone = pickClientConfig(serverCfg);
+    writeClientNotifyConfig(clone);
+    setClientCfg(clone);
+    notifyStore.touch();
+  };
   const saveWebhook = async () => {
     if (!editingWebhookRef.current) return;
     const hook = String(cfg.dingtalkWebhook || "").trim();
@@ -8148,7 +8425,7 @@ function NotifyView(props) {
     const c = notifyStore.snap.status && notifyStore.snap.status.config;
     if (c && c !== cfgRef.current) {
       cfgRef.current = c;
-      setCfg(Object.assign({}, c));
+      setServerDraft(Object.assign({}, c));
     }
   };
   const saveFeishuWebhook = async () => {
@@ -8159,7 +8436,7 @@ function NotifyView(props) {
     const c = notifyStore.snap.status && notifyStore.snap.status.config;
     if (c && c !== cfgRef.current) {
       cfgRef.current = c;
-      setCfg(Object.assign({}, c));
+      setServerDraft(Object.assign({}, c));
     }
   };
   const runDingtalkTest = async () => {
@@ -8173,7 +8450,7 @@ function NotifyView(props) {
         notifyStore.applyConfig(d && d.config);
         editingWebhookRef.current = false;
         cfgRef.current = d && d.config || cfgRef.current;
-        setCfg(Object.assign({}, cfg, { dingtalkWebhook: hook }));
+        setServerDraft(Object.assign({}, cfg, { dingtalkWebhook: hook }));
       }
       const r = await rpcCall3("test");
       setTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
@@ -8194,7 +8471,7 @@ function NotifyView(props) {
         notifyStore.applyConfig(d && d.config);
         editingFeishuRef.current = false;
         cfgRef.current = d && d.config || cfgRef.current;
-        setCfg(Object.assign({}, cfg, { feishuWebhook: hook }));
+        setServerDraft(Object.assign({}, cfg, { feishuWebhook: hook }));
       }
       const r = await rpcCall3("test", { target: "feishu" });
       setFeishuTestState(r && r.sent ? { ok: true, msg: "\u6D4B\u8BD5\u6D88\u606F\u5DF2\u53D1\u9001\uFF0C\u53BB\u7FA4\u91CC\u770B\u770B" } : { ok: false, msg: r && r.error || "\u53D1\u9001\u5931\u8D25" });
@@ -8225,484 +8502,508 @@ function NotifyView(props) {
     rows.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: snap.error ? "\u72B6\u6001\u4E0D\u53EF\u7528\uFF1A" + snap.error : snap.loading ? "\u6B63\u5728\u62C9\u53D6\u901A\u77E5\u72B6\u6001\u2026" : "\u7B49\u5F85\u901A\u77E5\u72B6\u6001" }, "load"));
   } else {
     rows.push(
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u901A\u77E5\u4E8B\u4EF6" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u54EA\u4E9B\u65F6\u523B\u63D0\u9192\u4F60\uFF1B\u4E0E\u3010\u4EFB\u52A1\u52A8\u753B\u3011\u7684\u52A8\u6548\u4E92\u4E0D\u4F9D\u8D56" })
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-source", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-source-info", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-source-title", children: "\u914D\u7F6E\u6765\u6E90" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-source-sub", children: source === "server" ? "\u8BBE\u7F6E\u4FDD\u5B58\u5728\u670D\u52A1\u7AEF\uFF0C\u6240\u6709\u6D4F\u89C8\u5668/\u8BBE\u5907\u5171\u4EAB" : "\u8BBE\u7F6E\u53EA\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u4EBA" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u9875\u5185\u5361\u7247" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.notifyCards !== false ? " on" : ""),
-                onClick: () => patch({ notifyCards: cfg.notifyCards === false }),
-                children: cfg.notifyCards !== false ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u53F3\u4FA7\u901A\u77E5\u5361\u7247\u603B\u5F00\u5173\uFF1A\u5173\u95ED\u540E\u4E0B\u9762\u5404\u7C7B\u5361\u7247\uFF08\u5B8C\u6210 / \u5F02\u5E38 / \u9700\u786E\u8BA4 / \u5361\u4F4F\uFF09\u4E00\u5F8B\u4E0D\u5F39\uFF0C\u5DF2\u6302\u7740\u7684\u4E00\u5E76\u6536\u8D77\uFF1B\u8BED\u97F3\u64AD\u62A5\u3001\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u3001\u9489\u9489\u98DE\u4E66\u63A8\u9001\u4E0D\u53D7\u5F71\u54CD" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5B8C\u6210\u901A\u77E5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.notifyOnComplete ? " on" : ""),
-                onClick: () => patch({ notifyOnComplete: !cfg.notifyOnComplete }),
-                children: cfg.notifyOnComplete ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u4EFB\u52A1\u6B63\u5E38\u5B8C\u6210\u65F6\u901A\u77E5" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5F02\u5E38\u901A\u77E5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.notifyOnError ? " on" : ""),
-                onClick: () => patch({ notifyOnError: !cfg.notifyOnError }),
-                children: cfg.notifyOnError ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u51FA\u9519 / \u4E2D\u6B62 / \u8FBE\u8F93\u51FA\u4E0A\u9650\u65F6\u901A\u77E5" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u9700\u786E\u8BA4\u63D0\u9192" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.notifyOnConfirm !== false ? " on" : ""),
-                onClick: () => patch({ notifyOnConfirm: cfg.notifyOnConfirm === false }),
-                children: cfg.notifyOnConfirm !== false ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5DE5\u5177\u7B49\u4F60\u6279\u51C6\u3001\u6216\u4F1A\u8BDD\u63D0\u95EE\u7B49\u4F60\u9009\u7B54\u6848\u65F6\u5F39\u5361\u7247\u5E76\u54CD\u786E\u8BA4\u97F3\uFF1B\u5904\u7406\u5B8C\u81EA\u52A8\u6536\u8D77\uFF0C\u6CA1\u5904\u7406\u5B8C\u5C31\u4E00\u76F4\u663E\u793A\uFF08\u70B9\u5361\u7247\u76F4\u8FBE\u4F1A\u8BDD\uFF09\u3002\u8FD9\u4E24\u79CD\u300C\u505C\u5728\u539F\u5730\u7B49\u4EBA\u300D\u90FD\u4E0D\u7B97\u5361\u4F4F" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u4F4F\u63D0\u9192" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.notifyOnStuck !== false ? " on" : ""),
-                onClick: () => patch({ notifyOnStuck: cfg.notifyOnStuck === false }),
-                children: cfg.notifyOnStuck !== false ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7F16\u7A0B\u9636\u6BB5\u957F\u65F6\u95F4\u6CA1\u6709\u52A8\u9759\u65F6\u5F39\u5361\u7247\uFF0C\u5199\u660E\u662F\u4E3B\u4EFB\u52A1\u8FD8\u662F\u5B50\u4EFB\u52A1\u3001\u505C\u6EDE\u4E86\u591A\u4E45\u3001\u6700\u540E\u5728\u6267\u884C\u4EC0\u4E48\uFF1B\u6062\u590D\u6D3B\u52A8 / \u4EFB\u52A1\u7ED3\u675F\u81EA\u52A8\u6536\u8D77\uFF0C\u540C\u4E00\u505C\u70B9\u53EA\u5F39\u4E00\u6B21\u3002\u7B49\u6279\u51C6\u3001\u7B49\u56DE\u7B54\u3001\u547D\u4EE4\u8FD8\u5728\u8DD1\u3001\u6B63\u5728\u538B\u7F29\u4E0A\u4E0B\u6587\u7684\u4F1A\u8BDD\u90FD\u4E0D\u7B97\u5361\u4F4F\uFF08\u90A3\u4E9B\u90FD\u662F\u5728\u5E72\u6D3B\uFF0C\u522B\u91CD\u590D\u8F70\u70B8\uFF09\uFF08\u8BED\u97F3\u64AD\u62A5\u8D70\u300C\u8BED\u97F3\u64AD\u62A5\u300D\u533A\u7684\u5361\u4F4F\u5F00\u5173\uFF0C\u4E92\u4E0D\u5E72\u6270\uFF09" })
-          ] })
-        ] })
-      ] }, "events"),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u63D0\u9192\u65B9\u5F0F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u9875\u5185\u5361\u7247\u3001\u63D0\u793A\u97F3\u3001\u6D4F\u89C8\u5668\u7CFB\u7EDF\u901A\u77E5\u53EF\u81EA\u7531\u7EC4\u5408" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u53E3\u5F84" }),
-            [["brief", "\u7B80\u6D01"], ["medium", "\u9002\u4E2D"], ["detailed", "\u8BE6\u7EC6"]].map(([v, label]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cardTone(cfg) === v ? " on" : ""),
-                style: { marginRight: 6 },
-                title: "\u53F3\u4FA7\u901A\u77E5\u5361\u7247\u6B63\u6587\u6309" + label + "\u6863\u663E\u793A",
-                onClick: () => patch({ cardMode: v }),
-                children: label
-              },
-              v
-            )),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u53F3\u4FA7\u5361\u7247\u6B63\u6587\u5199\u591A\u5C11\uFF08\u4E0E\u5404\u7C7B\u578B\u5F00\u5173\u3001\u8BED\u97F3\u64AD\u62A5\u4E92\u4E0D\u5F71\u54CD\uFF09\uFF1A\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u8017\u65F6 / \u8C01\u5361\u4F4F\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B\u3001\u8D77\u6B62\u65F6\u95F4\u3001\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1D\u5168\u90E8\uFF08\u56DE\u5408\u6B65\u9AA4\u3001Token\u3001\u6458\u8981\u6216\u9519\u8BEF\u3001\u6700\u540E\u52A8\u4F5C\uFF09" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u6536\u7EB3" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u6240\u6709\u5361\u7247\u90FD\u4E0D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u7ED3\u675F\u5361\u7247\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF08\u540E\u53F0\u8DD1\u5B8C\u7684\u5207\u56DE\u6765\u4E5F\u5728\uFF09\uFF0C\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD\uFF0C\u6216\u70B9\u8FDB\u8BE5\u4F1A\u8BDD\uFF0C\u5361\u7247\u81EA\u52A8\u6536\u8D77\uFF1B\u9700\u786E\u8BA4\u5361\u7247\u6302\u5230\u5BA1\u6279\u5904\u7406\u5B8C\uFF1B\u5361\u4F4F\u5361\u7247\u6302\u5230\u6062\u590D\u6D3B\u52A8\u30023 \u5F20\u53CA\u4EE5\u4E0A\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00\uFF1B\u8981\u6574\u4F53\u4E0D\u5F39\u770B\u4E0A\u9762\u300C\u9875\u5185\u5361\u7247\u300D\u603B\u5F00\u5173" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u7CFB\u7EDF\u901A\u77E5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.systemNotify ? " on" : ""),
-                onClick: () => enableSystemNotify(!cfg.systemNotify),
-                children: cfg.systemNotify ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: permNote })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u63D0\u793A\u97F3" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (cfg.soundNotify !== false ? " on" : ""),
-                onClick: () => patch({ soundNotify: cfg.soundNotify === false }),
-                children: cfg.soundNotify !== false ? "\u5F00" : "\u5173"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u4EFB\u52A1\u7ED3\u675F/\u9700\u786E\u8BA4\u65F6\u64AD\u653E\uFF08\u8BD5\u542C\u4E3A\u5148\u64AD\u5B8C\u6210\u97F3\u3001\u540E\u64AD\u5F02\u5E38\u97F3\uFF09" })
-          ] }),
-          cfg.soundNotify !== false ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-sounds", children: Object.keys(SOUND_LIBRARY).map((key) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-            "button",
-            {
-              type: "button",
-              className: "dknt-sound" + (cfg.soundEffect === key ? " on" : ""),
-              onClick: () => patch({ soundEffect: key }),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sound-name", children: [
-                  SOUND_LIBRARY[key].name,
-                  cfg.soundEffect === key ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sound-cur", children: "\u2713" }) : null
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                  "span",
-                  {
-                    className: "dknt-sound-play",
-                    role: "button",
-                    tabIndex: 0,
-                    title: "\u8BD5\u542C " + SOUND_LIBRARY[key].name,
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      previewSound(key);
-                    },
-                    onKeyDown: (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        previewSound(key);
-                      }
-                    },
-                    children: "\u25B6"
-                  }
-                )
-              ]
-            },
-            key
-          )) }) : null
-        ] })
-      ] }, "style"),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u8BED\u97F3\u64AD\u62A5" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u5B8C\u6210 / \u505C\u6B62 / \u9700\u8981\u6388\u6743 / \u9700\u56DE\u7B54 / \u5361\u4F4F\u65F6\u7528\u6D4F\u89C8\u5668\u8BED\u97F3\uFF08TTS\uFF09\u8BF4\u4E00\u53E5\u8BDD\uFF1B\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF08\u8DE8\u6D4F\u89C8\u5668\uFF09\u4E0E\u672C\u673A\u5F00\u5173\uFF08\u5F53\u524D\u6D4F\u89C8\u5668\uFF09\u90FD\u5F00\u542F\u624D\u64AD\u62A5" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : ""), children: cfg.voiceNotify ? "\u670D\u52A1\u7AEF\uFF1A\u5DF2\u5F00\u542F" : "\u670D\u52A1\u7AEF\uFF1A\u5DF2\u5173\u95ED" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dock-sw" + (cfg.voiceNotify ? " on" : ""),
-                role: "switch",
-                "aria-checked": cfg.voiceNotify,
-                "aria-label": "\u5F00\u5173\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09",
-                title: cfg.voiceNotify ? "\u5173\u95ED\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09" : "\u5F00\u542F\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09",
-                onClick: () => patch({ voiceNotify: !cfg.voiceNotify })
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u672C\u673A\u64AD\u62A5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-seg", role: "group", "aria-label": "\u901A\u77E5\u914D\u7F6E\u6765\u6E90", children: [
           /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
             "button",
             {
               type: "button",
-              className: "dknt-miniswitch" + (voiceClientOn ? " on" : ""),
-              role: "switch",
-              "aria-checked": voiceClientOn,
-              "aria-label": "\u5F00\u5173\u672C\u673A\u8BED\u97F3\u64AD\u62A5",
-              title: voiceClientOn ? "\u5173\u95ED\u672C\u673A\u8BED\u97F3\u64AD\u62A5" : "\u5F00\u542F\u672C\u673A\u8BED\u97F3\u64AD\u62A5",
-              onClick: () => setVoiceClientOn(!voiceClientOn),
-              children: voiceClientOn ? "\u5F00" : "\u5173"
+              className: "dknt-seg-btn" + (source === "server" ? " on" : ""),
+              "aria-pressed": source === "server",
+              onClick: () => chooseSource("server"),
+              children: "\u670D\u52A1\u7AEF\u914D\u7F6E"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voiceClientOn ? "\u672C\u6D4F\u89C8\u5668\u4F1A\u64AD\u62A5\uFF08\u8BBE\u7F6E\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF1B\u670D\u52A1\u7AEF\u603B\u5F00\u5173\u5173\u95ED\u65F6\u4E0D\u751F\u6548\uFF09" : "\u672C\u6D4F\u89C8\u5668\u4E0D\u64AD\u62A5\uFF08\u8BBE\u7F6E\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u6D4F\u89C8\u5668\uFF09" })
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dknt-seg-btn" + (source === "client" ? " on" : ""),
+              "aria-pressed": source === "client",
+              onClick: () => chooseSource("client"),
+              children: "\u672C\u673A\u914D\u7F6E"
+            }
+          )
         ] }),
-        cfg.voiceNotify ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u53E3\u5F84" }),
-            [["brief", "\u7B80\u6D01"], ["medium", "\u9002\u4E2D"], ["detailed", "\u8BE6\u7EC6"]].map(([v, label]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (voiceTone(cfg) === v ? " on" : ""),
-                style: { marginRight: 6 },
-                title: "\u8BED\u97F3\u64AD\u62A5\u6309" + label + "\u6863\u8BF4",
-                onClick: () => patch({ voiceMode: v }),
-                children: label
-              },
-              v
-            )),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1A\u4E00\u53E5\u300C\u4EFB\u52A1\u5B8C\u6210 / \u4EFB\u52A1\u505C\u6B62\u4E86 / \u4EFB\u52A1\u9700\u8981\u6388\u6743 / \u4E3B\u4EFB\u52A1\uFF08\u6216\u5B50\u4EFB\u52A1\uFF09\xB7\u6807\u9898 \u5361\u4F4F\u4E86\u300D\uFF1B\u9002\u4E2D\uFF1A\u70B9\u540D\u4EFB\u52A1\uFF0C\u7ED3\u675F\u5E26\u539F\u56E0\u4E0E\u8017\u65F6\u3001\u5361\u4F4F\u5E26\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1A\u7ED3\u675F\u5E26\u56DE\u5408\u7EDF\u8BA1\u4E0E\u56DE\u590D\u6458\u8981\uFF0C\u9700\u6388\u6743\u5E26\u5DE5\u5177\u540D\uFF0C\u5361\u4F4F\u5E26\u6700\u540E\u52A8\u4F5C" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u65F6\u523B" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", style: { minWidth: 0 }, children: [
-              ["voiceOnComplete", "\u5B8C\u6210", cfg.voiceOnComplete !== false],
-              ["voiceOnError", "\u505C\u6B62", cfg.voiceOnError !== false],
-              ["voiceOnConfirm", "\u9700\u6388\u6743/\u9700\u56DE\u7B54", cfg.voiceOnConfirm !== false],
-              ["voiceOnStuck", "\u5361\u4F4F", cfg.voiceOnStuck !== false]
-            ].map(([key, label, on]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-miniswitch" + (on ? " on" : ""),
-                style: { marginRight: 6 },
-                title: key === "voiceOnStuck" ? "\u7F16\u7A0B\u9636\u6BB5\u957F\u65F6\u95F4\u6CA1\u6709\u52A8\u9759\u65F6\u64AD\u62A5\u4E00\u6B21\uFF08\u6062\u590D\u540E\u53EF\u518D\u62A5\uFF1B\u547D\u4EE4\u5728\u8DD1 / \u6B63\u5728\u538B\u7F29\u4E0A\u4E0B\u6587\u4E0D\u7B97\uFF09" : "",
-                onClick: () => patch({ [key]: !on }),
-                children: [
-                  label,
-                  on ? "\xB7\u5F00" : "\xB7\u5173"
-                ]
-              },
-              key
-            )) })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BED\u901F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "input",
-              {
-                type: "range",
-                min: "0.5",
-                max: "2",
-                step: "0.05",
-                value: String(cfg.voiceRate || 1),
-                "aria-label": "\u64AD\u62A5\u8BED\u901F",
-                style: { width: 120, accentColor: "var(--dk-accent)" },
-                onChange: (e) => patch({ voiceRate: Number(e.target.value) || 1 })
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub", children: [
-              Number(cfg.voiceRate || 1).toFixed(2),
-              "\xD7\uFF08\u64AD\u62A5\u6BD4\u6B63\u6587\u6717\u8BFB\u7565\u5FEB\u66F4\u5229\u843D\uFF09"
-            ] })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u97F3\u91CF" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "input",
-              {
-                type: "range",
-                min: "0",
-                max: "1",
-                step: "0.05",
-                value: String(cfg.voiceVolume == null ? 1 : cfg.voiceVolume),
-                "aria-label": "\u64AD\u62A5\u97F3\u91CF",
-                style: { width: 120, accentColor: "var(--dk-accent)" },
-                onChange: (e) => patch({ voiceVolume: Number(e.target.value) })
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub", children: [
-              Math.round((cfg.voiceVolume == null ? 1 : cfg.voiceVolume) * 100),
-              "%"
-            ] })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u97F3\u8272" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-              "select",
-              {
-                className: "dknt-input",
-                style: { maxWidth: 260 },
-                value: cfg.voiceURI || "",
-                "aria-label": "\u64AD\u62A5\u97F3\u8272",
-                onChange: (e) => patch({ voiceURI: e.target.value }),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "", children: "\u81EA\u52A8\uFF08\u6309\u8BED\u8A00\u6311\uFF09" }),
-                  (() => {
-                    const zh = [], other = [];
-                    for (const v of voices) {
-                      if (!v || !v.voiceURI) continue;
-                      if (/^zh/i.test(String(v.lang || ""))) zh.push(v);
-                      else other.push(v);
-                    }
-                    const groups = [];
-                    if (zh.length) groups.push(["\u4E2D\u6587\u97F3\u8272", zh]);
-                    if (other.length) groups.push(["\u5176\u4ED6\u97F3\u8272", other]);
-                    return groups.map(([gname, vs]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("optgroup", { label: gname, children: vs.map((v) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: v.voiceURI, children: (v.name || v.voiceURI) + "\uFF08" + (v.lang || "?") + "\uFF09" }, v.voiceURI)) }, gname));
-                  })()
-                ]
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voices.length ? "\u97F3\u8272\u662F\u672C\u673A\u6D4F\u89C8\u5668\u7ED9\u7684\uFF0C\u6362\u8BBE\u5907\u53EF\u80FD\u8981\u91CD\u9009\uFF1B\u672C\u673A\u627E\u4E0D\u5230\u6240\u9009\u97F3\u8272\u65F6\u81EA\u52A8\u6309\u8BED\u8A00\u56DE\u843D" : "\u672C\u673A\u6682\u672A\u8BFB\u5230\u97F3\u8272\uFF08\u7CFB\u7EDF\u8BED\u97F3\u672A\u88C5/\u672A\u542F\u7528\uFF09\uFF0C\u5C06\u6309\u8BED\u8A00\u81EA\u52A8\u6311" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BD5\u542C" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-btn",
-                disabled: !voiceSupported(),
-                onClick: () => {
-                  const preview = Object.assign({}, cfg, { voiceNotify: true });
-                  speakVoice(endBroadcastText(true, { title: "\u793A\u4F8B\u4EFB\u52A1", duration: 125e3, turns: 3, steps: 9, toolCalls: 4, lastText: "\u597D\u7684\uFF0C\u4E09\u4EFD\u6587\u6863\u90FD\u5DF2\u66F4\u65B0\u5B8C\u6BD5\u3002" }, null, preview), preview);
-                },
-                children: "\u64AD\u4E00\u53E5"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-btn",
-                disabled: !voiceSupported(),
-                onClick: () => {
-                  const preview = Object.assign({}, cfg, { voiceNotify: true });
-                  speakVoice(confirmBroadcastText({ title: "\u793A\u4F8B\u4EFB\u52A1" }, { toolName: "pwsh" }, preview), preview);
-                },
-                children: "\u9700\u6388\u6743"
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voiceSupported() ? "\u6D4F\u89C8\u5668\u8BED\u97F3\u5408\u6210\uFF08\u4E0E\u3010\u8BED\u97F3\u6717\u8BFB\u3011\u540C\u4E00\u5957\u58F0\u97F3\uFF0C\u72EC\u7ACB\u5F00\u5173\uFF1B\u6253\u65AD\u5F0F\u2014\u2014\u64AD\u62A5\u4FE1\u65F6\u6B63\u5728\u6717\u8BFB\u7684\u6B63\u6587\u4F1A\u8BA9\u4F4D\uFF09" : "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08speechSynthesis \u4E0D\u53EF\u7528\uFF09" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BED\u8A00" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-              "select",
-              {
-                className: "dknt-input",
-                style: { maxWidth: 180 },
-                value: cfg.voiceLang || "",
-                "aria-label": "\u64AD\u62A5\u8BED\u8A00",
-                onChange: (e) => patch({ voiceLang: e.target.value }),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "", children: "\u81EA\u52A8\uFF08\u4E2D\u6587\u4F18\u5148\uFF09" }),
-                  ["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: l, children: l }, l))
-                ]
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u672A\u6307\u5B9A\u97F3\u8272\u65F6\u6309\u8BED\u8A00\u81EA\u52A8\u6311\uFF1B\u5DF2\u9009\u97F3\u8272\u7684\u8BED\u8A00\u4F1A\u8986\u76D6\u8FD9\u91CC" })
-          ] })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u670D\u52A1\u7AEF\u603B\u5F00\u5173\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u4E8B\u4EF6\u4E0D\u64AD\u62A5\u8BED\u97F3\uFF08\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u4E0D\u53D7\u5F71\u54CD\uFF09\uFF1B\u4E0A\u9762\u7684\u300C\u672C\u673A\u64AD\u62A5\u300D\u53EA\u51B3\u5B9A\u672C\u6D4F\u89C8\u5668\u662F\u5426\u51FA\u58F0\u3002" })
-      ] }, "voice"),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u9489\u9489\u63A8\u9001" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u9489\u9489\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.dingtalkEnabled ? " on" : ""), children: cfg.dingtalkEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dock-sw" + (cfg.dingtalkEnabled ? " on" : ""),
-                role: "switch",
-                "aria-checked": cfg.dingtalkEnabled,
-                "aria-label": "\u5F00\u5173\u9489\u9489\u63A8\u9001",
-                title: cfg.dingtalkEnabled ? "\u5173\u95ED\u9489\u9489\u63A8\u9001" : "\u5F00\u542F\u9489\u9489\u63A8\u9001",
-                onClick: () => patch({ dingtalkEnabled: !cfg.dingtalkEnabled })
-              }
-            )
-          ] })
-        ] }),
-        cfg.dingtalkEnabled ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "input",
-              {
-                type: "text",
-                className: "dknt-input",
-                spellCheck: false,
-                value: cfg.dingtalkWebhook || "",
-                placeholder: "https://oapi.dingtalk.com/robot/send?access_token=\u2026",
-                onChange: (e) => {
-                  editingWebhookRef.current = true;
-                  setCfg(Object.assign({}, cfg, { dingtalkWebhook: e.target.value }));
-                }
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-btn",
-                disabled: !editingWebhookRef.current,
-                onClick: saveWebhook,
-                children: editingWebhookRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-btn", disabled: testing, onClick: runDingtalkTest, children: testing ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
-            testState ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub" + (testState.ok ? " dknt-ok" : " dknt-err"), children: [
-              testState.ok ? "\u2713 " : "\u2717 ",
-              testState.msg
-            ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u9489\u9489\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u667A\u80FD\u7FA4\u52A9\u624B \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\uFF08Webhook\uFF09\uFF0C \u5B89\u5168\u8BBE\u7F6E\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u9489\u9489\u3002" })
-      ] }, "dingtalk"),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u98DE\u4E66\u63A8\u9001" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF1B\u4E8B\u4EF6\u8DDF\u968F\u4E0A\u65B9\u5B8C\u6210/\u5F02\u5E38\u5F00\u5173\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.feishuEnabled ? " on" : ""), children: cfg.feishuEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dock-sw" + (cfg.feishuEnabled ? " on" : ""),
-                role: "switch",
-                "aria-checked": cfg.feishuEnabled,
-                "aria-label": "\u5F00\u5173\u98DE\u4E66\u63A8\u9001",
-                title: cfg.feishuEnabled ? "\u5173\u95ED\u98DE\u4E66\u63A8\u9001" : "\u5F00\u542F\u98DE\u4E66\u63A8\u9001",
-                onClick: () => patch({ feishuEnabled: !cfg.feishuEnabled })
-              }
-            )
-          ] })
-        ] }),
-        cfg.feishuEnabled ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-rows-narrow", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "input",
-              {
-                type: "text",
-                className: "dknt-input",
-                spellCheck: false,
-                value: cfg.feishuWebhook || "",
-                placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/\u2026",
-                onChange: (e) => {
-                  editingFeishuRef.current = true;
-                  setCfg(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
-                }
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-              "button",
-              {
-                type: "button",
-                className: "dknt-btn",
-                disabled: !editingFeishuRef.current,
-                onClick: saveFeishuWebhook,
-                children: editingFeishuRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-btn", disabled: feishuTesting, onClick: runFeishuTest, children: feishuTesting ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
-            feishuTestState ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub" + (feishuTestState.ok ? " dknt-ok" : " dknt-err"), children: [
-              feishuTestState.ok ? "\u2713 " : "\u2717 ",
-              feishuTestState.msg
-            ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u98DE\u4E66\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u7FA4\u673A\u5668\u4EBA \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\u673A\u5668\u4EBA\uFF08\u83B7\u53D6 Webhook \u5730\u5740\uFF09\uFF1B \u5B89\u5168\u8BBE\u7F6E\u5982\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u98DE\u4E66\u3002" })
-      ] }, "feishu")
+        source === "client" ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-btn", onClick: copyFromServer, children: "\u4ECE\u670D\u52A1\u7AEF\u590D\u5236" }) : null
+      ] }, "source"),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-tabs", role: "tablist", "aria-label": "\u4EFB\u52A1\u901A\u77E5\u8BBE\u7F6E", children: [
+        ["events", "\u6309\u4E8B\u4EF6\u63D0\u9192"],
+        ["channels", "\u6309\u6E20\u9053\u8BBE\u7F6E"],
+        ["robots", "\u7FA4\u673A\u5668\u4EBA"]
+      ].map(([id, label]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        "button",
+        {
+          type: "button",
+          role: "tab",
+          "aria-selected": tab === id,
+          className: "dknt-tab" + (tab === id ? " on" : ""),
+          onClick: () => setTab(id),
+          children: label
+        },
+        id
+      )) }, "tabs")
     );
+    if (tab === "events") {
+      rows.push(
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-sec-head", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-title", children: "\u901A\u77E5\u4E8B\u4EF6" }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-sub", children: "\u7EB5\u5411\u662F\u901A\u77E5\u4E8B\u4EF6\u3001\u6A2A\u5411\u662F\u901A\u77E5\u6E20\u9053\uFF1B\u52FE\u9009\u8868\u793A\u300C\u8FD9\u4E2A\u4E8B\u4EF6\u7528\u8FD9\u4E2A\u6E20\u9053\u63D0\u9192\u300D\u3002\u6E20\u9053\u7684\u603B\u5F00\u5173\u548C\u8BE6\u7EC6\u8BBE\u7F6E\u5728\u540C\u9875\u300C\u6309\u6E20\u9053\u8BBE\u7F6E\u300D\u3002" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EventMatrix, { cfg, source, voiceClientOn, patch }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u300C\u9700\u786E\u8BA4 / \u9700\u56DE\u7B54\u300D\u5305\u542B\u5DE5\u5177\u7B49\u5F85\u6279\u51C6\u4E0E\u4F1A\u8BDD\u63D0\u95EE\u7B49\u5F85\u56DE\u7B54\u4E24\u79CD\u300C\u505C\u5728\u539F\u5730\u7B49\u4EBA\u300D\uFF1B\u300C\u5361\u4F4F\u300D\u53EA\u5728\u7F16\u7A0B\u9636\u6BB5\u957F\u65F6\u95F4\u6CA1\u6709\u52A8\u9759\u65F6\u89E6\u53D1\uFF0C\u7B49\u6279\u51C6\u3001\u7B49\u56DE\u7B54\u3001\u547D\u4EE4\u5728\u8DD1\u3001\u6B63\u5728\u538B\u7F29\u4E0A\u4E0B\u6587\u90FD\u4E0D\u7B97\u5361\u4F4F\u3002" })
+        ] }, "events")
+      );
+    } else if (tab === "channels") {
+      rows.push(
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channels", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-title-wrap", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-title", children: "\u9875\u5185\u5361\u7247" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-sub", children: "\u53F3\u4FA7\u6D6E\u5C42\u901A\u77E5\u5361\uFF1B\u70B9\u5361\u7247\u76F4\u8FBE\u5BF9\u5E94\u4F1A\u8BDD" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                "button",
+                {
+                  type: "button",
+                  className: "dock-sw" + (cfg.notifyCards !== false ? " on" : ""),
+                  role: "switch",
+                  "aria-checked": cfg.notifyCards !== false,
+                  "aria-label": "\u5F00\u5173\u9875\u5185\u5361\u7247",
+                  onClick: () => patch({ notifyCards: cfg.notifyCards === false })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u6B63\u6587\u53E3\u5F84" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: cardTone(cfg), title: "\u9875\u5185\u5361\u7247\u6B63\u6587", onChange: (v) => patch({ cardMode: v }) }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u8017\u65F6 / \u8C01\u5361\u4F4F\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B\u3001\u8D77\u6B62\u65F6\u95F4\u3001\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1D\u5168\u90E8\uFF08\u56DE\u5408\u6B65\u9AA4\u3001Token\u3001\u6458\u8981\u6216\u9519\u8BEF\u3001\u6700\u540E\u52A8\u4F5C\uFF09" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u6536\u7EB3" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u6240\u6709\u5361\u7247\u90FD\u4E0D\u8D85\u65F6\u81EA\u52A8\u6D88\u5931\uFF1A\u7ED3\u675F\u5361\u6CA1\u770B\u8FC7\u5C31\u4E00\u76F4\u6302\u7740\uFF0C\u70B9\u5361\u7247\u6216\u70B9\u8FDB\u4F1A\u8BDD\u540E\u6536\u8D77\uFF1B\u9700\u786E\u8BA4\u5361\u6302\u5230\u5904\u7406\u5B8C\uFF1B\u5361\u4F4F\u5361\u6302\u5230\u6062\u590D\u6D3B\u52A8\u30023 \u5F20\u53CA\u4EE5\u4E0A\u81EA\u52A8\u53E0\u653E\u6210\u6807\u9898\u6761\uFF0C\u9F20\u6807\u79FB\u4E0A\u53BB\u6574\u4F53\u5C55\u5F00\u3002" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u4E8B\u4EF6\u8303\u56F4" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5728\u300C\u6309\u4E8B\u4EF6\u63D0\u9192\u300D\u7684\u9875\u5185\u5361\u7247\u5217\u91CC\u52FE\u9009\u3002" })
+              ] })
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-title-wrap", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-title", children: "\u63D0\u793A\u97F3" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-sub", children: "\u4EFB\u52A1\u7ED3\u675F / \u9700\u786E\u8BA4\u65F6\u64AD\u653E\uFF0C6 \u79CD\u97F3\u6548\u53EF\u9009" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                "button",
+                {
+                  type: "button",
+                  className: "dock-sw" + (cfg.soundNotify !== false ? " on" : ""),
+                  role: "switch",
+                  "aria-checked": cfg.soundNotify !== false,
+                  "aria-label": "\u5F00\u5173\u63D0\u793A\u97F3",
+                  onClick: () => patch({ soundNotify: cfg.soundNotify === false })
+                }
+              )
+            ] }),
+            cfg.soundNotify !== false ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-sounds", children: Object.keys(SOUND_LIBRARY).map((key) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+                "button",
+                {
+                  type: "button",
+                  className: "dknt-sound" + (cfg.soundEffect === key ? " on" : ""),
+                  onClick: () => patch({ soundEffect: key }),
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sound-name", children: [
+                      SOUND_LIBRARY[key].name,
+                      cfg.soundEffect === key ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sound-cur", children: "\u2713" }) : null
+                    ] }),
+                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                      "span",
+                      {
+                        className: "dknt-sound-play",
+                        role: "button",
+                        tabIndex: 0,
+                        title: "\u8BD5\u542C " + SOUND_LIBRARY[key].name,
+                        onClick: (e) => {
+                          e.stopPropagation();
+                          previewSound(key);
+                        },
+                        onKeyDown: (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            previewSound(key);
+                          }
+                        },
+                        children: "\u25B6"
+                      }
+                    )
+                  ]
+                },
+                key
+              )) }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u4E8B\u4EF6\u8303\u56F4" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5728\u300C\u6309\u4E8B\u4EF6\u63D0\u9192\u300D\u7684\u63D0\u793A\u97F3\u5217\u91CC\u52FE\u9009\uFF08\u652F\u6301\u5B8C\u6210 / \u5F02\u5E38 / \u9700\u786E\u8BA4\uFF1B\u5361\u4F4F\u6CA1\u6709\u63D0\u793A\u97F3\uFF09\u3002" })
+              ] })
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-channel-off", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u4E8B\u4EF6\u4E0D\u64AD\u653E\u63D0\u793A\u97F3\u3002" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-title-wrap", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-title", children: "\u7CFB\u7EDF\u901A\u77E5" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-sub", children: "\u6D4F\u89C8\u5668\u7CFB\u7EDF\u901A\u77E5\uFF0C\u4EC5\u9875\u9762\u5728\u540E\u53F0\u65F6\u63A8\u9001" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                "button",
+                {
+                  type: "button",
+                  className: "dock-sw" + (cfg.systemNotify ? " on" : ""),
+                  role: "switch",
+                  "aria-checked": cfg.systemNotify,
+                  "aria-label": "\u5F00\u5173\u7CFB\u7EDF\u901A\u77E5",
+                  onClick: () => enableSystemNotify(!cfg.systemNotify)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u6743\u9650" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: permNote })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u4E8B\u4EF6\u8303\u56F4" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5728\u300C\u6309\u4E8B\u4EF6\u63D0\u9192\u300D\u7684\u7CFB\u7EDF\u901A\u77E5\u5217\u91CC\u52FE\u9009\uFF08\u652F\u6301\u5B8C\u6210 / \u5F02\u5E38 / \u9700\u786E\u8BA4\uFF1B\u5361\u4F4F\u6CA1\u6709\u7CFB\u7EDF\u901A\u77E5\uFF09\u3002" })
+              ] })
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-title-wrap", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-title", children: "\u8BED\u97F3\u64AD\u62A5" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-sub", children: "\u7528\u6D4F\u89C8\u5668\u8BED\u97F3\uFF08TTS\uFF09\u8BF4\u4E00\u53E5\u8BDD\uFF1B\u670D\u52A1\u7AEF\u603B\u5F00\u5173 + \u672C\u673A\u5F00\u5173\u90FD\u5F00\u624D\u64AD\u62A5" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.voiceNotify ? " on" : ""), children: cfg.voiceNotify ? "\u670D\u52A1\u7AEF\uFF1A\u5DF2\u5F00\u542F" : "\u670D\u52A1\u7AEF\uFF1A\u5DF2\u5173\u95ED" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    className: "dock-sw" + (cfg.voiceNotify ? " on" : ""),
+                    role: "switch",
+                    "aria-checked": cfg.voiceNotify,
+                    "aria-label": "\u5F00\u5173\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09",
+                    disabled: source === "client",
+                    title: source === "client" ? "\u670D\u52A1\u7AEF\u603B\u5F00\u5173\u9700\u5207\u6362\u5230\u300C\u670D\u52A1\u7AEF\u914D\u7F6E\u300D\u4FEE\u6539" : cfg.voiceNotify ? "\u5173\u95ED\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09" : "\u5F00\u542F\u8BED\u97F3\u64AD\u62A5\uFF08\u670D\u52A1\u7AEF\u603B\u5F00\u5173\uFF09",
+                    onClick: () => {
+                      if (source !== "client") patch({ voiceNotify: !cfg.voiceNotify });
+                    }
+                  }
+                )
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u672C\u673A\u64AD\u62A5" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    className: "dknt-miniswitch" + (voiceClientOn ? " on" : ""),
+                    role: "switch",
+                    "aria-checked": voiceClientOn,
+                    "aria-label": "\u5F00\u5173\u672C\u673A\u8BED\u97F3\u64AD\u62A5",
+                    title: voiceClientOn ? "\u5173\u95ED\u672C\u673A\u8BED\u97F3\u64AD\u62A5" : "\u5F00\u542F\u672C\u673A\u8BED\u97F3\u64AD\u62A5",
+                    onClick: () => setVoiceClientOn(!voiceClientOn),
+                    children: voiceClientOn ? "\u5F00" : "\u5173"
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voiceClientOn ? "\u672C\u6D4F\u89C8\u5668\u4F1A\u64AD\u62A5\uFF08\u8BBE\u7F6E\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF1B\u670D\u52A1\u7AEF\u603B\u5F00\u5173\u5173\u95ED\u65F6\u4E0D\u751F\u6548\uFF09" : "\u672C\u6D4F\u89C8\u5668\u4E0D\u64AD\u62A5\uFF08\u8BBE\u7F6E\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF0C\u4E0D\u5F71\u54CD\u5176\u4ED6\u6D4F\u89C8\u5668\uFF09" })
+              ] }),
+              cfg.voiceNotify ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u53E3\u5F84" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: voiceTone(cfg), title: "\u8BED\u97F3\u64AD\u62A5", onChange: (v) => patch({ voiceMode: v }) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1A\u4E00\u53E5\u300C\u4EFB\u52A1\u5B8C\u6210 / \u4EFB\u52A1\u505C\u6B62\u4E86 / \u4EFB\u52A1\u9700\u8981\u6388\u6743 / \u4E3B\u4EFB\u52A1\uFF08\u6216\u5B50\u4EFB\u52A1\uFF09\xB7\u6807\u9898 \u5361\u4F4F\u4E86\u300D\uFF1B\u9002\u4E2D\uFF1A\u70B9\u540D\u4EFB\u52A1\uFF0C\u7ED3\u675F\u5E26\u539F\u56E0\u4E0E\u8017\u65F6\u3001\u5361\u4F4F\u5E26\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1A\u7ED3\u675F\u5E26\u56DE\u5408\u7EDF\u8BA1\u4E0E\u56DE\u590D\u6458\u8981\uFF0C\u9700\u6388\u6743\u5E26\u5DE5\u5177\u540D\uFF0C\u5361\u4F4F\u5E26\u6700\u540E\u52A8\u4F5C\u3002" })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u4E8B\u4EF6" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u5728\u300C\u6309\u4E8B\u4EF6\u63D0\u9192\u300D\u7684\u8BED\u97F3\u64AD\u62A5\u5217\u91CC\u52FE\u9009\uFF08\u652F\u6301\u5B8C\u6210 / \u5F02\u5E38 / \u9700\u786E\u8BA4 / \u5361\u4F4F\uFF09\u3002" })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BED\u901F" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                    "input",
+                    {
+                      type: "range",
+                      min: "0.5",
+                      max: "2",
+                      step: "0.05",
+                      value: String(cfg.voiceRate || 1),
+                      "aria-label": "\u64AD\u62A5\u8BED\u901F",
+                      style: { width: 120, accentColor: "var(--dk-accent)" },
+                      onChange: (e) => patch({ voiceRate: Number(e.target.value) || 1 })
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub", children: [
+                    Number(cfg.voiceRate || 1).toFixed(2),
+                    "\xD7\uFF08\u64AD\u62A5\u6BD4\u6B63\u6587\u6717\u8BFB\u7565\u5FEB\u66F4\u5229\u843D\uFF09"
+                  ] })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u97F3\u91CF" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                    "input",
+                    {
+                      type: "range",
+                      min: "0",
+                      max: "1",
+                      step: "0.05",
+                      value: String(cfg.voiceVolume == null ? 1 : cfg.voiceVolume),
+                      "aria-label": "\u64AD\u62A5\u97F3\u91CF",
+                      style: { width: 120, accentColor: "var(--dk-accent)" },
+                      onChange: (e) => patch({ voiceVolume: Number(e.target.value) })
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub", children: [
+                    Math.round((cfg.voiceVolume == null ? 1 : cfg.voiceVolume) * 100),
+                    "%"
+                  ] })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u97F3\u8272" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+                    "select",
+                    {
+                      className: "dknt-input",
+                      style: { maxWidth: 260 },
+                      value: cfg.voiceURI || "",
+                      "aria-label": "\u64AD\u62A5\u97F3\u8272",
+                      onChange: (e) => patch({ voiceURI: e.target.value }),
+                      children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "", children: "\u81EA\u52A8\uFF08\u6309\u8BED\u8A00\u6311\uFF09" }),
+                        (() => {
+                          const zh = [], other = [];
+                          for (const v of voices) {
+                            if (!v || !v.voiceURI) continue;
+                            if (/^zh/i.test(String(v.lang || ""))) zh.push(v);
+                            else other.push(v);
+                          }
+                          const groups = [];
+                          if (zh.length) groups.push(["\u4E2D\u6587\u97F3\u8272", zh]);
+                          if (other.length) groups.push(["\u5176\u4ED6\u97F3\u8272", other]);
+                          return groups.map(([gname, vs]) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("optgroup", { label: gname, children: vs.map((v) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: v.voiceURI, children: (v.name || v.voiceURI) + "\uFF08" + (v.lang || "?") + "\uFF09" }, v.voiceURI)) }, gname));
+                        })()
+                      ]
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voices.length ? "\u97F3\u8272\u662F\u672C\u673A\u6D4F\u89C8\u5668\u7ED9\u7684\uFF0C\u6362\u8BBE\u5907\u53EF\u80FD\u8981\u91CD\u9009\uFF1B\u672C\u673A\u627E\u4E0D\u5230\u6240\u9009\u97F3\u8272\u65F6\u81EA\u52A8\u6309\u8BED\u8A00\u56DE\u843D" : "\u672C\u673A\u6682\u672A\u8BFB\u5230\u97F3\u8272\uFF08\u7CFB\u7EDF\u8BED\u97F3\u672A\u88C5/\u672A\u542F\u7528\uFF09\uFF0C\u5C06\u6309\u8BED\u8A00\u81EA\u52A8\u6311" })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BD5\u542C" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                    "button",
+                    {
+                      type: "button",
+                      className: "dknt-btn",
+                      disabled: !voiceSupported(),
+                      onClick: () => {
+                        const preview = Object.assign({}, cfg, { voiceNotify: true });
+                        speakVoice(endBroadcastText(true, { title: "\u793A\u4F8B\u4EFB\u52A1", duration: 125e3, turns: 3, steps: 9, toolCalls: 4, lastText: "\u597D\u7684\uFF0C\u4E09\u4EFD\u6587\u6863\u90FD\u5DF2\u66F4\u65B0\u5B8C\u6BD5\u3002" }, null, preview), preview);
+                      },
+                      children: "\u64AD\u4E00\u53E5"
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                    "button",
+                    {
+                      type: "button",
+                      className: "dknt-btn",
+                      disabled: !voiceSupported(),
+                      onClick: () => {
+                        const preview = Object.assign({}, cfg, { voiceNotify: true });
+                        speakVoice(confirmBroadcastText({ title: "\u793A\u4F8B\u4EFB\u52A1" }, { toolName: "pwsh" }, preview), preview);
+                      },
+                      children: "\u9700\u6388\u6743"
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: voiceSupported() ? "\u6D4F\u89C8\u5668\u8BED\u97F3\u5408\u6210\uFF08\u4E0E\u3010\u8BED\u97F3\u6717\u8BFB\u3011\u540C\u4E00\u5957\u58F0\u97F3\uFF0C\u72EC\u7ACB\u5F00\u5173\uFF1B\u6253\u65AD\u5F0F\u2014\u2014\u64AD\u62A5\u4FE1\u65F6\u6B63\u5728\u6717\u8BFB\u7684\u6B63\u6587\u4F1A\u8BA9\u4F4D\uFF09" : "\u672C\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u8BED\u97F3\u5408\u6210\uFF08speechSynthesis \u4E0D\u53EF\u7528\uFF09" })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8BED\u8A00" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+                    "select",
+                    {
+                      className: "dknt-input",
+                      style: { maxWidth: 180 },
+                      value: cfg.voiceLang || "",
+                      "aria-label": "\u64AD\u62A5\u8BED\u8A00",
+                      onChange: (e) => patch({ voiceLang: e.target.value }),
+                      children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: "", children: "\u81EA\u52A8\uFF08\u4E2D\u6587\u4F18\u5148\uFF09" }),
+                        ["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("option", { value: l, children: l }, l))
+                      ]
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u672A\u6307\u5B9A\u97F3\u8272\u65F6\u6309\u8BED\u8A00\u81EA\u52A8\u6311\uFF1B\u5DF2\u9009\u97F3\u8272\u7684\u8BED\u8A00\u4F1A\u8986\u76D6\u8FD9\u91CC" })
+                ] })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-channel-off", children: "\u670D\u52A1\u7AEF\u603B\u5F00\u5173\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u4E8B\u4EF6\u4E0D\u64AD\u62A5\u8BED\u97F3\uFF1B\u4E0A\u9762\u7684\u300C\u672C\u673A\u64AD\u62A5\u300D\u53EA\u51B3\u5B9A\u672C\u6D4F\u89C8\u5668\u662F\u5426\u51FA\u58F0\u3002" })
+            ] })
+          ] })
+        ] }, "channels")
+      );
+    } else {
+      rows.push(
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channels", children: [
+          source === "client" ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note dknt-note-box", children: "\u7FA4\u673A\u5668\u4EBA\u63A8\u9001\u7531\u670D\u52A1\u7AEF\u6267\u884C\uFF0C\u59CB\u7EC8\u4F7F\u7528\u670D\u52A1\u7AEF\u914D\u7F6E\uFF1B\u8BF7\u5207\u6362\u5230\u300C\u670D\u52A1\u7AEF\u914D\u7F6E\u300D\u4FEE\u6539\u3002" }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-title-wrap", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-title", children: "\u9489\u9489\u63A8\u9001" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u63A8\u9001\u5230\u9489\u9489\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF0C\u6D4F\u89C8\u5668\u5173\u7740\u4E5F\u80FD\u63A8\uFF09" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.dingtalkEnabled ? " on" : ""), children: cfg.dingtalkEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    className: "dock-sw" + (cfg.dingtalkEnabled ? " on" : ""),
+                    role: "switch",
+                    "aria-checked": cfg.dingtalkEnabled,
+                    "aria-label": "\u5F00\u5173\u9489\u9489\u63A8\u9001",
+                    disabled: source === "client",
+                    onClick: () => {
+                      if (source !== "client") patch({ dingtalkEnabled: !cfg.dingtalkEnabled });
+                    }
+                  }
+                )
+              ] })
+            ] }),
+            source === "client" ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-channel-off", children: "\u672C\u673A\u914D\u7F6E\u6A21\u5F0F\u4E0D\u4FEE\u6539\u7FA4\u673A\u5668\u4EBA\uFF1B\u5207\u56DE\u670D\u52A1\u7AEF\u914D\u7F6E\u540E\u53EF\u7F16\u8F91 Webhook\u3002" }) : !cfg.dingtalkEnabled ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-channel-off", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u9489\u9489\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u6D88\u606F\u53E3\u5F84" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: cfg.pushMode || "detailed", title: "\u9489\u9489\u6D88\u606F", onChange: (v) => patch({ pushMode: v }) }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u7ED3\u679C\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B/\u8017\u65F6\uFF1B\u8BE6\u7EC6\uFF1D\u518D\u52A0\u56DE\u5408\u3001Token \u4E0E\u6458\u8981\u3002" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "input",
+                  {
+                    type: "text",
+                    className: "dknt-input",
+                    spellCheck: false,
+                    value: cfg.dingtalkWebhook || "",
+                    placeholder: "https://oapi.dingtalk.com/robot/send?access_token=\u2026",
+                    onChange: (e) => {
+                      editingWebhookRef.current = true;
+                      setServerDraft(Object.assign({}, cfg, { dingtalkWebhook: e.target.value }));
+                    }
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    className: "dknt-btn",
+                    disabled: !editingWebhookRef.current,
+                    onClick: saveWebhook,
+                    children: editingWebhookRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-btn", disabled: testing, onClick: runDingtalkTest, children: testing ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
+                testState ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub" + (testState.ok ? " dknt-ok" : " dknt-err"), children: [
+                  testState.ok ? "\u2713 " : "\u2717 ",
+                  testState.msg
+                ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u9489\u9489\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u667A\u80FD\u7FA4\u52A9\u624B \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\uFF08Webhook\uFF09\uFF0C\u5B89\u5168\u8BBE\u7F6E\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-title-wrap", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-title", children: "\u98DE\u4E66\u63A8\u9001" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-channel-sub", children: "\u4EFB\u52A1\u7ED3\u675F\u4EE5\u5361\u7247\u5F62\u5F0F\u63A8\u9001\u5230\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\uFF08\u5BBF\u4E3B\u76F4\u53D1\uFF09" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-sec-sw", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-sec-swlabel" + (cfg.feishuEnabled ? " on" : ""), children: cfg.feishuEnabled ? "\u5DF2\u5F00\u542F" : "\u5DF2\u5173\u95ED" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    className: "dock-sw" + (cfg.feishuEnabled ? " on" : ""),
+                    role: "switch",
+                    "aria-checked": cfg.feishuEnabled,
+                    "aria-label": "\u5F00\u5173\u98DE\u4E66\u63A8\u9001",
+                    disabled: source === "client",
+                    onClick: () => {
+                      if (source !== "client") patch({ feishuEnabled: !cfg.feishuEnabled });
+                    }
+                  }
+                )
+              ] })
+            ] }),
+            source === "client" ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-channel-off", children: "\u672C\u673A\u914D\u7F6E\u6A21\u5F0F\u4E0D\u4FEE\u6539\u7FA4\u673A\u5668\u4EBA\uFF1B\u5207\u56DE\u670D\u52A1\u7AEF\u914D\u7F6E\u540E\u53EF\u7F16\u8F91 Webhook\u3002" }) : !cfg.feishuEnabled ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-channel-off", children: "\u672A\u5F00\u542F\u2014\u2014\u4EFB\u52A1\u7ED3\u675F\u4E0D\u63A8\u9001\u98DE\u4E66\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-channel-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u6D88\u606F\u53E3\u5F84" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: cfg.pushMode || "detailed", title: "\u98DE\u4E66\u6D88\u606F", onChange: (v) => patch({ pushMode: v }) }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u7ED3\u679C\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B/\u8017\u65F6\uFF1B\u8BE6\u7EC6\uFF1D\u518D\u52A0\u56DE\u5408\u3001Token \u4E0E\u6458\u8981\u3002" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "input",
+                  {
+                    type: "text",
+                    className: "dknt-input",
+                    spellCheck: false,
+                    value: cfg.feishuWebhook || "",
+                    placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/\u2026",
+                    onChange: (e) => {
+                      editingFeishuRef.current = true;
+                      setServerDraft(Object.assign({}, cfg, { feishuWebhook: e.target.value }));
+                    }
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    className: "dknt-btn",
+                    disabled: !editingFeishuRef.current,
+                    onClick: saveFeishuWebhook,
+                    children: editingFeishuRef.current ? "\u4FDD\u5B58" : "\u5DF2\u4FDD\u5B58"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u8FDE\u901A\u6D4B\u8BD5" }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dknt-btn", disabled: feishuTesting, onClick: runFeishuTest, children: feishuTesting ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u9001\u6D4B\u8BD5\u6D88\u606F" }),
+                feishuTestState ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { className: "dknt-row-sub" + (feishuTestState.ok ? " dknt-ok" : " dknt-err"), children: [
+                  feishuTestState.ok ? "\u2713 " : "\u2717 ",
+                  feishuTestState.msg
+                ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7528\u5F53\u524D\u4FDD\u5B58\u7684 Webhook \u53D1\u4E00\u6761\u6D4B\u8BD5\u6D88\u606F" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note", children: "\u673A\u5668\u4EBA\u521B\u5EFA\uFF1A\u98DE\u4E66\u7FA4 \u2192 \u8BBE\u7F6E \u2192 \u7FA4\u673A\u5668\u4EBA \u2192 \u6DFB\u52A0\u673A\u5668\u4EBA \u2192 \u81EA\u5B9A\u4E49\u673A\u5668\u4EBA\uFF08\u83B7\u53D6 Webhook \u5730\u5740\uFF09\uFF1B\u5B89\u5168\u8BBE\u7F6E\u5982\u9009\u300C\u81EA\u5B9A\u4E49\u5173\u952E\u8BCD\u300D\u586B\u300C\u4EFB\u52A1\u300D\u6216\u300Cdsh\u300D\uFF08\u63A8\u9001\u6807\u9898\u542B\u300C\u4EFB\u52A1\u300D\u5373\u53EF\u547D\u4E2D\uFF09\u3002" })
+            ] })
+          ] })
+        ] }, "robots")
+      );
+    }
   }
   if (saveErr) rows.push(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dknt-note dknt-err", children: saveErr }, "err"));
   rows.push(
@@ -8712,10 +9013,16 @@ function NotifyView(props) {
 }
 function NotifyStat(props) {
   const snap = useNotify(props && props.ctx);
-  const cfg = snap.status && snap.status.config;
+  const cfg = snap.status ? effectiveNotifyConfig(snap.status.config) : null;
   if (snap.error) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-err", children: "\u901A\u77E5\u72B6\u6001\u4E0D\u53EF\u7528\uFF08\u5BBF\u4E3B\u9700\u91CD\u542F\u52A0\u8F7D\u901A\u77E5\u8DEF\u7531\uFF09" });
   if (!cfg) return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u7B49\u5F85\u901A\u77E5\u914D\u7F6E\u2026" });
-  const events = [cfg.notifyOnComplete ? "\u5B8C\u6210" : "", cfg.notifyOnError ? "\u5F02\u5E38" : "", cfg.notifyOnConfirm !== false ? "\u9700\u786E\u8BA4/\u9700\u56DE\u7B54" : ""].filter(Boolean);
+  const anyChannel = (event) => MATRIX_COLUMNS.some((column) => eventEnabled(cfg, column.id, event));
+  const events = [
+    anyChannel("complete") ? "\u5B8C\u6210" : "",
+    anyChannel("error") ? "\u5F02\u5E38" : "",
+    anyChannel("confirm") ? "\u9700\u786E\u8BA4/\u9700\u56DE\u7B54" : "",
+    anyChannel("stuck") ? "\u5361\u4F4F" : ""
+  ].filter(Boolean);
   const voiceMode = cfg.voiceMode === "detailed" ? "\xB7\u8BE6" : cfg.voiceMode === "medium" ? "\xB7\u9002" : "\xB7\u7B80";
   const voice = !cfg.voiceNotify ? "" : voiceClientEnabled() ? "\u8BED\u97F3\u64AD\u62A5" + voiceMode : "\u8BED\u97F3\u64AD\u62A5\xB7\u672C\u673A\u5DF2\u5173";
   const extras = [cfg.soundNotify !== false ? "\u63D0\u793A\u97F3" : "", cfg.systemNotify ? "\u7CFB\u7EDF\u901A\u77E5" : "", voice].filter(Boolean);
@@ -8765,6 +9072,48 @@ var css3 = [
   ".dknt-row-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
   ".dknt-miniswitch{cursor:pointer;flex:none;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 12px;font-family:inherit;font-size:11px;line-height:18px;}",
   ".dknt-miniswitch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+  // 配置来源与页签
+  ".dknt-source{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);border-radius:10px;padding:10px 12px;}",
+  ".dknt-source-info{display:flex;flex-direction:column;gap:2px;flex:1;min-width:180px;}",
+  ".dknt-source-title{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary);}",
+  ".dknt-source-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-seg{display:inline-flex;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;overflow:hidden;flex:none;}",
+  ".dknt-seg-btn{cursor:pointer;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;padding:5px 12px;}",
+  ".dknt-seg-btn + .dknt-seg-btn{border-left:1px solid var(--dsw-alias-border-l2);}",
+  ".dknt-seg-btn.on{background:var(--dk-accent-soft);color:var(--dk-accent);font-weight:600;}",
+  ".dknt-tabs{display:flex;gap:4px;border-bottom:1px solid var(--dsw-alias-border-l1);padding:0 2px;}",
+  ".dknt-tab{cursor:pointer;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:13px;padding:7px 12px;border-bottom:2px solid transparent;margin-bottom:-1px;}",
+  ".dknt-tab.on{color:var(--dk-accent);border-bottom-color:var(--dk-accent);font-weight:600;}",
+  // 事件 × 渠道矩阵
+  ".dknt-matrix-wrap{overflow-x:auto;}",
+  ".dknt-matrix{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden;min-width:620px;}",
+  ".dknt-matrix-row{display:grid;grid-template-columns:minmax(150px,1.4fr) repeat(6,minmax(56px,1fr));align-items:center;}",
+  ".dknt-matrix-row:nth-child(even){background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 55%,transparent);}",
+  ".dknt-matrix-head{background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-border-l1);}",
+  ".dknt-matrix-col{font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);text-align:center;padding:7px 4px;display:flex;flex-direction:column;align-items:center;gap:1px;}",
+  ".dknt-matrix-col em{font-style:normal;font-size:10px;font-weight:400;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-matrix-col.on em{color:var(--dsw-alias-state-success-primary);}",
+  ".dknt-matrix-event{display:flex;flex-direction:column;gap:1px;padding:8px 10px;font-size:12px;color:var(--dsw-alias-label-primary);}",
+  ".dknt-matrix-event small{font-size:10px;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-cell{justify-self:center;cursor:pointer;width:24px;height:24px;border-radius:6px;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:transparent;font-family:inherit;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;margin:5px 0;}",
+  ".dknt-cell.on{border-color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 14%,transparent);color:var(--dsw-alias-state-success-primary);}",
+  ".dknt-cell-na{cursor:default;border-style:dashed;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-cell.disabled{opacity:.4;cursor:not-allowed;}",
+  ".dknt-matrix-legend{display:flex;gap:12px;flex-wrap:wrap;padding-top:6px;font-size:10px;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-matrix-legend span{display:inline-flex;align-items:center;gap:4px;}",
+  ".dknt-dot{width:8px;height:8px;border-radius:50%;background:var(--dsw-alias-label-tertiary);display:inline-block;}",
+  ".dknt-dot.on{background:var(--dsw-alias-state-success-primary);}",
+  // 渠道卡片
+  ".dknt-channels{display:flex;flex-direction:column;gap:10px;}",
+  ".dknt-channel{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;}",
+  ".dknt-channel-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 45%,transparent);border-bottom:1px solid var(--dsw-alias-border-l1);}",
+  ".dknt-channel-title-wrap{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;}",
+  ".dknt-channel-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);}",
+  ".dknt-channel-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-channel-body{display:flex;flex-direction:column;gap:8px;padding:10px 12px;}",
+  ".dknt-channel-off{padding:10px 12px;font-size:12px;color:var(--dsw-alias-label-tertiary);}",
+  ".dknt-modes{display:inline-flex;gap:4px;flex:none;}",
+  ".dknt-note-box{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px;background:var(--dsw-alias-bg-layer-1);}",
   // 音效选择卡（名称 + 播放键；选中态描边）
   ".dknt-sounds{display:flex;gap:6px;flex-wrap:wrap;}",
   ".dknt-sound{flex:1;min-width:104px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;font-family:inherit;transition:border-color .15s var(--ds-ease-in-out);}",
@@ -8787,7 +9136,7 @@ var feature8 = {
   name: "\u4EFB\u52A1\u901A\u77E5",
   order: 140,
   accent: "#f59e0b",
-  description: "\u4EFB\u52A1\u5B8C\u6210/\u5F02\u5E38/\u9700\u786E\u8BA4\u901A\u77E5\uFF1A\u9875\u5185\u5361\u7247\u3001\u63D0\u793A\u97F3\u3001\u7CFB\u7EDF\u901A\u77E5\u3001\u9489\u9489/\u98DE\u4E66\u7FA4\u673A\u5668\u4EBA\u63A8\u9001\uFF08\u72EC\u7ACB\u5F00\u5173\uFF09",
+  description: "\u4EFB\u52A1\u5B8C\u6210/\u5F02\u5E38/\u9700\u786E\u8BA4/\u9700\u56DE\u7B54/\u5361\u4F4F\u901A\u77E5\uFF1A\u670D\u52A1\u7AEF\u6216\u672C\u673A\u914D\u7F6E\u3001\u4E8B\u4EF6\xD7\u6E20\u9053\u52FE\u9009\u3001\u9875\u5185\u5361\u7247/\u63D0\u793A\u97F3/\u7CFB\u7EDF\u901A\u77E5/\u8BED\u97F3\u64AD\u62A5/\u9489\u9489\u98DE\u4E66\u63A8\u9001\uFF08\u5404\u81EA\u72EC\u7ACB\u5F00\u5173\uFF09",
   css: css3,
   View: NotifyView,
   HomeStat: NotifyStat,
@@ -14202,9 +14551,388 @@ var feature12 = {
   HomeStat: MobileRelayHomeStat
 };
 
+// features/mobile/view.js
+var import_react24 = __toESM(require("react"), 1);
+var import_react25 = require("react");
+var MOBILE_QUERY = "(max-width: 767px)";
+var COARSE_QUERY = "(pointer: coarse) and (hover: none)";
+function mobileActive() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  try {
+    return window.matchMedia(MOBILE_QUERY).matches || window.matchMedia(COARSE_QUERY).matches;
+  } catch {
+    return false;
+  }
+}
+var MOBILE_CSS = [
+  "/* \u89E6\u63A7\u4E0E\u8F93\u5165\uFF1A\u7C97\u6307\u9488\u771F\u673A\uFF08\u4E0D\u5206\u5BBD\u5EA6\uFF09 */",
+  "@media (pointer: coarse) and (hover: none){",
+  '  body[data-dk-mobile="1"] :is(textarea,input:not([type]),input[type="text"],input[type="search"],input[type="url"],input[type="password"],input[type="number"],input[type="email"],[contenteditable="true"]){font-size:16px !important;}',
+  '  body[data-dk-mobile="1"] :is(button,[role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
+  "}",
+  "@media (max-width:767px){",
+  '  body[data-dk-mobile="1"] :is(textarea,input:not([type]),input[type="text"],input[type="search"],input[type="url"],input[type="password"],input[type="number"],input[type="email"],[contenteditable="true"]){font-size:16px !important;}',
+  '  body[data-dk-mobile="1"] :is(button,[role="button"]){-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
+  '  body[data-dk-mobile="1"] pre{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}',
+  '  body[data-dk-mobile="1"] code{overflow-wrap:anywhere;}',
+  '  body[data-dk-mobile="1"] pre code{overflow-wrap:normal;}',
+  '  body[data-dk-mobile="1"] .dockchip-row{display:none;}',
+  '  body[data-dk-mobile="1"] [data-sidebar-opener]{position:relative;}',
+  '  body[data-dk-mobile="1"] [data-sidebar-opener]::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%);}',
+  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"] [class*="options"]{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}',
+  '  body[data-dk-mobile="1"] [class*="scrollBody"]{padding-bottom:env(safe-area-inset-bottom,0px) !important;}',
+  "  /* \u529F\u80FD\u575E\u9762\u677F\uFF08.dockm-*\uFF09\u6302\u5728 .overlayLayer(z20) \u5185\uFF0C\u800C\u624B\u673A\u62BD\u5C49 .sidebarCol \u662F z71\u2014\u2014\u9762\u677F\u867D\u662F\u5168\u5C4F\u5374\u88AB\u62BD\u5C49\u76D6\u4F4F\u3002\u628A overlayLayer \u62AC\u5230\u62BD\u5C49\u4E4B\u4E0A\uFF0C\u529F\u80FD\u575E/\u5168\u5C40\u6D6E\u5C42\u624D\u80FD\u5168\u5C4F\u76D6\u4F4F\u62BD\u5C49\u3002 */",
+  '  body[data-dk-mobile="1"] [class*="overlayLayer"]{z-index:100 !important;}',
+  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack]{display:flex !important;flex-direction:column !important;width:100vw !important;max-width:100vw !important;height:100dvh !important;max-height:none !important;border-radius:0 !important;overflow:hidden !important;}',
+  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > [class*="header"]{order:0;flex:none;width:auto !important;height:auto !important;padding:8px 12px !important;justify-content:flex-end !important;}',
+  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > [class*="navTitle"]{order:1;flex:none;width:auto !important;padding:2px 16px 8px !important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > nav{order:2;flex:none;width:auto !important;height:auto !important;padding:0 8px 8px !important;overflow-x:auto;overflow-y:hidden;}',
+  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > nav [class*="navList"]{flex-direction:row !important;}',
+  '  body[data-dk-mobile="1"] [role="dialog"][class*="panel"][data-dsh-mobile-stack] > [class*="options"]{order:3;flex:1 1 auto !important;min-height:0 !important;width:auto !important;overflow-y:auto !important;padding-bottom:max(16px,env(safe-area-inset-bottom,0px)) !important;}',
+  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"]{grid-template-columns:0px minmax(0,1fr) 0px !important;}',
+  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"] [class*="sidebarCol"]{position:fixed !important;top:0 !important;bottom:0 !important;left:0 !important;width:min(86vw,300px) !important;z-index:80 !important;box-shadow:0 12px 48px rgba(0,0,0,.45);transform:none !important;visibility:visible !important;transition:transform .22s ease !important;}',
+  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"][data-sidebar-collapsed] [class*="sidebarCol"]{transform:translateX(-105%) !important;visibility:hidden !important;transition:transform .22s ease, visibility 0s linear .22s !important;}',
+  '  body[data-dk-mobile="1"] .dsh-mobile-scrim{position:fixed;inset:0;z-index:75;background:rgba(8,10,14,.45);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);touch-action:none;}',
+  '  body[data-dk-mobile="1"] .dsh-mobile-burger{position:fixed;left:calc(4px + env(safe-area-inset-left,0px));top:calc(4px + env(safe-area-inset-top,0px));z-index:66;box-sizing:border-box;width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-primary,#e6eaf2);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}',
+  '  body[data-dk-mobile="1"] .dsh-mobile-burger svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;}',
+  '  body[data-dk-mobile="1"] .dsh-mobile-burger:active{background:color-mix(in srgb,currentColor 12%,transparent);}',
+  '  body[data-dk-mobile="1"][data-dsh-mobile-legacy] [class$="frame"] header:has([class*="titleRow"]){padding-left:calc(48px + env(safe-area-inset-left,0px));}',
+  '  html.dsh-dock-kbd body[data-dk-mobile="1"] .dsh-mobile-burger{display:none !important;}',
+  "}"
+].join("\n");
+var STYLE_ATTR = "data-dsh-mobile-runtime";
+var BODY_ATTR = "data-dk-mobile";
+var LEGACY_ATTR = "data-dsh-mobile-legacy";
+var currentDispose = null;
+function applyRuntime() {
+  if (typeof window === "undefined" || typeof document === "undefined") return function() {
+  };
+  const doc = document;
+  const body = doc.body;
+  if (!body) return function() {
+  };
+  if (currentDispose) {
+    try {
+      currentDispose();
+    } catch (e) {
+    }
+    currentDispose = null;
+  }
+  body.setAttribute(BODY_ATTR, "1");
+  let styleEl = doc.querySelector("style[" + STYLE_ATTR + "]");
+  if (!styleEl) {
+    styleEl = doc.createElement("style");
+    styleEl.setAttribute(STYLE_ATTR, "");
+    styleEl.textContent = MOBILE_CSS;
+    doc.head.appendChild(styleEl);
+  }
+  const mql = window.matchMedia ? window.matchMedia(MOBILE_QUERY) : null;
+  const vv = window.visualViewport || null;
+  const phone = function() {
+    return !!(mql && mql.matches);
+  };
+  const frame = function() {
+    return doc.querySelector('[class$="frame"]');
+  };
+  const isCollapsed = function() {
+    const f = frame();
+    return !!(f && f.hasAttribute("data-sidebar-collapsed"));
+  };
+  let scrim = null;
+  let burger = null;
+  let observer = null;
+  let timer = 0;
+  function sidebarOpenToggle() {
+    const b = doc.querySelector("[data-sidebar-opener]") || doc.querySelector("[data-sidebar-toggle]");
+    if (b && typeof b.click === "function") b.click();
+  }
+  function clearStack() {
+    const panels = doc.querySelectorAll('[role="dialog"][class*="panel"][data-dsh-mobile-stack]');
+    for (let i = 0; i < panels.length; i++) panels[i].removeAttribute("data-dsh-mobile-stack");
+  }
+  function dialogStackSync() {
+    const panel = doc.querySelector('[role="dialog"][class*="panel"]');
+    if (!panel) return;
+    let nav = null;
+    let opt = null;
+    const kids = panel.children;
+    for (let i = 0; i < kids.length; i++) {
+      const k = kids[i];
+      if (!nav && k.tagName === "NAV") nav = k;
+      if (!opt && k.className && String(k.className).indexOf("options") >= 0) opt = k;
+    }
+    if (!nav || !opt) {
+      panel.removeAttribute("data-dsh-mobile-stack");
+      return;
+    }
+    const a = nav.getBoundingClientRect();
+    const b = opt.getBoundingClientRect();
+    if (!a.width || !b.width) return;
+    const sideBySide = b.left >= a.right - 8 && b.top < a.bottom - 4 && b.bottom > a.top + 4;
+    if (sideBySide) panel.setAttribute("data-dsh-mobile-stack", "1");
+    else panel.removeAttribute("data-dsh-mobile-stack");
+  }
+  function removeChrome() {
+    if (scrim) {
+      scrim.remove();
+      scrim = null;
+    }
+    if (burger) {
+      burger.remove();
+      burger = null;
+    }
+    body.removeAttribute(LEGACY_ATTR);
+  }
+  function ensureChrome() {
+    if (!scrim) {
+      scrim = doc.createElement("div");
+      scrim.className = "dsh-mobile-scrim";
+      scrim.style.display = "none";
+      scrim.addEventListener("click", function() {
+        if (!isCollapsed()) sidebarOpenToggle();
+      });
+      body.appendChild(scrim);
+    }
+    if (!burger) {
+      burger = doc.createElement("button");
+      burger.type = "button";
+      burger.className = "dsh-mobile-burger";
+      burger.setAttribute("aria-label", "\u6253\u5F00\u4F1A\u8BDD\u5217\u8868");
+      burger.setAttribute("aria-expanded", "false");
+      burger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>';
+      burger.addEventListener("click", function() {
+        sidebarOpenToggle();
+      });
+      body.appendChild(burger);
+    }
+  }
+  function legacySync() {
+    const f = frame();
+    const legacy = !!f && phone() && !f.hasAttribute("data-sidebar-drawer");
+    if (!legacy) {
+      removeChrome();
+      return;
+    }
+    body.setAttribute(LEGACY_ATTR, "1");
+    ensureChrome();
+    const collapsed = isCollapsed();
+    if (scrim) scrim.style.display = collapsed ? "none" : "";
+    if (burger) {
+      burger.style.display = "";
+      burger.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    }
+  }
+  function kbdSync() {
+    if (!vv) return;
+    const kbd = vv.height > 0 && window.innerHeight - vv.height > 120;
+    const de = doc.documentElement;
+    if (kbd) de.classList.add("dsh-dock-kbd");
+    else de.classList.remove("dsh-dock-kbd");
+  }
+  let dockAutoClosed = false;
+  function dockOpen() {
+    return !!doc.querySelector(".dockm-dialog");
+  }
+  function tick() {
+    try {
+      kbdSync();
+      if (phone()) {
+        const dopen = dockOpen();
+        if (dopen && !isCollapsed() && !dockAutoClosed) {
+          dockAutoClosed = true;
+          sidebarOpenToggle();
+        }
+        if (!dopen) dockAutoClosed = false;
+        dialogStackSync();
+        legacySync();
+      } else {
+        clearStack();
+        removeChrome();
+        dockAutoClosed = false;
+      }
+    } catch (e) {
+    }
+  }
+  tick();
+  if (typeof MutationObserver !== "undefined") {
+    observer = new MutationObserver(function() {
+      tick();
+    });
+    try {
+      observer.observe(doc.documentElement, { attributes: true, attributeFilter: ["data-sidebar-collapsed", "data-sidebar-drawer"], subtree: true });
+      observer.observe(body, { childList: true, subtree: true });
+    } catch (e) {
+    }
+  }
+  timer = window.setInterval(tick, 1200);
+  const onResize = function() {
+    tick();
+  };
+  window.addEventListener("resize", onResize);
+  if (vv && vv.addEventListener) vv.addEventListener("resize", kbdSync);
+  if (mql && mql.addEventListener) mql.addEventListener("change", tick);
+  else if (mql && mql.addListener) mql.addListener(tick);
+  const dispose = function() {
+    if (currentDispose === dispose) currentDispose = null;
+    try {
+      if (observer) observer.disconnect();
+    } catch (e) {
+    }
+    if (timer) window.clearInterval(timer);
+    window.removeEventListener("resize", onResize);
+    if (vv && vv.removeEventListener) vv.removeEventListener("resize", kbdSync);
+    if (mql && mql.removeEventListener) mql.removeEventListener("change", tick);
+    else if (mql && mql.removeListener) mql.removeListener(tick);
+    try {
+      doc.documentElement.classList.remove("dsh-dock-kbd");
+    } catch (e) {
+    }
+    try {
+      clearStack();
+    } catch (e) {
+    }
+    removeChrome();
+    try {
+      body.removeAttribute(BODY_ATTR);
+    } catch (e) {
+    }
+    try {
+      if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
+    } catch (e) {
+    }
+  };
+  currentDispose = dispose;
+  return dispose;
+}
+function MobileOverlay() {
+  const [active, setActive] = (0, import_react25.useState)(function() {
+    return mobileActive();
+  });
+  (0, import_react25.useEffect)(function() {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return void 0;
+    let mqs = [];
+    try {
+      mqs = [window.matchMedia(MOBILE_QUERY), window.matchMedia(COARSE_QUERY)];
+    } catch (e) {
+      return void 0;
+    }
+    const update = function() {
+      setActive(mqs.some(function(m) {
+        return m.matches;
+      }));
+    };
+    update();
+    for (let i = 0; i < mqs.length; i++) {
+      const m = mqs[i];
+      if (m.addEventListener) m.addEventListener("change", update);
+      else if (m.addListener) m.addListener(update);
+    }
+    return function() {
+      for (let i = 0; i < mqs.length; i++) {
+        const m = mqs[i];
+        if (m.removeEventListener) m.removeEventListener("change", update);
+        else if (m.removeListener) m.removeListener(update);
+      }
+    };
+  }, []);
+  (0, import_react25.useEffect)(function() {
+    if (!active) return void 0;
+    return applyRuntime();
+  }, [active]);
+  return null;
+}
+function useViewport() {
+  const [size, setSize] = (0, import_react25.useState)(function() {
+    return typeof window === "undefined" ? null : { w: window.innerWidth, h: window.innerHeight };
+  });
+  (0, import_react25.useEffect)(function() {
+    if (typeof window === "undefined") return void 0;
+    const update = function() {
+      setSize({ w: window.innerWidth, h: window.innerHeight });
+    };
+    window.addEventListener("resize", update);
+    return function() {
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  return size;
+}
+function MobileView() {
+  const size = useViewport();
+  const [active, setActive] = (0, import_react25.useState)(function() {
+    return mobileActive();
+  });
+  const [drawer, setDrawer] = (0, import_react25.useState)(false);
+  (0, import_react25.useEffect)(function() {
+    if (typeof window === "undefined") return void 0;
+    const tick = function() {
+      setActive(mobileActive());
+      const f = document.querySelector('[class$="frame"]');
+      setDrawer(!!(f && f.hasAttribute("data-sidebar-drawer")));
+    };
+    tick();
+    const t = setInterval(tick, 1e3);
+    return function() {
+      clearInterval(t);
+    };
+  }, []);
+  const mode = !active ? "\u672A\u547D\u4E2D" : window.matchMedia && window.matchMedia(MOBILE_QUERY).matches ? drawer ? "\u62BD\u5C49\u6A21\u5F0F\uFF08\u539F\u751F\uFF09" : "\u65E7\u7248\u515C\u5E95\uFF08\u6D6E\u5C42\u62BD\u5C49\uFF09" : "\u4EC5\u89E6\u63A7\u4F18\u5316";
+  return import_react24.default.createElement(
+    "div",
+    { className: "dkmob-root" },
+    import_react24.default.createElement(
+      "div",
+      { className: "dkmob-row" },
+      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u624B\u673A\u6A21\u5F0F"),
+      import_react24.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, active ? "\u5DF2\u547D\u4E2D" : "\u672A\u547D\u4E2D"),
+      import_react24.default.createElement("span", { className: "dkmob-dim" }, size ? size.w + "\xD7" + size.h + "px" : "")
+    ),
+    import_react24.default.createElement(
+      "div",
+      { className: "dkmob-row" },
+      import_react24.default.createElement("span", { className: "dkmob-label" }, "\u5F53\u524D\u5F62\u6001"),
+      import_react24.default.createElement("span", { className: "dkmob-state" + (active ? " on" : "") }, mode)
+    ),
+    import_react24.default.createElement(
+      "div",
+      { className: "dkmob-note" },
+      "\u751F\u6548\u4E2D\u7684\u4F18\u5316\uFF1A\u8F93\u5165\u7C7B\u63A7\u4EF6\u5B57\u53F7 16px\uFF08\u9632 iOS \u805A\u7126\u6574\u9875\u7F29\u653E\uFF09\xB7 \u539F\u751F\u4FA7\u680F\u5F00\u5173\u70ED\u533A\u6269\u5230 44\xD744 \xB7 ",
+      "\u53BB\u70B9\u6309\u9AD8\u4EAE\u4E0E\u53CC\u51FB\u7F29\u653E\u5224\u5B9A \xB7 \u4EE3\u7801\u5757\u6A2A\u5411\u6EDA\u52A8 / \u884C\u5185\u4EE3\u7801\u6362\u884C \xB7 \u4F1A\u8BDD\u8F93\u5165\u884C\u7684\u4F59\u989D/\u7528\u91CF chip \u6536\u8D77 \xB7 ",
+      "\u8BBE\u7F6E\u5F39\u5C42\u5185\u5BB9\u5B89\u5168\u533A\u5185\u8FB9\u8DDD\u3002\u65E7\u7248 dsh\uFF08<768 \u4ECD\u662F\u4E24\u680F\u5F39\u5C42\u6216\u9759\u6001\u56FE\u6807\u8F68\u9053\uFF09\u4F1A\u81EA\u52A8\u515C\u5E95\u4E3A\u5355\u5217 / \u6D6E\u5C42\u62BD\u5C49\u3002",
+      "\u5173\u95ED\u672C\u529F\u80FD\u5373\u5168\u90E8\u8FD8\u539F\u2014\u2014\u8FD0\u884C\u65F6\u6837\u5F0F\u3001body \u5C5E\u6027\u3001\u906E\u7F69/\u6309\u94AE\u4E0E\u6240\u6709\u76D1\u542C\u5668\u4E00\u5E76\u79FB\u9664\uFF0C\u9875\u9762\u4E0D\u6B8B\u7559\u4EFB\u4F55\u6CE8\u5165\u3002"
+    )
+  );
+}
+function MobileStat() {
+  const active = mobileActive();
+  if (!active) return import_react24.default.createElement("span", null, "\u5F53\u524D\u89C6\u53E3\u672A\u547D\u4E2D\u624B\u673A\u5F62\u6001\uFF0C\u672A\u542F\u7528\u4EFB\u4F55\u4F18\u5316");
+  return import_react24.default.createElement("span", null, "\u624B\u673A\u6A21\u5F0F\u751F\u6548\u4E2D\uFF0816px \u8F93\u5165 / \u89E6\u63A7\u70ED\u533A / \u4EE3\u7801\u6EDA\u52A8 / \u5F39\u5C42\u515C\u5E95\uFF09");
+}
+var css6 = [
+  ".dkmob-root{display:flex;flex-direction:column;gap:10px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;}",
+  ".dkmob-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+  ".dkmob-label{font-weight:600;flex:none;}",
+  ".dkmob-state{flex:none;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 10px;font-size:11px;}",
+  ".dkmob-state.on{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary);}",
+  ".dkmob-dim{color:var(--dsw-alias-label-secondary);font-size:12px;}",
+  ".dkmob-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}"
+].join("\n");
+var feature13 = {
+  id: "mobile",
+  name: "\u624B\u673A\u9002\u914D",
+  order: 170,
+  accent: "#34d399",
+  description: "\u624B\u673A/\u7A84\u5C4F\u4F53\u9A8C\u4F18\u5316\uFF1A16px \u8F93\u5165\u9632\u7F29\u653E\u3001\u89E6\u63A7\u70ED\u533A\u3001\u4EE3\u7801\u5757\u6EDA\u52A8\u3001\u4F1A\u8BDD chip \u6536\u8D77\u3001\u8BBE\u7F6E\u5F39\u5C42\u5355\u5217\u4E0E\u65E7\u7248\u62BD\u5C49\u515C\u5E95\uFF1B\u5173\u95ED\u540E\u96F6\u6B8B\u7559",
+  defaultEnabled: false,
+  css: css6,
+  Overlay: MobileOverlay,
+  View: MobileView,
+  HomeStat: MobileStat
+};
+
 // src/client.jsx
-var DOCK_VERSION = "0.20.0";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12];
+var DOCK_VERSION = "0.21.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12, feature13];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -14318,6 +15046,12 @@ var SHELL_CSS = [
   ".dockm-name{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;}",
   ".dockm-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;}",
   ".dockm-view{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
+  ".dockm-page{box-sizing:border-box;height:100%;overflow:auto;padding:20px 24px 32px;}",
+  ".dockm-page-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;}",
+  ".dockm-page-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
+  ".dockm-page-titles{min-width:0;}",
+  ".dockm-page-title{font-size:17px;font-weight:600;color:var(--dsw-alias-label-primary);line-height:1.3;}",
+  ".dockm-page-sub{font-size:12px;color:var(--dsw-alias-label-tertiary);margin-top:2px;}",
   ".dockm-note{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;}",
   ".dockm-err{color:var(--dsw-alias-state-error-primary);}",
   ".dockm-foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:11px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;flex-wrap:wrap;}",
@@ -14349,7 +15083,11 @@ var SHELL_CSS = [
   ".dockm-foot-swlabel.on{color:var(--dsw-alias-state-success-primary);}",
   // 窄屏：功能坞是一级工作台而不是被压扁的桌面弹窗。全屏承接安全区，导航改横向，
   // 禁用桌面拖拽/缩放，所有导航和关闭动作保持至少 44px 的可点击面积。
-  "@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:1fr;gap:10px}.dockh-card{padding:12px}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
+  "@media (max-width:680px){.dockm-backdrop{align-items:stretch;justify-content:stretch;background:var(--dsw-alias-bg-layer-2);backdrop-filter:none}.dockm-dialog,.dockm-dialog.dockm-max{position:fixed!important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;width:100dvw!important;height:100dvh!important;min-height:100dvh;border:0;border-radius:0;box-shadow:none}.dockm-dialog.dockm-min .dockm-body{display:flex}.dockm-head{min-height:60px;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;cursor:default;touch-action:manipulation}.dockm-sub,.dockm-win,.dockm-resize{display:none}.dockm-title{font-size:16px}.dockm-close{width:44px;height:44px;font-size:17px}.dockm-body{flex-direction:column;min-height:0}.dockm-nav{box-sizing:border-box;width:auto;max-width:100%;min-height:56px;flex-direction:row;gap:6px;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1);scrollbar-width:none;overscroll-behavior-x:contain}.dockm-nav::-webkit-scrollbar{display:none}.dockm-nav-item{flex:none;min-height:44px;padding:0 12px;font-size:13px;touch-action:manipulation}.dockm-nav-item .dockm-badge{display:none}.dockm-content{padding:16px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));gap:14px;overscroll-behavior:contain}.dockm-content-head{gap:5px}.dockm-name{font-size:16px}.dockm-desc{font-size:13px;line-height:1.55}.dockm-foot{padding-top:12px;font-size:11px}.dockm-foot-sw{width:100%;margin-left:0;justify-content:space-between}.dock-sw{width:44px;height:26px}.dock-sw::after{top:3px;left:3px;width:18px;height:18px}.dock-sw.on::after{transform:translateX(18px)}.dockh-grid{grid-template-columns:minmax(0,1fr);gap:10px;min-width:0}.dockh-card{padding:12px;box-sizing:border-box;min-width:0}.dockh-desc{font-size:13px}.dockh-go{font-size:12px}}",
+  /* 手机端：功能坞弹层挂在 .overlayLayer(z20) 内，会被 z71 的侧栏抽屉盖住（只剩右侧一条）。\n	   把 overlayLayer 在窄屏抬到抽屉之上，面板才能全屏覆盖——且不依赖【手机适配】模块是否启用。 */
+  '@media (max-width:767px){[class*="overlayLayer"]{z-index:100 !important}}',
+  /* 手机：输入卡里的「轮/步/token/缓存」状态条移到输入框上方，压成一行不溢出；空会话时把输入卡贴底 */
+  '@media (max-width:767px){[class*="scrollBody"]>[class*="composerSeat"]{margin-top:auto!important;padding-bottom:0!important}[class*="composerSeat"] [class*="_dock"]{order:-1!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;padding:0 2px 6px!important;gap:6px!important;font-size:10px!important;overflow:hidden!important}[class*="composerSeat"] [class*="_dock"]>*{min-width:0}}',
   "@media (prefers-reduced-motion:reduce){.dockm-backdrop,.dockm-dialog{animation:none}.dockm-nav-item,.dockm-close,.dockm-win,.dock-sw{transition:none}}",
   ".dockh-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;}",
   ".dockh-stat{color:var(--dsw-alias-label-tertiary);font-size:12px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
@@ -14375,7 +15113,9 @@ var SHELL_CSS = [
   ".dockchip > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}",
   ".dockchip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
   ".dockchip .dockchip-dot{width:6px;height:6px;border-radius:50%;flex:none;}",
-  ".dockchip.err{color:var(--dsw-alias-state-error-primary);}"
+  ".dockchip.err{color:var(--dsw-alias-state-error-primary);}",
+  /* 手机：输入区工具行很窄，给 chips 稍多宽度，并隐藏费用等次要后缀（.dockchip-x），避免被截成「⛁ 2…／余…」 */
+  "@media (max-width:767px){.dockchip-row{max-width:min(216px,40cqw)}.dockchip-x{display:none}.dockchip{font-size:10px!important;padding:1px 2px!important;gap:3px!important}.dockchip .dockchip-dot{width:4px;height:4px}.dockchip-ic{display:none}.dockchip-pre{display:none}}"
 ].join("\n");
 var dockCssTag = null;
 var initialCssSchedule = null;
@@ -14411,8 +15151,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => {
+  const [, bump] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -14422,44 +15162,31 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react24.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react26.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react26.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
-function DockEntry(props) {
-  const wide = !!props.wide;
-  const [open, setOpen] = import_react24.default.useState(panelNav.open);
-  import_react24.default.useEffect(() => subscribePanel(() => setOpen(panelNav.open)), []);
-  return import_react24.default.createElement("button", {
-    type: "button",
-    className: "docke2-btn" + (open ? " docke2-on" : "") + (wide ? "" : " docke2-rail"),
-    title: "\u529F\u80FD\u575E",
-    "aria-label": "\u529F\u80FD\u575E",
-    "aria-expanded": open,
-    onClick: () => setPanelOpen(!open)
-  }, import_react24.default.createElement(DockIcon, { size: wide ? 16 : 18 }), wide ? import_react24.default.createElement("span", { className: "docke2-label" }, "\u529F\u80FD\u575E") : null);
-}
 function DockModal() {
-  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react26.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react26.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const open = nav.open || typeof document === "undefined";
   const active = nav.active;
   const setActive = navigatePanel;
   const navParams = nav.params;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const [win, setWin] = import_react24.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react24.default.useRef(null);
-  const contentRef = import_react24.default.useRef(null);
-  import_react24.default.useEffect(() => {
+  const [win, setWin] = import_react26.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react26.default.useRef(null);
+  const contentRef = import_react26.default.useRef(null);
+  import_react26.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
-  import_react24.default.useEffect(() => {
+  import_react26.default.useEffect(() => {
     if (open && contentRef.current) contentRef.current.scrollTop = 0;
   }, [active, open]);
   function beginDrag(e, type) {
@@ -14497,13 +15224,13 @@ function DockModal() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react24.default.createElement(
+  const viewNode = mod && View ? import_react26.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react24.default.createElement(
+    import_react26.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react24.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react26.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
@@ -14517,10 +15244,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react24.default.createElement(
+    import_react26.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -14528,41 +15255,41 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react24.default.createElement(
+      import_react26.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react24.default.createElement(DockIcon, null),
-        import_react24.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react24.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react24.default.createElement(
+        import_react26.default.createElement(DockIcon, null),
+        import_react26.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react26.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react26.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react24.default.createElement("button", {
+          import_react26.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react24.default.createElement("button", {
+          import_react26.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react24.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react26.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react24.default.createElement(
+      import_react26.default.createElement(
         "div",
         { className: "dockm-body" },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "nav",
           { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-          import_react24.default.createElement(
+          import_react26.default.createElement(
             "button",
             {
               type: "button",
@@ -14570,10 +15297,10 @@ function DockModal() {
               className: "dockm-nav-item" + (isHome ? " on" : ""),
               onClick: () => setActive("home")
             },
-            import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)),
-            import_react24.default.createElement("span", null, "\u9996\u9875")
+            import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)),
+            import_react26.default.createElement("span", null, "\u9996\u9875")
           ),
-          MODULES.map((m) => import_react24.default.createElement(
+          MODULES.map((m) => import_react26.default.createElement(
             "button",
             {
               type: "button",
@@ -14581,42 +15308,42 @@ function DockModal() {
               className: "dockm-nav-item" + (m.id === active ? " on" : ""),
               onClick: () => setActive(m.id)
             },
-            import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-            import_react24.default.createElement("span", null, m.name),
-            m.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-            m.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+            import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+            import_react26.default.createElement("span", null, m.name),
+            m.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+            m.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
           ))
         ),
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dockm-content", ref: contentRef },
-          import_react24.default.createElement(
+          import_react26.default.createElement(
             "div",
             { className: "dockm-content-head" },
-            import_react24.default.createElement(
+            import_react26.default.createElement(
               "div",
               { className: "dockm-name" },
-              isHome ? import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)) : import_react24.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+              isHome ? import_react26.default.createElement("span", { className: "dockm-navhome" }, import_react26.default.createElement(DockIcon, null)) : import_react26.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
               isHome ? "\u9996\u9875" : mod.name,
-              !isHome && mod.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-              !isHome && mod.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+              !isHome && mod.planned ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+              !isHome && mod.external ? import_react26.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
             ),
-            import_react24.default.createElement(
+            import_react26.default.createElement(
               "div",
               { className: "dockm-desc" },
               isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
             )
           ),
-          isHome ? import_react24.default.createElement("div", { className: "dockm-view" }, import_react24.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react24.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react24.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react24.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-          import_react24.default.createElement(
+          isHome ? import_react26.default.createElement("div", { className: "dockm-view" }, import_react26.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react26.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react26.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react26.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+          import_react26.default.createElement(
             "div",
             { className: "dockm-foot" },
-            import_react24.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-            !isHome && mod && !mod.planned && st ? import_react24.default.createElement(
+            import_react26.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+            !isHome && mod && !mod.planned && st ? import_react26.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-              import_react24.default.createElement("button", {
+              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+              import_react26.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (st.enabled ? " on" : ""),
                 role: "switch",
@@ -14629,11 +15356,11 @@ function DockModal() {
                 }
               })
             ) : null,
-            !isHome && mod && typeof mod.Chip === "function" ? import_react24.default.createElement(
+            !isHome && mod && typeof mod.Chip === "function" ? import_react26.default.createElement(
               "span",
               { className: "dockm-foot-sw" },
-              import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-              import_react24.default.createElement("button", {
+              import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+              import_react26.default.createElement("button", {
                 type: "button",
                 className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
                 role: "switch",
@@ -14649,30 +15376,30 @@ function DockModal() {
           )
         )
       ),
-      win.mode === "normal" ? import_react24.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      win.mode === "normal" ? import_react26.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react24.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react24.default.createElement(
+      const statNode = m.planned ? import_react26.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react26.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react24.default.createElement(Stat, { ctx })
-      ) : import_react24.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react24.default.createElement(
+        import_react26.default.createElement(Stat, { ctx })
+      ) : import_react26.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react26.default.createElement(
         "div",
         {
           key: m.id,
@@ -14687,21 +15414,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react24.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react24.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react26.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react26.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react26.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react24.default.createElement(
+          import_react26.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react24.default.createElement("span", { className: "dockh-sdot" }),
-            import_react24.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react26.default.createElement("span", { className: "dockh-sdot" }),
+            import_react26.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react24.default.createElement("button", {
+          m.planned ? null : import_react26.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -14716,12 +15443,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react24.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react24.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react24.default.createElement(
+        import_react26.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react26.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react26.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react24.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react26.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -14729,16 +15456,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react24.default.createElement(
+  return import_react26.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react24.default.createElement(
+    import_react26.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -14747,25 +15474,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react24.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react26.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react24.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react26.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react24.default.createElement(
+      return import_react26.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react24.default.createElement(
+        import_react26.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react24.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react24.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react24.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react24.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react24.default.createElement("button", {
+          import_react26.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react26.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react26.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react26.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react26.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -14774,11 +15501,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react24.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react26.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react24.default.createElement("button", {
+            import_react26.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react26.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -14792,22 +15519,40 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react24.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react24.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react26.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react26.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
   );
 }
+function DockPage() {
+  return import_react26.default.createElement(
+    "div",
+    { className: "dockm-page" },
+    import_react26.default.createElement(
+      "div",
+      { className: "dockm-page-head" },
+      import_react26.default.createElement("span", { className: "dockm-page-icon" }, import_react26.default.createElement(DockIcon, { size: 20 })),
+      import_react26.default.createElement(
+        "div",
+        { className: "dockm-page-titles" },
+        import_react26.default.createElement("div", { className: "dockm-page-title" }, "\u529F\u80FD\u575E"),
+        import_react26.default.createElement("div", { className: "dockm-page-sub" }, "\u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u91CC\u7BA1\u7406\u3002\u4FA7\u680F\u56FE\u6807\u53EF\u5728\u300C\u66F4\u591A\u300D\u83DC\u5355\u91CC Pin \u5230\u9876\u90E8\uFF0C\u6216\u53D6\u6D88\u56FA\u5B9A\u6536\u8FDB\u66F4\u591A\u3002")
+      )
+    ),
+    import_react26.default.createElement("div", { className: "dockm-page-body" }, import_react26.default.createElement(DockPanel, { params: null }))
+  );
+}
 function DockChips(props) {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react26.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.Chip, {
+      import_react26.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -14817,38 +15562,38 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react26.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react26.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react26.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
+  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
 }
 function FeatureTurnTail(props) {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react26.default.useReducer((n) => n + 1, 0);
+  import_react26.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react26.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
+      import_react26.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
+  return import_react26.default.createElement(import_react26.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -14857,29 +15602,33 @@ function apply(ctx) {
   initFeatureState(BUILTIN_FEATURES.concat(PLANNED_FEATURES));
   const slots = ctx.get("slots");
   if (slots === void 0) return;
-  slots.inject("sidebar.footer.action", () => slots.register(
-    { name: "sidebar.footer.action", id: "dsh-dock", order: 1, label: "\u529F\u80FD\u575E" },
-    (props) => import_react24.default.createElement(DockEntry, props)
+  slots.inject("sidebar.panellist", () => slots.register(
+    { name: "sidebar.panellist", id: "dsh-dock", order: 30, label: "\u529F\u80FD\u575E" },
+    (props) => import_react26.default.createElement(DockIcon, { size: props && props.size || 18 })
+  ));
+  slots.inject("main", () => slots.register(
+    { name: "main", key: "dsh-dock", label: "\u529F\u80FD\u575E" },
+    () => import_react26.default.createElement(DockPage, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react24.default.createElement(DockModal, null)
+    () => import_react26.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react24.default.createElement(FeatureOverlays, null)
+    () => import_react26.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react24.default.createElement(DockPanel, props)
+    (props) => import_react26.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react24.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react26.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
   slots.inject("conversation.chat.turnTail", () => slots.register(
     { name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "\u529F\u80FD\u575E" },
-    (owner) => import_react24.default.createElement(FeatureTurnTail, owner)
+    (owner) => import_react26.default.createElement(FeatureTurnTail, owner)
   ));
 }
 var inject = ["timer"];
