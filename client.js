@@ -2126,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react24 = __toESM(require("react"), 1);
+var import_react22 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -2319,6 +2319,7 @@ function taskActivityAt(task) {
 }
 function taskBusy(task, now, capMs) {
   if (!task) return false;
+  if (task.ptcProgram === true) return true;
   const at = typeof now === "number" ? now : Date.now();
   const cap = typeof capMs === "number" && capMs > 0 ? capMs : TASK_BUSY_MS;
   if (task.compacting === true) {
@@ -2418,6 +2419,10 @@ function hourOf(ts) {
 var EXPORT_COLUMNS = [
   ["\u65F6\u95F4", (r) => fmtTime(r.time)],
   ["\u4F1A\u8BDDID", (r) => r.sessionId || ""],
+  ["\u76F4\u63A5\u7236\u4F1A\u8BDDID", (r) => r.parentSessionId || ""],
+  ["\u6839\u4F1A\u8BDDID", (r) => r.rootSessionId || r.sessionId || ""],
+  ["\u4F1A\u8BDD\u5C42\u7EA7", (r) => String(r.sessionDepth || 0)],
+  ["\u4F1A\u8BDD\u7C7B\u578B", (r) => r.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4F1A\u8BDD"],
   ["\u63D0\u4F9B\u5546", (r) => r.provider || "\u2014"],
   ["\u6A21\u578B", (r) => r.model || "\u2014"],
   ["\u8F93\u5165(\u547D\u4E2D)", (r) => fmtNum(r.cacheReadTokens)],
@@ -2461,7 +2466,7 @@ function buildExportCsv(rows, rate) {
   return lines.join("\r\n");
 }
 var STORE_KEY = "dsh-dock/tokenlog/filters/v1";
-var FILTER_FIELDS = ["fromStr", "toStr", "provider", "model", "status", "effort", "sessionId", "dim"];
+var FILTER_FIELDS = ["fromStr", "toStr", "provider", "model", "status", "effort", "sessionId", "sessionScope", "dim"];
 function loadSavedFilters() {
   try {
     if (typeof localStorage === "undefined") return null;
@@ -2487,6 +2492,9 @@ function shortId(sid) {
   if (!sid) return "";
   if (sid.length <= 16) return sid;
   return sid.slice(0, 8) + "\u2026" + sid.slice(-6);
+}
+function sessionType(r) {
+  return r && r.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4F1A\u8BDD";
 }
 function statusInfo(r) {
   if (r.status === "completed") return { code: 200, label: "200", cls: "ok", title: "\u6210\u529F" };
@@ -2723,6 +2731,9 @@ var css = `
 .dtok-empty{text-align:center;color:var(--dsw-alias-label-secondary);padding:32px 0;font-size:13px;}
 .dtok-sid{color:var(--dk-accent);cursor:pointer;text-decoration:underline dotted;}
 .dtok-sid:hover{filter:brightness(1.25);}
+.dtok-scope-note{font-size:12px;color:var(--dsw-alias-label-secondary);padding:7px 10px;border-left:3px solid var(--dk-accent);background:var(--dsw-alias-bg-layer-1);border-radius:4px;line-height:1.5;}
+.dtok-session-kind{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:4px;font-size:10px;color:var(--dk-accent);background:rgb(96 165 250 / .12);vertical-align:middle;}
+.dtok-session-tree{font-family:ui-monospace,monospace;}
 .dtok-code{font-weight:700;font-family:ui-monospace,monospace;}
 .dtok-code.ok{color:var(--dsw-alias-state-success-primary,#4ade80);}
 .dtok-code.warn{color:var(--dk-warn);}
@@ -2863,6 +2874,10 @@ function Detail({ rec, onClose, rate }) {
   const rateCny = Number(rate) > 0 ? Number(rate) : 7.2;
   const rows = [
     ["\u4F1A\u8BDD ID", rec.sessionId],
+    ["\u4F1A\u8BDD\u7C7B\u578B", sessionType(rec)],
+    ["\u76F4\u63A5\u7236\u4F1A\u8BDD ID", rec.parentSessionId || "\u2014"],
+    ["\u6839\u4F1A\u8BDD ID", rec.rootSessionId || rec.sessionId],
+    ["\u4F1A\u8BDD\u5C42\u7EA7", String(rec.sessionDepth || 0)],
     ["\u65F6\u95F4", fmtTime(rec.time)],
     ["\u63D0\u4F9B\u5546", rec.provider],
     ["\u6A21\u578B", rec.model],
@@ -3310,6 +3325,8 @@ function TokenLogView(props) {
   const [status, setStatus] = (0, import_react2.useState)(() => savedFilters && savedFilters.status || "");
   const [effort, setEffort] = (0, import_react2.useState)(() => savedFilters && savedFilters.effort || "");
   const [sessionId, setSessionId] = (0, import_react2.useState)(() => navSession || savedFilters && savedFilters.sessionId || "");
+  const [sessionScope, setSessionScope] = (0, import_react2.useState)(() => savedFilters && savedFilters.sessionScope || "tree");
+  const scopeTouchedRef = (0, import_react2.useRef)(!!(savedFilters && savedFilters.sessionScope));
   const [dim, setDim] = (0, import_react2.useState)(() => savedFilters && savedFilters.dim || "");
   const [sortKey, setSortKey] = (0, import_react2.useState)("time");
   const [sortDir, setSortDir] = (0, import_react2.useState)("desc");
@@ -3335,8 +3352,8 @@ function TokenLogView(props) {
   }, [fetchedAt]);
   const pageSize = 100;
   (0, import_react2.useEffect)(() => {
-    saveFilters({ fromStr, toStr, provider, model, status, effort, sessionId, dim });
-  }, [fromStr, toStr, provider, model, status, effort, sessionId, dim]);
+    saveFilters({ fromStr, toStr, provider, model, status, effort, sessionId, sessionScope, dim });
+  }, [fromStr, toStr, provider, model, status, effort, sessionId, sessionScope, dim]);
   (0, import_react2.useEffect)(() => {
     let cancel = false;
     setLoading(true);
@@ -3350,12 +3367,14 @@ function TokenLogView(props) {
       if (savedFilters.status) q.status = savedFilters.status;
       if (savedFilters.effort) q.effort = savedFilters.effort;
       if (savedFilters.sessionId) q.sessionId = savedFilters.sessionId;
+      if (savedFilters.sessionScope) q.sessionScope = savedFilters.sessionScope;
       if (savedFilters.dim) q.dim = savedFilters.dim;
     }
     if (navSession) q.sessionId = navSession;
     rpcCall("scan", {}).then(() => cancel ? null : rpcCall("query", q)).then((d) => {
       if (cancel) return;
       setData(d);
+      if (!scopeTouchedRef.current && d && (d.defaultSessionScope === "tree" || d.defaultSessionScope === "session")) setSessionScope(d.defaultSessionScope);
     }).catch((e) => {
       if (!cancel) setErr(String(e && e.message || e));
     }).finally(() => {
@@ -3374,10 +3393,11 @@ function TokenLogView(props) {
     if (status) q.status = status;
     if (effort) q.effort = effort;
     if (sessionId) q.sessionId = sessionId;
+    if (sessionId) q.sessionScope = sessionScope;
     const dimNow = dimOverride !== void 0 ? dimOverride : dim;
     if (withDim && dimNow) q.dim = dimNow;
     return q;
-  }, [fromStr, toStr, provider, model, status, effort, sessionId, dim]);
+  }, [fromStr, toStr, provider, model, status, effort, sessionId, sessionScope, dim]);
   const runQuery = (0, import_react2.useCallback)((dimOverride) => {
     setLoading(true);
     setErr("");
@@ -3387,17 +3407,19 @@ function TokenLogView(props) {
     }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
   }, [buildQ]);
   const navAppliedRef = (0, import_react2.useRef)(navAt);
+  const lastNavSessionRef = (0, import_react2.useRef)(navSession);
   (0, import_react2.useEffect)(() => {
-    if (!navSession || navAppliedRef.current === navAt) return;
+    if (!navSession || navAppliedRef.current === navAt && lastNavSessionRef.current === navSession) return;
     navAppliedRef.current = navAt;
+    lastNavSessionRef.current = navSession;
     setSessionId(navSession);
     setLoading(true);
     setErr("");
-    rpcCall("query", Object.assign({}, buildQ(true), { sessionId: navSession })).then((d) => {
+    rpcCall("query", Object.assign({}, buildQ(true), { sessionId: navSession, sessionScope })).then((d) => {
       setData(d);
       setPage(0);
     }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
-  }, [navAt]);
+  }, [navAt, navSession]);
   const rateCny = data && data.rateUsdCny || 7.2;
   const resetFilters = (0, import_react2.useCallback)(() => {
     setFromStr("");
@@ -3407,7 +3429,9 @@ function TokenLogView(props) {
     setStatus("");
     setEffort("");
     setSessionId("");
+    setSessionScope("tree");
     setDim("");
+    scopeTouchedRef.current = false;
     setLoading(true);
     setErr("");
     rpcCall("query", {}).then((d) => {
@@ -3446,6 +3470,14 @@ function TokenLogView(props) {
   }, [sortKey, sortDir]);
   const records = data && data.records || [];
   const totals = data && data.totals;
+  const scopeInfo = data && data.sessionScope;
+  const directTotals = data && data.directTotals;
+  const breakdown = data && data.sessionBreakdown || [];
+  const childTotals = scopeInfo && scopeInfo.scope === "tree" ? {
+    calls: Math.max(0, (totals && totals.calls || 0) - (directTotals && directTotals.calls || 0)),
+    totalTokens: Math.max(0, (totals && totals.totalTokens || 0) - (directTotals && directTotals.totalTokens || 0)),
+    cost: Math.max(0, (totals && totals.cost || 0) - (directTotals && directTotals.cost || 0))
+  } : null;
   const sessionIds = data && data.sessionIds || [];
   const sorted = (0, import_react2.useMemo)(() => {
     const arr = records.slice();
@@ -3466,16 +3498,28 @@ function TokenLogView(props) {
   const pageRows = sorted.slice(pageSafe * pageSize, (pageSafe + 1) * pageSize);
   const cards = totals ? [
     { v: fmtNum(totals.calls), l: "\u8C03\u7528\u6B21\u6570" },
-    { v: fmtCompact(totals.totalTokens), l: "\u603B Token" },
+    { v: fmtCompact(totals.totalTokens), l: scopeInfo && scopeInfo.scope === "tree" ? "\u7D2F\u8BA1 Token\uFF08\u542B\u5B50\u4EFB\u52A1\uFF09" : "\u603B Token" },
     { v: fmtCompact(totals.cacheReadTokens), l: "\u8F93\u5165(\u547D\u4E2D)" },
     { v: fmtCompact(totals.inputTokens), l: "\u8F93\u5165(\u672A\u547D\u4E2D)" },
     { v: totals.cacheHitPct + "%", l: "\u7F13\u5B58\u547D\u4E2D\u7387" },
     { v: fmtCompact(totals.outputTokens), l: "\u8F93\u51FA" },
-    { v: fmtCostCny(totals.cost, rateCny), l: "\u6D88\u8017\u91D1\u989D(\u4F30\u7B97\xB7\u4EBA\u6C11\u5E01)" },
+    { v: fmtCostCny(totals.cost, rateCny), l: (scopeInfo && scopeInfo.scope === "tree" ? "\u7D2F\u8BA1\u91D1\u989D" : "\u6D88\u8017\u91D1\u989D") + "(\u4F30\u7B97\xB7\u4EBA\u6C11\u5E01)" },
     { v: fmtDuration(totals.llmMs), l: "\u7D2F\u8BA1\u8017\u65F6" + (totals.timed ? " (" + totals.timed + "\u6B65)" : "") }
   ] : [];
   const opts = (arr) => (arr || []).map((x) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: x, children: x || "(\u7A7A)" }, x || "(none)"));
   const modelChoices = provider && data && data.modelsByProvider ? data.modelsByProvider[provider] || [] : data && data.models || [];
+  const changeScope = (next) => {
+    scopeTouchedRef.current = true;
+    setSessionScope(next);
+    setLoading(true);
+    setErr("");
+    rpcCall("config", { sessionScope: next }).catch((e) => {
+      setErr(String(e && e.message || e));
+    }).then(() => rpcCall("query", Object.assign({}, buildQ(true), { sessionScope: next }))).then((d) => {
+      setData(d);
+      setPage(0);
+    }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
+  };
   const summaryRows = (data && data.summary || []).map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.key }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.calls) }),
@@ -3495,10 +3539,18 @@ function TokenLogView(props) {
     const st = statusInfo(r);
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtTime(r.time) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-sid", title: "\u70B9\u51FB\u6309\u6B64\u4F1A\u8BDD\u7B5B\u9009", onClick: () => {
-        setSessionId(r.sessionId);
-        runQuery();
-      }, children: shortId(r.sessionId) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-sid", title: "\u4F1A\u8BDD\uFF1A" + r.sessionId + (r.parentSessionId ? "\n\u76F4\u63A5\u7236\u4F1A\u8BDD\uFF1A" + r.parentSessionId : "") + "\n\u70B9\u51FB\u6309\u6B64\u4F1A\u8BDD\u7B5B\u9009", onClick: () => {
+          setSessionId(r.sessionId);
+          setLoading(true);
+          setErr("");
+          rpcCall("query", Object.assign({}, buildQ(true), { sessionId: r.sessionId })).then((d) => {
+            setData(d);
+            setPage(0);
+          }).catch((e) => setErr(String(e && e.message || e))).finally(() => setLoading(false));
+        }, children: shortId(r.sessionId) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dtok-session-kind", children: sessionType(r) })
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.provider || "\u2014" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.model || "\u2014" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.cacheReadTokens) }),
@@ -3538,12 +3590,46 @@ function TokenLogView(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChartsPanel, { records, rate: rateCny }, "charts-" + fetchedAt)
     );
   } else {
+    if (scopeInfo && scopeInfo.sessionId) bodyNodes.push(
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-scope-note", children: [
+        scopeInfo.scope === "tree" ? "\u4EFB\u52A1\u7D2F\u8BA1 = \u672C\u4F1A\u8BDD + \u5168\u90E8\u540E\u4EE3\u5B50\u4EFB\u52A1\uFF1B\u6309\u5B9E\u9645\u8C03\u7528 ID \u53BB\u91CD\uFF0C\u5B50\u4EFB\u52A1\u7EE7\u627F\u7684\u5386\u53F2\u4E0D\u4F1A\u91CD\u590D\u8BA1\u7B97\u3002" : "\u4EC5\u7EDF\u8BA1\u5F53\u524D\u4F1A\u8BDD\u81EA\u5DF1\u7684\u8C03\u7528\uFF0C\u4E0D\u5305\u542B\u6D3E\u53D1\u7684\u5B50\u4EFB\u52A1\u3002",
+        " \u672C\u4F1A\u8BDD " + fmtCompact(directTotals && directTotals.totalTokens || 0) + " Token",
+        childTotals ? " \xB7 \u5B50\u4EFB\u52A1 " + fmtCompact(childTotals.totalTokens) + " Token / " + fmtCostCny(childTotals.cost, rateCny) + "\uFF08" + scopeInfo.descendantCount + " \u4E2A\u4F1A\u8BDD\uFF09" : "",
+        scopeInfo.complete === false ? " \xB7 \u8C31\u7CFB\u90E8\u5206\u7F3A\u5931\uFF0C\u4EC5\u7D2F\u8BA1\u5DF2\u77E5\u4F1A\u8BDD" : ""
+      ] }, "scope-note")
+    );
     if (cards.length) bodyNodes.push(
       // key 带 fetchedAt：每次「手动查询 / 首次加载」拿到新数据时重建一次，KPI 卡重播回弹动画
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-cards" + (fetchedAt ? " dtok-pop" : ""), children: cards.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-card", style: { "--i": String(i) }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "v", children: c.v }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "l", children: c.l })
       ] }, c.l)) }, "cards-" + fetchedAt)
+    );
+    if (breakdown.length) bodyNodes.push(
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-section-title", children: [
+        "\u4F1A\u8BDD\u7528\u91CF\u62C6\u5206\uFF08",
+        breakdown.length,
+        " \u4E2A\u6709\u7528\u91CF\u7684\u4F1A\u8BDD\uFF09"
+      ] }, "session-sum"),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dtok-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", { className: "dtok-table", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u4F1A\u8BDD" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u7C7B\u578B" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u8C03\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u603B Token" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "\u91D1\u989D\uFF08\u4EBA\u6C11\u5E01\uFF09" })
+        ] }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: breakdown.map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { className: "dtok-session-tree", title: "\u4F1A\u8BDD\uFF1A" + r.sessionId + (r.parentSessionId ? "\n\u76F4\u63A5\u7236\u4F1A\u8BDD\uFF1A" + r.parentSessionId : ""), children: [
+            r.sessionDepth ? "\u2514 ".repeat(Math.min(r.sessionDepth, 4)) : "",
+            shortId(r.sessionId)
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: r.sessionId === scopeInfo.sessionId ? "\u5F53\u524D\u4F1A\u8BDD" : sessionType(r) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtNum(r.calls) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCompact(r.totalTokens) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: fmtCostCny(r.cost, rateCny) })
+        ] }, r.sessionId)) })
+      ] }) }, "session-sum-table")
     );
     if (summaryRows.length) bodyNodes.push(
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dtok-section-title", children: [
@@ -3641,6 +3727,13 @@ function TokenLogView(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "", children: "\u5168\u90E8" }),
         opts(sessionIds)
       ] }),
+      sessionId ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u4F1A\u8BDD\u53E3\u5F84" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", { className: "dtok-select", value: sessionScope, "aria-label": "\u4F1A\u8BDD\u7528\u91CF\u53E3\u5F84", onChange: (e) => changeScope(e.target.value), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "tree", children: "\u4EFB\u52A1\u7D2F\u8BA1\uFF08\u542B\u5B50\u4EFB\u52A1\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "session", children: "\u4EC5\u672C\u4F1A\u8BDD" })
+        ] })
+      ] }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: "\u63D0\u4F9B\u5546" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", { className: "dtok-select", value: provider, onChange: (e) => {
         setProvider(e.target.value);
@@ -3720,7 +3813,7 @@ function TokenLogHomeStat() {
 }
 function TokenLogChip(props) {
   const sid = props && props.sessionId || props && props.session && props.session.sessionId || null;
-  const [snap, setSnap] = (0, import_react2.useState)({ totals: null, rate: 7.2, err: "" });
+  const [snap, setSnap] = (0, import_react2.useState)({ totals: null, directTotals: null, scope: null, rate: 7.2, err: "" });
   (0, import_react2.useEffect)(() => {
     if (!sid) return;
     let cancel = false;
@@ -3728,9 +3821,9 @@ function TokenLogChip(props) {
     const load = () => {
       if (cancel || isTokenlogRouteGone()) return null;
       return rpcCall("query", { sessionId: sid }).then((d) => {
-        if (!cancel) setSnap({ totals: d && d.totals, rate: d && d.rateUsdCny || 7.2, err: "" });
+        if (!cancel) setSnap({ totals: d && d.totals, directTotals: d && d.directTotals, scope: d && d.sessionScope, rate: d && d.rateUsdCny || 7.2, err: "" });
       }).catch((e) => {
-        if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String(e && e.message || e) }));
+        if (!cancel) setSnap((s) => ({ ...s, err: String(e && e.message || e) }));
       });
     };
     load();
@@ -3742,19 +3835,23 @@ function TokenLogChip(props) {
   }, [sid]);
   if (!sid) return null;
   const t = snap.totals;
+  const cumulative = snap.scope && snap.scope.scope === "tree";
+  const own = snap.directTotals;
+  const childTokens = cumulative ? Math.max(0, (t && t.totalTokens || 0) - (own && own.totalTokens || 0)) : 0;
+  const childCost = cumulative ? Math.max(0, (t && t.cost || 0) - (own && own.cost || 0)) : 0;
   const gone = isTokenlogRouteGone();
   const hasData = !!t && !gone && !(snap.err && !t);
   const labelIcon = hasData ? "\u26C1 " : "";
   const labelMain = gone ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : snap.err && !t ? snap.err.includes("\u91CD\u542F") || snap.err.includes("\u542F\u7528") ? "\u7528\u91CF\xB7\u672A\u542F\u7528" : "\u7528\u91CF\xB7\u5931\u8D25" : t ? fmtCompact(t.totalTokens) : "\u2026";
   const labelExtra = hasData && t.cost > 0 ? " \xB7 " + fmtCostCny(t.cost, snap.rate) : "";
-  const title = gone ? routeGoneMessage() + "\n\uFF08\u53EF\u5728\u529F\u80FD\u575E\u91CC\u542F\u7528\u300C\u7528\u91CF\u8BB0\u5F55\u300D\uFF09" : t ? "\u672C\u4F1A\u8BDD " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCostCny(t.cost, snap.rate) + "\uFF08\u4F30\u7B97\uFF09\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
+  const title = gone ? routeGoneMessage() + "\n\uFF08\u53EF\u5728\u529F\u80FD\u575E\u91CC\u542F\u7528\u300C\u7528\u91CF\u8BB0\u5F55\u300D\uFF09" : t ? (cumulative ? "\u4EFB\u52A1\u7D2F\u8BA1\uFF08\u542B\u5B50\u4EFB\u52A1\uFF09" : "\u4EC5\u672C\u4F1A\u8BDD") + " " + fmtNum(t.calls) + " \u6B21\u8C03\u7528 \xB7 " + fmtNum(t.totalTokens) + " Token \xB7 " + fmtCostCny(t.cost, snap.rate) + "\uFF08\u4F30\u7B97\uFF09" + (cumulative ? "\n\u672C\u4F1A\u8BDD " + fmtCompact(own && own.totalTokens || 0) + " Token / " + fmtCostCny(own && own.cost || 0, snap.rate) + " \xB7 \u5B50\u4EFB\u52A1 " + fmtCompact(childTokens) + " Token / " + fmtCostCny(childCost, snap.rate) + "\uFF08" + snap.scope.descendantCount + " \u4E2A\u4F1A\u8BDD\uFF09" : "") + (cumulative && snap.scope.complete === false ? "\n\u8C31\u7CFB\u90E8\u5206\u7F3A\u5931\uFF0C\u4EC5\u7D2F\u8BA1\u5DF2\u77E5\u4F1A\u8BDD" : "") + "\n\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55" : (snap.err ? snap.err + "\n" : "") + "\u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u7528\u91CF\u8BB0\u5F55";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "button",
     {
       type: "button",
       className: "dockchip" + (snap.err && !t && !gone ? " err" : ""),
       title,
-      "aria-label": "\u4F1A\u8BDD\u7528\u91CF",
+      "aria-label": cumulative ? "\u4EFB\u52A1\u7D2F\u8BA1\u7528\u91CF\uFF08\u542B\u5B50\u4EFB\u52A1\uFF09" : "\u672C\u4F1A\u8BDD\u7528\u91CF",
       onClick: () => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() }),
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-svg", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", { viewBox: "0 0 16 16", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", children: [
@@ -3764,7 +3861,7 @@ function TokenLogChip(props) {
         ] }) }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-dot", style: { background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" } }),
         labelIcon ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-ic", children: labelIcon }) : null,
-        hasData ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-pre-s", children: "\u7528\u91CF " }) : null,
+        hasData ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-pre-s", children: cumulative ? "\u7D2F\u8BA1 " : "\u7528\u91CF " }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-val", children: labelMain }),
         labelExtra ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dockchip-x", children: labelExtra }) : null
       ]
@@ -3776,7 +3873,7 @@ var feature = {
   name: "\u7528\u91CF\u8BB0\u5F55",
   order: 110,
   accent: "#fbbf24",
-  description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u65F6\u95F4\u7B5B\u9009\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u53EF\u914D\u7F6E\u5404\u6A21\u578B\u5355\u4EF7\uFF0C\u6301\u4E45\u4FDD\u5B58\u5E76\u6309\u81EA\u586B\u5355\u4EF7\u8BA1\u8D39\uFF1B\u591A\u6BB5\u5206\u65F6\u4EF7\u53EF\u9650\u5B9A\u5DE5\u4F5C\u65E5/\u5468\u672B\u8282\u5047\u65E5\uFF0C\u5185\u7F6E\u5CF0\u8C37\u8BA1\u4EF7+\u5B98\u7F51\u4EF7\u76EE\u81EA\u52A8\u540C\u6B65\u4F5C\u515C\u5E95\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
+  description: "\u8BB0\u5F55\u5168\u90E8 LLM API \u8C03\u7528\uFF1A\u79D2\u7EA7\u7B5B\u9009\u3001\u4E3B\u4EFB\u52A1+\u540E\u4EE3\u5B50\u4EFB\u52A1\u7D2F\u8BA1/\u4EC5\u672C\u4F1A\u8BDD\u5207\u6362\u3001\u4F1A\u8BDD\u7528\u91CF\u62C6\u5206\u3001Token/\u8D39\u7528\u7EDF\u8BA1\uFF08\u81EA\u5B9A\u4E49\u5355\u4EF7\u4E0E\u5CF0\u8C37\u4EF7\uFF09\u3001\u5206\u7EC4\u6C47\u603B\u3001\u660E\u7EC6\u68C0\u7D22\u4E0E CSV \u5BFC\u51FA",
   css,
   View: TokenLogView,
   HomeStat: TokenLogHomeStat,
@@ -4344,10 +4441,10 @@ function ModelsStat() {
 }
 var feature2 = {
   id: "modelconfig",
-  name: "\u6A21\u578B\u8BBE\u7F6E",
+  name: "\u6A21\u578B\u80FD\u529B",
   order: 100,
   accent: "#22d3ee",
-  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u7684\u8F93\u5165\u7C7B\u578B\u4E0E\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF0C\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF1BProvider \u81EA\u8EAB\u7684\u589E\u5220\u6539\u5728\u300C\u6A21\u578B\u63D0\u4F9B\u5546\u300D\u91CC\u7BA1\u7406",
+  description: "\u7F16\u8F91\u5404 Provider \u6A21\u578B\u7684\u8F93\u5165\u7C7B\u578B\u4E0E\u601D\u8003\u5F3A\u5EA6\u6863\u4F4D\uFF0C\u5199\u56DE\u5B98\u65B9\u914D\u7F6E\u70ED\u751F\u6548\uFF1BProvider \u81EA\u8EAB\u7684\u589E\u5220\u6539\u5728\u300C\u6A21\u578B\u7BA1\u7406\u300D\u91CC\u7BA1\u7406",
   css: [
     ".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
     ".dkm-warn{color:var(--dk-warn);}",
@@ -4883,11 +4980,11 @@ function ProvidersView(props) {
   );
   const piProviders = providers.filter((p) => p.kind === "pi-ai");
   const body = [
-    import_react4.default.createElement("h2", { key: "title", className: "dkp-title" }, "\u6A21\u578B\u63D0\u4F9B\u5546"),
+    import_react4.default.createElement("h2", { key: "title", className: "dkp-title" }, "\u6A21\u578B\u7BA1\u7406"),
     import_react4.default.createElement(
       "p",
       { key: "intro", className: "dkp-intro" },
-      "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u672C\u9875\u53EA\u8BFB\uFF0C\u5176\u6A21\u578B\u76EE\u5F55\u5728\u300C\u6A21\u578B\u8BBE\u7F6E\u300D\u91CC\u7F16\u8F91\u3002\u672C\u529F\u80FD\u53EF\u5355\u72EC\u505C\u7528\uFF1A\u505C\u7528\u540E\u8FD9\u4E9B\u5199\u914D\u7F6E\u4E0E\u51FA\u7AD9\u8BF7\u6C42\u7684\u8DEF\u7531\u4E00\u5E76\u5173\u95ED\u3002"
+      "\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF08OpenAI \u517C\u5BB9\u3001Anthropic \u7B49\uFF09\uFF0C\u5199\u5165\u5B98\u65B9\u914D\u7F6E\u5E76\u70ED\u751F\u6548\uFF1BAPI Key \u5B58\u672C\u673A\u51ED\u636E\u5E93\uFF08\u6587\u4EF6\u4EC5 root \u53EF\u8BFB\uFF09\u3002\u5185\u7F6E DeepSeek \u5B98\u65B9 Provider \u5728\u672C\u9875\u53EA\u8BFB\uFF0C\u5176\u6A21\u578B\u76EE\u5F55\u5728\u300C\u6A21\u578B\u80FD\u529B\u300D\u91CC\u7F16\u8F91\u3002\u672C\u529F\u80FD\u53EF\u5355\u72EC\u505C\u7528\uFF1A\u505C\u7528\u540E\u8FD9\u4E9B\u5199\u914D\u7F6E\u4E0E\u51FA\u7AD9\u8BF7\u6C42\u7684\u8DEF\u7531\u4E00\u5E76\u5173\u95ED\u3002"
     )
   ];
   if (snap.error) {
@@ -4974,8 +5071,8 @@ function ProvidersStat() {
 }
 var feature3 = {
   id: "providerconfig",
-  name: "\u6A21\u578B\u63D0\u4F9B\u5546",
-  order: 101,
+  name: "\u6A21\u578B\u7BA1\u7406",
+  order: 99,
   accent: "#8b5cf6",
   description: "\u7BA1\u7406\u81EA\u5B9A\u4E49\u6A21\u578B Provider\uFF1A\u65B0\u589E/\u7F16\u8F91/\u5220\u9664\u3001\u62C9\u53D6\u4E0A\u6E38\u6A21\u578B\u5217\u8868\u3001\u5199\u5165 API Key\uFF08\u53EF\u5355\u72EC\u505C\u7528\uFF09",
   css: [
@@ -5074,98 +5171,8 @@ var feature3 = {
   HomeStat: ProvidersStat
 };
 
-// features/heartbeat/view.js
-var import_react5 = __toESM(require("react"), 1);
-var loadedAt = Date.now();
-function uptimeText() {
-  const sec = Math.max(0, Math.floor((Date.now() - loadedAt) / 1e3));
-  const m = Math.floor(sec / 60);
-  return "\u9762\u677F\u5DF2\u8FD0\u884C " + (m > 0 ? m + " \u5206 " : "") + sec % 60 + " \u79D2";
-}
-function HeartbeatView(props) {
-  const ctx = props && props.ctx;
-  const [txt, setTxt] = import_react5.default.useState(uptimeText());
-  import_react5.default.useEffect(() => ctx && typeof ctx.interval === "function" ? ctx.interval(() => setTxt(uptimeText()), 1e3) : void 0, []);
-  return import_react5.default.createElement("div", null, txt);
-}
-function HeartbeatStat(props) {
-  const ctx = props && props.ctx;
-  const [txt, setTxt] = import_react5.default.useState(uptimeText());
-  import_react5.default.useEffect(() => ctx && typeof ctx.interval === "function" ? ctx.interval(() => setTxt(uptimeText()), 1e3) : void 0, []);
-  return import_react5.default.createElement("span", null, txt);
-}
-var feature4 = {
-  id: "heartbeat",
-  name: "\u5FC3\u8DF3\u76D1\u89C6",
-  order: 140,
-  accent: "#34d399",
-  description: "\u793A\u4F8B\u529F\u80FD\uFF1A\u9762\u677F\u4FA7\u8FD0\u884C\u65F6\u957F\u5FC3\u8DF3\uFF08\u7EAF Client\uFF09",
-  defaultEnabled: false,
-  View: HeartbeatView,
-  HomeStat: HeartbeatStat
-};
-
-// features/theme/view.js
-var import_react6 = __toESM(require("react"), 1);
-var import_react7 = require("react");
-var PREFERENCE_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272", system: "\u8DDF\u968F\u7CFB\u7EDF" };
-var THEME_LABELS = { light: "\u4EAE\u8272", dark: "\u6697\u8272" };
-function readThemeInfo(ctx) {
-  const theme = ctx && ctx.get ? ctx.get("theme") : void 0;
-  if (!theme || typeof theme.getTheme !== "function") return { err: "theme \u670D\u52A1\u4E0D\u53EF\u7528" };
-  let snap = null;
-  try {
-    snap = theme.getTheme();
-  } catch (err) {
-    return { err: "\u8BFB\u53D6\u5931\u8D25\uFF1A" + String(err && err.message || err) };
-  }
-  const preference = snap && typeof snap.preference === "string" ? snap.preference : "";
-  const activeId = snap && snap.active && typeof snap.active.id === "string" ? snap.active.id : "";
-  const label = (PREFERENCE_LABELS[preference] || preference || "\u672A\u77E5") + (activeId && activeId !== preference && THEME_LABELS[activeId] ? "\uFF08\u5B9E\u9645" + THEME_LABELS[activeId] + "\uFF09" : "");
-  return { label };
-}
-function useThemeInfo(ctx) {
-  const [info, setInfo] = (0, import_react7.useState)(() => readThemeInfo(ctx));
-  (0, import_react7.useEffect)(() => {
-    let off = null;
-    try {
-      if (ctx && typeof ctx.on === "function") {
-        off = ctx.on("theme/change", () => setInfo(readThemeInfo(ctx)));
-      }
-    } catch {
-    }
-    return () => {
-      try {
-        if (typeof off === "function") off();
-      } catch {
-      }
-    };
-  }, [ctx]);
-  return info;
-}
-function ThemeView(props) {
-  const r = useThemeInfo(props && props.ctx);
-  if (r.err) return import_react6.default.createElement("div", null, r.err);
-  return import_react6.default.createElement("div", null, "\u5F53\u524D\u4E3B\u9898\uFF1A" + r.label);
-}
-function ThemeStat(props) {
-  const r = useThemeInfo(props && props.ctx);
-  if (r.err) return import_react6.default.createElement("span", null, r.err);
-  return import_react6.default.createElement("span", null, "\u4E3B\u9898\uFF1A" + r.label);
-}
-var feature5 = {
-  id: "theme",
-  name: "\u4E3B\u9898\u4FE1\u606F",
-  order: 150,
-  accent: "#a78bfa",
-  description: "\u8BFB\u53D6\u5F53\u524D\u4E3B\u9898\u5FEB\u7167\uFF1A\u504F\u597D\u4E0E\u5B9E\u9645\u751F\u6548\u4E3B\u9898\uFF08\u7EAF Client\uFF0C\u4E3B\u9898\u5207\u6362\u5B9E\u65F6\u5237\u65B0\uFF09",
-  defaultEnabled: false,
-  View: ThemeView,
-  HomeStat: ThemeStat
-};
-
 // features/balance/view.js
-var import_react8 = __toESM(require("react"), 1);
+var import_react5 = __toESM(require("react"), 1);
 var ACCENT_PALETTE = ["#2563eb", "#0d9488", "#b45309", "#7c3aed", "#be185d", "#0369a1", "#c2410c", "#15803d", "#a21caf", "#0e7490"];
 var CURATED_ACCENTS = {
   "deepseek-official": "#2563eb",
@@ -5232,8 +5239,8 @@ var balanceStore = {
   }
 };
 function useBalance(ctx) {
-  const [snap, setSnap] = import_react8.default.useState(balanceStore.snap);
-  import_react8.default.useEffect(() => {
+  const [snap, setSnap] = import_react5.default.useState(balanceStore.snap);
+  import_react5.default.useEffect(() => {
     const off = balanceStore.subscribe(() => setSnap(balanceStore.snap));
     if (!balanceStore.snap.data && !balanceStore.snap.loading) balanceStore.load();
     const disposer = ctx && typeof ctx.interval === "function" ? ctx.interval(() => balanceStore.load(), 5 * 60 * 1e3) : null;
@@ -5247,7 +5254,7 @@ function useBalance(ctx) {
 function BalanceView(props) {
   const snap = useBalance(props && props.ctx);
   const load = () => balanceStore.load();
-  import_react8.default.useEffect(() => {
+  import_react5.default.useEffect(() => {
     const pid = props && props.params && props.params.provider;
     if (!pid || typeof document === "undefined") return;
     const t = setTimeout(() => {
@@ -5270,15 +5277,15 @@ function BalanceView(props) {
   const def = data && data.default ? data.default.provider : null;
   const body = [];
   if (snap.error) {
-    body.push(import_react8.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
+    body.push(import_react5.default.createElement("div", { key: "err", className: "dkb-note dkb-error" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF1A" + snap.error));
   } else if (!data) {
-    body.push(import_react8.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
+    body.push(import_react5.default.createElement("div", { key: "loading", className: "dkb-note" }, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u8FD8\u6CA1\u6709\u6570\u636E\uFF0C\u70B9\u51FB\u4E0B\u65B9\u5237\u65B0"));
   } else if (providers.length === 0) {
-    body.push(import_react8.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
+    body.push(import_react5.default.createElement("div", { key: "empty", className: "dkb-note" }, "\u6CA1\u6709\u627E\u5230\u5DF2\u914D\u7F6E\u7684\u6A21\u578B Provider"));
   } else {
     const rank = (p) => p.balance && p.balance.status === "ok" ? 0 : p.balance && p.balance.status === "login-required" ? 1 : 2;
     const sorted = providers.slice().sort((a, b) => rank(a) - rank(b));
-    body.push(import_react8.default.createElement(
+    body.push(import_react5.default.createElement(
       "div",
       { key: "rows", className: "dkb-rows" },
       sorted.map((p) => {
@@ -5295,76 +5302,76 @@ function BalanceView(props) {
         let balBody = null;
         if (b && b.status === "ok" && b.kind === "quota") {
           const dims = Array.isArray(b.dims) ? b.dims : [];
-          balBody = import_react8.default.createElement(
-            import_react8.default.Fragment,
+          balBody = import_react5.default.createElement(
+            import_react5.default.Fragment,
             null,
-            import_react8.default.createElement(
+            import_react5.default.createElement(
               "div",
               { className: "dkb-main" },
-              import_react8.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
-              import_react8.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
-              import_react8.default.createElement(
+              import_react5.default.createElement("span", { className: "dkb-main-label" }, "\u5269\u4F59\u989D\u5EA6"),
+              import_react5.default.createElement("span", { className: "dkb-main-value" }, fmt(b.remaining) + (b.unit ? " " + b.unit : "")),
+              import_react5.default.createElement(
                 "span",
                 { className: "dkb-main-part" },
                 "\u5DF2\u7528 " + fmt(b.used) + " / \u603B " + fmt(b.limit),
-                b.resetTime ? import_react8.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
+                b.resetTime ? import_react5.default.createElement("span", null, " \xB7 \u91CD\u7F6E " + String(b.resetTime).slice(0, 10)) : null
               )
             ),
-            dims.map((d, i) => import_react8.default.createElement(
+            dims.map((d, i) => import_react5.default.createElement(
               "div",
               { key: "d" + i, className: "dkb-dim" },
-              import_react8.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
-              import_react8.default.createElement(
+              import_react5.default.createElement("span", { className: "dkb-dim-label" }, d.window === "weekly" ? "\u5468\u989D\u5EA6" : "\u5C0F\u65F6\u989D\u5EA6"),
+              import_react5.default.createElement(
                 "span",
                 { className: "dkb-dim-bar" },
-                import_react8.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
+                import_react5.default.createElement("span", { className: "dkb-dim-fill", style: { width: (d.limit > 0 ? Math.min(100, Math.round(d.remaining / d.limit * 100)) : 0) + "%" } })
               ),
-              import_react8.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
+              import_react5.default.createElement("span", { className: "dkb-dim-text" }, "\u5269 " + fmt(d.remaining) + " / " + fmt(d.limit))
             ))
           );
         } else if (b && b.status === "ok") {
           const infos = Array.isArray(b.infos) ? b.infos : [];
-          balBody = import_react8.default.createElement(
+          balBody = import_react5.default.createElement(
             "div",
             { className: "dkb-mains" },
             infos.map((rawInfo, idx) => {
               const i = cnyBalanceInfo(rawInfo);
-              return import_react8.default.createElement(
+              return import_react5.default.createElement(
                 "div",
                 { key: idx, className: "dkb-main" },
-                import_react8.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
-                import_react8.default.createElement("span", { className: "dkb-main-value" }, moneyText(i.totalBalance)),
-                import_react8.default.createElement(
+                import_react5.default.createElement("span", { className: "dkb-main-label", style: { color: accent } }, i.currency),
+                import_react5.default.createElement("span", { className: "dkb-main-value" }, moneyText(i.totalBalance)),
+                import_react5.default.createElement(
                   "span",
                   { className: "dkb-main-parts" },
-                  i.grantedBalance != null ? import_react8.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + moneyText(i.grantedBalance)) : null,
-                  i.toppedUpBalance != null ? import_react8.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + moneyText(i.toppedUpBalance)) : null
+                  i.grantedBalance != null ? import_react5.default.createElement("span", { className: "dkb-main-part", style: { color: C_GRANTED } }, "\u8D60\u9001 " + moneyText(i.grantedBalance)) : null,
+                  i.toppedUpBalance != null ? import_react5.default.createElement("span", { className: "dkb-main-part", style: { color: C_TOPUP } }, "\u5145\u503C " + moneyText(i.toppedUpBalance)) : null
                 )
               );
             })
           );
         } else if (b && b.status === "login-required" && b.consoleUrl) {
-          balBody = import_react8.default.createElement(
+          balBody = import_react5.default.createElement(
             "div",
             { className: "dkb-main" },
-            import_react8.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
+            import_react5.default.createElement("a", { href: b.consoleUrl, target: "_blank", rel: "noreferrer", className: "dkb-link", style: { color: accent } }, "\u53BB\u63A7\u5236\u53F0\u67E5\u770B\u4F59\u989D \u2192")
           );
         } else {
-          balBody = b && b.message ? import_react8.default.createElement("div", { className: "dkb-note" }, b.message) : import_react8.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
+          balBody = b && b.message ? import_react5.default.createElement("div", { className: "dkb-note" }, b.message) : import_react5.default.createElement("div", { className: "dkb-note" }, "\u8BE5 Provider \u6CA1\u6709\u5DF2\u77E5\u7684\u4F59\u989D\u67E5\u8BE2\u63A5\u53E3");
         }
         const sub = ["ID " + p.id, p.api, p.baseURL ? p.baseURL.replace(/^https?:\/\//, "") : null].filter(Boolean).join(" \xB7 ");
-        return import_react8.default.createElement(
+        return import_react5.default.createElement(
           "div",
           { key: p.id, className: "dkb-row", "data-dock-provider": p.id },
-          import_react8.default.createElement(
+          import_react5.default.createElement(
             "div",
             { className: "dkb-row-head" },
-            import_react8.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
-            import_react8.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
-            def === p.id ? import_react8.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
-            import_react8.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
+            import_react5.default.createElement("span", { className: "dkb-dot", style: { background: accent } }),
+            import_react5.default.createElement("span", { className: "dkb-name", style: { color: accent } }, p.displayName),
+            def === p.id ? import_react5.default.createElement("span", { className: "dkb-default" }, "\u9ED8\u8BA4") : null,
+            import_react5.default.createElement("span", { className: "dkb-badge" + (badge[1] ? " " + badge[1] : ""), style: badge[1] === "err" ? { color: C_ERR, borderColor: C_ERR } : null }, badge[0]),
             // 模型数折叠提示（点开展开 chips）
-            p.models && p.models.length > 0 ? import_react8.default.createElement("button", {
+            p.models && p.models.length > 0 ? import_react5.default.createElement("button", {
               type: "button",
               className: "dkb-models-toggle",
               title: p.models.join(", "),
@@ -5374,13 +5381,13 @@ function BalanceView(props) {
               }
             }, p.models.length + " \u4E2A\u6A21\u578B \u25BE") : null
           ),
-          sub ? import_react8.default.createElement("div", { className: "dkb-sub" }, sub) : null,
-          p.apiKeyEnv ? import_react8.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
-          p.models && p.models.length > 0 ? import_react8.default.createElement(
+          sub ? import_react5.default.createElement("div", { className: "dkb-sub" }, sub) : null,
+          p.apiKeyEnv ? import_react5.default.createElement("div", { className: "dkb-sub" }, "\u5BC6\u94A5: " + p.apiKeyEnv + (p.credentialConfigured ? " \u2713" : " \u2717")) : null,
+          p.models && p.models.length > 0 ? import_react5.default.createElement(
             "div",
             { className: "dkb-chips" },
-            p.models.slice(0, 8).map((m) => import_react8.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
-            p.models.length > 8 ? import_react8.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
+            p.models.slice(0, 8).map((m) => import_react5.default.createElement("span", { key: m, className: "dkb-chip", style: { border: "1px solid " + accent, color: accent, background: accent + "1a" } }, m)),
+            p.models.length > 8 ? import_react5.default.createElement("span", { key: "more", className: "dkb-chip" }, "+" + (p.models.length - 8)) : null
           ) : null,
           balBody
         );
@@ -5388,20 +5395,20 @@ function BalanceView(props) {
     ));
   }
   const now = new Date(data && data.generatedAt ? data.generatedAt : Date.now());
-  return import_react8.default.createElement(
+  return import_react5.default.createElement(
     "div",
     { className: "dkb-rows" },
-    import_react8.default.createElement(
+    import_react5.default.createElement(
       "div",
       { className: "dkb-note" },
       data && !snap.error && providers.length > 0 ? okCount + "/" + providers.length + " \u4E2A Provider \u53EF\u67E5\u4F59\u989D\uFF08\u53EF\u67E5\u7684\u6392\u524D\u9762\uFF09" : "\u6A21\u578B\u4F59\u989D \xB7 Host \u534A\u90E8\u5B9E\u65F6\u62C9\u53D6"
     ),
     body,
-    import_react8.default.createElement(
+    import_react5.default.createElement(
       "div",
       { className: "dkb-foot" },
-      import_react8.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
-      import_react8.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
+      import_react5.default.createElement("span", null, snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u66F4\u65B0\u4E8E " + now.toLocaleTimeString()),
+      import_react5.default.createElement("button", { type: "button", className: "dkb-refresh", onClick: load }, "\u5237\u65B0")
     )
   );
 }
@@ -5409,14 +5416,14 @@ function BalanceStat(props) {
   const snap = useBalance(props && props.ctx);
   const data = snap.data;
   const providers = data && Array.isArray(data.providers) ? data.providers : [];
-  if (snap.error) return import_react8.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
-  if (!data) return import_react8.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
+  if (snap.error) return import_react5.default.createElement("span", { className: "dockm-err" }, "\u4F59\u989D\u67E5\u8BE2\u5931\u8D25\uFF08\u70B9\u51FB\u8FDB\u5165\u67E5\u770B\u8BE6\u60C5\uFF09");
+  if (!data) return import_react5.default.createElement("span", null, snap.loading ? "\u6B63\u5728\u62C9\u53D6\u4F59\u989D\u2026" : "\u7B49\u5F85\u62C9\u53D6\u4F59\u989D");
   const ok = providers.filter((p) => p.balance && p.balance.status === "ok").length;
-  return import_react8.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
+  return import_react5.default.createElement("span", null, providers.length + " \u4E2A Provider \xB7 " + ok + " \u4E2A\u53EF\u67E5\u4F59\u989D");
 }
 function useCurrentProvider(ctx, sessionId) {
-  const [cur, setCur] = import_react8.default.useState(null);
-  import_react8.default.useEffect(() => {
+  const [cur, setCur] = import_react5.default.useState(null);
+  import_react5.default.useEffect(() => {
     let alive = true, off = null;
     try {
       const models = ctx && ctx.get ? ctx.get("modelDirectories") : void 0;
@@ -5479,7 +5486,7 @@ function BalanceChip(props) {
   const selModel = sel && (sel.model || sel.selected && sel.selected.model) || null;
   const title = cur ? (cur.displayName || cur.id) + (selModel ? " \xB7 \u5F53\u524D\u6A21\u578B " + selModel : "") + " \xB7 \u70B9\u51FB\u5728\u529F\u80FD\u575E\u67E5\u770B\u4F59\u989D\u8BE6\u60C5" : "\u70B9\u51FB\u6253\u5F00\u529F\u80FD\u575E \xB7 \u6A21\u578B\u4F59\u989D";
   const mm = /^(余额 )([\s\S]*)$/.exec(text);
-  return import_react8.default.createElement(
+  return import_react5.default.createElement(
     "button",
     {
       type: "button",
@@ -5489,23 +5496,23 @@ function BalanceChip(props) {
       onClick: () => openPanel("balance", def ? { provider: def } : null)
     },
     // 窄屏只显示这枚小图标：点它进功能坞看余额详情（title 里是完整数值）
-    import_react8.default.createElement(
+    import_react5.default.createElement(
       "span",
       { className: "dockchip-svg", "aria-hidden": "true" },
-      import_react8.default.createElement(
+      import_react5.default.createElement(
         "svg",
         { viewBox: "0 0 16 16", width: 13, height: 13, fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" },
-        import_react8.default.createElement("path", { d: "M2.8 6.2h10.4v6.3a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1z" }),
-        import_react8.default.createElement("path", { d: "M5.4 6.2V4.6a2.6 2.6 0 0 1 5.2 0v1.6" })
+        import_react5.default.createElement("path", { d: "M2.8 6.2h10.4v6.3a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1z" }),
+        import_react5.default.createElement("path", { d: "M5.4 6.2V4.6a2.6 2.6 0 0 1 5.2 0v1.6" })
       )
     ),
-    import_react8.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
-    mm ? import_react8.default.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
-    mm ? import_react8.default.createElement("span", { className: "dockchip-pre-s" }, "\u4F59\u989D ") : null,
-    import_react8.default.createElement("span", { className: "dockchip-val" }, mm ? mm[2] : text)
+    import_react5.default.createElement("span", { className: "dockchip-dot", style: { background: accent } }),
+    mm ? import_react5.default.createElement("span", { className: "dockchip-pre" }, mm[1]) : null,
+    mm ? import_react5.default.createElement("span", { className: "dockchip-pre-s" }, "\u4F59\u989D ") : null,
+    import_react5.default.createElement("span", { className: "dockchip-val" }, mm ? mm[2] : text)
   );
 }
-var feature6 = {
+var feature4 = {
   id: "balance",
   name: "\u6A21\u578B\u4F59\u989D",
   order: 120,
@@ -5562,7 +5569,7 @@ var feature6 = {
 };
 
 // features/animation/view.jsx
-var import_react9 = require("react");
+var import_react6 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 function rpcCall2(method, args) {
   return fetch("dsh-dock/animation/" + method, {
@@ -5660,13 +5667,13 @@ var animationStore = {
   }
 };
 function useAnimation() {
-  const [snap, setSnap] = (0, import_react9.useState)(animationStore.snap);
-  (0, import_react9.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
+  const [snap, setSnap] = (0, import_react6.useState)(animationStore.snap);
+  (0, import_react6.useEffect)(() => animationStore.subscribe(() => setSnap(animationStore.snap)), []);
   return snap;
 }
 function useTicker(ctx, active) {
-  const [, bump] = (0, import_react9.useState)(0);
-  (0, import_react9.useEffect)(() => {
+  const [, bump] = (0, import_react6.useState)(0);
+  (0, import_react6.useEffect)(() => {
     if (!active) return;
     if (ctx && typeof ctx.interval === "function") return ctx.interval(bump, 1e3);
     const t = setInterval(bump, 1e3);
@@ -5841,7 +5848,7 @@ var MATRIX_CHARS = "01</>;{}=+*#";
 function AmbientLayer(props) {
   const mode = props.mode;
   const speed = props.speed;
-  const particles = (0, import_react9.useMemo)(() => {
+  const particles = (0, import_react6.useMemo)(() => {
     if (mode === "matrix") return { matrix: makeBits(34, () => ({
       l: Math.random() * 100,
       d: 4 + Math.random() * 6,
@@ -6089,8 +6096,8 @@ function composerDockPoint(side = "right") {
   };
 }
 function useSpaceDocks(enabled) {
-  const [docks, setDocks] = (0, import_react9.useState)(null);
-  (0, import_react9.useEffect)(() => {
+  const [docks, setDocks] = (0, import_react6.useState)(null);
+  (0, import_react6.useEffect)(() => {
     if (!enabled || typeof window === "undefined") {
       setDocks(null);
       return void 0;
@@ -6285,25 +6292,25 @@ function ProgrammingStuck(props) {
 function AnimationOverlay(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation();
-  const [flourish, setFlourish] = (0, import_react9.useState)(null);
-  const [bursts, setBursts] = (0, import_react9.useState)([]);
-  const [deliveries, setDeliveries] = (0, import_react9.useState)([]);
-  const [departures, setDepartures] = (0, import_react9.useState)([]);
-  const prevActiveRef = (0, import_react9.useRef)(null);
-  const burstIdRef = (0, import_react9.useRef)(0);
-  const deliveryIdRef = (0, import_react9.useRef)(0);
-  const departureTimersRef = (0, import_react9.useRef)(/* @__PURE__ */ new Map());
-  const lastImmediateDepartureRef = (0, import_react9.useRef)(0);
-  (0, import_react9.useEffect)(() => () => {
+  const [flourish, setFlourish] = (0, import_react6.useState)(null);
+  const [bursts, setBursts] = (0, import_react6.useState)([]);
+  const [deliveries, setDeliveries] = (0, import_react6.useState)([]);
+  const [departures, setDepartures] = (0, import_react6.useState)([]);
+  const prevActiveRef = (0, import_react6.useRef)(null);
+  const burstIdRef = (0, import_react6.useRef)(0);
+  const deliveryIdRef = (0, import_react6.useRef)(0);
+  const departureTimersRef = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
+  const lastImmediateDepartureRef = (0, import_react6.useRef)(0);
+  (0, import_react6.useEffect)(() => () => {
     for (const timer of departureTimersRef.current.values()) clearTimeout(timer);
     departureTimersRef.current.clear();
   }, []);
-  const pushBurst = (0, import_react9.useCallback)((type, x, y, bits) => {
+  const pushBurst = (0, import_react6.useCallback)((type, x, y, bits) => {
     const id = ++burstIdRef.current;
     setBursts((prev) => prev.concat([{ id, type, x, y, bits }]).slice(-6));
     setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), 2600);
   }, []);
-  const launchMission = (0, import_react9.useCallback)(() => {
+  const launchMission = (0, import_react6.useCallback)(() => {
     const cfg2 = animationStore.snap.status && animationStore.snap.status.config;
     if (!cfg2 || !cfg2.animationEnabled || cfg2.effectMode !== "space") return false;
     const id = ++deliveryIdRef.current;
@@ -6326,7 +6333,7 @@ function AnimationOverlay(props) {
     }, departure.duration));
     return true;
   }, []);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     if (typeof document === "undefined") return;
     const onClick = (e) => {
       const t = e.target;
@@ -6353,8 +6360,8 @@ function AnimationOverlay(props) {
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [pushBurst, launchMission]);
-  const taskCountRef = (0, import_react9.useRef)(0);
-  (0, import_react9.useEffect)(() => {
+  const taskCountRef = (0, import_react6.useRef)(0);
+  (0, import_react6.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const n = st2.active.length;
@@ -6365,7 +6372,7 @@ function AnimationOverlay(props) {
     }
     taskCountRef.current = n;
   }, [snap.status, pushBurst, launchMission]);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
@@ -6385,7 +6392,7 @@ function AnimationOverlay(props) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     const st2 = snap.status;
     if (!st2 || !st2.active) return;
     const prev = prevActiveRef.current;
@@ -6433,8 +6440,8 @@ function AnimationOverlay(props) {
   const phase = active.length > 0 ? active.reduce((best, x) => !best || (x.phaseAt || 0) > (best.phaseAt || 0) ? x : best, null).phase : "think";
   const waitingTask = active.find((x) => taskWaiting(x)) || null;
   const waitWord = waitingTask && taskApprovals(waitingTask).length === 0 ? "\u7B49\u5F85\u56DE\u7B54" : "\u7B49\u5F85\u786E\u8BA4";
-  const sessionTitleRef = (0, import_react9.useRef)({ at: 0, title: "" });
-  const currentTitle = (0, import_react9.useMemo)(() => {
+  const sessionTitleRef = (0, import_react6.useRef)({ at: 0, title: "" });
+  const currentTitle = (0, import_react6.useMemo)(() => {
     const c = sessionTitleRef.current;
     if (typeof window === "undefined") return "";
     if (Date.now() - c.at < 1e3) return c.title;
@@ -6442,19 +6449,19 @@ function AnimationOverlay(props) {
     c.title = currentSessionTitle();
     return c.title;
   }, [snap.status]);
-  const onScreenTasks = (0, import_react9.useMemo)(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
+  const onScreenTasks = (0, import_react6.useMemo)(() => active.filter((x) => taskOnScreen(x, currentTitle)), [active, currentTitle]);
   const waitingTaskOnScreen = onScreenTasks.find((x) => taskWaiting(x)) || null;
   useTicker(ctx, animOn);
   const now = Date.now();
   const elapsed = active.length > 0 ? fmtClock(now - Math.min(...active.map((x) => x.startTime || now))) : "";
-  const [panelOpen, setPanelOpen2] = (0, import_react9.useState)(false);
-  (0, import_react9.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react6.useState)(false);
+  (0, import_react6.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
-  const [speed, setSpeed] = (0, import_react9.useState)(1);
-  const speedRef = (0, import_react9.useRef)({ ticks: -1, at: 0 });
-  (0, import_react9.useEffect)(() => {
+  const [speed, setSpeed] = (0, import_react6.useState)(1);
+  const speedRef = (0, import_react6.useRef)({ ticks: -1, at: 0 });
+  (0, import_react6.useEffect)(() => {
     if (!st || active.length === 0) {
       speedRef.current = { ticks: -1, at: 0 };
       setSpeed(1);
@@ -6480,17 +6487,17 @@ function AnimationOverlay(props) {
   const stuckTask = onScreenTasks.find((task) => task.phase === "code" && taskStalled(task, now, 18e3)) || null;
   const robotScaleFromConfig = Math.max(0.85, Math.min(2.2, Number(cfg && cfg.robotScale) || 1.35));
   const speedStyle = { "--dkan-speed": Number(speed).toFixed(2) };
-  const saveRobotScale = (0, import_react9.useCallback)((robotScale) => {
+  const saveRobotScale = (0, import_react6.useCallback)((robotScale) => {
     rpcCall2("config", { robotScale }).then((d) => animationStore.applyConfig(d && d.config)).catch(() => {
     });
   }, []);
-  const [botPos, setBotPos] = (0, import_react9.useState)(null);
-  const botPosRef = (0, import_react9.useRef)(null);
-  const botDragRef = (0, import_react9.useRef)(null);
-  const botResizeRef = (0, import_react9.useRef)(null);
-  const [botScaleDraft, setBotScaleDraft] = (0, import_react9.useState)(null);
-  const botClickBlockRef = (0, import_react9.useRef)(false);
-  (0, import_react9.useEffect)(() => {
+  const [botPos, setBotPos] = (0, import_react6.useState)(null);
+  const botPosRef = (0, import_react6.useRef)(null);
+  const botDragRef = (0, import_react6.useRef)(null);
+  const botResizeRef = (0, import_react6.useRef)(null);
+  const [botScaleDraft, setBotScaleDraft] = (0, import_react6.useState)(null);
+  const botClickBlockRef = (0, import_react6.useRef)(false);
+  (0, import_react6.useEffect)(() => {
     try {
       if (typeof localStorage === "undefined") return;
       const raw = localStorage.getItem("dsh-dock/anim/robot-pos/v1");
@@ -6542,11 +6549,11 @@ function AnimationOverlay(props) {
       }, 0);
     }
   };
-  const [badgePos, setBadgePos] = (0, import_react9.useState)(null);
-  const badgePosRef = (0, import_react9.useRef)(null);
-  const badgeDragRef = (0, import_react9.useRef)(null);
-  const badgeClickBlockRef = (0, import_react9.useRef)(false);
-  (0, import_react9.useEffect)(() => {
+  const [badgePos, setBadgePos] = (0, import_react6.useState)(null);
+  const badgePosRef = (0, import_react6.useRef)(null);
+  const badgeDragRef = (0, import_react6.useRef)(null);
+  const badgeClickBlockRef = (0, import_react6.useRef)(false);
+  (0, import_react6.useEffect)(() => {
     try {
       if (typeof localStorage === "undefined") return;
       const raw = localStorage.getItem("dsh-dock/anim/badge-pos/v1");
@@ -6606,7 +6613,7 @@ function AnimationOverlay(props) {
     badgePosRef.current = null;
     setBadgePos(null);
   };
-  const badgeClickTimer = (0, import_react9.useRef)(null);
+  const badgeClickTimer = (0, import_react6.useRef)(null);
   const onBadgeClick = () => {
     if (badgeClickBlockRef.current) return;
     if (badgeClickTimer.current) {
@@ -6824,11 +6831,11 @@ function ModePreview({ id }) {
 function AnimationView(props) {
   const ctx = props && props.ctx;
   const snap = useAnimation(ctx);
-  const [cfg, setCfg] = (0, import_react9.useState)(null);
-  const [saveErr, setSaveErr] = (0, import_react9.useState)("");
-  const cfgRef = (0, import_react9.useRef)(null);
-  const pendingSavesRef = (0, import_react9.useRef)(0);
-  (0, import_react9.useEffect)(() => {
+  const [cfg, setCfg] = (0, import_react6.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react6.useState)("");
+  const cfgRef = (0, import_react6.useRef)(null);
+  const pendingSavesRef = (0, import_react6.useRef)(0);
+  (0, import_react6.useEffect)(() => {
     const c = snap.status && snap.status.config;
     if (!c) return;
     if (pendingSavesRef.current > 0) return;
@@ -6837,7 +6844,7 @@ function AnimationView(props) {
       setCfg(Object.assign({}, c));
     }
   }, [snap.status]);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     if (!animationStore.snap.status) animationStore.refresh();
   }, []);
   const patch = (p) => {
@@ -7312,7 +7319,7 @@ var css2 = [
   // 减少动态时停止空间位移，保留屏幕亮暗与思考状态的淡入反馈。
   "@media (prefers-reduced-motion:reduce){.dkan-amb *,.dkan-prev *,.dkan-space-system,.dkan-space-dust,.dkan-space-runner,.dkan-delivery,.dkan-departure,.dkan-freighter-engine i,.dkan-stuck-code::after,.dkan-stuck-code i{animation:none!important}.dkan-space-runner,.dkan-departure{display:none}.dkan-delivery{opacity:1;transform:translate3d(var(--dkan-to-x),var(--dkan-to-y),0)}.dkan-delivery-trail{display:none}.dk3-person,.dk3-upper3,.dk3-head3,.dk3-arm3,.dk3-elbow,.dk3-wrist3,.dk3-wheel,.dk3-code,.dk3-search-results{animation:none!important;transition:none!important}.dk3-screen,.dkan-bubble{transition:opacity .2s cubic-bezier(.23,1,.32,1)!important}}"
 ].join("\n");
-var feature7 = {
+var feature5 = {
   id: "animation",
   name: "\u4EFB\u52A1\u52A8\u753B",
   order: 130,
@@ -7325,7 +7332,7 @@ var feature7 = {
 };
 
 // features/notify/view.jsx
-var import_react10 = require("react");
+var import_react7 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 function rpcCall3(method, args) {
   return fetch("dsh-dock/notify/" + method, {
@@ -7470,8 +7477,8 @@ function voiceAllowed(cfg) {
   return !!cfg && cfg.voiceNotify === true && voiceClientEnabled();
 }
 function useVoiceClientEnabled() {
-  const [on, setOn] = (0, import_react10.useState)(() => voiceClientEnabled());
-  (0, import_react10.useEffect)(() => {
+  const [on, setOn] = (0, import_react7.useState)(() => voiceClientEnabled());
+  (0, import_react7.useEffect)(() => {
     const sync = () => setOn(voiceClientEnabled());
     if (typeof window === "undefined" || typeof window.addEventListener !== "function") return void 0;
     window.addEventListener("storage", sync);
@@ -7479,7 +7486,7 @@ function useVoiceClientEnabled() {
       if (typeof window.removeEventListener === "function") window.removeEventListener("storage", sync);
     };
   }, []);
-  const set = (0, import_react10.useCallback)((next) => {
+  const set = (0, import_react7.useCallback)((next) => {
     const v = next !== false;
     setVoiceClientEnabled(v);
     setOn(v);
@@ -7587,8 +7594,8 @@ function effectiveNotifyConfig(serverCfg) {
   return mergeClientNotifyConfig(server, local);
 }
 function useNotifyConfigSource() {
-  const [source, setSource] = (0, import_react10.useState)(() => notifyConfigSource());
-  const set = (0, import_react10.useCallback)((next) => {
+  const [source, setSource] = (0, import_react7.useState)(() => notifyConfigSource());
+  const set = (0, import_react7.useCallback)((next) => {
     const value = next === "client" ? "client" : "server";
     setNotifyConfigSource(value);
     setSource(value);
@@ -7648,10 +7655,10 @@ function pickVoice(cfg, text) {
   return null;
 }
 function useLocalVoices() {
-  const [, force] = (0, import_react10.useState)(0);
-  const ref = (0, import_react10.useRef)(null);
+  const [, force] = (0, import_react7.useState)(0);
+  const ref = (0, import_react7.useRef)(null);
   if (ref.current === null) ref.current = localVoices();
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const s = synthOf();
     const onChange = () => {
       ref.current = localVoices();
@@ -7751,11 +7758,14 @@ function endBroadcastText(success, record, task, cfg) {
   const mode = voiceTone(cfg);
   const reason = record && record.endReason || "";
   const title = record && record.title || task && task.title || "";
+  const sub = !!(record && record.isSubtask || task && task.isSubtask);
+  const parentTitle = record && record.parentTitle || task && task.parentTitle || "";
   if (mode === "brief") {
+    if (sub) return success ? "\u5B50\u4EFB\u52A1\u5B8C\u6210" : "\u5B50\u4EFB\u52A1\u505C\u6B62\u4E86";
     return success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1\u505C\u6B62\u4E86";
   }
   if (mode === "medium") {
-    const who = title ? "\u4EFB\u52A1\u300C" + truncate2(title, 30) + "\u300D" : "\u4EFB\u52A1";
+    const who = sub ? (parentTitle ? "\u4E3B\u4EFB\u52A1\u300C" + truncate2(parentTitle, 20) + "\u300D\u7684" : "") + (title ? "\u5B50\u4EFB\u52A1\u300C" + truncate2(title, 30) + "\u300D" : "\u5B50\u4EFB\u52A1") : title ? "\u4EFB\u52A1\u300C" + truncate2(title, 30) + "\u300D" : "\u4EFB\u52A1";
     const parts2 = [success ? who + "\u5B8C\u6210\u4E86" : who + "\u505C\u6B62\u4E86"];
     if (!success) parts2.push("\uFF0C\u539F\u56E0\uFF1A" + endReasonSpeech(reason));
     const dur2 = record && record.duration || 0;
@@ -7764,7 +7774,8 @@ function endBroadcastText(success, record, task, cfg) {
     return parts2.join("");
   }
   const parts = [];
-  if (title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(title, 30) + "\u3002");
+  if (sub && parentTitle) parts.push("\u4E3B\u4EFB\u52A1\uFF1A" + truncate2(parentTitle, 30) + "\u3002");
+  if (title) parts.push((sub ? "\u5B50\u4EFB\u52A1\uFF1A" : "\u4EFB\u52A1\uFF1A") + truncate2(title, 30) + "\u3002");
   parts.push(success ? "\u5DF2\u5B8C\u6210\u3002" : "\u7ED3\u675F\uFF0C\u539F\u56E0\uFF1A" + endReasonSpeech(reason) + "\u3002");
   const dur = record && record.duration || 0;
   if (dur > 0) parts.push("\u8017\u65F6" + fmtDur(dur) + "\u3002");
@@ -7870,8 +7881,8 @@ var notifyStore = {
   }
 };
 function useNotify() {
-  const [snap, setSnap] = (0, import_react10.useState)(notifyStore.snap);
-  (0, import_react10.useEffect)(() => notifyStore.subscribe(() => setSnap(notifyStore.snap)), []);
+  const [snap, setSnap] = (0, import_react7.useState)(notifyStore.snap);
+  (0, import_react7.useEffect)(() => notifyStore.subscribe(() => setSnap(notifyStore.snap)), []);
   return snap;
 }
 function pageVisible() {
@@ -7940,19 +7951,19 @@ function openSessionByTitle(title) {
 }
 function Toast(props) {
   const t = props.t;
-  const [closing, setClosing] = (0, import_react10.useState)(!!t.closing);
-  const close = (0, import_react10.useCallback)(() => {
+  const [closing, setClosing] = (0, import_react7.useState)(!!t.closing);
+  const close = (0, import_react7.useCallback)(() => {
     setClosing(true);
   }, []);
-  const jump = (0, import_react10.useCallback)(() => {
+  const jump = (0, import_react7.useCallback)(() => {
     if (!t.sessionTitle && !t.sessionId) return;
     const ok = openSessionById(t.sessionId) || (t.fallbackSessionId ? openSessionById(t.fallbackSessionId) : false) || (t.sessionTitle ? openSessionByTitle(t.sessionTitle) : false);
     if (ok && t.kind !== "confirm" && t.kind !== "stuck") setClosing(true);
   }, [t.sessionId, t.sessionTitle, t.fallbackSessionId, t.kind]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (t.closing && !closing) setClosing(true);
   }, [t.closing, closing]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (!closing) return;
     const timer = setTimeout(() => props.onClose(t.id), 240);
     return () => clearTimeout(timer);
@@ -7993,23 +8004,23 @@ function Toast(props) {
 function NotifyOverlay(props) {
   if (props && props.ctx) overlayCtx = props.ctx;
   const snap = useNotify();
-  const [toasts, setToasts] = (0, import_react10.useState)([]);
-  const [stackHover, setStackHover] = (0, import_react10.useState)(false);
-  const prevActiveRef = (0, import_react10.useRef)(null);
-  const remindedApprovalsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
-  const remindedQuestionsRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
-  const toastSeqRef = (0, import_react10.useRef)(0);
-  const pushToast = (0, import_react10.useCallback)((toast) => {
+  const [toasts, setToasts] = (0, import_react7.useState)([]);
+  const [stackHover, setStackHover] = (0, import_react7.useState)(false);
+  const prevActiveRef = (0, import_react7.useRef)(null);
+  const remindedApprovalsRef = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+  const remindedQuestionsRef = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+  const toastSeqRef = (0, import_react7.useRef)(0);
+  const pushToast = (0, import_react7.useCallback)((toast) => {
     const st = notifyStore.snap.status;
     const cfg = st ? effectiveNotifyConfig(st.config) : null;
     if (cfg && cfg.notifyCards === false) return;
     setToasts((prev) => prev.concat([toast]).slice(-12));
   }, []);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const cfg = snap.status ? effectiveNotifyConfig(snap.status.config) : null;
     if (cfg && cfg.notifyCards === false) setToasts((prev) => prev.length ? [] : prev);
   }, [snap.status]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
@@ -8029,7 +8040,7 @@ function NotifyOverlay(props) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const prev = prevActiveRef.current;
@@ -8043,7 +8054,7 @@ function NotifyOverlay(props) {
     }
     prevActiveRef.current = st.active.slice();
   }, [snap.status]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const cfg = effectiveNotifyConfig(st.config || {});
@@ -8103,7 +8114,7 @@ function NotifyOverlay(props) {
       }
     }
   }, [snap.status]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const cfg = effectiveNotifyConfig(st.config || {});
@@ -8158,7 +8169,7 @@ function NotifyOverlay(props) {
       }
     }
   }, [snap.status]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const live = /* @__PURE__ */ new Set();
@@ -8178,7 +8189,7 @@ function NotifyOverlay(props) {
       return changed ? next : prev;
     });
   }, [snap.status]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const timer = setInterval(() => {
       if (!pageVisible()) return;
       const cur = currentSelectedSession();
@@ -8198,8 +8209,8 @@ function NotifyOverlay(props) {
     }, 500);
     return () => clearInterval(timer);
   }, []);
-  const stuckSeenRef = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
-  (0, import_react10.useEffect)(() => {
+  const stuckSeenRef = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+  (0, import_react7.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const cfg = effectiveNotifyConfig(st.config || {});
@@ -8255,7 +8266,7 @@ function NotifyOverlay(props) {
       });
     }
   }, [snap.status]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const st = snap.status;
     if (!st || !st.active) return;
     const byId = new Map(st.active.map((x) => [x.sessionId, x]));
@@ -8277,22 +8288,31 @@ function NotifyOverlay(props) {
     const success = isSuccessReason2(reason);
     const info = endInfo(reason);
     const event = success ? "complete" : "error";
+    const sub = !!(record && record.isSubtask || task.isSubtask);
+    const parentId = record && record.parentSessionId || task.parentSessionId || "";
+    let parentTitle = record && record.parentTitle || task.parentTitle || "";
+    if (sub && !parentTitle && parentId) {
+      const p = (snap.status && snap.status.active || []).find((x) => x.sessionId === parentId);
+      if (p && p.title) parentTitle = p.title;
+    }
+    const endRecord = Object.assign({}, record || {}, { isSubtask: sub, parentTitle });
     const cardWanted = eventEnabled(cfg, "card", event);
     const soundWanted = cfg.soundNotify !== false && eventEnabled(cfg, "sound", event);
     const systemWanted = !!cfg.systemNotify && eventEnabled(cfg, "system", event);
     if (voiceAllowed(cfg) && eventEnabled(cfg, "voice", event)) {
-      speakVoice(endBroadcastText(success, record, task, cfg), cfg);
+      speakVoice(endBroadcastText(success, endRecord, task, cfg), cfg);
     }
     const models = record && record.models && record.models.length ? record.models.join(", ") : task.models && task.models.length ? task.models.join(", ") : "\u672A\u77E5\u6A21\u578B";
     const provider = record && record.provider || task.provider || "";
     const startTs = record && record.startTime || task.startTime;
     const endTs = record && record.endTime || Date.now();
     const durText = fmtDur(record && record.duration || endTs - startTs);
-    const title = success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1" + info.label;
+    const title = success ? sub ? "\u5B50\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1\u5B8C\u6210" : (sub ? "\u5B50\u4EFB\u52A1" : "\u4EFB\u52A1") + info.label;
     const showTitle = record && record.title || task.title || "(\u65E0\u6807\u9898)";
     if (cardWanted) {
       const tone = cardTone(cfg);
-      const lines = ["\u4EFB\u52A1\uFF1A" + showTitle];
+      const lines = [(sub ? "\u5B50\u4EFB\u52A1\uFF1A" : "\u4EFB\u52A1\uFF1A") + showTitle];
+      if (sub) lines.push("\u4E3B\u4EFB\u52A1\uFF1A" + (parentTitle || "\uFF08\u672A\u77E5\uFF09"));
       if (tone !== "brief") lines.push("\u6A21\u578B\uFF1A" + models + (provider ? "\uFF08" + provider + "\uFF09" : ""));
       lines.push(tone === "brief" ? "\u8017\u65F6\uFF1A" + durText : "\u8017\u65F6\uFF1A" + durText + "\uFF08" + fmtTime2(startTs) + " \u2192 " + fmtTime2(endTs) + "\uFF09");
       if (tone === "detailed") {
@@ -8310,14 +8330,16 @@ function NotifyOverlay(props) {
         // 看到了结果，巡检 effect 据此自动收起卡片。没看过就一直挂着。
         // sessionId 是权威标识（跳转/对账都用它），标题只作旧宿主回退。
         sessionId: task.sessionId || "",
-        sessionTitle: showTitle
+        sessionTitle: showTitle,
+        // 子任务会话通常不在侧栏里：跳不到自己时回退到父会话（与卡住卡同款）
+        fallbackSessionId: sub && parentId ? parentId : ""
       });
     }
     if (soundWanted) playDoneSound(success, cfg.soundEffect);
     if (systemWanted && typeof document !== "undefined" && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
       try {
         new Notification("dsh " + title, {
-          body: showTitle + " \xB7 " + durText,
+          body: (sub ? (parentTitle ? "\u4E3B\u4EFB\u52A1\u300C" + truncate2(parentTitle, 20) + "\u300D\u7684" : "") + "\u5B50\u4EFB\u52A1\u300C" + showTitle + "\u300D" : showTitle) + " \xB7 " + durText,
           tag: "dsh-dock-notify-" + task.sessionId
         });
       } catch {
@@ -8451,20 +8473,20 @@ function NotifyView(props) {
   const voices = useLocalVoices();
   const [voiceClientOn, setVoiceClientOn] = useVoiceClientEnabled();
   const [source, setSource] = useNotifyConfigSource();
-  const [tab, setTab] = (0, import_react10.useState)("events");
-  const [clientCfg, setClientCfg] = (0, import_react10.useState)(() => readClientNotifyConfig());
-  const [serverDraft, setServerDraft] = (0, import_react10.useState)(null);
-  const [saveErr, setSaveErr] = (0, import_react10.useState)("");
-  const [testing, setTesting] = (0, import_react10.useState)(false);
-  const [testState, setTestState] = (0, import_react10.useState)(null);
-  const [feishuTesting, setFeishuTesting] = (0, import_react10.useState)(false);
-  const [feishuTestState, setFeishuTestState] = (0, import_react10.useState)(null);
-  const cfgRef = (0, import_react10.useRef)(null);
-  const pendingSavesRef = (0, import_react10.useRef)(0);
-  const editingWebhookRef = (0, import_react10.useRef)(false);
-  const editingFeishuRef = (0, import_react10.useRef)(false);
+  const [tab, setTab] = (0, import_react7.useState)("events");
+  const [clientCfg, setClientCfg] = (0, import_react7.useState)(() => readClientNotifyConfig());
+  const [serverDraft, setServerDraft] = (0, import_react7.useState)(null);
+  const [saveErr, setSaveErr] = (0, import_react7.useState)("");
+  const [testing, setTesting] = (0, import_react7.useState)(false);
+  const [testState, setTestState] = (0, import_react7.useState)(null);
+  const [feishuTesting, setFeishuTesting] = (0, import_react7.useState)(false);
+  const [feishuTestState, setFeishuTestState] = (0, import_react7.useState)(null);
+  const cfgRef = (0, import_react7.useRef)(null);
+  const pendingSavesRef = (0, import_react7.useRef)(0);
+  const editingWebhookRef = (0, import_react7.useRef)(false);
+  const editingFeishuRef = (0, import_react7.useRef)(false);
   const serverCfg = snap.status && snap.status.config;
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (!serverCfg) return;
     if (pendingSavesRef.current > 0 || editingWebhookRef.current || editingFeishuRef.current) return;
     if (serverCfg !== cfgRef.current) {
@@ -8472,13 +8494,13 @@ function NotifyView(props) {
       setServerDraft(Object.assign({}, serverCfg));
     }
   }, [snap.status]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (source !== "client" || clientCfg || !serverCfg) return;
     const clone = pickClientConfig(serverCfg);
     writeClientNotifyConfig(clone);
     setClientCfg(clone);
   }, [source, clientCfg, serverCfg]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (!notifyStore.snap.status) notifyStore.refresh();
   }, []);
   const cfg = source === "client" ? clientCfg ? mergeClientNotifyConfig(serverCfg, clientCfg) : null : serverDraft || serverCfg;
@@ -8685,7 +8707,7 @@ function NotifyView(props) {
               /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u6B63\u6587\u53E3\u5F84" }),
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: cardTone(cfg), title: "\u9875\u5185\u5361\u7247\u6B63\u6587", onChange: (v) => patch({ cardMode: v }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u8017\u65F6 / \u8C01\u5361\u4F4F\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B\u3001\u8D77\u6B62\u65F6\u95F4\u3001\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1D\u5168\u90E8\uFF08\u56DE\u5408\u6B65\u9AA4\u3001Token\u3001\u6458\u8981\u6216\u9519\u8BEF\u3001\u6700\u540E\u52A8\u4F5C\uFF09" })
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u8017\u65F6 / \u8C01\u5361\u4F4F\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B\u3001\u8D77\u6B62\u65F6\u95F4\u3001\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1D\u5168\u90E8\uFF08\u56DE\u5408\u6B65\u9AA4\u3001Token\u3001\u6458\u8981\u6216\u9519\u8BEF\u3001\u6700\u540E\u52A8\u4F5C\uFF09\u3002\u5B50\u4EFB\u52A1\u7ED3\u675F\u6807\u300C\u5B50\u4EFB\u52A1\u300D\u5E76\u70B9\u540D\u4E3B\u4EFB\u52A1\uFF08\u4E09\u6321\u90FD\u5E26\u5F52\u5C5E\uFF09" })
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u5361\u7247\u6536\u7EB3" }),
@@ -8834,7 +8856,7 @@ function NotifyView(props) {
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
                   /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u53E3\u5F84" }),
                   /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: voiceTone(cfg), title: "\u8BED\u97F3\u64AD\u62A5", onChange: (v) => patch({ voiceMode: v }) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1A\u4E00\u53E5\u300C\u4EFB\u52A1\u5B8C\u6210 / \u4EFB\u52A1\u505C\u6B62\u4E86 / \u4EFB\u52A1\u9700\u8981\u6388\u6743 / \u4E3B\u4EFB\u52A1\uFF08\u6216\u5B50\u4EFB\u52A1\uFF09\xB7\u6807\u9898 \u5361\u4F4F\u4E86\u300D\uFF1B\u9002\u4E2D\uFF1A\u70B9\u540D\u4EFB\u52A1\uFF0C\u7ED3\u675F\u5E26\u539F\u56E0\u4E0E\u8017\u65F6\u3001\u5361\u4F4F\u5E26\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1A\u7ED3\u675F\u5E26\u56DE\u5408\u7EDF\u8BA1\u4E0E\u56DE\u590D\u6458\u8981\uFF0C\u9700\u6388\u6743\u5E26\u5DE5\u5177\u540D\uFF0C\u5361\u4F4F\u5E26\u6700\u540E\u52A8\u4F5C\u3002" })
+                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1A\u4E00\u53E5\u300C\u4EFB\u52A1\u5B8C\u6210 / \u5B50\u4EFB\u52A1\u5B8C\u6210 / \u4EFB\u52A1\u505C\u6B62\u4E86 / \u4EFB\u52A1\u9700\u8981\u6388\u6743 / \u4E3B\u4EFB\u52A1\uFF08\u6216\u5B50\u4EFB\u52A1\uFF09\xB7\u6807\u9898 \u5361\u4F4F\u4E86\u300D\uFF1B\u9002\u4E2D\uFF1A\u70B9\u540D\u4EFB\u52A1\uFF08\u5B50\u4EFB\u52A1\u8FDE\u4E3B\u4EFB\u52A1\u4E00\u8D77\u70B9\u540D\uFF09\uFF0C\u7ED3\u675F\u5E26\u539F\u56E0\u4E0E\u8017\u65F6\u3001\u5361\u4F4F\u5E26\u505C\u6EDE\u65F6\u957F\uFF1B\u8BE6\u7EC6\uFF1A\u7ED3\u675F\u5E26\u56DE\u5408\u7EDF\u8BA1\u4E0E\u56DE\u590D\u6458\u8981\uFF0C\u9700\u6388\u6743\u5E26\u5DE5\u5177\u540D\uFF0C\u5361\u4F4F\u5E26\u6700\u540E\u52A8\u4F5C\u3002" })
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
                   /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u64AD\u62A5\u4E8B\u4EF6" }),
@@ -8994,7 +9016,7 @@ function NotifyView(props) {
               /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u6D88\u606F\u53E3\u5F84" }),
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: cfg.pushMode || "detailed", title: "\u9489\u9489\u6D88\u606F", onChange: (v) => patch({ pushMode: v }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u7ED3\u679C\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B/\u8017\u65F6\uFF1B\u8BE6\u7EC6\uFF1D\u518D\u52A0\u56DE\u5408\u3001Token \u4E0E\u6458\u8981\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u7ED3\u679C\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B/\u8017\u65F6\uFF1B\u8BE6\u7EC6\uFF1D\u518D\u52A0\u56DE\u5408\u3001Token \u4E0E\u6458\u8981\u3002\u5B50\u4EFB\u52A1\u7ED3\u675F\u6807\u300C\u5B50\u4EFB\u52A1\u300D\u5E76\u70B9\u540D\u4E3B\u4EFB\u52A1\uFF08\u4E09\u6321\u90FD\u5E26\u5F52\u5C5E\uFF09\u3002" })
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
@@ -9062,7 +9084,7 @@ function NotifyView(props) {
               /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "\u6D88\u606F\u53E3\u5F84" }),
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ModePicker, { value: cfg.pushMode || "detailed", title: "\u98DE\u4E66\u6D88\u606F", onChange: (v) => patch({ pushMode: v }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u7ED3\u679C\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B/\u8017\u65F6\uFF1B\u8BE6\u7EC6\uFF1D\u518D\u52A0\u56DE\u5408\u3001Token \u4E0E\u6458\u8981\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-sub", children: "\u7B80\u6D01\uFF1D\u4EFB\u52A1\u4E0E\u7ED3\u679C\uFF1B\u9002\u4E2D\uFF1D\u52A0\u6A21\u578B/\u8017\u65F6\uFF1B\u8BE6\u7EC6\uFF1D\u518D\u52A0\u56DE\u5408\u3001Token \u4E0E\u6458\u8981\u3002\u5B50\u4EFB\u52A1\u7ED3\u675F\u6807\u300C\u5B50\u4EFB\u52A1\u300D\u5E76\u70B9\u540D\u4E3B\u4EFB\u52A1\uFF08\u4E09\u6321\u90FD\u5E26\u5F52\u5C5E\uFF09\u3002" })
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dknt-row dknt-row-webhook", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dknt-row-label", children: "Webhook" }),
@@ -9232,7 +9254,7 @@ var css3 = [
   ".dknt-btn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
   ".dknt-btn[disabled]{opacity:.5;cursor:default;}"
 ].join("\n");
-var feature8 = {
+var feature6 = {
   id: "notify",
   name: "\u4EFB\u52A1\u901A\u77E5",
   order: 140,
@@ -9245,7 +9267,7 @@ var feature8 = {
 };
 
 // features/runstate/view.jsx
-var import_react11 = require("react");
+var import_react8 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 function rpcCall4(method, args) {
   return fetch("dsh-dock/runstate/" + method, {
@@ -9332,8 +9354,8 @@ var runStateStore = {
   }
 };
 function useRunState() {
-  const [snap, setSnap] = (0, import_react11.useState)(runStateStore.snap);
-  (0, import_react11.useEffect)(() => runStateStore.subscribe(() => setSnap(runStateStore.snap)), []);
+  const [snap, setSnap] = (0, import_react8.useState)(runStateStore.snap);
+  (0, import_react8.useEffect)(() => runStateStore.subscribe(() => setSnap(runStateStore.snap)), []);
   return snap;
 }
 function waitingOf(active) {
@@ -9372,7 +9394,7 @@ function RunStateView() {
   const waitApprovals = (active || []).reduce((n, t) => n + taskApprovals(t).length, 0);
   const waitQuestions = (active || []).reduce((n, t) => n + taskQuestions(t).length, 0);
   const waitBannerHint = waitApprovals > 0 && waitQuestions > 0 ? waitApprovals + " \u9879\u7B49\u6279\u51C6\u3001" + waitQuestions + " \u9879\u7B49\u4F60\u56DE\u7B54" : waitApprovals > 0 ? "\u4EFB\u52A1\u505C\u5728\u9700\u8981\u4F60\u6279\u51C6\u7684\u6B65\u9AA4\u4E0A" : "\u4EFB\u52A1\u5728\u7B49\u4F60\u56DE\u7B54\u95EE\u9898";
-  (0, import_react11.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     let stopped = false;
     let timer = null;
     const loop = async () => {
@@ -9413,7 +9435,7 @@ function RunStateView() {
 }
 function RunStateStat(props) {
   const snap = useRunState();
-  (0, import_react11.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (!runStateStore.snap.status) runStateStore.refresh();
   }, []);
   const st = snap.status;
@@ -9464,7 +9486,7 @@ var css4 = [
   ".dkrs-tag.err{color:var(--dsw-alias-state-error-primary);border-color:currentColor;}",
   ".dkrs-tag.warn{color:var(--dk-warn);border-color:currentColor;}"
 ].join("\n");
-var feature9 = {
+var feature7 = {
   id: "runstate",
   name: "\u8FD0\u884C\u72B6\u6001",
   order: 150,
@@ -9476,7 +9498,7 @@ var feature9 = {
 };
 
 // features/tts/view.jsx
-var import_react12 = __toESM(require("react"), 1);
+var import_react9 = __toESM(require("react"), 1);
 function synth() {
   try {
     const g = typeof globalThis !== "undefined" ? globalThis : null;
@@ -9576,8 +9598,8 @@ function subscribeConfig(fn) {
   };
 }
 function useConfig() {
-  const [, force] = (0, import_react12.useState)(0);
-  (0, import_react12.useEffect)(() => subscribeConfig(() => force((n) => n + 1)), []);
+  const [, force] = (0, import_react9.useState)(0);
+  (0, import_react9.useEffect)(() => subscribeConfig(() => force((n) => n + 1)), []);
   return configStore.value;
 }
 var HOST_SAVE_DEBOUNCE_MS = 400;
@@ -9798,8 +9820,8 @@ function subscribeEngine(fn) {
   };
 }
 function useEngineState() {
-  const [snap, setSnap] = (0, import_react12.useState)(engineSnapshot());
-  (0, import_react12.useEffect)(() => subscribeEngine(() => setSnap(engineSnapshot())), []);
+  const [snap, setSnap] = (0, import_react9.useState)(engineSnapshot());
+  (0, import_react9.useEffect)(() => subscribeEngine(() => setSnap(engineSnapshot())), []);
   return snap;
 }
 function setEngineState(next) {
@@ -9978,7 +10000,7 @@ function closingMarkdown(owner) {
   for (const b of blocks) if (b && b.kind === "text" && typeof b.text === "string") parts.push(b.text);
   return parts.join("");
 }
-var ICON_SPEAKER = import_react12.default.createElement(
+var ICON_SPEAKER = import_react9.default.createElement(
   "svg",
   {
     viewBox: "0 0 24 24",
@@ -9989,11 +10011,11 @@ var ICON_SPEAKER = import_react12.default.createElement(
     strokeLinejoin: "round",
     "aria-hidden": "true"
   },
-  import_react12.default.createElement("path", { d: "M11 5 6 9H3v6h3l5 4z" }),
-  import_react12.default.createElement("path", { d: "M15.5 8.5a5 5 0 0 1 0 7" }),
-  import_react12.default.createElement("path", { d: "M18.5 5.5a9 9 0 0 1 0 13" })
+  import_react9.default.createElement("path", { d: "M11 5 6 9H3v6h3l5 4z" }),
+  import_react9.default.createElement("path", { d: "M15.5 8.5a5 5 0 0 1 0 7" }),
+  import_react9.default.createElement("path", { d: "M18.5 5.5a9 9 0 0 1 0 13" })
 );
-var ICON_PAUSE = import_react12.default.createElement(
+var ICON_PAUSE = import_react9.default.createElement(
   "svg",
   {
     viewBox: "0 0 24 24",
@@ -10003,10 +10025,10 @@ var ICON_PAUSE = import_react12.default.createElement(
     strokeLinecap: "round",
     "aria-hidden": "true"
   },
-  import_react12.default.createElement("path", { d: "M9 6v12" }),
-  import_react12.default.createElement("path", { d: "M15 6v12" })
+  import_react9.default.createElement("path", { d: "M9 6v12" }),
+  import_react9.default.createElement("path", { d: "M15 6v12" })
 );
-var ICON_RESUME = import_react12.default.createElement(
+var ICON_RESUME = import_react9.default.createElement(
   "svg",
   {
     viewBox: "0 0 24 24",
@@ -10017,9 +10039,9 @@ var ICON_RESUME = import_react12.default.createElement(
     strokeLinejoin: "round",
     "aria-hidden": "true"
   },
-  import_react12.default.createElement("path", { d: "M8 5.5v13l11-6.5z" })
+  import_react9.default.createElement("path", { d: "M8 5.5v13l11-6.5z" })
 );
-var ICON_RESTART = import_react12.default.createElement(
+var ICON_RESTART = import_react9.default.createElement(
   "svg",
   {
     viewBox: "0 0 24 24",
@@ -10030,11 +10052,11 @@ var ICON_RESTART = import_react12.default.createElement(
     strokeLinejoin: "round",
     "aria-hidden": "true"
   },
-  import_react12.default.createElement("path", { d: "M3.5 8.5V4.5" }),
-  import_react12.default.createElement("path", { d: "M3.5 8.5h4" }),
-  import_react12.default.createElement("path", { d: "M5.6 5.1a8.5 8.5 0 1 1-2.1 5.4" })
+  import_react9.default.createElement("path", { d: "M3.5 8.5V4.5" }),
+  import_react9.default.createElement("path", { d: "M3.5 8.5h4" }),
+  import_react9.default.createElement("path", { d: "M5.6 5.1a8.5 8.5 0 1 1-2.1 5.4" })
 );
-var ICON_STOP = import_react12.default.createElement(
+var ICON_STOP = import_react9.default.createElement(
   "svg",
   {
     viewBox: "0 0 24 24",
@@ -10044,9 +10066,9 @@ var ICON_STOP = import_react12.default.createElement(
     strokeLinejoin: "round",
     "aria-hidden": "true"
   },
-  import_react12.default.createElement("rect", { x: "6.5", y: "6.5", width: "11", height: "11", rx: "2" })
+  import_react9.default.createElement("rect", { x: "6.5", y: "6.5", width: "11", height: "11", rx: "2" })
 );
-var ICON_GEAR = import_react12.default.createElement(
+var ICON_GEAR = import_react9.default.createElement(
   "svg",
   {
     viewBox: "0 0 24 24",
@@ -10057,14 +10079,14 @@ var ICON_GEAR = import_react12.default.createElement(
     strokeLinejoin: "round",
     "aria-hidden": "true"
   },
-  import_react12.default.createElement("circle", { cx: "12", cy: "12", r: "3.2" }),
-  import_react12.default.createElement("path", { d: "M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1" })
+  import_react9.default.createElement("circle", { cx: "12", cy: "12", r: "3.2" }),
+  import_react9.default.createElement("path", { d: "M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1" })
 );
 function TtsQuickPop(props) {
   const cfg = useConfig();
   const anchor = props.anchor || { x: 120, y: 120 };
-  const boxRef = (0, import_react12.useRef)(null);
-  (0, import_react12.useEffect)(() => {
+  const boxRef = (0, import_react9.useRef)(null);
+  (0, import_react9.useEffect)(() => {
     if (typeof document === "undefined") return void 0;
     const onDown = (e) => {
       if (boxRef.current && !boxRef.current.contains(e.target)) props.onClose();
@@ -10082,7 +10104,7 @@ function TtsQuickPop(props) {
   const vw = typeof globalThis !== "undefined" && globalThis.innerWidth ? globalThis.innerWidth : 1440;
   const left = Math.max(8, Math.min(anchor.x - 4, vw - 256));
   const portalTarget = typeof document !== "undefined" && document.body ? document.body : null;
-  const pop = import_react12.default.createElement(
+  const pop = import_react9.default.createElement(
     "div",
     {
       ref: boxRef,
@@ -10091,11 +10113,11 @@ function TtsQuickPop(props) {
       role: "dialog",
       "aria-label": "\u6717\u8BFB\u5FEB\u901F\u8BBE\u7F6E"
     },
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-pop-h" },
-      import_react12.default.createElement("b", null, "\u6717\u8BFB\u8BBE\u7F6E"),
-      import_react12.default.createElement("button", {
+      import_react9.default.createElement("b", null, "\u6717\u8BFB\u8BBE\u7F6E"),
+      import_react9.default.createElement("button", {
         type: "button",
         className: "dktts-pop-x",
         "aria-label": "\u5173\u95ED",
@@ -10103,11 +10125,11 @@ function TtsQuickPop(props) {
         onClick: props.onClose
       }, "\u2715")
     ),
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-pop-row" },
-      import_react12.default.createElement("span", null, "\u8BED\u901F"),
-      import_react12.default.createElement("input", {
+      import_react9.default.createElement("span", null, "\u8BED\u901F"),
+      import_react9.default.createElement("input", {
         type: "range",
         min: "0.5",
         max: "2",
@@ -10116,13 +10138,13 @@ function TtsQuickPop(props) {
         "aria-label": "\u8BED\u901F",
         onChange: (e) => setConfig({ rate: Number(e.target.value) || 1 })
       }),
-      import_react12.default.createElement("span", { className: "dktts-pop-val" }, cfg.rate.toFixed(2) + "\xD7")
+      import_react9.default.createElement("span", { className: "dktts-pop-val" }, cfg.rate.toFixed(2) + "\xD7")
     ),
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-pop-row" },
-      import_react12.default.createElement("span", null, "\u97F3\u91CF"),
-      import_react12.default.createElement("input", {
+      import_react9.default.createElement("span", null, "\u97F3\u91CF"),
+      import_react9.default.createElement("input", {
         type: "range",
         min: "0",
         max: "1",
@@ -10131,13 +10153,13 @@ function TtsQuickPop(props) {
         "aria-label": "\u97F3\u91CF",
         onChange: (e) => setConfig({ volume: Number(e.target.value) })
       }),
-      import_react12.default.createElement("span", { className: "dktts-pop-val" }, Math.round(cfg.volume * 100) + "%")
+      import_react9.default.createElement("span", { className: "dktts-pop-val" }, Math.round(cfg.volume * 100) + "%")
     ),
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-pop-foot" },
-      import_react12.default.createElement("span", { className: "dktts-pop-tip" }, "\u4E0B\u4E00\u53E5\u8D77\u751F\u6548"),
-      import_react12.default.createElement("button", {
+      import_react9.default.createElement("span", { className: "dktts-pop-tip" }, "\u4E0B\u4E00\u53E5\u8D77\u751F\u6548"),
+      import_react9.default.createElement("button", {
         type: "button",
         className: "dktts-pop-more",
         onClick: () => {
@@ -10147,7 +10169,7 @@ function TtsQuickPop(props) {
       }, "\u66F4\u591A\u8BBE\u7F6E \u2192")
     )
   );
-  return portalTarget && typeof import_react12.default.createPortal === "function" ? import_react12.default.createPortal(pop, portalTarget) : pop;
+  return portalTarget && typeof import_react9.default.createPortal === "function" ? import_react9.default.createPortal(pop, portalTarget) : pop;
 }
 var AUTO_PLAY_FRESH_MS = 8e3;
 var BAD_END = { error: 1, aborted: 1, blocked: 1, "max-tokens": 1, interrupted: 1 };
@@ -10177,7 +10199,7 @@ function TtsTurnTail(props) {
   const active = hasText && eng.phase !== "idle" && eng.key === key;
   const paused = active && eng.phase === "paused";
   const playing = active && eng.phase === "playing";
-  (0, import_react12.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     ensureConfigLoaded();
   }, []);
   const startThis = () => {
@@ -10185,9 +10207,9 @@ function TtsTurnTail(props) {
     const plain = capSpeechText(plainForSpeech(md, configStore.value), configStore.value);
     speak({ key, text: plain, cfg: configStore.value, label: "\u7B2C " + (turnNo + 1) + " \u56DE\u5408" });
   };
-  const autoDoneRef = (0, import_react12.useRef)(false);
-  const [quick, setQuick] = (0, import_react12.useState)(null);
-  (0, import_react12.useEffect)(() => {
+  const autoDoneRef = (0, import_react9.useRef)(false);
+  const [quick, setQuick] = (0, import_react9.useState)(null);
+  (0, import_react9.useEffect)(() => {
     if (autoDoneRef.current) return;
     autoDoneRef.current = true;
     if (!hasText || !supported) return;
@@ -10235,10 +10257,10 @@ function TtsTurnTail(props) {
     ensureConfigLoaded();
     setQuick(rect2 ? { x: rect2.left, y: rect2.bottom } : { x: 120, y: 120 });
   };
-  return import_react12.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dktts-tail" },
-    import_react12.default.createElement("button", {
+    import_react9.default.createElement("button", {
       type: "button",
       className: "dktts-btn" + (active ? " on" : "") + (supported ? "" : " off"),
       "aria-label": mainTitle,
@@ -10246,7 +10268,7 @@ function TtsTurnTail(props) {
       title: mainTitle,
       onClick: onMain
     }, playing ? ICON_PAUSE : paused ? ICON_RESUME : ICON_SPEAKER),
-    active ? import_react12.default.createElement("button", {
+    active ? import_react9.default.createElement("button", {
       type: "button",
       className: "dktts-btn",
       "aria-label": "\u91CD\u65B0\u6717\u8BFB",
@@ -10255,7 +10277,7 @@ function TtsTurnTail(props) {
         restartSpeech();
       }
     }, ICON_RESTART) : null,
-    active ? import_react12.default.createElement("button", {
+    active ? import_react9.default.createElement("button", {
       type: "button",
       className: "dktts-btn",
       "aria-label": "\u505C\u6B62",
@@ -10264,7 +10286,7 @@ function TtsTurnTail(props) {
         stopSpeech();
       }
     }, ICON_STOP) : null,
-    import_react12.default.createElement("button", {
+    import_react9.default.createElement("button", {
       type: "button",
       className: "dktts-btn" + (quick ? " on" : ""),
       "aria-label": "\u6717\u8BFB\u8BBE\u7F6E\uFF08\u8BED\u901F / \u97F3\u91CF\uFF09",
@@ -10272,22 +10294,22 @@ function TtsTurnTail(props) {
       title: "\u6717\u8BFB\u8BBE\u7F6E\uFF08\u8BED\u901F / \u97F3\u91CF\uFF09",
       onClick: openQuick
     }, ICON_GEAR),
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "span",
       { className: "dktts-state" + (active ? " on" : "") },
       playing ? "\u6B63\u5728\u6717\u8BFB\u672C\u56DE\u5408" : paused ? "\u5DF2\u6682\u505C \xB7 \u70B9 \u25B6 \u7EE7\u7EED\uFF0C\u4E0D\u91CD\u5934" : ""
     ),
-    quick ? import_react12.default.createElement(TtsQuickPop, { anchor: quick, onClose: () => setQuick(null) }) : null
+    quick ? import_react9.default.createElement(TtsQuickPop, { anchor: quick, onClose: () => setQuick(null) }) : null
   );
 }
 function TtsOverlay() {
   const cfg = useConfig();
-  const seenRef = (0, import_react12.useRef)(null);
-  const primedRef = (0, import_react12.useRef)(false);
-  (0, import_react12.useEffect)(() => {
+  const seenRef = (0, import_react9.useRef)(null);
+  const primedRef = (0, import_react9.useRef)(false);
+  (0, import_react9.useEffect)(() => {
     ensureConfigLoaded();
   }, []);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     if (!cfg.autoPlay) return void 0;
     if (!ttsSupported()) return void 0;
     if (seenRef.current === null) seenRef.current = /* @__PURE__ */ new Set();
@@ -10350,17 +10372,17 @@ function TtsOverlay() {
   return null;
 }
 function TtsRow(props) {
-  return import_react12.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dktts-row" },
-    import_react12.default.createElement("span", { className: "dktts-label" }, props.label),
-    import_react12.default.createElement("span", { className: "dktts-ctl" }, props.children),
-    props.note ? import_react12.default.createElement("span", { className: "dktts-note" }, props.note) : null
+    import_react9.default.createElement("span", { className: "dktts-label" }, props.label),
+    import_react9.default.createElement("span", { className: "dktts-ctl" }, props.children),
+    props.note ? import_react9.default.createElement("span", { className: "dktts-note" }, props.note) : null
   );
 }
 function TtsSwitch(props) {
   const on = props.value === true;
-  return import_react12.default.createElement(
+  return import_react9.default.createElement(
     "button",
     {
       type: "button",
@@ -10371,17 +10393,17 @@ function TtsSwitch(props) {
       title: on ? "\u5DF2\u542F\u7528\uFF08\u70B9\u51FB\u505C\u7528\uFF09" : "\u5DF2\u505C\u7528\uFF08\u70B9\u51FB\u542F\u7528\uFF09",
       onClick: () => props.onChange(!on)
     },
-    import_react12.default.createElement("span", { className: "dktts-sw-dot" }),
+    import_react9.default.createElement("span", { className: "dktts-sw-dot" }),
     on ? "\u542F\u7528" : "\u505C\u7528"
   );
 }
 function TtsView() {
   const cfg = useConfig();
   const eng = useEngineState();
-  const [, force] = (0, import_react12.useState)(0);
-  const [saved, setSaved] = (0, import_react12.useState)("");
-  const voices = (0, import_react12.useRef)(localVoices2());
-  (0, import_react12.useEffect)(() => {
+  const [, force] = (0, import_react9.useState)(0);
+  const [saved, setSaved] = (0, import_react9.useState)("");
+  const voices = (0, import_react9.useRef)(localVoices2());
+  (0, import_react9.useEffect)(() => {
     ensureConfigLoaded();
     const s = synth();
     if (!s || typeof s.addEventListener !== "function") return;
@@ -10401,7 +10423,7 @@ function TtsView() {
       }
     };
   }, []);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     if (voices.current.length === 0) {
       voices.current = localVoices2();
       force((n) => n + 1);
@@ -10438,101 +10460,101 @@ function TtsView() {
     if (zh.length) grouped.push(["\u4E2D\u6587\u97F3\u8272", zh]);
     if (other.length) grouped.push(["\u5176\u4ED6\u97F3\u8272", other]);
   }
-  return import_react12.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dktts-root" },
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-intro" },
       "\u773C\u775B\u4E0D\u8212\u670D\u65F6\u8BA9 dsh \u628A\u56DE\u590D\u8BFB\u51FA\u6765\u3002\u7528\u7684\u662F",
-      import_react12.default.createElement("b", null, "\u6D4F\u89C8\u5668\u81EA\u5E26\u7684\u8BED\u97F3\u5408\u6210"),
+      import_react9.default.createElement("b", null, "\u6D4F\u89C8\u5668\u81EA\u5E26\u7684\u8BED\u97F3\u5408\u6210"),
       "\uFF08Web Speech API\uFF09\uFF0C\u58F0\u97F3\u4ECE\u4F60\u5F53\u524D\u8FD9\u53F0\u8BBE\u5907\u7684\u626C\u58F0\u5668\u51FA\u6765\uFF0C\u4E0D\u6D88\u8017 token\u3001\u4E0D\u7ECF\u8FC7\u670D\u52A1\u5668\u3002",
       "\u6BCF\u6761\u56DE\u590D\u4E0B\u65B9\u4F1A\u51FA\u73B0\u4E00\u4E2A",
-      import_react12.default.createElement("b", null, " \u{1F50A} \u5587\u53ED"),
+      import_react9.default.createElement("b", null, " \u{1F50A} \u5587\u53ED"),
       "\uFF0C\u70B9\u4E00\u4E0B\u5C31\u8BFB\u8FD9\u6761\uFF1B\u4E5F\u53EF\u4EE5\u6253\u5F00\u300C\u81EA\u52A8\u6717\u8BFB\u300D\uFF0C\u56DE\u5408\u7ED3\u675F\u540E\u76F4\u63A5\u8BFB\u6700\u540E\u4E00\u6761\u56DE\u590D\u3002"
     ),
-    !supported ? import_react12.default.createElement(
+    !supported ? import_react9.default.createElement(
       "div",
       { className: "dktts-warn" },
       "\u8FD9\u4E2A\u6D4F\u89C8\u5668\u4E0D\u63D0\u4F9B\u8BED\u97F3\u5408\u6210\u80FD\u529B\uFF08speechSynthesis \u4E0D\u53EF\u7528\uFF09\u3002\u6362 Chrome / Edge / Safari \u5373\u53EF\uFF1BLinux \u4E0A\u7684 Chromium \u9700\u8981\u88C5\u8BED\u97F3\u5305\uFF08\u5982 espeak-ng\uFF09\uFF0C\u6216\u5728\u7CFB\u7EDF\u8BBE\u7F6E\u91CC\u6DFB\u52A0\u8BED\u97F3\u3002"
     ) : null,
-    supported && list.length === 0 ? import_react12.default.createElement(
+    supported && list.length === 0 ? import_react9.default.createElement(
       "div",
       { className: "dktts-warn" },
       "\u672C\u673A\u6682\u65F6\u8BFB\u4E0D\u5230\u4EFB\u4F55\u97F3\u8272\u3002\u901A\u5E38\u662F\u7CFB\u7EDF\u8FD8\u6CA1\u88C5/\u6CA1\u542F\u7528\u8BED\u97F3\uFF1AWindows \u5230\u300C\u8BBE\u7F6E \u2192 \u65F6\u95F4\u548C\u8BED\u8A00 \u2192 \u8BED\u97F3\u300D\u6DFB\u52A0\u4E2D\u6587\u8BED\u97F3\uFF0CmacOS \u5230\u300C\u7CFB\u7EDF\u8BBE\u7F6E \u2192 \u65E0\u969C\u788D \u2192 \u6717\u8BFB\u5185\u5BB9\u300D\u6DFB\u52A0\u97F3\u8272\uFF0C\u7136\u540E\u5237\u65B0\u9875\u9762\u3002"
     ) : null,
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-card" },
-      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u6717\u8BFB\u65F6\u673A"),
-      import_react12.default.createElement(TtsRow, {
+      import_react9.default.createElement("div", { className: "dktts-card-h" }, "\u6717\u8BFB\u65F6\u673A"),
+      import_react9.default.createElement(TtsRow, {
         label: "\u81EA\u52A8\u6717\u8BFB",
         note: "\u56DE\u5408\u7ED3\u675F\u540E\u81EA\u52A8\u8BFB\u6700\u540E\u4E00\u6761\u56DE\u590D\uFF1B\u4F60\u6B63\u5728\u770B\u7684\u8FD9\u6761\u4F1A\u8BDD\u624D\u8BFB\uFF0C\u540E\u53F0\u4F1A\u8BDD\u4E0D\u8BFB\u3002"
-      }, import_react12.default.createElement(TtsSwitch, {
+      }, import_react9.default.createElement(TtsSwitch, {
         label: "\u81EA\u52A8\u6717\u8BFB",
         value: cfg.autoPlay,
         onChange: (v) => patch({ autoPlay: v })
       })),
-      import_react12.default.createElement(TtsRow, {
+      import_react9.default.createElement(TtsRow, {
         label: "\u51FA\u9519 / \u4E2D\u6B62\u4E5F\u8BFB",
         note: "\u5173\u95ED\u540E\u53EA\u5728\u6B63\u5E38\u5B8C\u6210\u65F6\u8BFB\u3002"
-      }, import_react12.default.createElement(TtsSwitch, {
+      }, import_react9.default.createElement(TtsSwitch, {
         label: "\u51FA\u9519\u4E5F\u8BFB",
         value: cfg.autoPlayOnFinish,
         onChange: (v) => patch({ autoPlayOnFinish: v })
       })),
-      import_react12.default.createElement(TtsRow, {
+      import_react9.default.createElement(TtsRow, {
         label: "\u65B0\u5185\u5BB9\u6253\u65AD\u5F53\u524D\u6717\u8BFB",
         note: "\u5173\u95ED\u5219\u6392\u961F\uFF1A\u65B0\u7684\u90A3\u6761\u7B49\u5F53\u524D\u8BFB\u5B8C\u518D\u8BFB\uFF08\u53EA\u4FDD\u7559\u6700\u65B0\u4E00\u6761\uFF09\u3002"
-      }, import_react12.default.createElement(TtsSwitch, {
+      }, import_react9.default.createElement(TtsSwitch, {
         label: "\u6253\u65AD",
         value: cfg.interruptOnNew,
         onChange: (v) => patch({ interruptOnNew: v })
       }))
     ),
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-card" },
-      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u58F0\u97F3"),
-      import_react12.default.createElement(
+      import_react9.default.createElement("div", { className: "dktts-card-h" }, "\u58F0\u97F3"),
+      import_react9.default.createElement(
         TtsRow,
         { label: "\u97F3\u8272", note: "\u97F3\u8272\u662F\u672C\u673A\u6D4F\u89C8\u5668\u7ED9\u7684\uFF0C\u6362\u8BBE\u5907\u53EF\u80FD\u8981\u91CD\u9009\u3002" },
-        import_react12.default.createElement(
+        import_react9.default.createElement(
           "select",
           {
             className: "dktts-select",
             value: cfg.voiceURI,
             onChange: (e) => patch({ voiceURI: e.target.value })
           },
-          import_react12.default.createElement("option", { value: "" }, "\u81EA\u52A8\uFF08\u6309\u8BED\u8A00\u6311\uFF09"),
-          grouped.map(([gname, vs]) => import_react12.default.createElement(
+          import_react9.default.createElement("option", { value: "" }, "\u81EA\u52A8\uFF08\u6309\u8BED\u8A00\u6311\uFF09"),
+          grouped.map(([gname, vs]) => import_react9.default.createElement(
             "optgroup",
             { key: gname, label: gname },
-            vs.map((v) => import_react12.default.createElement("option", {
+            vs.map((v) => import_react9.default.createElement("option", {
               key: v.voiceURI,
               value: v.voiceURI
             }, (v.name || v.voiceURI) + "\uFF08" + (v.lang || "?") + "\uFF09"))
           ))
         )
       ),
-      import_react12.default.createElement(
+      import_react9.default.createElement(
         TtsRow,
         { label: "\u5F3A\u5236\u8BED\u8A00", note: "\u7559\u7A7A\u5219\u4E2D\u6587\u6587\u672C\u4F18\u5148\u6311\u4E2D\u6587\u97F3\u8272\u3002" },
-        import_react12.default.createElement(
+        import_react9.default.createElement(
           "select",
           {
             className: "dktts-select",
             value: cfg.lang,
             onChange: (e) => patch({ lang: e.target.value })
           },
-          import_react12.default.createElement("option", { value: "" }, "\u81EA\u52A8"),
-          ["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => import_react12.default.createElement("option", {
+          import_react9.default.createElement("option", { value: "" }, "\u81EA\u52A8"),
+          ["zh-CN", "zh-TW", "en-US", "en-GB", "ja-JP", "ko-KR"].map((l) => import_react9.default.createElement("option", {
             key: l,
             value: l
           }, l))
         )
       ),
-      import_react12.default.createElement(TtsSlider, {
+      import_react9.default.createElement(TtsSlider, {
         label: "\u8BED\u901F",
         suffix: cfg.rate.toFixed(2) + "\xD7",
         min: "0.5",
@@ -10542,7 +10564,7 @@ function TtsView() {
         aria: "\u8BED\u901F",
         onChange: (v) => patch({ rate: v })
       }),
-      import_react12.default.createElement(TtsSlider, {
+      import_react9.default.createElement(TtsSlider, {
         label: "\u97F3\u8C03",
         suffix: cfg.pitch.toFixed(2),
         min: "0",
@@ -10552,7 +10574,7 @@ function TtsView() {
         aria: "\u97F3\u8C03",
         onChange: (v) => patch({ pitch: v })
       }),
-      import_react12.default.createElement(TtsSlider, {
+      import_react9.default.createElement(TtsSlider, {
         label: "\u97F3\u91CF",
         suffix: Math.round(cfg.volume * 100) + "%",
         min: "0",
@@ -10563,24 +10585,24 @@ function TtsView() {
         onChange: (v) => patch({ volume: v })
       })
     ),
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-card" },
-      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u5FF5\u4EC0\u4E48\uFF08\u56DE\u590D\u6B63\u6587\u7684\u6E05\u6D17\uFF09"),
-      import_react12.default.createElement(
+      import_react9.default.createElement("div", { className: "dktts-card-h" }, "\u5FF5\u4EC0\u4E48\uFF08\u56DE\u590D\u6B63\u6587\u7684\u6E05\u6D17\uFF09"),
+      import_react9.default.createElement(
         TtsRow,
         { label: "\u8DF3\u8FC7\u4EE3\u7801\u5757", note: "\u5173\u95ED\u5219\u8FDE\u4EE3\u7801\u4E00\u8D77\u5FF5\uFF08\u53EA\u53BB\u7B26\u53F7\uFF09\u3002" },
-        import_react12.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u4EE3\u7801\u5757", value: cfg.skipCode, onChange: (v) => patch({ skipCode: v }) })
+        import_react9.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u4EE3\u7801\u5757", value: cfg.skipCode, onChange: (v) => patch({ skipCode: v }) })
       ),
-      import_react12.default.createElement(
+      import_react9.default.createElement(
         TtsRow,
         { label: "\u8DF3\u8FC7\u8868\u683C", note: "\u8868\u683C\u9010\u683C\u5FF5\u51FA\u6765\u6CA1\u6709\u610F\u4E49\uFF0C\u9ED8\u8BA4\u8DF3\u8FC7\u3002" },
-        import_react12.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u8868\u683C", value: cfg.skipTables, onChange: (v) => patch({ skipTables: v }) })
+        import_react9.default.createElement(TtsSwitch, { label: "\u8DF3\u8FC7\u8868\u683C", value: cfg.skipTables, onChange: (v) => patch({ skipTables: v }) })
       ),
-      import_react12.default.createElement(
+      import_react9.default.createElement(
         TtsRow,
         { label: "\u53EA\u8BFB\u524D N \u53E5", note: "0 = \u4E0D\u9650\u3002\u60F3\u53EA\u542C\u7ED3\u8BBA\u65F6\u8BBE 3~5 \u53E5\u3002" },
-        import_react12.default.createElement("input", {
+        import_react9.default.createElement("input", {
           type: "number",
           className: "dktts-num",
           min: "0",
@@ -10591,10 +10613,10 @@ function TtsView() {
           onChange: (e) => patch({ maxSentences: Math.max(0, Math.round(Number(e.target.value) || 0)) })
         })
       ),
-      import_react12.default.createElement(
+      import_react9.default.createElement(
         TtsRow,
         { label: "\u5B57\u6570\u4E0A\u9650", note: "0 = \u4E0D\u9650\uFF1B\u8D85\u51FA\u90E8\u5206\u5FF5\u300C\u4EE5\u4E0B\u7565\u300D\u3002" },
-        import_react12.default.createElement("input", {
+        import_react9.default.createElement("input", {
           type: "number",
           className: "dktts-num",
           min: "0",
@@ -10607,20 +10629,20 @@ function TtsView() {
       )
     ),
     // —— 播放控制：试听 + 正在读时的 暂停/继续 · 重新朗读 · 停止 ——
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-card" },
-      import_react12.default.createElement("div", { className: "dktts-card-h" }, "\u64AD\u653E\u63A7\u5236"),
-      import_react12.default.createElement(
+      import_react9.default.createElement("div", { className: "dktts-card-h" }, "\u64AD\u653E\u63A7\u5236"),
+      import_react9.default.createElement(
         "div",
         { className: "dktts-transport" },
-        import_react12.default.createElement("button", {
+        import_react9.default.createElement("button", {
           type: "button",
           className: "dktts-primary",
           onClick: preview,
           disabled: !supported
         }, "\u8BD5\u542C"),
-        active ? import_react12.default.createElement("button", {
+        active ? import_react9.default.createElement("button", {
           type: "button",
           className: "dktts-ghost",
           onClick: () => {
@@ -10628,38 +10650,38 @@ function TtsView() {
             else resumeSpeech();
           }
         }, playing ? "\u6682\u505C" : "\u7EE7\u7EED") : null,
-        active ? import_react12.default.createElement("button", {
+        active ? import_react9.default.createElement("button", {
           type: "button",
           className: "dktts-ghost",
           onClick: () => {
             restartSpeech();
           }
         }, "\u91CD\u65B0\u6717\u8BFB") : null,
-        active ? import_react12.default.createElement("button", {
+        active ? import_react9.default.createElement("button", {
           type: "button",
           className: "dktts-ghost",
           onClick: () => {
             stopSpeech();
           }
         }, "\u505C\u6B62") : null,
-        import_react12.default.createElement(
+        import_react9.default.createElement(
           "span",
           { className: "dktts-playing" },
           playing ? "\u6B63\u5728\u6717\u8BFB\uFF1A" + (eng.label || "\u5185\u5BB9") : paused ? "\u5DF2\u6682\u505C\uFF1A" + (eng.label || "\u5185\u5BB9") + "\uFF08\u70B9\u300C\u7EE7\u7EED\u300D\u4E0D\u91CD\u5934\uFF09" : saved ? "\u2713 " + saved : "\u3000"
         )
       )
     ),
-    import_react12.default.createElement(
+    import_react9.default.createElement(
       "div",
       { className: "dktts-note-line" },
       "\u63D0\u793A\uFF1A\u6D4F\u89C8\u5668\u8981\u6C42\u300C\u5148\u6709\u7528\u6237\u624B\u52BF\u624D\u5141\u8BB8\u51FA\u58F0\u300D\u3002\u521A\u6253\u5F00\u9875\u9762\u5C31\u81EA\u52A8\u6717\u8BFB\u53EF\u80FD\u88AB\u6D4F\u89C8\u5668\u62E6\u6389\u2014\u2014",
       "\u70B9\u4E00\u4E0B\u9875\u9762\u4E0A\u4EFB\u610F\u4F4D\u7F6E\uFF0C\u6216\u76F4\u63A5\u7528\u56DE\u590D\u4E0B\u65B9\u7684\u5587\u53ED\u6309\u94AE\u3002"
     ),
-    configStore.note ? import_react12.default.createElement("div", { className: "dktts-warn" }, configStore.note) : null,
-    configStore.routeGone ? import_react12.default.createElement(
+    configStore.note ? import_react9.default.createElement("div", { className: "dktts-warn" }, configStore.note) : null,
+    configStore.routeGone ? import_react9.default.createElement(
       "div",
       { className: "dktts-links" },
-      import_react12.default.createElement("button", {
+      import_react9.default.createElement("button", {
         type: "button",
         className: "dktts-ghost",
         onClick: () => {
@@ -10673,14 +10695,14 @@ function TtsView() {
   );
 }
 function TtsSlider(props) {
-  return import_react12.default.createElement(
+  return import_react9.default.createElement(
     "div",
     { className: "dktts-row" },
-    import_react12.default.createElement("span", { className: "dktts-label" }, props.label),
-    import_react12.default.createElement(
+    import_react9.default.createElement("span", { className: "dktts-label" }, props.label),
+    import_react9.default.createElement(
       "span",
       { className: "dktts-slider" },
-      import_react12.default.createElement("input", {
+      import_react9.default.createElement("input", {
         type: "range",
         min: props.min,
         max: props.max,
@@ -10689,17 +10711,17 @@ function TtsSlider(props) {
         "aria-label": props.aria,
         onChange: (e) => props.onChange(Number(e.target.value))
       }),
-      import_react12.default.createElement("span", { className: "dktts-slider-val" }, props.suffix)
+      import_react9.default.createElement("span", { className: "dktts-slider-val" }, props.suffix)
     ),
     null
   );
 }
 function TtsStat() {
   const cfg = useConfig();
-  (0, import_react12.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     ensureConfigLoaded();
   }, []);
-  return import_react12.default.createElement(
+  return import_react9.default.createElement(
     "span",
     null,
     "\u81EA\u52A8\u6717\u8BFB\uFF1A",
@@ -10769,7 +10791,7 @@ var CSS = [
   ".dktts-pop-more{border:none;background:transparent;color:var(--dk-accent);cursor:pointer;font-size:12px;padding:2px 0;}",
   ".dktts-pop-more:hover{text-decoration:underline;}"
 ].join("\n");
-var feature10 = {
+var feature8 = {
   id: "tts",
   name: "\u8BED\u97F3\u6717\u8BFB",
   order: 160,
@@ -10786,10 +10808,10 @@ var feature10 = {
 };
 
 // features/games/view.jsx
-var import_react22 = require("react");
+var import_react19 = require("react");
 
 // features/games/games/shared.jsx
-var import_react13 = require("react");
+var import_react10 = require("react");
 function isTypingTarget(event) {
   const tag = event.target && event.target.tagName || "";
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
@@ -10797,9 +10819,9 @@ function isTypingTarget(event) {
   return false;
 }
 function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
-  const pausedRef = (0, import_react13.useRef)(!!paused);
+  const pausedRef = (0, import_react10.useRef)(!!paused);
   pausedRef.current = !!paused;
-  (0, import_react13.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     if (pausedRef.current) return;
     const el = stageRef && stageRef.current;
     if (!el) return;
@@ -10811,7 +10833,7 @@ function useGameControls(stageRef, paused, onKeyDown, onKeyUp) {
     }, 60);
     return () => clearTimeout(t);
   }, [paused]);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     const inStage = (event) => {
       const el = stageRef && stageRef.current;
       return !!el && (el === event.target || el.contains(event.target));
@@ -10904,7 +10926,7 @@ function playSfx(name) {
 }
 
 // features/games/games/tetris.jsx
-var import_react14 = require("react");
+var import_react11 = require("react");
 var import_jsx_runtime5 = require("react/jsx-runtime");
 var COLS = 10;
 var ROWS = 20;
@@ -11065,12 +11087,12 @@ var KEY_ACTIONS = {
   "Enter": "drop"
 };
 function TetrisGame(props) {
-  const [state, setState] = (0, import_react14.useState)(initial);
-  const [manualPause, setManualPause] = (0, import_react14.useState)(false);
-  const pausedRef = (0, import_react14.useRef)(!!(props && props.paused));
+  const [state, setState] = (0, import_react11.useState)(initial);
+  const [manualPause, setManualPause] = (0, import_react11.useState)(false);
+  const pausedRef = (0, import_react11.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused) || manualPause;
-  const stageRef = (0, import_react14.useRef)(null);
-  const act = (0, import_react14.useCallback)((action) => setState((s) => {
+  const stageRef = (0, import_react11.useRef)(null);
+  const act = (0, import_react11.useCallback)((action) => setState((s) => {
     if (pausedRef.current) return s;
     if (action === "left") {
       playSfx("move");
@@ -11092,21 +11114,21 @@ function TetrisGame(props) {
     }
     return s;
   }), []);
-  const softRef = (0, import_react14.useRef)(null);
-  const stateRef = (0, import_react14.useRef)(state);
+  const softRef = (0, import_react11.useRef)(null);
+  const stateRef = (0, import_react11.useRef)(state);
   stateRef.current = state;
-  const holdIdRef = (0, import_react14.useRef)(null);
-  const stopSoft = (0, import_react14.useCallback)(() => {
+  const holdIdRef = (0, import_react11.useRef)(null);
+  const stopSoft = (0, import_react11.useCallback)(() => {
     if (softRef.current) {
       clearInterval(softRef.current);
       softRef.current = null;
     }
   }, []);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (state.over || manualPause || props.paused) stopSoft();
     return stopSoft;
   }, [state.over, manualPause, props.paused, stopSoft]);
-  const onKeyDown = (0, import_react14.useCallback)((event) => {
+  const onKeyDown = (0, import_react11.useCallback)((event) => {
     const action = KEY_ACTIONS[event.key];
     if (action) {
       event.preventDefault();
@@ -11138,13 +11160,13 @@ function TetrisGame(props) {
       setManualPause(false);
     }
   }, [act, stopSoft]);
-  const onKeyUp = (0, import_react14.useCallback)((event) => {
+  const onKeyUp = (0, import_react11.useCallback)((event) => {
     if (KEY_ACTIONS[event.key] === "down") stopSoft();
   }, [stopSoft]);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (pausedRef.current || state.over) return;
     const speed = Math.max(80, 720 - (state.level - 1) * 70);
     const timer = setInterval(() => act("down"), speed);
@@ -11250,7 +11272,7 @@ var tetrisGame = { Game: TetrisGame, Preview: TetrisPreview, css: `
 ` };
 
 // features/games/games/sokoban.jsx
-var import_react15 = require("react");
+var import_react12 = require("react");
 var import_jsx_runtime6 = require("react/jsx-runtime");
 var LEVELS = [
   ["######", "#    #", "#@$ .#", "#    #", "######"],
@@ -11345,28 +11367,28 @@ function undo(state) {
 }
 var DIRS = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
 function SokobanGame(props) {
-  const [level, setLevel] = (0, import_react15.useState)(0);
-  const [state, setState] = (0, import_react15.useState)(() => makeInitial(0));
-  const stageRef = (0, import_react15.useRef)(null);
-  const levelRef = (0, import_react15.useRef)(level);
+  const [level, setLevel] = (0, import_react12.useState)(0);
+  const [state, setState] = (0, import_react12.useState)(() => makeInitial(0));
+  const stageRef = (0, import_react12.useRef)(null);
+  const levelRef = (0, import_react12.useRef)(level);
   levelRef.current = level;
-  const move = (0, import_react15.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
-  const prevWon = (0, import_react15.useRef)(false);
-  (0, import_react15.useEffect)(() => {
+  const move = (0, import_react12.useCallback)((dr, dc) => setState((s) => step(s, dr, dc)), []);
+  const prevWon = (0, import_react12.useRef)(false);
+  (0, import_react12.useEffect)(() => {
     if (state.wonNew && !prevWon.current) playSfx("win");
     prevWon.current = state.wonNew;
   }, [state.wonNew]);
-  const nextLevel = (0, import_react15.useCallback)(() => {
+  const nextLevel = (0, import_react12.useCallback)(() => {
     const n = (levelRef.current + 1) % LEVELS.length;
     setLevel(n);
     setState(makeInitial(n));
   }, []);
-  const pickLevel = (0, import_react15.useCallback)((i) => {
+  const pickLevel = (0, import_react12.useCallback)((i) => {
     setLevel(i);
     setState(makeInitial(i));
   }, []);
-  const reset = (0, import_react15.useCallback)(() => setState(makeInitial(levelRef.current)), []);
-  const onKeyDown = (0, import_react15.useCallback)((event) => {
+  const reset = (0, import_react12.useCallback)(() => setState(makeInitial(levelRef.current)), []);
+  const onKeyDown = (0, import_react12.useCallback)((event) => {
     const d = DIRS[event.key];
     if (d) {
       event.preventDefault();
@@ -11451,7 +11473,7 @@ var sokobanGame = { Game: SokobanGame, Preview: SokobanPreview, css: `
 ` };
 
 // features/games/games/gomoku.jsx
-var import_react16 = require("react");
+var import_react13 = require("react");
 var import_jsx_runtime7 = require("react/jsx-runtime");
 var GOMOKU_LINES = (() => {
   const P = (n) => n * 100 + 50;
@@ -11568,22 +11590,22 @@ function aiMove(board) {
   return best || [7, 7];
 }
 function GomokuGame(props) {
-  const [board, setBoard] = (0, import_react16.useState)(emptyBoard2);
-  const [turn, setTurn] = (0, import_react16.useState)("b");
-  const [winner, setWinner] = (0, import_react16.useState)(null);
-  const [winCells, setWinCells] = (0, import_react16.useState)(null);
-  const [showResult, setShowResult] = (0, import_react16.useState)(false);
-  const [last, setLast] = (0, import_react16.useState)(null);
-  const [history, setHistory] = (0, import_react16.useState)([]);
-  const [thinking, setThinking] = (0, import_react16.useState)(false);
-  const boardRef = (0, import_react16.useRef)(board);
-  const stageRef = (0, import_react16.useRef)(null);
+  const [board, setBoard] = (0, import_react13.useState)(emptyBoard2);
+  const [turn, setTurn] = (0, import_react13.useState)("b");
+  const [winner, setWinner] = (0, import_react13.useState)(null);
+  const [winCells, setWinCells] = (0, import_react13.useState)(null);
+  const [showResult, setShowResult] = (0, import_react13.useState)(false);
+  const [last, setLast] = (0, import_react13.useState)(null);
+  const [history, setHistory] = (0, import_react13.useState)([]);
+  const [thinking, setThinking] = (0, import_react13.useState)(false);
+  const boardRef = (0, import_react13.useRef)(board);
+  const stageRef = (0, import_react13.useRef)(null);
   boardRef.current = board;
-  const turnRef = (0, import_react16.useRef)(turn);
+  const turnRef = (0, import_react13.useRef)(turn);
   turnRef.current = turn;
-  const winRef = (0, import_react16.useRef)(winner);
+  const winRef = (0, import_react13.useRef)(winner);
   winRef.current = winner;
-  const finish = (0, import_react16.useCallback)((b, r, c, color) => {
+  const finish = (0, import_react13.useCallback)((b, r, c, color) => {
     const line = winLine(b, r, c, color);
     if (line) {
       setWinner(color);
@@ -11597,7 +11619,7 @@ function GomokuGame(props) {
       playSfx("clear");
     } else playSfx("stone");
   }, []);
-  const place = (0, import_react16.useCallback)((r, c, color) => {
+  const place = (0, import_react13.useCallback)((r, c, color) => {
     if (boardRef.current[r][c]) return false;
     const next = boardRef.current.map((row) => row.slice());
     next[r][c] = color;
@@ -11608,7 +11630,7 @@ function GomokuGame(props) {
     finish(next, r, c, color);
     return true;
   }, [finish]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     if (turn !== "w" || winner || props.paused) return;
     setThinking(true);
     const t = setTimeout(() => {
@@ -11619,12 +11641,12 @@ function GomokuGame(props) {
     }, 260);
     return () => clearTimeout(t);
   }, [turn, winner, props.paused, place]);
-  const onCell = (0, import_react16.useCallback)((r, c) => {
+  const onCell = (0, import_react13.useCallback)((r, c) => {
     if (winRef.current || turnRef.current !== "b" || thinking || boardRef.current[r][c]) return;
     place(r, c, "b");
     setTurn("w");
   }, [thinking, place]);
-  const reset = (0, import_react16.useCallback)(() => {
+  const reset = (0, import_react13.useCallback)(() => {
     setBoard(emptyBoard2());
     setTurn("b");
     setWinner(null);
@@ -11634,7 +11656,7 @@ function GomokuGame(props) {
     setHistory([]);
     setThinking(false);
   }, []);
-  const undo2 = (0, import_react16.useCallback)(() => {
+  const undo2 = (0, import_react13.useCallback)(() => {
     if (thinking || history.length < 2) return;
     const h = history.slice(0, -2);
     const next = emptyBoard2();
@@ -11648,7 +11670,7 @@ function GomokuGame(props) {
     setShowResult(false);
     setLast(h.length ? h[h.length - 1] : null);
   }, [history, thinking]);
-  const onKeyDown = (0, import_react16.useCallback)((event) => {
+  const onKeyDown = (0, import_react13.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       reset();
@@ -11747,7 +11769,7 @@ var gomokuGame = { Game: GomokuGame, Preview: GomokuPreview, css: `
 ` };
 
 // features/games/games/xiangqi.jsx
-var import_react17 = require("react");
+var import_react14 = require("react");
 
 // features/games/xiangqi-core.js
 var ROWS2 = 10;
@@ -12112,35 +12134,35 @@ function moveNotation(board, fr, fc, tr, tc) {
   return pieceChar(p) + num(file(fc)) + verb + num(to);
 }
 function XiangqiGame(props) {
-  const [board, setBoard] = (0, import_react17.useState)(initialBoard);
-  const [turn, setTurn] = (0, import_react17.useState)("r");
-  const [sel, setSel] = (0, import_react17.useState)(null);
-  const [targets, setTargets] = (0, import_react17.useState)([]);
-  const [over, setOver] = (0, import_react17.useState)(null);
-  const [check, setCheck] = (0, import_react17.useState)(false);
-  const [last, setLast] = (0, import_react17.useState)(null);
-  const [lastMove, setLastMove] = (0, import_react17.useState)(null);
-  const [moveLog, setMoveLog] = (0, import_react17.useState)([]);
-  const [moving, setMoving] = (0, import_react17.useState)(null);
-  const [thinking, setThinking] = (0, import_react17.useState)(false);
-  const [history, setHistory] = (0, import_react17.useState)([]);
-  const [repKeys, setRepKeys] = (0, import_react17.useState)(() => [posKey(initialBoard())]);
-  const pushKey = (0, import_react17.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
-  const stageRef = (0, import_react17.useRef)(null);
-  const boardRef = (0, import_react17.useRef)(board);
+  const [board, setBoard] = (0, import_react14.useState)(initialBoard);
+  const [turn, setTurn] = (0, import_react14.useState)("r");
+  const [sel, setSel] = (0, import_react14.useState)(null);
+  const [targets, setTargets] = (0, import_react14.useState)([]);
+  const [over, setOver] = (0, import_react14.useState)(null);
+  const [check, setCheck] = (0, import_react14.useState)(false);
+  const [last, setLast] = (0, import_react14.useState)(null);
+  const [lastMove, setLastMove] = (0, import_react14.useState)(null);
+  const [moveLog, setMoveLog] = (0, import_react14.useState)([]);
+  const [moving, setMoving] = (0, import_react14.useState)(null);
+  const [thinking, setThinking] = (0, import_react14.useState)(false);
+  const [history, setHistory] = (0, import_react14.useState)([]);
+  const [repKeys, setRepKeys] = (0, import_react14.useState)(() => [posKey(initialBoard())]);
+  const pushKey = (0, import_react14.useCallback)((b) => setRepKeys((ks) => ks[ks.length - 1] === posKey(b) ? ks : ks.concat(posKey(b))), []);
+  const stageRef = (0, import_react14.useRef)(null);
+  const boardRef = (0, import_react14.useRef)(board);
   boardRef.current = board;
-  const turnRef = (0, import_react17.useRef)(turn);
+  const turnRef = (0, import_react14.useRef)(turn);
   turnRef.current = turn;
-  const overRef = (0, import_react17.useRef)(over);
+  const overRef = (0, import_react14.useRef)(over);
   overRef.current = over;
-  const thinkingRef = (0, import_react17.useRef)(thinking);
+  const thinkingRef = (0, import_react14.useRef)(thinking);
   thinkingRef.current = thinking;
-  const historyRef = (0, import_react17.useRef)(history);
+  const historyRef = (0, import_react14.useRef)(history);
   historyRef.current = history;
-  const movingRef = (0, import_react17.useRef)(false);
-  const pendingRef = (0, import_react17.useRef)(null);
-  const animTimerRef = (0, import_react17.useRef)(null);
-  const animateMove = (0, import_react17.useCallback)((b, fr, fc, tr, tc, after) => {
+  const movingRef = (0, import_react14.useRef)(false);
+  const pendingRef = (0, import_react14.useRef)(null);
+  const animTimerRef = (0, import_react14.useRef)(null);
+  const animateMove = (0, import_react14.useCallback)((b, fr, fc, tr, tc, after) => {
     const piece = boardRef.current[fr][fc];
     const capture = !!boardRef.current[tr][tc];
     pendingRef.current = { board: b, after };
@@ -12167,7 +12189,7 @@ function XiangqiGame(props) {
       }
     }, 260);
   }, []);
-  const restart = (0, import_react17.useCallback)(() => {
+  const restart = (0, import_react14.useCallback)(() => {
     if (animTimerRef.current) {
       clearTimeout(animTimerRef.current);
       animTimerRef.current = null;
@@ -12190,7 +12212,7 @@ function XiangqiGame(props) {
     setMoving(null);
     setRepKeys([posKey(b)]);
   }, []);
-  const undo2 = (0, import_react17.useCallback)(() => {
+  const undo2 = (0, import_react14.useCallback)(() => {
     if (thinkingRef.current || overRef.current || turnRef.current !== "r" || movingRef.current) return;
     const h = historyRef.current;
     if (h.length < 2) return;
@@ -12208,7 +12230,7 @@ function XiangqiGame(props) {
     setCheck(inCheck(b, "r"));
     setRepKeys(hist.map(posKey).concat(posKey(b)));
   }, []);
-  const moveRed = (0, import_react17.useCallback)((tr, tc) => {
+  const moveRed = (0, import_react14.useCallback)((tr, tc) => {
     if (turnRef.current !== "r" || overRef.current || !sel || movingRef.current) return;
     const fr = sel[0], fc = sel[1];
     const nb = applyMove(boardRef.current, fr, fc, tr, tc);
@@ -12222,7 +12244,7 @@ function XiangqiGame(props) {
       } else setCheck(inCheck(nb, "b"));
     });
   }, [sel, pushKey, animateMove]);
-  const select = (0, import_react17.useCallback)((r, c) => {
+  const select = (0, import_react14.useCallback)((r, c) => {
     if (overRef.current || turnRef.current !== "r" || thinkingRef.current || movingRef.current) return;
     const p = boardRef.current[r][c];
     if (p && p.c === "r") {
@@ -12238,7 +12260,7 @@ function XiangqiGame(props) {
     setSel(null);
     setTargets([]);
   }, [sel, targets, moveRed]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (turn !== "b" || over || props.paused || movingRef.current) return;
     const t = setTimeout(() => {
       const seenCounts = /* @__PURE__ */ new Map();
@@ -12262,7 +12284,7 @@ function XiangqiGame(props) {
     setThinking(true);
     return () => clearTimeout(t);
   }, [turn, over, props.paused, repKeys, pushKey, animateMove]);
-  const onKeyDown = (0, import_react17.useCallback)((event) => {
+  const onKeyDown = (0, import_react14.useCallback)((event) => {
     if (event.key.toLowerCase() === "r") {
       event.preventDefault();
       restart();
@@ -12273,14 +12295,14 @@ function XiangqiGame(props) {
   }, [restart, undo2]);
   useGameControls(stageRef, props.paused, onKeyDown);
   const status = over === "r" ? "\u7EA2\u65B9\u80DC \xB7 \u606D\u559C" : over === "b" ? "\u9ED1\u65B9\u80DC \xB7 AI \u8D62" : moving ? moving.piece.c === "r" ? "\u7EA2\u65B9\u8D70\u5B50\u2026" : "AI \u8D70\u5B50\u2026" : thinking ? "AI \u601D\u8003\u4E2D\u2026" : check ? "\u5C06\u519B\uFF01" : turn === "r" ? "\u8F6E\u5230\u4F60\uFF08\u7EA2\u65B9\uFF09" : "\u8F6E\u5230 AI\uFF08\u9ED1\u65B9\uFF09";
-  const prevCheck = (0, import_react17.useRef)(false);
-  (0, import_react17.useEffect)(() => {
+  const prevCheck = (0, import_react14.useRef)(false);
+  (0, import_react14.useEffect)(() => {
     if (over === "r") playSfx("win");
     else if (over === "b") playSfx("over");
     else if (!thinking && check && !prevCheck.current) playSfx("check");
     prevCheck.current = !thinking && check;
   }, [check, thinking, over]);
-  (0, import_react17.useEffect)(() => () => {
+  (0, import_react14.useEffect)(() => () => {
     if (animTimerRef.current) clearTimeout(animTimerRef.current);
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "dgame-game", "aria-label": "\u8C61\u68CB", children: [
@@ -12385,7 +12407,7 @@ var xiangqiGame = { Game: XiangqiGame, Preview: XiangqiPreview, css: `
 ` };
 
 // features/games/games/snake.jsx
-var import_react18 = require("react");
+var import_react15 = require("react");
 var import_jsx_runtime9 = require("react/jsx-runtime");
 var SIZE2 = 16;
 var DIRS3 = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] };
@@ -12430,26 +12452,26 @@ function step2(state, dir) {
   return Object.assign({}, state, { snake });
 }
 function SnakeGame(props) {
-  const [state, setState] = (0, import_react18.useState)(initial2);
-  const [paused, setPaused] = (0, import_react18.useState)(false);
-  const [speedMode, setSpeedMode] = (0, import_react18.useState)(loadSpeedMode);
-  const stageRef = (0, import_react18.useRef)(null);
-  const dirRef = (0, import_react18.useRef)(state.dir);
-  const overRef = (0, import_react18.useRef)(state.over);
+  const [state, setState] = (0, import_react15.useState)(initial2);
+  const [paused, setPaused] = (0, import_react15.useState)(false);
+  const [speedMode, setSpeedMode] = (0, import_react15.useState)(loadSpeedMode);
+  const stageRef = (0, import_react15.useRef)(null);
+  const dirRef = (0, import_react15.useRef)(state.dir);
+  const overRef = (0, import_react15.useRef)(state.over);
   overRef.current = state.over;
-  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused) || paused);
+  const pausedRef = (0, import_react15.useRef)(!!(props && props.paused) || paused);
   pausedRef.current = !!(props && props.paused) || paused;
-  const start = (0, import_react18.useCallback)(() => {
+  const start = (0, import_react15.useCallback)(() => {
     const init = initial2();
     init.started = true;
     dirRef.current = init.dir;
     setState(init);
     setPaused(false);
   }, []);
-  const begin = (0, import_react18.useCallback)(() => {
+  const begin = (0, import_react15.useCallback)(() => {
     setState((s) => s.started || s.over ? s : Object.assign({}, s, { started: true }));
   }, []);
-  const changeDir = (0, import_react18.useCallback)((nv) => {
+  const changeDir = (0, import_react15.useCallback)((nv) => {
     if (overRef.current || pausedRef.current) return;
     const cur = dirRef.current;
     const opp = OPPOSITE[cur[0] + "," + cur[1]];
@@ -12457,24 +12479,24 @@ function SnakeGame(props) {
     dirRef.current = nv;
     begin();
   }, [begin]);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     if (state.over) playSfx("over");
   }, [state.over]);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     if (!state.started || state.over || pausedRef.current) return;
     const mode = SPEED_MODES[speedMode] || SPEED_MODES.slow;
     const speed = Math.max(mode.min, mode.base - state.score * mode.stepMs);
     const timer = setInterval(() => setState((s) => s.over || !s.started || pausedRef.current ? s : step2(s, dirRef.current)), speed);
     return () => clearInterval(timer);
   }, [state.started, state.over, state.score, props.paused, paused, speedMode]);
-  const pickSpeed = (0, import_react18.useCallback)((m) => {
+  const pickSpeed = (0, import_react15.useCallback)((m) => {
     setSpeedMode(m);
     try {
       localStorage.setItem("dsh-dock.snake.speed", m);
     } catch {
     }
   }, []);
-  const onKeyDown = (0, import_react18.useCallback)((event) => {
+  const onKeyDown = (0, import_react15.useCallback)((event) => {
     const d = DIRS3[event.key];
     if (d) {
       event.preventDefault();
@@ -12574,7 +12596,7 @@ var snakeGame = { Game: SnakeGame, Preview: SnakePreview, css: `
 ` };
 
 // features/games/games/breakout.jsx
-var import_react19 = require("react");
+var import_react16 = require("react");
 var import_jsx_runtime10 = require("react/jsx-runtime");
 var W = 320;
 var H = 360;
@@ -12654,22 +12676,22 @@ function collideRect(x, y, r, bx, by, bw, bh) {
   return dx * dx + dy * dy < r * r;
 }
 function BreakoutGame(props) {
-  const canvasRef = (0, import_react19.useRef)(null);
-  const [score, setScore] = (0, import_react19.useState)(0);
-  const [lives, setLives] = (0, import_react19.useState)(3);
-  const [level, setLevel] = (0, import_react19.useState)(1);
-  const [status, setStatus] = (0, import_react19.useState)("play");
-  const keys = (0, import_react19.useRef)({});
-  const pausedRef = (0, import_react19.useRef)(!!(props && props.paused));
+  const canvasRef = (0, import_react16.useRef)(null);
+  const [score, setScore] = (0, import_react16.useState)(0);
+  const [lives, setLives] = (0, import_react16.useState)(3);
+  const [level, setLevel] = (0, import_react16.useState)(1);
+  const [status, setStatus] = (0, import_react16.useState)("play");
+  const keys = (0, import_react16.useRef)({});
+  const pausedRef = (0, import_react16.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const game = (0, import_react19.useRef)(null);
-  const scoreRef = (0, import_react19.useRef)(0);
+  const game = (0, import_react16.useRef)(null);
+  const scoreRef = (0, import_react16.useRef)(0);
   scoreRef.current = score;
-  const statusRef = (0, import_react19.useRef)("play");
+  const statusRef = (0, import_react16.useRef)("play");
   statusRef.current = status;
-  const livesRef = (0, import_react19.useRef)(3);
+  const livesRef = (0, import_react16.useRef)(3);
   livesRef.current = lives;
-  const start = (0, import_react19.useCallback)((lvl) => {
+  const start = (0, import_react16.useCallback)((lvl) => {
     const bricks = makeBricks(lvl);
     game.current = {
       stars: Array.from({ length: 46 }, () => ({ x: Math.random() * W, y: Math.random() * H, a: 0.25 + Math.random() * 0.5 })),
@@ -12679,20 +12701,20 @@ function BreakoutGame(props) {
       speed: SPEED * (1 + (lvl - 1) * 0.09)
     };
   }, []);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     start(1);
     setScore(0);
     setLives(3);
     setStatus("play");
   }, [start]);
-  const launchBall = (0, import_react19.useCallback)(() => {
+  const launchBall = (0, import_react16.useCallback)(() => {
     const g = game.current;
     if (!g) return;
     g.ball.vx = (Math.random() > 0.5 ? 1 : -1) * SPEED;
     g.ball.vy = -SPEED;
     g.launched = true;
   }, []);
-  const resetBall = (0, import_react19.useCallback)(() => {
+  const resetBall = (0, import_react16.useCallback)(() => {
     const g = game.current;
     if (g) {
       g.ball.x = W / 2;
@@ -12702,7 +12724,7 @@ function BreakoutGame(props) {
       g.launched = false;
     }
   }, []);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     const frame = () => {
       const g = game.current;
       const ctx = canvasRef.current && canvasRef.current.getContext("2d");
@@ -12788,7 +12810,7 @@ function BreakoutGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, [resetBall]);
-  const onKeyDown = (0, import_react19.useCallback)((event) => {
+  const onKeyDown = (0, import_react16.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -12809,11 +12831,11 @@ function BreakoutGame(props) {
       livesRef.current = 3;
     }
   }, [launchBall, start]);
-  const onKeyUp = (0, import_react19.useCallback)((event) => {
+  const onKeyUp = (0, import_react16.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react19.useCallback)((e) => {
+  const onPointerMove = (0, import_react16.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect2 = cv.getBoundingClientRect();
@@ -12905,7 +12927,7 @@ var breakoutGame = { Game: BreakoutGame, Preview: BreakoutPreview, css: `
 ` };
 
 // features/games/games/racer.jsx
-var import_react20 = require("react");
+var import_react17 = require("react");
 var import_jsx_runtime11 = require("react/jsx-runtime");
 var W2 = 300;
 var H2 = 420;
@@ -12932,15 +12954,15 @@ function rect(ctx, x, y, w, h, r, fill) {
   ctx.fill();
 }
 function RacerGame(props) {
-  const canvasRef = (0, import_react20.useRef)(null);
-  const [status, setStatus] = (0, import_react20.useState)("play");
-  const game = (0, import_react20.useRef)(null);
-  const keys = (0, import_react20.useRef)({});
-  const statusRef = (0, import_react20.useRef)("play");
+  const canvasRef = (0, import_react17.useRef)(null);
+  const [status, setStatus] = (0, import_react17.useState)("play");
+  const game = (0, import_react17.useRef)(null);
+  const keys = (0, import_react17.useRef)({});
+  const statusRef = (0, import_react17.useRef)("play");
   statusRef.current = status;
-  const pausedRef = (0, import_react20.useRef)(!!(props && props.paused));
+  const pausedRef = (0, import_react17.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const reset = (0, import_react20.useCallback)(() => {
+  const reset = (0, import_react17.useCallback)(() => {
     game.current = {
       stars: Array.from({ length: 50 }, () => ({ x: Math.random() * W2, y: Math.random() * H2, a: 0.2 + Math.random() * 0.5 })),
       player: { x: laneX(1), y: H2 - CAR_H - 16, w: CAR_W, h: CAR_H },
@@ -12954,15 +12976,15 @@ function RacerGame(props) {
       over: false
     };
   }, []);
-  (0, import_react20.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  const launch = (0, import_react20.useCallback)(() => {
+  const launch = (0, import_react17.useCallback)(() => {
     reset();
     setStatus("play");
   }, [reset]);
-  (0, import_react20.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     const draw2 = () => {
       const g = game.current, ctx = canvasRef.current && canvasRef.current.getContext("2d");
       if (!g || !ctx) return;
@@ -13064,7 +13086,7 @@ function RacerGame(props) {
     });
     return () => cancelAnimationFrame(raf);
   }, []);
-  const onKeyDown = (0, import_react20.useCallback)((event) => {
+  const onKeyDown = (0, import_react17.useCallback)((event) => {
     if (pausedRef.current) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -13077,11 +13099,11 @@ function RacerGame(props) {
       launch();
     }
   }, [launch]);
-  const onKeyUp = (0, import_react20.useCallback)((event) => {
+  const onKeyUp = (0, import_react17.useCallback)((event) => {
     if (event.key === "ArrowLeft") keys.current.left = false;
     else if (event.key === "ArrowRight") keys.current.right = false;
   }, []);
-  const onPointerMove = (0, import_react20.useCallback)((e) => {
+  const onPointerMove = (0, import_react17.useCallback)((e) => {
     const g = game.current, cv = canvasRef.current;
     if (!g || !cv) return;
     const rect0 = cv.getBoundingClientRect();
@@ -13142,7 +13164,7 @@ var racerGame = { Game: RacerGame, Preview: RacerPreview, css: `
 ` };
 
 // features/games/games/tank.jsx
-var import_react21 = require("react");
+var import_react18 = require("react");
 
 // features/games/tank-core.js
 var GRID = 15;
@@ -13350,27 +13372,27 @@ var import_jsx_runtime12 = require("react/jsx-runtime");
 var DIR_ANGLE = { up: 0, right: 90, down: 180, left: 270 };
 var ENEMY_COLORS = ["#f87171", "#fb923c", "#c084fc", "#4ade80", "#38bdf8"];
 function TankGame(props) {
-  const [snap, setSnap] = (0, import_react21.useState)(initialState);
-  const [status, setStatus] = (0, import_react21.useState)("play");
-  const snapRef = (0, import_react21.useRef)(snap);
+  const [snap, setSnap] = (0, import_react18.useState)(initialState);
+  const [status, setStatus] = (0, import_react18.useState)("play");
+  const snapRef = (0, import_react18.useRef)(snap);
   snapRef.current = snap;
-  const keys = (0, import_react21.useRef)({ dir: null, shoot: false });
-  const pausedRef = (0, import_react21.useRef)(!!(props && props.paused));
+  const keys = (0, import_react18.useRef)({ dir: null, shoot: false });
+  const pausedRef = (0, import_react18.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const statusRef = (0, import_react21.useRef)("play");
+  const statusRef = (0, import_react18.useRef)("play");
   statusRef.current = status;
-  const boardRef = (0, import_react21.useRef)(null);
-  const start = (0, import_react21.useCallback)(() => {
+  const boardRef = (0, import_react18.useRef)(null);
+  const start = (0, import_react18.useCallback)(() => {
     setSnap(initialState());
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  const nextLvl = (0, import_react21.useCallback)(() => {
+  const nextLvl = (0, import_react18.useCallback)(() => {
     setSnap((s) => nextWave(s));
     setStatus("play");
     statusRef.current = "play";
   }, []);
-  (0, import_react21.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current) return;
       setSnap((s) => {
@@ -13389,8 +13411,8 @@ function TankGame(props) {
     }, 120);
     return () => clearInterval(timer);
   }, []);
-  const stageRef = (0, import_react21.useRef)(null);
-  const onKeyDown = (0, import_react21.useCallback)((event) => {
+  const stageRef = (0, import_react18.useRef)(null);
+  const onKeyDown = (0, import_react18.useCallback)((event) => {
     if (pausedRef.current) return;
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
@@ -13407,7 +13429,7 @@ function TankGame(props) {
       start();
     }
   }, [start]);
-  const onKeyUp = (0, import_react21.useCallback)((event) => {
+  const onKeyUp = (0, import_react18.useCallback)((event) => {
     const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", W: "up", S: "down", A: "left", D: "right" };
     const dir = map[event.key];
     if (dir && keys.current.dir === dir) keys.current.dir = null;
@@ -13549,8 +13571,8 @@ function initialDash() {
   return { lane: 1, rocks: [], score: 0, shield: 3, running: true, nextId: 1 };
 }
 function useTaskPulse() {
-  const [status, setStatus] = (0, import_react22.useState)({ loading: true, active: [], error: false });
-  const refresh = (0, import_react22.useCallback)(() => fetch("dsh-dock/animation/status", {
+  const [status, setStatus] = (0, import_react19.useState)({ loading: true, active: [], error: false });
+  const refresh = (0, import_react19.useCallback)(() => fetch("dsh-dock/animation/status", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}"
@@ -13558,7 +13580,7 @@ function useTaskPulse() {
     if (!payload || !payload.ok) throw new Error("status unavailable");
     setStatus({ loading: false, active: Array.isArray(payload.data && payload.data.active) ? payload.data.active : [], error: false });
   }).catch(() => setStatus((current) => ({ loading: false, active: current.active || [], error: true }))), []);
-  (0, import_react22.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 2600);
     return () => clearInterval(timer);
@@ -13566,14 +13588,14 @@ function useTaskPulse() {
   return status;
 }
 function DashGame(props) {
-  const [dash, setDash] = (0, import_react22.useState)(initialDash);
-  const pausedRef = (0, import_react22.useRef)(!!(props && props.paused));
+  const [dash, setDash] = (0, import_react19.useState)(initialDash);
+  const pausedRef = (0, import_react19.useRef)(!!(props && props.paused));
   pausedRef.current = !!(props && props.paused);
-  const move = (0, import_react22.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
+  const move = (0, import_react19.useCallback)((delta) => setDash((current) => Object.assign({}, current, {
     lane: Math.max(0, Math.min(LANES - 1, current.lane + delta))
   })), []);
-  const stageRef = (0, import_react22.useRef)(null);
-  const onKeyDown = (0, import_react22.useCallback)((event) => {
+  const stageRef = (0, import_react19.useRef)(null);
+  const onKeyDown = (0, import_react19.useCallback)((event) => {
     if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
       event.preventDefault();
       move(-1);
@@ -13586,7 +13608,7 @@ function DashGame(props) {
     }
   }, [move, dash.running]);
   useGameControls(stageRef, props.paused, onKeyDown);
-  (0, import_react22.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     const timer = setInterval(() => {
       if (pausedRef.current || typeof document !== "undefined" && document.hidden) return;
       setDash((current) => {
@@ -13663,10 +13685,10 @@ function DashGame(props) {
   ] });
 }
 function ReactorGame(props) {
-  const [cells, setCells] = (0, import_react22.useState)(makeReactor);
-  const [moves, setMoves] = (0, import_react22.useState)(0);
-  const [cursor, setCursor] = (0, import_react22.useState)(4);
-  const gridRef = (0, import_react22.useRef)(null);
+  const [cells, setCells] = (0, import_react19.useState)(makeReactor);
+  const [moves, setMoves] = (0, import_react19.useState)(0);
+  const [cursor, setCursor] = (0, import_react19.useState)(4);
+  const gridRef = (0, import_react19.useRef)(null);
   const solved = cells.every(Boolean);
   const toggle = (index) => {
     if (solved) return;
@@ -13876,8 +13898,8 @@ var gamesBus = {
   }
 };
 function useGameWin() {
-  const [state, setState] = (0, import_react22.useState)(gamesBus.state);
-  (0, import_react22.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
+  const [state, setState] = (0, import_react19.useState)(gamesBus.state);
+  (0, import_react19.useEffect)(() => gamesBus.subscribe(() => setState(gamesBus.state)), []);
   return state;
 }
 var CATS = [
@@ -13993,12 +14015,12 @@ function snapFabX(side) {
 function GameWindow(props) {
   const game = props.game;
   const status = useTaskPulse();
-  const [win, setWin] = (0, import_react22.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
-  const winRef = (0, import_react22.useRef)(win);
+  const [win, setWin] = (0, import_react19.useState)(() => typeof window === "undefined" ? { mode: "normal", x: 14, y: 14, w: 470, h: 600 } : restoreWinGeom());
+  const winRef = (0, import_react19.useRef)(win);
   winRef.current = win;
-  const pickerRef = (0, import_react22.useRef)(props.picker);
+  const pickerRef = (0, import_react19.useRef)(props.picker);
   pickerRef.current = props.picker;
-  (0, import_react22.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (pickerRef.current) gamesBus.closePicker();
@@ -14086,12 +14108,12 @@ function GameWindow(props) {
   ] });
 }
 function GameFab(props) {
-  const [pos, setPos] = (0, import_react22.useState)(null);
-  const [dragging, setDragging] = (0, import_react22.useState)(false);
-  const dragRef = (0, import_react22.useRef)(null);
-  const clickBlockRef = (0, import_react22.useRef)(false);
-  const sideRef = (0, import_react22.useRef)("left");
-  (0, import_react22.useEffect)(() => {
+  const [pos, setPos] = (0, import_react19.useState)(null);
+  const [dragging, setDragging] = (0, import_react19.useState)(false);
+  const dragRef = (0, import_react19.useRef)(null);
+  const clickBlockRef = (0, import_react19.useRef)(false);
+  const sideRef = (0, import_react19.useRef)("left");
+  (0, import_react19.useEffect)(() => {
     if (typeof window === "undefined") return;
     let next = { side: "left", y: Math.round(window.innerHeight * 0.34) };
     try {
@@ -14106,7 +14128,7 @@ function GameFab(props) {
       y: Math.min(Math.max(8, next.y), Math.max(8, window.innerHeight - FAB_H - 8))
     });
   }, []);
-  (0, import_react22.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     if (typeof window === "undefined") return;
     const update = () => {
       if (dragRef.current) return;
@@ -14201,8 +14223,8 @@ function GamepadIcon(props) {
 }
 function GamesOverlay() {
   const winState = useGameWin();
-  const [panelOpen, setPanelOpen2] = (0, import_react22.useState)(panelNav.open);
-  (0, import_react22.useEffect)(() => {
+  const [panelOpen, setPanelOpen2] = (0, import_react19.useState)(panelNav.open);
+  (0, import_react19.useEffect)(() => {
     setPanelOpen2(panelNav.open);
     return subscribePanel(() => setPanelOpen2(panelNav.open));
   }, []);
@@ -14305,7 +14327,7 @@ var dgcovGroupCss = `
 
 `;
 var css5 = [baseCss, tetrisGame.css, sokobanGame.css, gomokuGame.css, xiangqiGame.css, snakeGame.css, breakoutGame.css, racerGame.css, tankGame.css, dgcovGroupCss].filter(Boolean).join("\n");
-var feature11 = {
+var feature9 = {
   id: "games",
   name: "\u8DA3\u5473\u6E38\u620F",
   order: 135,
@@ -14319,7 +14341,7 @@ var feature11 = {
 };
 
 // features/mobile-relay/view.jsx
-var import_react23 = require("react");
+var import_react20 = require("react");
 var import_qrcode = __toESM(require_browser(), 1);
 var import_jsx_runtime14 = require("react/jsx-runtime");
 function rpc(method, payload) {
@@ -14356,8 +14378,8 @@ function RelayIcon({ name, size = 18 }) {
   ] });
 }
 function useCompact() {
-  const [compact, setCompact] = (0, import_react23.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
-  (0, import_react23.useEffect)(() => {
+  const [compact, setCompact] = (0, import_react20.useState)(() => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches);
+  (0, import_react20.useEffect)(() => {
     const media = window.matchMedia("(max-width: 680px)");
     const update = () => setCompact(media.matches);
     update();
@@ -14368,23 +14390,23 @@ function useCompact() {
 }
 function RemoteCard() {
   const compact = useCompact();
-  const [lan, setLan] = (0, import_react23.useState)(null);
-  const [username, setUsername] = (0, import_react23.useState)("");
-  const [password, setPassword] = (0, import_react23.useState)("");
-  const [newPassword, setNewPassword] = (0, import_react23.useState)("");
-  const [port, setPort] = (0, import_react23.useState)("");
-  const [address, setAddress] = (0, import_react23.useState)("");
-  const [qr, setQr] = (0, import_react23.useState)("");
-  const [busy, setBusy] = (0, import_react23.useState)("");
-  const [message, setMessage] = (0, import_react23.useState)("");
-  const [messageKind, setMessageKind] = (0, import_react23.useState)("error");
-  const [changing, setChanging] = (0, import_react23.useState)(false);
-  const [remote, setRemote] = (0, import_react23.useState)(false);
-  const notify = (0, import_react23.useCallback)((text, kind) => {
+  const [lan, setLan] = (0, import_react20.useState)(null);
+  const [username, setUsername] = (0, import_react20.useState)("");
+  const [password, setPassword] = (0, import_react20.useState)("");
+  const [newPassword, setNewPassword] = (0, import_react20.useState)("");
+  const [port, setPort] = (0, import_react20.useState)("");
+  const [address, setAddress] = (0, import_react20.useState)("");
+  const [qr, setQr] = (0, import_react20.useState)("");
+  const [busy, setBusy] = (0, import_react20.useState)("");
+  const [message, setMessage] = (0, import_react20.useState)("");
+  const [messageKind, setMessageKind] = (0, import_react20.useState)("error");
+  const [changing, setChanging] = (0, import_react20.useState)(false);
+  const [remote, setRemote] = (0, import_react20.useState)(false);
+  const notify = (0, import_react20.useCallback)((text, kind) => {
     setMessage(text);
     setMessageKind(kind || "error");
   }, []);
-  const refresh = (0, import_react23.useCallback)(async () => {
+  const refresh = (0, import_react20.useCallback)(async () => {
     try {
       const data = await rpc("lan");
       setLan(data);
@@ -14394,19 +14416,19 @@ function RemoteCard() {
       notify(e && e.message ? e.message : String(e));
     }
   }, [notify]);
-  (0, import_react23.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 3e3);
     return () => clearInterval(timer);
   }, [refresh]);
-  (0, import_react23.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     fetch("/__dsh_auth/health", { method: "POST" }).then((r) => setRemote(Boolean(r.ok))).catch(() => setRemote(false));
   }, []);
   const active = Boolean(lan && lan.gatewayActive);
   const gatewayPort = lan && lan.gatewayPort ? lan.gatewayPort : 3081;
   const suggestedPort = lan && lan.mainPort ? lan.mainPort + 1 : gatewayPort;
-  const lanLink = (0, import_react23.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
-  (0, import_react23.useEffect)(() => {
+  const lanLink = (0, import_react20.useMemo)(() => address && active ? "http://" + address + ":" + gatewayPort : "", [address, active, gatewayPort]);
+  (0, import_react20.useEffect)(() => {
     let live = true;
     if (!lanLink) {
       setQr("");
@@ -14623,8 +14645,8 @@ function MobileRelayView() {
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(RemoteCard, {});
 }
 function MobileRelayHomeStat() {
-  const [summary, setSummary] = (0, import_react23.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
-  (0, import_react23.useEffect)(() => {
+  const [summary, setSummary] = (0, import_react20.useState)("\u672A\u5F00\u542F\uFF0C\u5F00\u542F\u540E\u53EF\u8FDC\u7A0B\u767B\u5F55");
+  (0, import_react20.useEffect)(() => {
     const refresh = () => {
       rpc("lan").then((data) => {
         const devices = typeof data.devices === "number" && data.devices > 0 ? " \xB7 " + data.devices + " \u53F0\u8BBE\u5907\u5728\u7EBF" : "";
@@ -14638,7 +14660,7 @@ function MobileRelayHomeStat() {
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { children: summary });
 }
-var feature12 = {
+var feature10 = {
   id: "mobile-relay",
   name: "\u8FDC\u7A0B\u8BBF\u95EE",
   order: 80,
@@ -14652,9 +14674,726 @@ var feature12 = {
   HomeStat: MobileRelayHomeStat
 };
 
+// features/mcpconfig/view.js
+var import_react21 = __toESM(require("react"), 1);
+var ENDPOINT = "dsh-dock/mcpconfig";
+var SERVER_NAME_RE = /^[A-Za-z0-9_-]{1,32}$/;
+var ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+var DEFAULT_TOOL_TIMEOUT_MS = 6e4;
+var TRANSPORTS = [
+  { value: "stdio", label: "stdio\uFF08\u672C\u673A\u5B50\u8FDB\u7A0B\uFF09" },
+  { value: "streamable-http", label: "streamable-http\uFF08\u8FDC\u7AEF HTTP\uFF09" }
+];
+var STATE_TEXT = { active: "\u8FD0\u884C\u4E2D", inactive: "\u672A\u8FDE\u63A5", failed: "\u5931\u8D25", disabled: "\u5DF2\u505C\u7528", unknown: "\u672A\u77E5" };
+function timeoutSignal(ms) {
+  try {
+    if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") return AbortSignal.timeout(ms);
+  } catch (e) {
+  }
+  return void 0;
+}
+function errorText(body, fallback) {
+  if (body && typeof body.error === "string" && body.error) return body.error;
+  if (body && body.error && typeof body.error.message === "string" && body.error.message) return body.error.message;
+  return fallback;
+}
+function messageOf(e) {
+  return e && e.message || String(e);
+}
+function linesToEnv(text) {
+  const out = {};
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const raw = line.trim();
+    if (!raw) continue;
+    const at = raw.indexOf("=");
+    if (at < 0) {
+      out[raw] = "";
+      continue;
+    }
+    const key = raw.slice(0, at).trim();
+    if (key) out[key] = raw.slice(at + 1).trim();
+  }
+  return out;
+}
+function linesToHeaders(text) {
+  const out = {};
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const raw = line.trim();
+    if (!raw) continue;
+    const at = raw.indexOf(":");
+    if (at < 0) {
+      out[raw] = "";
+      continue;
+    }
+    const key = raw.slice(0, at).trim();
+    if (key) out[key] = raw.slice(at + 1).trim();
+  }
+  return out;
+}
+function mapToEnvText(map) {
+  return Object.keys(map || {}).map((k) => {
+    const v = map[k];
+    return k + "=" + (typeof v === "string" ? v : v === void 0 || v === null ? "" : JSON.stringify(v));
+  }).join("\n");
+}
+function mapToHeadersText(map) {
+  return Object.keys(map || {}).map((k) => {
+    const v = map[k];
+    return k + ": " + (typeof v === "string" ? v : v === void 0 || v === null ? "" : JSON.stringify(v));
+  }).join("\n");
+}
+function argsToText(args) {
+  return (Array.isArray(args) ? args : []).map((x) => typeof x === "string" ? x : String(x)).join("\n");
+}
+function textToArgs(text) {
+  return String(text || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+}
+function toDraft(server) {
+  const s = server && typeof server === "object" ? server : {};
+  return {
+    serverName: typeof s.serverName === "string" ? s.serverName : "",
+    transport: s.transport === "streamable-http" ? "streamable-http" : "stdio",
+    command: typeof s.command === "string" ? s.command : "",
+    args: Array.isArray(s.args) ? s.args.filter((x) => typeof x === "string") : [],
+    env: s.env && typeof s.env === "object" && !Array.isArray(s.env) ? s.env : {},
+    cwd: typeof s.cwd === "string" ? s.cwd : "",
+    url: typeof s.url === "string" ? s.url : "",
+    headers: s.headers && typeof s.headers === "object" && !Array.isArray(s.headers) ? s.headers : {},
+    enabled: s.enabled !== false,
+    failOnStartupError: s.failOnStartupError === true,
+    toolCallTimeoutMs: Number.isFinite(s.toolCallTimeoutMs) && s.toolCallTimeoutMs > 0 ? s.toolCallTimeoutMs : DEFAULT_TOOL_TIMEOUT_MS,
+    // 只读展示字段（POST 不含这些）
+    state: typeof s.state === "string" ? s.state : "unknown",
+    error: typeof s.error === "string" && s.error ? s.error : null,
+    tools: Array.isArray(s.tools) ? s.tools.filter((x) => typeof x === "string") : [],
+    toolCount: Number.isFinite(s.toolCount) ? s.toolCount : Array.isArray(s.tools) ? s.tools.length : 0
+  };
+}
+function toSaveShape(draft) {
+  const base = {
+    serverName: draft.serverName,
+    transport: draft.transport === "streamable-http" ? "streamable-http" : "stdio",
+    enabled: draft.enabled !== false,
+    failOnStartupError: draft.failOnStartupError === true,
+    toolCallTimeoutMs: draft.toolCallTimeoutMs || DEFAULT_TOOL_TIMEOUT_MS
+  };
+  if (base.transport === "streamable-http") {
+    return Object.assign(base, { url: draft.url || "", headers: draft.headers || {} });
+  }
+  return Object.assign(base, {
+    command: draft.command || "",
+    args: Array.isArray(draft.args) ? draft.args : [],
+    env: draft.env || {},
+    cwd: draft.cwd || ""
+  });
+}
+function emptyForm() {
+  return {
+    mode: "create",
+    index: -1,
+    serverName: "",
+    transport: "stdio",
+    command: "",
+    argsText: "",
+    envText: "",
+    cwd: "",
+    url: "",
+    headersText: "",
+    toolCallTimeoutMs: String(DEFAULT_TOOL_TIMEOUT_MS),
+    failOnStartupError: false,
+    enabled: true
+  };
+}
+function formFrom(draft, index) {
+  return {
+    mode: "edit",
+    index,
+    serverName: draft.serverName,
+    transport: draft.transport,
+    command: draft.command || "",
+    argsText: argsToText(draft.args),
+    envText: mapToEnvText(draft.env),
+    cwd: draft.cwd || "",
+    url: draft.url || "",
+    headersText: mapToHeadersText(draft.headers),
+    toolCallTimeoutMs: String(draft.toolCallTimeoutMs || DEFAULT_TOOL_TIMEOUT_MS),
+    failOnStartupError: !!draft.failOnStartupError,
+    enabled: draft.enabled !== false
+  };
+}
+function formToDraft(form, drafts) {
+  const serverName = String(form.serverName || "").trim();
+  if (!SERVER_NAME_RE.test(serverName)) {
+    return { error: "serverName \u975E\u6CD5\uFF1A\u987B\u5339\u914D " + SERVER_NAME_RE + "\uFF081~32 \u4F4D\u5B57\u6BCD\u3001\u6570\u5B57\u3001_ \u6216 -\uFF09" };
+  }
+  const duplicate = drafts.some((d, i) => i !== form.index && d.serverName === serverName);
+  if (duplicate) return { error: "serverName\u300C" + serverName + "\u300D\u5DF2\u5B58\u5728\uFF0C\u8BF7\u6362\u4E00\u4E2A\u540D\u5B57" };
+  const transport = form.transport === "streamable-http" ? "streamable-http" : "stdio";
+  const timeoutRaw = String(form.toolCallTimeoutMs === void 0 ? "" : form.toolCallTimeoutMs).trim();
+  const timeout = timeoutRaw === "" ? DEFAULT_TOOL_TIMEOUT_MS : Number(timeoutRaw);
+  if (!Number.isFinite(timeout) || timeout <= 0) return { error: "toolCallTimeoutMs \u987B\u4E3A\u6B63\u6574\u6570\uFF08\u6BEB\u79D2\uFF09\uFF0C\u9ED8\u8BA4 " + DEFAULT_TOOL_TIMEOUT_MS };
+  const base = {
+    serverName,
+    transport,
+    enabled: form.mode === "create" ? form.enabled !== false : drafts[form.index] ? drafts[form.index].enabled !== false : true,
+    failOnStartupError: !!form.failOnStartupError,
+    toolCallTimeoutMs: Math.floor(timeout)
+  };
+  if (transport === "streamable-http") {
+    const url = String(form.url || "").trim();
+    if (!/^https?:\/\//i.test(url)) return { error: "url \u975E\u6CD5\uFF1A\u987B\u4EE5 http:// \u6216 https:// \u5F00\u5934" };
+    const headers = linesToHeaders(form.headersText);
+    for (const key of Object.keys(headers)) {
+      if (!/^[A-Za-z0-9-]+$/.test(key)) return { error: "header \u540D\u975E\u6CD5\uFF1A" + key };
+    }
+    return { draft: Object.assign(base, { url, headers, command: "", args: [], env: {}, cwd: "" }) };
+  }
+  const command = String(form.command || "").trim();
+  if (!command) return { error: "stdio \u4F20\u8F93\u5FC5\u987B\u586B\u5199 command\uFF08\u53EF\u6267\u884C\u6587\u4EF6\u8DEF\u5F84\uFF09" };
+  const env = linesToEnv(form.envText);
+  for (const key of Object.keys(env)) {
+    if (!ENV_KEY_RE.test(key)) return { error: "\u73AF\u5883\u53D8\u91CF\u540D\u975E\u6CD5\uFF1A" + key + "\uFF08\u987B\u5339\u914D " + ENV_KEY_RE + "\uFF09" };
+  }
+  return { draft: Object.assign(base, { command, args: textToArgs(form.argsText), env, cwd: String(form.cwd || "").trim(), url: "", headers: {} }) };
+}
+function stateDotClass(state) {
+  if (state === "active") return "dkmc-dot ok";
+  if (state === "failed") return "dkmc-dot err";
+  if (state === "inactive") return "dkmc-dot idle";
+  return "dkmc-dot off";
+}
+function stateClass(state) {
+  if (state === "active") return "dkmc-state ok";
+  if (state === "failed") return "dkmc-state err";
+  return "dkmc-state";
+}
+function Field(props) {
+  return import_react21.default.createElement(
+    "div",
+    { className: "dkmc-field" },
+    import_react21.default.createElement("label", { className: "dkmc-flabel" }, props.label),
+    props.children,
+    props.hint ? import_react21.default.createElement("p", { className: "dkmc-hint" }, props.hint) : null
+  );
+}
+function ServerForm(props) {
+  const form = props.form;
+  const patch = props.patch;
+  const onSave = props.onSave;
+  const onCancel = props.onCancel;
+  const saving = props.saving;
+  const onExample = props.onExample;
+  const input = (p) => import_react21.default.createElement("input", Object.assign({ className: "dkmc-input" }, p));
+  const isEdit = form.mode === "edit";
+  return import_react21.default.createElement(
+    "div",
+    { className: "dkmc-editor" },
+    import_react21.default.createElement(
+      "div",
+      { className: "dkmc-editor-head" },
+      import_react21.default.createElement("span", { className: "dkmc-editor-title" }, isEdit ? "\u7F16\u8F91 MCP \u670D\u52A1\u5668" : "\u65B0\u589E MCP \u670D\u52A1\u5668"),
+      import_react21.default.createElement("span", { className: "dkmc-editor-sub" }, isEdit ? form.serverName : "\u5199\u56DE cordis.patch.yml \u7684\u6258\u7BA1\u5757\u5E76\u70ED\u5E94\u7528"),
+      !isEdit && typeof onExample === "function" ? import_react21.default.createElement("button", {
+        type: "button",
+        className: "dkmc-btn ghost sm dkmc-example",
+        title: "\u4E00\u952E\u586B\u5165\u672C\u673A Xiaomi-OCR MCP \u670D\u52A1\u5668\u914D\u7F6E",
+        disabled: saving,
+        onClick: onExample
+      }, "\u586B\u5165\u672C\u673A Xiaomi-OCR \u793A\u4F8B") : null
+    ),
+    props.error ? import_react21.default.createElement("p", { className: "dkmc-error" }, props.error) : null,
+    Field({
+      label: "serverName",
+      hint: "\u5DE5\u5177\u540D\u524D\u7F00\uFF1A\u6A21\u578B\u770B\u5230\u7684\u662F mcp__<serverName>__<tool>\uFF1B\u987B\u5339\u914D " + SERVER_NAME_RE
+    }, input({
+      value: form.serverName,
+      placeholder: "xiaomi_ocr",
+      disabled: isEdit,
+      onChange: (e) => patch({ serverName: e.target.value })
+    })),
+    Field({ label: "\u4F20\u8F93\u65B9\u5F0F" }, import_react21.default.createElement(
+      "select",
+      {
+        className: "dkmc-input dkmc-select",
+        value: form.transport,
+        onChange: (e) => patch({ transport: e.target.value })
+      },
+      TRANSPORTS.map((t) => import_react21.default.createElement("option", { key: t.value, value: t.value }, t.label))
+    )),
+    form.transport === "streamable-http" ? Field(
+      { label: "url", hint: "MCP \u7AEF\u70B9\uFF08Streamable HTTP\uFF09\uFF0C\u987B\u4EE5 http:// \u6216 https:// \u5F00\u5934" },
+      input({ value: form.url, placeholder: "http://127.0.0.1:3000/mcp", onChange: (e) => patch({ url: e.target.value }) })
+    ) : Field(
+      { label: "command", hint: "\u53EF\u6267\u884C\u6587\u4EF6\u7EDD\u5BF9\u8DEF\u5F84\u6216 PATH \u4E2D\u7684\u547D\u4EE4" },
+      input({ value: form.command, placeholder: "/usr/bin/python3", onChange: (e) => patch({ command: e.target.value }) })
+    ),
+    form.transport === "streamable-http" ? Field(
+      { label: "headers\uFF08\u6BCF\u884C\u4E00\u4E2A KEY: VALUE\uFF09", hint: "\u5982 Authorization: Bearer xxx\uFF1B\u503C\u4E3A\u7A7A\u7684\u884C\u5FFD\u7565" },
+      import_react21.default.createElement("textarea", {
+        className: "dkmc-input dkmc-textarea",
+        rows: 4,
+        spellCheck: false,
+        value: form.headersText,
+        placeholder: "Authorization: Bearer xxxxx",
+        onChange: (e) => patch({ headersText: e.target.value })
+      })
+    ) : import_react21.default.createElement(
+      import_react21.default.Fragment,
+      null,
+      Field(
+        { label: "args\uFF08\u6BCF\u884C\u4E00\u4E2A\u53C2\u6570\uFF09" },
+        import_react21.default.createElement("textarea", {
+          className: "dkmc-input dkmc-textarea",
+          rows: 4,
+          spellCheck: false,
+          value: form.argsText,
+          placeholder: "/www/wwwroot/xiaomi-ocr/mcp_ocr.py",
+          onChange: (e) => patch({ argsText: e.target.value })
+        })
+      ),
+      Field(
+        { label: "env\uFF08\u6BCF\u884C\u4E00\u4E2A KEY=VALUE\uFF09", hint: "\u73AF\u5883\u53D8\u91CF\u4F1A\u660E\u6587\u5199\u8FDB profile \u8865\u4E01\u5C42\uFF08\u6587\u4EF6 0600\uFF0C\u4EC5\u672C\u673A\u53EF\u8BFB\uFF09\uFF1B\u6CA1\u6709\u53EF\u7559\u7A7A" },
+        import_react21.default.createElement("textarea", {
+          className: "dkmc-input dkmc-textarea",
+          rows: 3,
+          spellCheck: false,
+          value: form.envText,
+          placeholder: "PYTHONUNBUFFERED=1",
+          onChange: (e) => patch({ envText: e.target.value })
+        })
+      ),
+      Field(
+        { label: "cwd\uFF08\u53EF\u9009\uFF09" },
+        input({ value: form.cwd, placeholder: "/www/wwwroot/xiaomi-ocr", onChange: (e) => patch({ cwd: e.target.value }) })
+      )
+    ),
+    import_react21.default.createElement(
+      "details",
+      { className: "dkmc-advanced" },
+      import_react21.default.createElement("summary", { className: "dkmc-summary" }, "\u9AD8\u7EA7"),
+      import_react21.default.createElement(
+        "div",
+        { className: "dkmc-advanced-body" },
+        Field(
+          { label: "toolCallTimeoutMs", hint: "\u5355\u6B21 MCP \u5DE5\u5177\u8C03\u7528\u8D85\u65F6\uFF08\u6BEB\u79D2\uFF09\uFF0C\u9ED8\u8BA4 " + DEFAULT_TOOL_TIMEOUT_MS },
+          input({ value: form.toolCallTimeoutMs, inputMode: "numeric", placeholder: String(DEFAULT_TOOL_TIMEOUT_MS), onChange: (e) => patch({ toolCallTimeoutMs: e.target.value }) })
+        ),
+        import_react21.default.createElement(
+          "label",
+          { className: "dkmc-check" },
+          import_react21.default.createElement("input", {
+            type: "checkbox",
+            checked: !!form.failOnStartupError,
+            onChange: () => patch({ failOnStartupError: !form.failOnStartupError })
+          }),
+          "\u9996\u6B21\u8FDE\u63A5\u5931\u8D25\u65F6\u62D2\u7EDD\u542F\u7528\u8BE5\u884C\uFF08failOnStartupError\uFF09"
+        )
+      )
+    ),
+    import_react21.default.createElement(
+      "div",
+      { className: "dkmc-editor-actions" },
+      import_react21.default.createElement("button", { type: "button", className: "dkmc-btn ghost", disabled: saving, onClick: onCancel }, "\u53D6\u6D88"),
+      import_react21.default.createElement(
+        "button",
+        { type: "button", className: "dkmc-btn primary", disabled: saving, onClick: onSave },
+        saving ? "\u4FDD\u5B58\u4E2D\u2026" : isEdit ? "\u4FDD\u5B58\u4FEE\u6539" : "\u65B0\u589E\u5E76\u4FDD\u5B58"
+      )
+    )
+  );
+}
+function McpConfigView() {
+  const [snap, setSnap] = import_react21.default.useState({ loading: true, error: null, data: null });
+  const [drafts, setDrafts] = import_react21.default.useState([]);
+  const [form, setForm] = import_react21.default.useState(null);
+  const [formError, setFormError] = import_react21.default.useState(null);
+  const [saving, setSaving] = import_react21.default.useState(false);
+  const [msg, setMsg] = import_react21.default.useState(null);
+  const [delArm, setDelArm] = import_react21.default.useState(null);
+  const refresh = async () => {
+    setSnap((s) => Object.assign({}, s, { loading: true, error: null }));
+    try {
+      if (typeof fetch !== "function") throw new Error("\u5F53\u524D\u73AF\u5883\u6CA1\u6709 fetch\uFF0C\u65E0\u6CD5\u8BFB\u53D6 MCP \u914D\u7F6E");
+      const res = await fetch(ENDPOINT, { cache: "no-store", signal: timeoutSignal(6e4) });
+      const body2 = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(errorText(body2, "MCP \u914D\u7F6E\u63A5\u53E3 HTTP " + res.status));
+      if (!body2 || body2.ok === false) throw new Error(errorText(body2, "MCP \u914D\u7F6E\u63A5\u53E3\u8FD4\u56DE\u5F02\u5E38"));
+      const list = Array.isArray(body2.servers) ? body2.servers : body2.data && Array.isArray(body2.data.servers) ? body2.data.servers : [];
+      setSnap({ loading: false, error: null, data: body2 });
+      setDrafts(list.map(toDraft));
+    } catch (e) {
+      setSnap({ loading: false, error: messageOf(e), data: null });
+    }
+  };
+  import_react21.default.useEffect(() => {
+    refresh();
+  }, []);
+  const commit = async (nextDrafts, successText) => {
+    if (saving) return false;
+    const previous = drafts;
+    setSaving(true);
+    setFormError(null);
+    setMsg(null);
+    setDrafts(nextDrafts);
+    try {
+      if (typeof fetch !== "function") throw new Error("\u5F53\u524D\u73AF\u5883\u6CA1\u6709 fetch\uFF0C\u65E0\u6CD5\u4FDD\u5B58 MCP \u914D\u7F6E");
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "save", servers: nextDrafts.map(toSaveShape) }),
+        cache: "no-store",
+        signal: timeoutSignal(6e4)
+      });
+      const body2 = await res.json().catch(() => null);
+      if (!res.ok || !body2 || body2.ok === false) {
+        const extra = body2 && body2.rolledBack ? "\uFF08\u5DF2\u56DE\u6EDA\u5230\u4FDD\u5B58\u524D\u7684\u914D\u7F6E\uFF09" : body2 && body2.needsRestart ? "\uFF08\u914D\u7F6E\u53EF\u80FD\u5DF2\u5199\u5165\uFF0C\u9700\u91CD\u542F DSH \u68C0\u67E5\uFF09" : "";
+        throw new Error(errorText(body2, "\u4FDD\u5B58\u5931\u8D25\uFF1AHTTP " + res.status) + extra);
+      }
+      const notes = [];
+      if (body2.restartRequired) notes.push("\u5DF2\u4FDD\u5B58\uFF0C\u91CD\u542F DSH \u540E\u751F\u6548");
+      else if (body2.applied === false) notes.push("\u5DF2\u4FDD\u5B58\uFF0C\u7B49\u5F85 DSH \u5E94\u7528");
+      else notes.push(body2.changed === false ? "\u914D\u7F6E\u6CA1\u6709\u53D8\u5316" : "\u5DF2\u5E94\u7528");
+      for (const w of Array.isArray(body2.warnings) ? body2.warnings : []) notes.push(String(w));
+      setMsg({ tone: "ok", text: successText + "\uFF1B" + notes.join("\uFF1B") });
+      setForm(null);
+      setFormError(null);
+      setDelArm(null);
+      await refresh();
+      return true;
+    } catch (e) {
+      setDrafts(previous);
+      setFormError(messageOf(e));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+  const openCreate = () => {
+    setForm(emptyForm());
+    setFormError(null);
+    setMsg(null);
+    setDelArm(null);
+  };
+  const openEdit = (draft, index) => {
+    setForm(formFrom(draft, index));
+    setFormError(null);
+    setMsg(null);
+    setDelArm(null);
+  };
+  const closeForm = () => {
+    setForm(null);
+    setFormError(null);
+  };
+  const patchForm = (patch) => {
+    setForm((f) => Object.assign({}, f, patch));
+    setFormError(null);
+  };
+  const saveForm = () => {
+    if (!form || saving) return;
+    const result = formToDraft(form, drafts);
+    if (result.error) {
+      setFormError(result.error);
+      return;
+    }
+    const draft = result.draft;
+    const next = form.mode === "edit" ? drafts.map((d, i) => i === form.index ? Object.assign({}, d, draft) : d) : drafts.concat([draft]);
+    const text = (form.mode === "edit" ? "\u5DF2\u66F4\u65B0\u300C" : "\u5DF2\u65B0\u589E\u300C") + draft.serverName + "\u300D";
+    commit(next, text);
+  };
+  const toggle = (draft) => {
+    const next = drafts.map((d) => d.serverName === draft.serverName ? Object.assign({}, d, { enabled: !d.enabled }) : d);
+    commit(next, "\u5DF2" + (draft.enabled ? "\u505C\u7528\u300C" : "\u542F\u7528\u300C") + draft.serverName + "\u300D");
+  };
+  const remove = (draft) => {
+    if (delArm !== draft.serverName) {
+      setDelArm(draft.serverName);
+      setMsg(null);
+      setFormError(null);
+      return;
+    }
+    setDelArm(null);
+    const next = drafts.filter((d) => d.serverName !== draft.serverName);
+    if (form && form.mode === "edit" && form.serverName === draft.serverName) closeForm();
+    commit(next, "\u5DF2\u5220\u9664\u300C" + draft.serverName + "\u300D");
+  };
+  const fillXiaomiExample = () => {
+    if (drafts.some((d) => d.serverName === "xiaomi_ocr")) {
+      setMsg({ tone: "warn", text: "\u5217\u8868\u91CC\u5DF2\u7ECF\u6709 xiaomi_ocr\uFF08\u53EF\u76F4\u63A5\u70B9\u8BE5\u5361\u7247\u7684\u300C\u7F16\u8F91\u300D\u67E5\u770B/\u4FEE\u6539\uFF09" });
+      return;
+    }
+    setForm(Object.assign(emptyForm(), {
+      serverName: "xiaomi_ocr",
+      transport: "stdio",
+      command: "/usr/bin/python3",
+      argsText: "/www/wwwroot/xiaomi-ocr/mcp_ocr.py",
+      cwd: "/www/wwwroot/xiaomi-ocr",
+      envText: "",
+      toolCallTimeoutMs: "300000",
+      failOnStartupError: false
+    }));
+    setFormError(null);
+    setMsg(null);
+  };
+  const data = snap.data;
+  const patchPath = data && typeof data.patchPath === "string" ? data.patchPath : "";
+  const hmrAvailable = !!(data && data.hmrAvailable);
+  const warnings = data ? Array.isArray(data.warnings) ? data.warnings.filter((w) => typeof w === "string" && w) : typeof data.warning === "string" && data.warning ? [data.warning] : [] : [];
+  const serverCount = drafts.length;
+  const enabledCount = drafts.filter((d) => d.enabled).length;
+  const toolsTotal = drafts.reduce((n, d) => n + (Number.isFinite(d.toolCount) ? d.toolCount : 0), 0);
+  const body = [
+    import_react21.default.createElement(
+      "div",
+      { key: "head", className: "dkmc-head" },
+      import_react21.default.createElement(
+        "div",
+        { className: "dkmc-head-title" },
+        import_react21.default.createElement("h2", { className: "dkmc-title" }, "MCP\u7BA1\u7406"),
+        import_react21.default.createElement(
+          "span",
+          { className: "dkmc-badge " + (hmrAvailable ? "ok" : "warn"), title: hmrAvailable ? "\u4FDD\u5B58\u540E\u7531 dsh-hmr \u539F\u5730\u91CD\u8F7D\uFF0C\u65E0\u9700\u91CD\u542F" : "\u5F53\u524D profile \u672A\u542F\u7528 HMR\uFF1A\u4FDD\u5B58\u540E\u9700\u91CD\u542F DSH \u751F\u6548" },
+          hmrAvailable ? "\u5373\u65F6\u751F\u6548" : "\u9700\u91CD\u542F DSH \u751F\u6548"
+        )
+      ),
+      import_react21.default.createElement(
+        "p",
+        { className: "dkmc-intro" },
+        "\u7BA1\u7406 DSH \u4F7F\u7528\u7684 MCP \u670D\u52A1\u5668\uFF08\u65B0\u589E / \u7F16\u8F91 / \u5220\u9664 / \u542F\u505C\uFF09\uFF0C\u4FDD\u5B58\u540E\u5199\u56DE\u5F53\u524D profile \u7684 cordis \u8865\u4E01\u5C42\u6258\u7BA1\u5757\uFF1B\u8FDE\u63A5\u6210\u529F\u540E\u6A21\u578B\u5DE5\u5177\u5217\u8868\u51FA\u73B0 mcp__<serverName>__<tool>\u3002"
+      )
+    ),
+    import_react21.default.createElement(
+      "div",
+      { key: "meta", className: "dkmc-meta" },
+      import_react21.default.createElement("span", { className: "dkmc-meta-label" }, "\u8865\u4E01\u6587\u4EF6"),
+      import_react21.default.createElement("code", { className: "dkmc-path", title: patchPath || void 0 }, patchPath || "\uFF08\u5C1A\u672A\u8BFB\u53D6\uFF09"),
+      import_react21.default.createElement(
+        "button",
+        { type: "button", className: "dkmc-btn ghost sm", disabled: snap.loading || saving, onClick: () => {
+          setMsg(null);
+          refresh();
+        } },
+        snap.loading ? "\u5237\u65B0\u4E2D\u2026" : "\u5237\u65B0"
+      )
+    )
+  ];
+  if (warnings.length > 0) {
+    body.push(import_react21.default.createElement(
+      "ul",
+      { key: "warnings", className: "dkmc-warnings" },
+      warnings.map((w, i) => import_react21.default.createElement("li", { key: i, className: "dkmc-warning" }, w))
+    ));
+  }
+  if (snap.error) {
+    body.push(import_react21.default.createElement("p", { key: "loaderr", className: "dkmc-error" }, "MCP \u914D\u7F6E\u8BFB\u53D6\u5931\u8D25\uFF1A" + snap.error));
+  }
+  if (msg) {
+    body.push(import_react21.default.createElement("p", {
+      key: "msg",
+      className: "dkmc-msg " + (msg.tone === "ok" ? "ok" : msg.tone === "warn" ? "warn" : "err"),
+      role: "status"
+    }, msg.text));
+  }
+  if (!data) {
+    body.push(import_react21.default.createElement(
+      "div",
+      { key: "empty-loading", className: "dkmc-empty" },
+      snap.loading ? "\u6B63\u5728\u8BFB\u53D6 MCP \u670D\u52A1\u5668\u2026" : "\u6682\u65F6\u8BFB\u4E0D\u5230 MCP \u914D\u7F6E\uFF0C\u70B9\u4E0A\u65B9\u300C\u5237\u65B0\u300D\u91CD\u8BD5"
+    ));
+  } else {
+    body.push(import_react21.default.createElement(
+      "div",
+      { key: "summary", className: "dkmc-summary-line" },
+      "\u5171 " + serverCount + " \u53F0\u670D\u52A1\u5668 \xB7 " + enabledCount + " \u53F0\u542F\u7528 \xB7 \u5DF2\u6CE8\u518C\u5DE5\u5177 " + toolsTotal + " \u4E2A"
+    ));
+    if (drafts.length === 0) {
+      body.push(import_react21.default.createElement("div", { key: "empty", className: "dkmc-empty" }, "\u8FD8\u6CA1\u6709 MCP \u670D\u52A1\u5668\u2014\u2014\u70B9\u4E0B\u65B9\u300C\u65B0\u589E MCP \u670D\u52A1\u5668\u300D\u6DFB\u52A0\uFF0C\u6216\u5148\u586B\u5165\u672C\u673A Xiaomi-OCR \u793A\u4F8B\u3002"));
+    } else {
+      body.push(import_react21.default.createElement(
+        "ul",
+        { key: "cards", className: "dkmc-cards" },
+        drafts.map((draft, index) => {
+          const editing = !!form && form.mode === "edit" && form.index === index;
+          const state = draft.state || "unknown";
+          const stateText = STATE_TEXT[state] || STATE_TEXT.unknown;
+          const toolTitle = draft.tools && draft.tools.length > 0 ? draft.tools.join("\n") : "\u5C1A\u672A\u6CE8\u518C\u5DE5\u5177";
+          return import_react21.default.createElement(
+            "li",
+            { key: draft.serverName + ":" + index, className: "dkmc-card" + (editing ? " editing" : "") },
+            import_react21.default.createElement(
+              "div",
+              { className: "dkmc-rowhead" },
+              import_react21.default.createElement("span", { className: "dkmc-name" }, draft.serverName || "\uFF08\u672A\u547D\u540D\uFF09"),
+              import_react21.default.createElement("span", { className: "dkmc-tag" }, draft.transport === "streamable-http" ? "HTTP" : "stdio"),
+              import_react21.default.createElement(
+                "span",
+                { className: stateClass(state), title: stateText },
+                import_react21.default.createElement("span", { className: stateDotClass(state), "aria-hidden": true }),
+                stateText
+              ),
+              import_react21.default.createElement("span", { className: "dkmc-tools", title: toolTitle }, (Number.isFinite(draft.toolCount) ? draft.toolCount : 0) + " \u4E2A\u5DE5\u5177"),
+              import_react21.default.createElement(
+                "span",
+                { className: "dkmc-actions" },
+                import_react21.default.createElement("button", {
+                  type: "button",
+                  className: "dkmc-switch" + (draft.enabled ? " on" : ""),
+                  role: "switch",
+                  "aria-checked": draft.enabled,
+                  "aria-label": (draft.enabled ? "\u505C\u7528" : "\u542F\u7528") + draft.serverName,
+                  title: draft.enabled ? "\u505C\u7528\uFF08\u4FDD\u5B58\u540E\u7ACB\u5373\u751F\u6548\uFF09" : "\u542F\u7528\uFF08\u4FDD\u5B58\u540E\u7ACB\u5373\u751F\u6548\uFF09",
+                  disabled: saving,
+                  onClick: () => toggle(draft)
+                }, draft.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+                import_react21.default.createElement("button", {
+                  type: "button",
+                  className: "dkmc-btn ghost sm",
+                  "aria-expanded": editing,
+                  disabled: saving,
+                  onClick: () => editing ? closeForm() : openEdit(draft, index)
+                }, editing ? "\u6536\u8D77" : "\u7F16\u8F91"),
+                import_react21.default.createElement("button", {
+                  type: "button",
+                  className: "dkmc-btn danger sm" + (delArm === draft.serverName ? " arm" : ""),
+                  title: delArm === draft.serverName ? "\u518D\u70B9\u4E00\u6B21\u786E\u8BA4\u5220\u9664" : "\u5220\u9664\u8BE5 MCP \u670D\u52A1\u5668",
+                  disabled: saving,
+                  onClick: () => remove(draft)
+                }, delArm === draft.serverName ? "\u786E\u8BA4\u5220\u9664\uFF1F" : "\u5220\u9664")
+              )
+            ),
+            draft.error ? import_react21.default.createElement("p", { className: "dkmc-error dkmc-error-line", title: draft.error }, draft.error) : null,
+            editing ? import_react21.default.createElement(ServerForm, {
+              form,
+              patch: patchForm,
+              error: formError,
+              saving,
+              onSave: saveForm,
+              onCancel: closeForm
+            }) : null
+          );
+        })
+      ));
+    }
+  }
+  body.push(import_react21.default.createElement(
+    "div",
+    { key: "add", className: "dkmc-addblock" },
+    form && form.mode === "create" ? import_react21.default.createElement(
+      "div",
+      { className: "dkmc-card dkmc-addcard" },
+      import_react21.default.createElement(ServerForm, {
+        form,
+        patch: patchForm,
+        error: formError,
+        saving,
+        onExample: fillXiaomiExample,
+        onSave: saveForm,
+        onCancel: closeForm
+      })
+    ) : import_react21.default.createElement(
+      "div",
+      { className: "dkmc-addrow" },
+      import_react21.default.createElement("button", { type: "button", className: "dkmc-addbtn", disabled: saving, onClick: openCreate }, "\uFF0B \u65B0\u589E MCP \u670D\u52A1\u5668"),
+      import_react21.default.createElement("button", { type: "button", className: "dkmc-btn ghost", disabled: saving, onClick: fillXiaomiExample }, "\u586B\u5165\u672C\u673A Xiaomi-OCR \u793A\u4F8B")
+    )
+  ));
+  return import_react21.default.createElement("div", { className: "dkmc-page" }, body);
+}
+var feature11 = {
+  id: "mcpconfig",
+  name: "MCP\u7BA1\u7406",
+  order: 101,
+  accent: "#a855f7",
+  description: "\u7BA1\u7406 DSH \u4F7F\u7528\u7684 MCP \u670D\u52A1\u5668\uFF08\u589E\u5220\u6539/\u542F\u505C/\u5DE5\u5177\u72B6\u6001\uFF09",
+  defaultEnabled: false,
+  View: McpConfigView,
+  css: [
+    // ---- MCP 管理页（dkmc- 前缀；排版/尺寸对齐 providerconfig 的 dkp- 页） ----
+    ".dkmc-page{width:100%;max-width:760px;display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary);font-size:13px;}",
+    ".dkmc-head{display:flex;flex-direction:column;gap:6px;}",
+    ".dkmc-head-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+    ".dkmc-title{margin:0;font-size:16px;font-weight:500;line-height:24px;}",
+    ".dkmc-intro{margin:0;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px;}",
+    ".dkmc-badge{flex:none;border-radius:999px;padding:2px 9px;font-size:11px;line-height:16px;border:1px solid currentColor;}",
+    ".dkmc-badge.ok{color:var(--dsw-alias-state-success-primary);}",
+    ".dkmc-badge.warn{color:var(--dk-warn);}",
+    ".dkmc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-1);}",
+    ".dkmc-meta-label{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px;}",
+    ".dkmc-path{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;}",
+    ".dkmc-warnings{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;}",
+    ".dkmc-warning{color:var(--dk-warn);font-size:12px;line-height:18px;}",
+    ".dkmc-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:18px;word-break:break-word;}",
+    ".dkmc-error-line{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+    ".dkmc-msg{margin:0;font-size:12px;line-height:18px;word-break:break-word;}",
+    ".dkmc-msg.ok{color:var(--dsw-alias-state-success-primary);}",
+    ".dkmc-msg.warn{color:var(--dk-warn);}",
+    ".dkmc-msg.err{color:var(--dsw-alias-state-error-primary);}",
+    ".dkmc-summary-line{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkmc-empty{border:1px dashed var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-lg,10px);padding:16px 12px;text-align:center;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;}",
+    ".dkmc-cards{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}",
+    ".dkmc-card{box-sizing:border-box;margin:0;border:.5px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-1));border-radius:var(--dsw-radius-lg,10px);padding:10px 12px;display:flex;flex-direction:column;gap:8px;}",
+    ".dkmc-card.editing{border-color:color-mix(in srgb,var(--dk-accent) 45%,var(--dsw-alias-border-l2));}",
+    ".dkmc-rowhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}",
+    ".dkmc-name{font-size:14px;font-weight:600;line-height:22px;overflow:hidden;text-overflow:ellipsis;max-width:100%;}",
+    ".dkmc-tag{flex:none;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-xs,4px);color:var(--dsw-alias-label-secondary);padding:1px 6px;font-size:11px;line-height:16px;}",
+    ".dkmc-state{flex:none;display:inline-flex;align-items:center;gap:5px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px;white-space:nowrap;}",
+    ".dkmc-state.ok{color:var(--dsw-alias-state-success-primary);}",
+    ".dkmc-state.err{color:var(--dsw-alias-state-error-primary);}",
+    ".dkmc-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dsw-alias-label-tertiary);}",
+    ".dkmc-dot.ok{background:var(--dsw-alias-state-success-primary);box-shadow:0 0 4px color-mix(in srgb,var(--dsw-alias-state-success-primary) 55%,transparent);}",
+    ".dkmc-dot.err{background:var(--dsw-alias-state-error-primary);}",
+    ".dkmc-dot.idle{background:transparent;border:1.5px solid var(--dsw-alias-label-secondary);}",
+    ".dkmc-dot.off{background:transparent;border:1.5px solid var(--dsw-alias-label-tertiary);opacity:.75;}",
+    ".dkmc-tools{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px;white-space:nowrap;cursor:default;}",
+    ".dkmc-actions{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;}",
+    ".dkmc-switch{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:3px 10px;font-family:inherit;font-size:11px;line-height:16px;}",
+    ".dkmc-switch.on{color:var(--dsw-alias-state-success-primary);border-color:currentColor;}",
+    ".dkmc-switch[disabled]{opacity:.45;cursor:default;}",
+    ".dkmc-btn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:32px;padding:0 12px;border:none;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer;}",
+    ".dkmc-btn.ghost{border:.5px solid var(--dsw-alias-border-l3);}",
+    ".dkmc-btn.ghost:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkmc-btn.primary{background:var(--dsw-alias-button-primary-fill,var(--dk-accent));color:var(--dsw-alias-label-primary-foreground,#fff);}",
+    ".dkmc-btn.danger{color:var(--dsw-alias-state-error-primary);}",
+    ".dkmc-btn.danger:hover{background:var(--dsw-alias-interactive-bg-hover-danger,rgba(220,38,38,.1));}",
+    ".dkmc-btn.arm{color:var(--dsw-alias-state-error-primary);border:.5px solid currentColor;}",
+    ".dkmc-btn.sm{height:26px;padding:0 9px;border-radius:var(--dsw-radius-sm,6px);font-size:11px;line-height:16px;}",
+    ".dkmc-btn[disabled]{opacity:.4;cursor:default;}",
+    ".dkmc-editor{border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-module-platform,var(--dsw-alias-bg-layer-1));padding:12px 14px;display:flex;flex-direction:column;gap:12px;}",
+    ".dkmc-editor-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}",
+    ".dkmc-editor-title{font-size:13px;font-weight:600;line-height:20px;}",
+    ".dkmc-editor-sub{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px;}",
+    ".dkmc-example{margin-left:auto;flex:none;}",
+    ".dkmc-field{display:flex;flex-direction:column;gap:5px;min-width:0;}",
+    ".dkmc-flabel{display:inline-flex;align-items:center;gap:8px;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkmc-hint{margin:0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px;word-break:break-word;}",
+    ".dkmc-input{box-sizing:border-box;width:100%;height:32px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l4,var(--dsw-alias-border-l2));border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;}",
+    ".dkmc-input:focus{border-color:var(--dsw-alias-state-business-primary,var(--dk-accent));outline:none;}",
+    ".dkmc-input::placeholder{color:var(--dsw-alias-label-dimmed,var(--dsw-alias-label-tertiary));}",
+    ".dkmc-input:disabled{opacity:.6;cursor:default;}",
+    ".dkmc-textarea{height:auto;min-height:64px;padding:8px 10px;resize:vertical;line-height:1.5;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;}",
+    "select.dkmc-input{appearance:auto;cursor:pointer;max-width:280px;}",
+    ".dkmc-check{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;}",
+    ".dkmc-check input{accent-color:var(--dk-accent);margin:0;}",
+    ".dkmc-advanced{border-top:.5px solid var(--dsw-alias-border-l2);padding-top:10px;}",
+    ".dkmc-summary{display:flex;align-items:center;gap:6px;width:fit-content;margin-left:-4px;padding:2px 4px;border-radius:var(--dsw-radius-sm,6px);list-style:none;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;line-height:18px;}",
+    ".dkmc-summary::-webkit-details-marker{display:none;}",
+    '.dkmc-summary::before{content:"";width:5px;height:5px;border-right:1.5px solid;border-bottom:1.5px solid;transform:rotate(-45deg);transition:transform .12s;}',
+    ".dkmc-advanced[open]>.dkmc-summary::before{transform:rotate(45deg);}",
+    ".dkmc-advanced-body{display:flex;flex-direction:column;gap:12px;padding-top:12px;}",
+    ".dkmc-editor-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;border-top:.5px solid var(--dsw-alias-border-l2);padding-top:10px;}",
+    ".dkmc-addblock{display:flex;align-items:stretch;}",
+    ".dkmc-addrow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;}",
+    ".dkmc-addbtn{box-sizing:border-box;flex:1 1 220px;min-width:180px;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-lg,10px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer;}",
+    ".dkmc-addbtn:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+    ".dkmc-addbtn[disabled]{opacity:.4;cursor:default;}",
+    ".dkmc-addcard{flex:1 1 auto;padding:12px 14px;}",
+    ".dkmc-addcard .dkmc-editor{background:transparent;padding:0;}",
+    "@media (max-width:680px){.dkmc-page{max-width:none;gap:14px}.dkmc-intro{font-size:13px;line-height:20px}.dkmc-editor{padding:12px}.dkmc-addcard{padding:12px 14px}.dkmc-btn{height:40px}.dkmc-btn.sm{height:34px}.dkmc-addbtn{height:48px;flex:1 1 100%}.dkmc-actions{width:100%;margin-left:0;justify-content:flex-end}.dkmc-name{font-size:15px}}"
+  ].join("\n")
+};
+
 // src/client.jsx
-var DOCK_VERSION = "0.21.2";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature11, feature12];
+var DOCK_VERSION = "0.23.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature11, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -14774,8 +15513,10 @@ var SHELL_CSS = [
   ".dockm-page-wide-btn{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;cursor:pointer;}",
   ".dockm-page-wide-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
   /* 面板页的左侧菜单收窄：给右侧列表/表格让出宽度，别留大片空白 */
-  ".dockm-page .dockm-nav{width:140px;padding:8px 6px;}",
-  ".dockm-page .dockm-nav-item{padding:7px 8px;font-size:12.5px;gap:6px;}",
+  // 左侧菜单列：内容只有 8px 圆点 + 4 字标签，140px 会留一大条空白（用户反馈「这个宽度可以缩小点」）。
+  // 用 border-box 收到 110px（含内距）：既够放最长标签「MCP管理 / 远程访问」，又把右侧死区收掉，正文区更宽。
+  ".dockm-page .dockm-nav{box-sizing:border-box;width:110px;padding:8px 7px;}",
+  ".dockm-page .dockm-nav-item{padding:7px 8px;font-size:12.5px;gap:6px;overflow:hidden;}",
   ".dockm-page-body>.dockm-body{flex:1;min-height:0;}",
   ".dockm-page-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
   ".dockm-page-titles{min-width:0;}",
@@ -14895,8 +15636,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => {
+  const [, bump] = import_react22.default.useReducer((n) => n + 1, 0);
+  import_react22.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -14906,25 +15647,25 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react24.default.createElement(
+  return import_react22.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react24.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react24.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react22.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react22.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react22.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react22.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockWorkspace() {
-  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react22.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react22.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const active = nav.active;
   const navParams = nav.params;
   const setActive = navigatePanel;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const contentRef = import_react24.default.useRef(null);
-  import_react24.default.useEffect(() => {
+  const contentRef = import_react22.default.useRef(null);
+  import_react22.default.useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [active]);
   const MODULES = allModules();
@@ -14932,26 +15673,26 @@ function DockWorkspace() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react24.default.createElement(
+  const viewNode = mod && View ? import_react22.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react24.default.createElement(
+    import_react22.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react24.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react22.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
     const s = stateOf(m.id);
     return !!(s && s.enabled);
   }).length;
-  return import_react24.default.createElement(
+  return import_react22.default.createElement(
     "div",
     { className: "dockm-body" },
-    import_react24.default.createElement(
+    import_react22.default.createElement(
       "nav",
       { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-      import_react24.default.createElement(
+      import_react22.default.createElement(
         "button",
         {
           type: "button",
@@ -14959,10 +15700,10 @@ function DockWorkspace() {
           className: "dockm-nav-item" + (isHome ? " on" : ""),
           onClick: () => setActive("home")
         },
-        import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)),
-        import_react24.default.createElement("span", null, "\u9996\u9875")
+        import_react22.default.createElement("span", { className: "dockm-navhome" }, import_react22.default.createElement(DockIcon, null)),
+        import_react22.default.createElement("span", null, "\u9996\u9875")
       ),
-      MODULES.map((m) => import_react24.default.createElement(
+      MODULES.map((m) => import_react22.default.createElement(
         "button",
         {
           type: "button",
@@ -14970,42 +15711,42 @@ function DockWorkspace() {
           className: "dockm-nav-item" + (m.id === active ? " on" : ""),
           onClick: () => setActive(m.id)
         },
-        import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-        import_react24.default.createElement("span", null, m.name),
-        m.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-        m.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+        import_react22.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+        import_react22.default.createElement("span", null, m.name),
+        m.planned ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+        m.external ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
       ))
     ),
-    import_react24.default.createElement(
+    import_react22.default.createElement(
       "div",
       { className: "dockm-content", ref: contentRef },
-      import_react24.default.createElement(
+      import_react22.default.createElement(
         "div",
         { className: "dockm-content-head" },
-        import_react24.default.createElement(
+        import_react22.default.createElement(
           "div",
           { className: "dockm-name" },
-          isHome ? import_react24.default.createElement("span", { className: "dockm-navhome" }, import_react24.default.createElement(DockIcon, null)) : import_react24.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+          isHome ? import_react22.default.createElement("span", { className: "dockm-navhome" }, import_react22.default.createElement(DockIcon, null)) : import_react22.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
           isHome ? "\u9996\u9875" : mod.name,
-          !isHome && mod.planned ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-          !isHome && mod.external ? import_react24.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+          !isHome && mod.planned ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+          !isHome && mod.external ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
         ),
-        import_react24.default.createElement(
+        import_react22.default.createElement(
           "div",
           { className: "dockm-desc" },
           isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
         )
       ),
-      isHome ? import_react24.default.createElement("div", { className: "dockm-view" }, import_react24.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react24.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react24.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react24.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-      import_react24.default.createElement(
+      isHome ? import_react22.default.createElement("div", { className: "dockm-view" }, import_react22.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react22.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react22.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react22.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+      import_react22.default.createElement(
         "div",
         { className: "dockm-foot" },
-        import_react24.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-        !isHome && mod && !mod.planned && st ? import_react24.default.createElement(
+        import_react22.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+        !isHome && mod && !mod.planned && st ? import_react22.default.createElement(
           "span",
           { className: "dockm-foot-sw" },
-          import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-          import_react24.default.createElement("button", {
+          import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+          import_react22.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -15018,11 +15759,11 @@ function DockWorkspace() {
             }
           })
         ) : null,
-        !isHome && mod && typeof mod.Chip === "function" ? import_react24.default.createElement(
+        !isHome && mod && typeof mod.Chip === "function" ? import_react22.default.createElement(
           "span",
           { className: "dockm-foot-sw" },
-          import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-          import_react24.default.createElement("button", {
+          import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+          import_react22.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
             role: "switch",
@@ -15040,12 +15781,12 @@ function DockWorkspace() {
   );
 }
 function DockModal() {
-  const [nav, setNav] = import_react24.default.useState({ open: panelNav.open });
-  import_react24.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open })), []);
+  const [nav, setNav] = import_react22.default.useState({ open: panelNav.open });
+  import_react22.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open })), []);
   const open = nav.open || typeof document === "undefined";
-  const [win, setWin] = import_react24.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react24.default.useRef(null);
-  import_react24.default.useEffect(() => {
+  const [win, setWin] = import_react22.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react22.default.useRef(null);
+  import_react22.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
   function beginDrag(e, type) {
@@ -15085,10 +15826,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react24.default.createElement(
+  return import_react22.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react24.default.createElement(
+    import_react22.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -15096,59 +15837,59 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react24.default.createElement(
+      import_react22.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react24.default.createElement(DockIcon, null),
-        import_react24.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react24.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react24.default.createElement(
+        import_react22.default.createElement(DockIcon, null),
+        import_react22.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react22.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react22.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react24.default.createElement("button", {
+          import_react22.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react24.default.createElement("button", {
+          import_react22.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react24.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react22.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react24.default.createElement(DockWorkspace, null),
-      win.mode === "normal" ? import_react24.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      import_react22.default.createElement(DockWorkspace, null),
+      win.mode === "normal" ? import_react22.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react24.default.createElement(
+  return import_react22.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react24.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react24.default.createElement(
+      const statNode = m.planned ? import_react22.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react22.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react24.default.createElement(Stat, { ctx })
-      ) : import_react24.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react24.default.createElement(
+        import_react22.default.createElement(Stat, { ctx })
+      ) : import_react22.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react22.default.createElement(
         "div",
         {
           key: m.id,
@@ -15163,21 +15904,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react24.default.createElement(
+        import_react22.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react24.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react24.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react24.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react22.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react22.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react22.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react24.default.createElement(
+          import_react22.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react24.default.createElement("span", { className: "dockh-sdot" }),
-            import_react24.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react22.default.createElement("span", { className: "dockh-sdot" }),
+            import_react22.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react24.default.createElement("button", {
+          m.planned ? null : import_react22.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -15192,12 +15933,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react24.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react24.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react24.default.createElement(
+        import_react22.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react22.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react22.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react24.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react22.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -15205,16 +15946,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react24.default.createElement(
+  return import_react22.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react24.default.createElement(
+    import_react22.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -15223,25 +15964,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react24.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react22.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react24.default.createElement(
+        import_react22.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react24.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react22.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react24.default.createElement(
+      return import_react22.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react24.default.createElement(
+        import_react22.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react24.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react24.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react24.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react24.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react24.default.createElement("button", {
+          import_react22.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react22.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react22.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react22.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react22.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -15250,11 +15991,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react24.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react22.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react24.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react24.default.createElement("button", {
+            import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react22.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -15268,7 +16009,7 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react24.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react24.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react22.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react22.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
@@ -15276,7 +16017,7 @@ function DockPanel(props) {
 }
 function DockPage() {
   const ctx = ctxRef.current;
-  const [wide, setWide] = import_react24.default.useState(false);
+  const [wide, setWide] = import_react22.default.useState(false);
   const toggleWide = () => {
     try {
       const layout = ctx && typeof ctx.get === "function" ? ctx.get("layout") : null;
@@ -15287,20 +16028,20 @@ function DockPage() {
     } catch (e) {
     }
   };
-  return import_react24.default.createElement(
+  return import_react22.default.createElement(
     "div",
     { className: "dockm-page" + (wide ? " dockm-page-wide" : "") },
-    import_react24.default.createElement(
+    import_react22.default.createElement(
       "div",
       { className: "dockm-page-head" },
-      import_react24.default.createElement("span", { className: "dockm-page-icon" }, import_react24.default.createElement(DockIcon, { size: 20 })),
-      import_react24.default.createElement(
+      import_react22.default.createElement("span", { className: "dockm-page-icon" }, import_react22.default.createElement(DockIcon, { size: 20 })),
+      import_react22.default.createElement(
         "div",
         { className: "dockm-page-titles" },
-        import_react24.default.createElement("div", { className: "dockm-page-title" }, "\u529F\u80FD\u575E"),
-        import_react24.default.createElement("div", { className: "dockm-page-sub" }, "\u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u91CC\u7BA1\u7406\u3002\u4FA7\u680F\u56FE\u6807\u53EF\u5728\u300C\u66F4\u591A\u300D\u83DC\u5355\u91CC Pin \u5230\u9876\u90E8\uFF0C\u6216\u53D6\u6D88\u56FA\u5B9A\u6536\u8FDB\u66F4\u591A\u3002")
+        import_react22.default.createElement("div", { className: "dockm-page-title" }, "\u529F\u80FD\u575E"),
+        import_react22.default.createElement("div", { className: "dockm-page-sub" }, "\u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u91CC\u7BA1\u7406\u3002\u4FA7\u680F\u56FE\u6807\u53EF\u5728\u300C\u66F4\u591A\u300D\u83DC\u5355\u91CC Pin \u5230\u9876\u90E8\uFF0C\u6216\u53D6\u6D88\u56FA\u5B9A\u6536\u8FDB\u66F4\u591A\u3002")
       ),
-      import_react24.default.createElement("button", {
+      import_react22.default.createElement("button", {
         type: "button",
         className: "dockm-page-wide-btn",
         title: wide ? "\u8FD8\u539F\u4FA7\u680F\u5BBD\u5EA6" : "\u6536\u8D77\u5DE6\u4FA7\u680F\uFF0C\u5168\u5C4F\u663E\u793A\u529F\u80FD\u575E",
@@ -15308,19 +16049,19 @@ function DockPage() {
         onClick: toggleWide
       }, wide ? "\u2750 \u8FD8\u539F" : "\u25A2 \u5168\u5C4F")
     ),
-    import_react24.default.createElement("div", { className: "dockm-page-body" }, import_react24.default.createElement(DockWorkspace, null))
+    import_react22.default.createElement("div", { className: "dockm-page-body" }, import_react22.default.createElement(DockWorkspace, null))
   );
 }
 function DockChips(props) {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react22.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.Chip, {
+      import_react22.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -15330,38 +16071,38 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react22.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react22.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react22.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
+  return import_react22.default.createElement(import_react22.default.Fragment, null, items);
 }
 function FeatureTurnTail(props) {
-  const [, force] = import_react24.default.useReducer((n) => n + 1, 0);
-  import_react24.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
-    items.push(import_react24.default.createElement(
+    items.push(import_react22.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react24.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
+      import_react22.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
     ));
   }
   if (items.length === 0) return null;
-  return import_react24.default.createElement(import_react24.default.Fragment, null, items);
+  return import_react22.default.createElement(import_react22.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -15372,31 +16113,31 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.panellist", () => slots.register(
     { name: "sidebar.panellist", id: "dsh-dock", order: 30, label: "\u529F\u80FD\u575E" },
-    (props) => import_react24.default.createElement(DockIcon, { size: props && props.size || 18 })
+    (props) => import_react22.default.createElement(DockIcon, { size: props && props.size || 18 })
   ));
   slots.inject("main", () => slots.register(
     { name: "main", key: "dsh-dock", label: "\u529F\u80FD\u575E" },
-    () => import_react24.default.createElement(DockPage, null)
+    () => import_react22.default.createElement(DockPage, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react24.default.createElement(DockModal, null)
+    () => import_react22.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react24.default.createElement(FeatureOverlays, null)
+    () => import_react22.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react24.default.createElement(DockPanel, props)
+    (props) => import_react22.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react24.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react22.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
   slots.inject("conversation.chat.turnTail", () => slots.register(
     { name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "\u529F\u80FD\u575E" },
-    (owner) => import_react24.default.createElement(FeatureTurnTail, owner)
+    (owner) => import_react22.default.createElement(FeatureTurnTail, owner)
   ));
 }
 var inject = ["timer"];

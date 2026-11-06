@@ -122,14 +122,19 @@ const END_REASON_LABELS = {
 
 // 钉钉与飞书共用的消息正文（各端再按各自 markdown 方言拼接）
 // mode: brief = 任务与结果；medium = 加模型/耗时；detailed = 再加回合、Token 与摘要。
+// 子任务结束（主任务可能还在跑）：标题/正文标「子任务」，三挡都点名所属主任务——
+// 否则群里看到「任务完成」会误以为整个任务结束了（2026-11-05 用户反馈）。
 function buildMessageLines(t, mode) {
   const success = !t.endReason || t.endReason === 'completed'
   const reasonLabel = END_REASON_LABELS[t.endReason] || '✅ 完成'
   const models = t.models.length > 0 ? t.models.join(', ') : '未知'
   const tone = mode === 'brief' || mode === 'medium' ? mode : 'detailed'
+  const sub = !!t.isSubtask
+  const kind = sub ? '子任务' : '任务'
   const lines = []
-  lines.push(`### ${success ? '✅' : '📢'} dsh 任务${success ? '完成' : '结束'}`)
-  lines.push(`**任务**: ${t.title}`)
+  lines.push(`### ${success ? '✅' : '📢'} dsh ${kind}${success ? '完成' : '结束'}`)
+  lines.push(`**${kind}**: ${t.title}`)
+  if (sub) lines.push(`**主任务**: ${t.parentTitle || '（未知）'}`)
   if (tone !== 'brief') lines.push(`**模型**: ${models}${t.provider ? `（${t.provider}）` : ''}`)
   lines.push(`**耗时**: ${fmtDurCn(t.duration)}${tone === 'brief' ? '' : `（${fmtClockOf(t.startTime)} → ${fmtClockOf(t.endTime)}）`}`)
   if (tone === 'detailed') {
@@ -143,7 +148,7 @@ function buildMessageLines(t, mode) {
   lines.push('---')
   lines.push(`*由 dsh-dock 任务通知发送 · ${fmtDateClockOf(t.endTime)}*`)
   return {
-    title: `dsh 任务${success ? '完成' : '结束'}：${truncate(t.title, 40)}`,
+    title: `dsh ${kind}${success ? '完成' : '结束'}：${truncate(t.title, 40)}`,
     success,
     lines,
   }

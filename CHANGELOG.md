@@ -2,6 +2,81 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.23.0 — 2026-11-06
+
+### 变更
+
+- **移除【心跳监视】【主题信息】两个示例模块**（用户 2026-11-06 决定：目前没什么用处）：
+  删除 `features/heartbeat/`、`features/theme/`，并从 `src/client.jsx` 的导入/注册表与
+  `scripts/test-client-views.mjs` 的视图渲染断言中一并移除；内置功能模块数 13 → 11。
+- **调整模型相关模块的菜单次序**：把【模型管理】移到【模型能力】上方、【MCP管理】移到
+  【模型能力】下方，三者相邻无间隔（order：模型管理 99 / 模型能力 100 / MCP管理 101）。
+- **重命名三个模块（均为四字，并去掉「MCP」后的空格）**（用户 2026-11-06 要求）：
+  【模型提供商】→【模型管理】（providerconfig）、【模型设置】→【模型能力】（modelconfig）、
+  【MCP 管理】→【MCP管理】（mcpconfig）。同步更新各模块 `feature.name` 与页内标题、宿主侧
+  描述名、README 功能一览与说明、客户端视图测试断言。
+- **功能坞面板左侧菜单收窄**（用户 2026-11-06 反馈「这个宽度可以缩小点」）：`.dockm-page`
+  的左侧导航 `.dockm-nav` 从 140px 收到 110px（改 border-box 含内距），去掉标签右侧的一大条
+  空白，右侧正文区更宽；移动端自适应规则不变。
+
+### 修复
+
+- **任务完成却被报「任务卡住了」**（用户 2026-11-06 反馈）：PTC（Programmatic Tool Calling /
+  `run_code`）一次工具调用会包住若干子调用——`wait_agent`（等子代理，实测最长 600s）、
+  `job_output`（等后台任务，188s）、`ask_user_question`（等用户回答，120s）、`bash` 长命令等。
+  这些子调用执行期间会话零事件，旧逻辑只按外层 `run_code` 的「在飞调用」180s 上限判停滞，
+  超过 3 分钟就误报「卡住」，而任务随后照常完成。现修正：
+  - 宿主追踪识别 `tool/ptc-dispatch-start` / `tool/ptc-dispatch`，标记整段 run_code 程序
+    `ptcProgram` 在忙（快照新增 `ptcProgram` / `ptcTool`）。
+  - `src/shared.js` 的 `taskBusy` 对 `ptcProgram` 直接视为「在干活」，不设 180s 上限
+    （子调用各有自身超时、程序不会无限静默；与「主任务在等子任务」同口径）。
+  - PTC 内的 `ask_user_question` 一并进 `questions` 挂起快照，改为弹「任务需要你回答」而非「卡住」。
+  - 验证：3 个真实会话 45 个已完成回合，修复前有 10 个 ≥18s 的误报窗口，修复后 0 个；
+    `test-task-host.mjs` 加 PTC 用例、`test-client-views.mjs` 加 PTC 不误报断言。
+
+## v0.22.0 — 2026-11-05
+
+### 新增
+
+- **【用量记录】主任务与子任务累计用量**：DSH 子任务拥有独立会话 ID，并通过
+  `parentSession` / `origin` / `delegationDepth` 记录谱系。选中会话后默认显示
+  **任务累计（当前会话 + 全部后代子任务）**，可切换**仅本会话**并持久保存口径；
+  KPI、会话拆分表、输入区 chip、明细与 CSV 导出同步展示归属。
+  - 累计按实际 LLM 调用 ID 去重；子会话继承的 seed 历史不计作新调用，全局统计不重复加总。
+  - 支持多级子任务、实时新子任务、历史会话与旧宿主谱系 API 兜底；谱系缺失时明确提示仅累计已知部分。
+  - 明细/导出新增直接父会话 ID、根会话 ID、层级和主/子类型。
+- **【MCP 管理】新功能模块**：在功能坞里统一管理 DSH 使用的 MCP 服务器（DSH 自身没有
+  MCP 配置界面，此前只能手改 `cordis.patch.yml` 或让 agent 走 plugin_manager）。
+  - **能做什么**：列表 / 新增 / 编辑 / 删除 / 启停 MCP 服务器；实时显示状态
+    （active / inactive / failed / disabled）、最近错误、已注册工具名与数量；
+    支持 stdio 与 Streamable HTTP 两种传输；本地校验 `serverName` 正则与唯一性、
+    transport 必填项、env 变量名、url 协议，以及与手写 mcp-client 行的命名冲突。
+  - **落到哪**：只改当前 profile `cordis.patch.yml` 末尾一段带标记的机器托管块
+    （`# >>> / # <<< dsh-dock MCP manager`），用户手写内容、注释与 `!!js` 表达式原样
+    保留；空列表时整块移除。其它区段里手写的 mcp-client 行不受影响。
+  - **怎么生效**：写盘后调用 `ctx.hmr.reconcileProfile(ids)` 原地重组合——新增行 import
+    并启动、改动行只重启该行、删除行 dispose 工具并关闭子进程，**无需重启 dsh**；
+    应用失败自动把旧文本写回并再 reconcile 一次（回滚失败会在面板如实提示需要人工检查）。
+    profile 未启用 HMR 时退化为「只保存 + 提示重启后生效」。
+  - **启停语义**：用行上的 `disabled: true`（loader 原生），不删行，下次启用直接改回。
+  - **自测**：`scripts/test-mcpconfig-host.mjs`（托管块读写/校验/回滚/无 HMR/冲突 8 组），
+    并纳入 `npm run test:host`；`test-client-views.mjs` 增加「MCP 管理渲染正常」烟测。
+
+### 修复
+
+- **【任务通知】子任务完成被报成「任务完成」**（用户 2026-11-05 反馈：结束的是主任务派发的
+  子任务，主任务还在跑，卡片/语音/群推送却一律报「任务完成」，像整个任务结束了）：
+  - 共享任务追踪（`src/task-track.js`）的完成记录与活跃快照带上主/子归属
+    （`isSubtask` / `parentSessionId` / `parentTitle`）；主任务标题三级兜底
+    （在跑的父会话 → 已归档的父会话 → 子任务开始时解析的标题）。
+  - 页内卡片：子任务结束标题改「子任务完成 / 子任务已停止…」，正文三挡（简洁/适中/详细）
+    都点名所属主任务；点卡跳不到子任务会话时回退跳父会话。
+  - 语音播报：简洁报「子任务完成 / 子任务停止了」；适中连主任务一起点名
+    （「主任务「X」的子任务「Y」完成了…」）；详细先报主任务再报子任务与统计。
+  - 系统通知与钉钉/飞书推送：标题标「子任务」，正文三挡都带「主任务」归属行。
+  - 旧宿主兼容：完成记录没带归属时按活跃快照兜底；都没有时保持旧口径不报错。
+
+
 ## v0.21.0 — 2026-11-04
 
 ### 变更

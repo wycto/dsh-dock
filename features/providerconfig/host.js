@@ -200,7 +200,7 @@ async function writeProviderConfig(ctx, body) {
 /** 功能注册表条目：index.js 组装 hostSetups 时使用。 */
 export const feature = {
   id: 'providerconfig',
-  name: '模型提供商',
+  name: '模型管理',
   description: '管理模型 Provider 的端点与 API Key（增删改 + 拉取上游模型列表）',
   defaultEnabled: false,
   setup(ctx) {

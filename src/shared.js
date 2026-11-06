@@ -252,6 +252,11 @@ export function taskActivityAt(task) {
 /** 任务是否「正在忙」（有在飞的工具调用 / 正在压缩上下文），与耗时无关的那部分信号。 */
 export function taskBusy(task, now, capMs) {
 	if (!task) return false;
+	// PTC（Programmatic Tool Calling / run_code）程序执行期间整体算「在忙」：一次程序会串起若干
+	// 子调用（wait_agent 等子代理 / job_output 等后台任务 / bash 长命令 / ask_user_question 等人），
+	// 这些子调用可阻塞数分钟且期间零事件，属于在干活/等人，不能按停滞处理。子调用各有自身超时
+	// （程序不会无限静默），因此这里不设上限（与「主任务在等子任务」同一口径）。
+	if (task.ptcProgram === true) return true;
 	const at = typeof now === "number" ? now : Date.now();
 	const cap = typeof capMs === "number" && capMs > 0 ? capMs : TASK_BUSY_MS;
 	if (task.compacting === true) {

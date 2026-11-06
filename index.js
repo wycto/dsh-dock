@@ -8,7 +8,7 @@
 //     不含任何具体功能逻辑。
 //
 // 功能清单（宿主半部；客户端菜单次序由 view 模块的 order 字段决定）：
-//   - modelconfig 模型设置（v0.3.0）：模型目录读 + 官方配置写
+//   - modelconfig 模型能力（v0.3.0）：模型目录读 + 官方配置写
 //   - visionproxy 图片理解代理（v0.3.1）：纯文本模型收图自动走视觉模型识别
 //   - balance     模型余额（v0.2.0）：各 Provider 账户余额/配额
 //   - tokenlog    用量记录（v0.4.0）：LLM 调用记账与统计（移植自 @wycto/dsh-token-usage）
@@ -16,8 +16,8 @@
 //   - notify      任务通知：完成/异常/需确认通知 + 提示音/系统通知/钉钉飞书推送（从任务动画拆出）
 //   - runstate    运行状态：进行中任务与最近完成一览（从任务动画拆出；只读，无配置段）
 //   - tts         语音朗读：把会话回复读出来（浏览器 TTS；宿主半部只管配置 + 共享任务追踪）
-//   - modelconfig 模型设置：模型目录的输入模态与思考强度（写回官方配置）
-//   - providerconfig 模型提供商：Provider 增删改 + API Key + 拉取上游模型列表
+//   - modelconfig 模型能力：模型目录的输入模态与思考强度（写回官方配置）
+//   - providerconfig 模型管理：Provider 增删改 + API Key + 拉取上游模型列表
 //   - mobile-relay 远程访问：账号密码登录的远程入口（网关 + 账号 + 浏览模式目录选择器）
 import { DockConfig, sendJson, readBody, rejectUntrustedRequest, migrateNotifyConfig, migrateModelsFeatureId, migrateImportedFeatures, migrateImportedSections, bindDockConfig, readDockRoot, mutateDockSection } from './src/host-core.js'
 import { injectWelcomeAck } from './src/welcome-ack.js'
@@ -31,6 +31,7 @@ import { feature as fNotify } from './features/notify/host.js'
 import { feature as fRunState } from './features/runstate/host.js'
 import { feature as fTts } from './features/tts/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
+import { feature as fMcpConfig } from './features/mcpconfig/host.js'
 
 export const name = 'dsh-dock'
 
@@ -74,6 +75,7 @@ export function apply(ctx, config) {
     fRunState,
     fTts,
     fMobileRelay,
+    fMcpConfig,
   ]
 
   // 绑定 Config 镜像（替代已移除的 settings.get）；volatile 字段热更时重绑。

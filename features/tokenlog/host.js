@@ -2,14 +2,15 @@
 //
 // 记录 DSH 会话日志中的每次 LLM 调用（assistant/message 的 usage），
 // 支持历史全量扫描 + 实时 session/event 增量；RPC 经 webServer HTTP 路由
-//   POST /dsh-dock/tokenlog/query|export|scan|hello|pricing|setpricing
+//   POST /dsh-dock/tokenlog/query|export|scan|hello|config|pricing|setpricing
 // 向浏览器半部提供查询/统计/导出，以及单价的读取与保存。
 // export 返回结构化明细 { rows, rateUsdCny, count }（不是 CSV 文本）：中文表头与取值格式由客户端
 // 按「调用明细」表统一生成，保证导出与页面显示一致；费用在导出时同样按当前单价重算。
 //
 // 数据模型（标量，无 Host 对象引用）：
 // {
-//   id, time, sessionId, provider, model, apiKey(掩码),
+//   id, time, sessionId, parentSessionId, rootSessionId, sessionDepth, isSubtask,
+//   provider, model, apiKey(掩码),
 //   inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, reasoningTokens,
 //   billedInput, totalTokens, cacheHitPercent, cost, pricingSource, effort, status, llmMs, turn, step
 // }
@@ -50,11 +51,163 @@ export const feature = {
     const records = new Map()
     let scannedSessions = new Set()
     const headerCache = new Map()
+    // 逻辑会话谱系独立于 LLM request/header：来自 SessionHeader.parentSession/origin/delegationDepth。
+    // 实时事件先记住头，历史扫描补齐；查询时统一投影到每条调用，旧记录无需重扫即可归属。
+    const sessionMeta = new Map()
     const turnError = new Map()
     const turnStatus = new Map()
     const stepStart = new Map()
 
     function num(v) { return typeof v === 'number' && Number.isFinite(v) ? v : 0 }
+
+    // ===== 主任务 / 子任务用量归属 =====
+    let defaultSessionScope = 'tree'
+    function loadSessionScope() {
+      try {
+        const root = readDockRoot(ctx)
+        const value = root && root.tokenlog && root.tokenlog.sessionScope
+        defaultSessionScope = value === 'session' ? 'session' : 'tree'
+      } catch { defaultSessionScope = 'tree' }
+    }
+    function rememberSessionHeader(sessionId, raw) {
+      if (!sessionId || !raw || typeof raw !== 'object') return
+      const prev = sessionMeta.get(sessionId) || {}
+      const parentSessionId = typeof raw.parentSession === 'string' && raw.parentSession && raw.parentSession !== sessionId
+        ? raw.parentSession : ''
+      const depth = Number.isSafeInteger(raw.delegationDepth) && raw.delegationDepth > 0 ? raw.delegationDepth : 0
+      // parentSession 也见于普通 fork；只有 origin=subagent / delegationDepth>0 才标成子任务。
+      // 仍保留普通 fork 的谱系边，便于追到根；是否“子任务”单独判断。
+      sessionMeta.set(sessionId, {
+        ...prev, sessionId, parentSessionId,
+        isSubtask: raw.origin === 'subagent' || depth > 0,
+        delegationDepth: depth,
+      })
+    }
+    function lineageOf(sessionId) {
+      const chain = []
+      const seen = new Set()
+      let cur = sessionId
+      let incomplete = false
+      while (cur && !seen.has(cur)) {
+        seen.add(cur)
+        chain.push(cur)
+        const meta = sessionMeta.get(cur)
+        if (!meta) { incomplete = cur !== sessionId; break }
+        cur = meta.parentSessionId || ''
+      }
+      if (cur && seen.has(cur)) incomplete = true // 损坏谱系成环：止于已知部分，绝不无限递归/重复加总
+      const rootSessionId = chain.length ? chain[chain.length - 1] : sessionId
+      return { chain, rootSessionId, incomplete }
+    }
+    function withLineage(record) {
+      const meta = sessionMeta.get(record.sessionId) || {}
+      const line = lineageOf(record.sessionId)
+      return {
+        ...record,
+        parentSessionId: meta.parentSessionId || '',
+        rootSessionId: line.rootSessionId,
+        sessionDepth: Math.max(0, line.chain.length - 1),
+        isSubtask: !!meta.isSubtask,
+      }
+    }
+    async function resolveSessionScope(args) {
+      const q = args || {}
+      const sessionId = typeof q.sessionId === 'string' ? q.sessionId.trim() : ''
+      const requested = q.sessionScope === 'tree' || q.sessionScope === 'session' ? q.sessionScope : defaultSessionScope
+      const scope = sessionId ? requested : 'session'
+      const base = {
+        sessionId, scope, sessionIds: sessionId ? [sessionId] : [],
+        rootSessionId: sessionId, descendantCount: 0, complete: !sessionId, unresolvedParentId: '',
+      }
+      if (!sessionId || scope !== 'tree') {
+        if (sessionId) {
+          const line = lineageOf(sessionId)
+          base.rootSessionId = line.rootSessionId
+          base.complete = !line.incomplete
+        }
+        return base
+      }
+      // 首选宿主官方谱系观测：一次 list 取得完整已知祖先/后代，并显式报告缺失父会话。
+      if (sessionQuery && typeof sessionQuery.traceSession === 'function') {
+        try {
+          const trace = await sessionQuery.traceSession(sessionId)
+          if (trace && trace.target && trace.target.header) {
+            const headers = [trace.target, ...(trace.ancestors || [])]
+            const walk = (nodes) => {
+              for (const node of nodes || []) {
+                if (node && node.session) headers.push(node.session)
+                walk(node && node.descendants)
+              }
+            }
+            walk(trace.descendants)
+            for (const record of headers) rememberSessionHeader(record.header && record.header.id, record.header)
+            const ids = new Set([sessionId])
+            const collect = (nodes) => {
+              for (const node of nodes || []) {
+                const id = node && node.session && node.session.header && node.session.header.id
+                if (id) ids.add(id)
+                collect(node && node.descendants)
+              }
+            }
+            collect(trace.descendants)
+            const rootId = trace.complete && trace.root && trace.root.header ? trace.root.header.id : lineageOf(sessionId).rootSessionId
+            return {
+              ...base, sessionIds: [...ids], rootSessionId: rootId,
+              descendantCount: Math.max(0, ids.size - 1), complete: trace.complete === true,
+              unresolvedParentId: trace.complete === false ? String(trace.unresolvedParentId || '') : '',
+            }
+          }
+        } catch { /* 旧宿主/目标未持久化/损坏会话：回退已采集的轻量谱系，不拖垮用量查询 */ }
+      }
+      // 兼容旧 SessionQuery：先轻量补一次会话头（新子会话可能尚无 LLM 调用，未进实时采集），
+      // 再从实时/历史 header 图递归向下；Set 防环与重复计数。list 失败仍用已有内存图。
+      if (sessionQuery && typeof sessionQuery.listSessions === 'function') {
+        try {
+          const sessions = await sessionQuery.listSessions()
+          for (const row of sessions || []) {
+            const h = row && row.header
+            if (h && h.id) rememberSessionHeader(h.id, h)
+          }
+        } catch { /* 只读列表不可用：保留已采集部分并标 incomplete */ }
+      }
+      const ids = new Set([sessionId])
+      let changed = true
+      while (changed) {
+        changed = false
+        for (const [sid, meta] of sessionMeta) {
+          if (meta.parentSessionId && ids.has(meta.parentSessionId) && !ids.has(sid)) {
+            ids.add(sid); changed = true
+          }
+        }
+      }
+      const line = lineageOf(sessionId)
+      return {
+        ...base, sessionIds: [...ids], rootSessionId: line.rootSessionId,
+        descendantCount: ids.size - 1, complete: !line.incomplete,
+      }
+    }
+    function sessionBreakdown(list, context) {
+      if (!context.sessionId) return []
+      const selected = new Set(context.sessionIds)
+      const map = new Map()
+      for (const record of list) {
+        if (!selected.has(record.sessionId)) continue
+        const row = map.get(record.sessionId) || {
+          sessionId: record.sessionId,
+          parentSessionId: record.parentSessionId || '',
+          rootSessionId: record.rootSessionId || record.sessionId,
+          sessionDepth: record.sessionDepth || 0,
+          isSubtask: !!record.isSubtask,
+          ...totals([record]),
+        }
+        if (map.has(record.sessionId)) {
+          const t = totals([record])
+          for (const key of Object.keys(t)) if (typeof t[key] === 'number') row[key] += t[key]
+          row.cacheHitPct = row.billedInput > 0 ? Math.round(row.cacheReadTokens / row.billedInput * 100) : 0
+        } else map.set(record.sessionId, row)
+      }
+      return [...map.values()].sort((a, b) => a.sessionDepth - b.sessionDepth || a.sessionId.localeCompare(b.sessionId))
+    }
 
     // ===== 定价与金额估算 =====
     // 定价表以「人民币元 / 百万 tokens」为基准(DeepSeek/智谱官方刊例即人民币), 金额先算 CNY,
@@ -670,6 +823,11 @@ export const feature = {
         id: sessionId + ':' + event.seq,
         time: event.time,
         sessionId,
+        // 查询时还会用最新 sessionMeta 投影一次；这里保留采集时的标量形状，便于导出/测试。
+        parentSessionId: (sessionMeta.get(sessionId) || {}).parentSessionId || '',
+        rootSessionId: sessionId,
+        sessionDepth: 0,
+        isSubtask: !!(sessionMeta.get(sessionId) || {}).isSubtask,
         provider: head.provider || '',
         model: head.model || '',
         apiKey: '',
@@ -716,11 +874,21 @@ export const feature = {
         let added = 0
         for (const s of sessions) {
           const sid = s && s.header ? s.header.id : (s && s.id)
-          if (!sid || scannedSessions.has(sid)) continue
+          if (!sid) continue
+          // listSessions 的 header 很轻量：即使该会话日志已扫描过，也刷新谱系（新插件启动时
+          // records 为空但 scannedSessions 可能由热重载保留；父子头必须先于归属查询就绪）。
+          rememberSessionHeader(sid, s && s.header)
+          if (scannedSessions.has(sid)) continue
           scannedSessions.add(sid)
           try {
             const snap = await sessionQuery.readSession(sid)
-            const events = snap && snap.events ? snap.events : []
+            rememberSessionHeader(sid, snap && (snap.session || snap.header))
+            const allEvents = snap && snap.events ? snap.events : []
+            // 子会话可能带父会话的 seed 前缀；那不是子会话新发生的 LLM 调用。
+            // 只采集 inherited cut 之后的自有事件，避免主任务+子任务累计把同一历史再加一次。
+            const inherited = Number.isSafeInteger(snap && snap.inheritedEventCount) && snap.inheritedEventCount > 0
+              ? snap.inheritedEventCount : 0
+            const events = allEvents.filter((e) => Number(e.seq) >= inherited)
             // 两遍: 先建 turn/end 映射, 再生成记录
             preScanTurnEnds(sid, events)
             const recs = ingestEvents(sid, events)
@@ -743,7 +911,7 @@ export const feature = {
       }
     }
 
-    function buildQuery(args) {
+    function buildQuery(args, sessionContext) {
       const q = args || {}
       const from = typeof q.from === 'number' ? q.from : 0
       const to = typeof q.to === 'number' ? q.to : Infinity
@@ -752,13 +920,14 @@ export const feature = {
       const status = (q.status || '').trim()
       const effort = (q.effort || '').trim()
       const sessionId = (q.sessionId || '').trim()
-      return [...records.values()].filter((r) => {
+      const scopeIds = sessionContext && sessionContext.scope === 'tree' ? new Set(sessionContext.sessionIds) : null
+      return [...records.values()].map(withLineage).filter((r) => {
         if (r.time < from || r.time > to) return false
         if (provider && r.provider !== provider) return false
         if (model && r.model !== model) return false
         if (status && r.status !== status) return false
         if (effort && r.effort !== effort) return false
-        if (sessionId && r.sessionId !== sessionId) return false
+        if (sessionId && (scopeIds ? !scopeIds.has(r.sessionId) : r.sessionId !== sessionId)) return false
         return true
       })
     }
@@ -825,6 +994,7 @@ export const feature = {
       sessionQuery = sqCtx.sessionQuery
       // 服务就绪后加载 settings 单价配置(汇率 + 自定义单价 + 抓取开关), 供采集/重扫/导出使用
       loadPricingConfig()
+      loadSessionScope()
       // 从官网获取最新定价(启动时 + 每 N 小时自动刷新; 面板关闭抓取时不发起请求)
       if (fetchOfficialEnabled) fetchOfficialPricing()
       const fetchTimer = setInterval(() => { if (fetchOfficialEnabled) fetchOfficialPricing() }, getPricingFetchConfig().intervalMs)
@@ -833,6 +1003,7 @@ export const feature = {
       disposers.push(sqCtx.on('session/event', (session, event) => {
         try {
           const sid = typeof session === 'object' && session ? (session.id || '') : String(session || '')
+          if (session && typeof session === 'object') rememberSessionHeader(sid, session.header)
           const rec = ingestEvent(sid, event)
           if (rec) records.set(rec.id, rec)
           // turn/end 到达后回填该 turn 已有记录的状态/错误(实时增量场景)
@@ -873,8 +1044,10 @@ export const feature = {
             const payload = await readBody(req)
             if (method === 'query') {
               loadPricingConfig()
+              loadSessionScope()
+              const sessionContext = await resolveSessionScope(payload || {})
               // 费用按当前单价即时重算(withCost): 面板改价后立即反映到统计与明细, 无需重扫历史。
-              const list = buildQuery(payload || {}).map(withCost)
+              const list = buildQuery(payload || {}, sessionContext).map(withCost)
               const rows = [...list].sort((a, b) => b.time - a.time)
               const all = [...records.values()]
               const cfg = readConfiguredProviders()
@@ -918,9 +1091,31 @@ export const feature = {
                     sources: [...new Set(list.map((r) => r.pricingSource).filter(Boolean))].map((s) => PRICING_SOURCE_LABELS[s] || s),
                   },
                   totals: totals(list),
+                  // 选中会话时同时返回“本会话”拆分，客户端不必再做一次查询即可展示 主任务自身 / 子任务 / 累计。
+                  // 全局查询不返回拆分，避免把各父任务的累计再次相加造成重复。
+                  directTotals: sessionContext.sessionId ? totals(list.filter((r) => r.sessionId === sessionContext.sessionId)) : null,
+                  sessionBreakdown: sessionBreakdown(list, sessionContext),
+                  sessionScope: sessionContext,
+                  defaultSessionScope,
                   summary: payload && payload.dim ? summarize(list, payload.dim) : [],
                 }
               })
+            }
+            if (method === 'config') {
+              const input = payload || {}
+              if (input.sessionScope !== undefined && input.sessionScope !== 'tree' && input.sessionScope !== 'session') {
+                const err = new Error('会话用量口径只能是 tree（含子任务）或 session（仅本会话）')
+                err.statusCode = 400
+                throw err
+              }
+              loadSessionScope()
+              if (input.sessionScope !== undefined && input.sessionScope !== defaultSessionScope) {
+                const root = readDockRoot(ctx)
+                const current = root && root.tokenlog && typeof root.tokenlog === 'object' ? root.tokenlog : {}
+                await mutateDockSection(ctx, ['tokenlog'], { ...current, sessionScope: input.sessionScope })
+                loadSessionScope()
+              }
+              return sendJson(res, 200, { ok: true, data: { sessionScope: defaultSessionScope } })
             }
             if (method === 'pricing') {
               loadPricingConfig()
@@ -933,12 +1128,14 @@ export const feature = {
             }
             if (method === 'export') {
               loadPricingConfig()
-              const list = buildQuery(payload || {}).map(withCost)
+              loadSessionScope()
+              const sessionContext = await resolveSessionScope(payload || {})
+              const list = buildQuery(payload || {}, sessionContext).map(withCost)
               // export 返回结构化明细（不是 CSV 文本）：客户端按「明细表列序 + 中文表头」统一
               // 格式化成 CSV，取值格式与页面显示一致；rateUsdCny 供客户端把 cost(USD) 折人民币。
               return sendJson(res, 200, {
                 ok: true,
-                data: { rows: list, rateUsdCny: usdCnyRate, count: list.length },
+                data: { rows: list, rateUsdCny: usdCnyRate, count: list.length, sessionScope: sessionContext },
               })
             }
             if (method === 'scan') {

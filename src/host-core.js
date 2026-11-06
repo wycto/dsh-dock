@@ -45,6 +45,9 @@ export const DockConfig = z.object({
   // 折扣、自建端点等），这里保存用户自填单价并优先用于费用估算。
   // 详见 features/tokenlog/host.js 的 resolvePricing（优先级：自定义 > 官网 > 内置 > 兜底）。
   tokenlog: z.object({
+    /** 会话用量默认口径：tree=当前会话+全部后代子任务；session=仅当前会话。
+     *  全局查询（未指定会话）不受此项影响，始终按实际 LLM 调用逐条统计。 */
+    sessionScope: z.union([z.const('tree'), z.const('session')]).default('tree'),
     /** USD→CNY 汇率（金额内部以 USD 记录，界面按人民币展示）。 */
     usdCnyRate: z.number().default(7.2),
     /** 是否仍抓取官网刊例价，作为「自定义单价」未命中时的兜底。 */
