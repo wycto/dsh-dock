@@ -441,18 +441,27 @@ function endReasonSpeech(reason) {
 	if (reason === "interrupted") return "被打断了";
 	return "完成了";
 }
-/** 结束播报文案（success 由调用方按 isSuccessReason 给）。kind: complete|error */
+/** 结束播报文案（success 由调用方按 isSuccessReason 给）。kind: complete|error
+ *  子任务结束（主任务可能还在跑）必须报「子任务」而不是「任务」——否则听着像整个
+ *  任务完成了（2026-11-05 用户反馈）。简洁只报「子任务完成/停止了」；适中点名
+ *  主任务与子任务；详细再带统计与摘要。归属字段来自完成记录/活跃快照（task-track）。 */
 export function endBroadcastText(success, record, task, cfg) {
 	const mode = voiceTone(cfg);
 	const reason = (record && record.endReason) || "";
 	const title = (record && record.title) || (task && task.title) || "";
+	const sub = !!((record && record.isSubtask) || (task && task.isSubtask));
+	const parentTitle = (record && record.parentTitle) || (task && task.parentTitle) || "";
 	if (mode === "brief") {
-		// 简洁口径不分原因细念：正常完成「任务完成」，其余一律「任务停止了」
+		// 简洁口径不分原因细念：正常完成「任务完成」，其余一律「任务停止了」；子任务换主语
+		if (sub) return success ? "子任务完成" : "子任务停止了";
 		return success ? "任务完成" : "任务停止了";
 	}
 	if (mode === "medium") {
 		// 适中口径：点名是哪个任务 + 结果 + （停止时）原因 + 耗时；不念回合/Token 统计
-		const who = title ? "任务「" + truncate(title, 30) + "」" : "任务";
+		// 子任务：主任务名截短些（20 字），整句别太长
+		const who = sub
+			? (parentTitle ? "主任务「" + truncate(parentTitle, 20) + "」的" : "") + (title ? "子任务「" + truncate(title, 30) + "」" : "子任务")
+			: (title ? "任务「" + truncate(title, 30) + "」" : "任务");
 		const parts = [success ? who + "完成了" : who + "停止了"];
 		if (!success) parts.push("，原因：" + endReasonSpeech(reason));
 		const dur = (record && record.duration) || 0;
@@ -461,7 +470,8 @@ export function endBroadcastText(success, record, task, cfg) {
 		return parts.join("");
 	}
 	const parts = [];
-	if (title) parts.push("任务：" + truncate(title, 30) + "。");
+	if (sub && parentTitle) parts.push("主任务：" + truncate(parentTitle, 30) + "。");
+	if (title) parts.push((sub ? "子任务：" : "任务：") + truncate(title, 30) + "。");
 	parts.push(success ? "已完成。" : "结束，原因：" + endReasonSpeech(reason) + "。");
 	const dur = (record && record.duration) || 0;
 	if (dur > 0) parts.push("耗时" + fmtDur(dur) + "。");
@@ -1069,12 +1079,22 @@ export function NotifyOverlay(props) {
 		const success = isSuccessReason(reason);
 		const info = endInfo(reason);
 		const event = success ? "complete" : "error";
+		// 主/子归属：完成记录优先（宿主权威），活跃快照兜底（旧宿主记录没带归属时）。
+		// 主任务标题再兜一层：记录/快照都没有就查当前活跃列表（主任务通常还在跑）。
+		const sub = !!((record && record.isSubtask) || task.isSubtask);
+		const parentId = (record && record.parentSessionId) || task.parentSessionId || "";
+		let parentTitle = (record && record.parentTitle) || task.parentTitle || "";
+		if (sub && !parentTitle && parentId) {
+			const p = ((snap.status && snap.status.active) || []).find((x) => x.sessionId === parentId);
+			if (p && p.title) parentTitle = p.title;
+		}
+		const endRecord = Object.assign({}, record || {}, { isSubtask: sub, parentTitle });
 		const cardWanted = eventEnabled(cfg, "card", event);
 		const soundWanted = cfg.soundNotify !== false && eventEnabled(cfg, "sound", event);
 		const systemWanted = !!cfg.systemNotify && eventEnabled(cfg, "system", event);
 		// 语音播报与卡片/提示音/系统通知完全正交：各自的事件矩阵与总开关独立判断。
 		if (voiceAllowed(cfg) && eventEnabled(cfg, "voice", event)) {
-			speakVoice(endBroadcastText(success, record, task, cfg), cfg);
+			speakVoice(endBroadcastText(success, endRecord, task, cfg), cfg);
 		}
 		const models = record && record.models && record.models.length ? record.models.join(", ")
 			: (task.models && task.models.length ? task.models.join(", ") : "未知模型");
@@ -1082,13 +1102,17 @@ export function NotifyOverlay(props) {
 		const startTs = (record && record.startTime) || task.startTime;
 		const endTs = (record && record.endTime) || Date.now();
 		const durText = fmtDur((record && record.duration) || (endTs - startTs));
-		const title = success ? "任务完成" : "任务" + info.label;
+		// 子任务结束：标题标「子任务」，三挡正文都点名所属主任务（主任务可能还在跑，
+		// 不点名会被当成整个任务完成了——2026-11-05 用户反馈）
+		const title = success ? (sub ? "子任务完成" : "任务完成") : (sub ? "子任务" : "任务") + info.label;
 		const showTitle = (record && record.title) || task.title || "(无标题)";
 		if (cardWanted) {
 			// 卡片正文按「卡片口径」三挡裁剪（cfg.cardMode，缺省 detailed ＝历史内容）：
 			//  简洁＝任务+耗时；适中＝加模型与起止时间；详细＝再加回合/步骤、Token、摘要或错误。
+			//  子任务的主任务归属行不受口径裁剪（三挡都要能定位是哪个主任务）。
 			const tone = cardTone(cfg);
-			const lines = ["任务：" + showTitle];
+			const lines = [(sub ? "子任务：" : "任务：") + showTitle];
+			if (sub) lines.push("主任务：" + (parentTitle || "（未知）"));
 			if (tone !== "brief") lines.push("模型：" + models + (provider ? "（" + provider + "）" : ""));
 			lines.push(tone === "brief"
 				? "耗时：" + durText
@@ -1112,6 +1136,8 @@ export function NotifyOverlay(props) {
 				// sessionId 是权威标识（跳转/对账都用它），标题只作旧宿主回退。
 				sessionId: task.sessionId || "",
 				sessionTitle: showTitle,
+				// 子任务会话通常不在侧栏里：跳不到自己时回退到父会话（与卡住卡同款）
+				fallbackSessionId: (sub && parentId) ? parentId : "",
 			});
 		}
 		// 提示音：任务结束时播放（完成/异常配套音）；与系统通知独立开关
@@ -1121,7 +1147,9 @@ export function NotifyOverlay(props) {
 			&& typeof Notification !== "undefined" && Notification.permission === "granted") {
 			try {
 				new Notification("dsh " + title, {
-					body: showTitle + " · " + durText,
+					body: (sub
+						? (parentTitle ? "主任务「" + truncate(parentTitle, 20) + "」的" : "") + "子任务「" + showTitle + "」"
+						: showTitle) + " · " + durText,
 					tag: "dsh-dock-notify-" + task.sessionId,
 				});
 			} catch { /* 系统通知失败不影响页面内通知 */ }
@@ -1481,7 +1509,7 @@ function NotifyView(props) {
 							<div className="dknt-row">
 								<span className="dknt-row-label">正文口径</span>
 								<ModePicker value={cardTone(cfg)} title="页内卡片正文" onChange={(v) => patch({ cardMode: v })} />
-								<span className="dknt-row-sub">简洁＝任务与耗时 / 谁卡住；适中＝加模型、起止时间、停滞时长；详细＝全部（回合步骤、Token、摘要或错误、最后动作）</span>
+								<span className="dknt-row-sub">简洁＝任务与耗时 / 谁卡住；适中＝加模型、起止时间、停滞时长；详细＝全部（回合步骤、Token、摘要或错误、最后动作）。子任务结束标「子任务」并点名主任务（三挡都带归属）</span>
 							</div>
 							<div className="dknt-row">
 								<span className="dknt-row-label">卡片收纳</span>
@@ -1580,7 +1608,7 @@ function NotifyView(props) {
 									<div className="dknt-row">
 										<span className="dknt-row-label">播报口径</span>
 										<ModePicker value={voiceTone(cfg)} title="语音播报" onChange={(v) => patch({ voiceMode: v })} />
-										<span className="dknt-row-sub">简洁：一句「任务完成 / 任务停止了 / 任务需要授权 / 主任务（或子任务）·标题 卡住了」；适中：点名任务，结束带原因与耗时、卡住带停滞时长；详细：结束带回合统计与回复摘要，需授权带工具名，卡住带最后动作。</span>
+										<span className="dknt-row-sub">简洁：一句「任务完成 / 子任务完成 / 任务停止了 / 任务需要授权 / 主任务（或子任务）·标题 卡住了」；适中：点名任务（子任务连主任务一起点名），结束带原因与耗时、卡住带停滞时长；详细：结束带回合统计与回复摘要，需授权带工具名，卡住带最后动作。</span>
 									</div>
 									<div className="dknt-row">
 										<span className="dknt-row-label">播报事件</span>
@@ -1689,7 +1717,7 @@ function NotifyView(props) {
 									<div className="dknt-row">
 										<span className="dknt-row-label">消息口径</span>
 										<ModePicker value={cfg.pushMode || "detailed"} title="钉钉消息" onChange={(v) => patch({ pushMode: v })} />
-										<span className="dknt-row-sub">简洁＝任务与结果；适中＝加模型/耗时；详细＝再加回合、Token 与摘要。</span>
+										<span className="dknt-row-sub">简洁＝任务与结果；适中＝加模型/耗时；详细＝再加回合、Token 与摘要。子任务结束标「子任务」并点名主任务（三挡都带归属）。</span>
 									</div>
 									<div className="dknt-row dknt-row-webhook">
 										<span className="dknt-row-label">Webhook</span>
@@ -1738,7 +1766,7 @@ function NotifyView(props) {
 									<div className="dknt-row">
 										<span className="dknt-row-label">消息口径</span>
 										<ModePicker value={cfg.pushMode || "detailed"} title="飞书消息" onChange={(v) => patch({ pushMode: v })} />
-										<span className="dknt-row-sub">简洁＝任务与结果；适中＝加模型/耗时；详细＝再加回合、Token 与摘要。</span>
+										<span className="dknt-row-sub">简洁＝任务与结果；适中＝加模型/耗时；详细＝再加回合、Token 与摘要。子任务结束标「子任务」并点名主任务（三挡都带归属）。</span>
 									</div>
 									<div className="dknt-row dknt-row-webhook">
 										<span className="dknt-row-label">Webhook</span>

@@ -161,6 +161,8 @@ function createTracker(ctx) {
 			//（isSubtask 由会话头 origin/delegationDepth 异步判定，判定前按主任务处理）
 			isSubtask: false,
 			parentSessionId: '',
+			// 主任务标题：子任务结束通知要点名「哪个主任务的哪个子任务」（卡片/语音/群推送共用）
+			parentTitle: '',
 			lastToolName: '',
 			// 工具等待用户确认（dsh 会话流 approval/asked）：浏览器侧据此弹"需确认"通知
 			approvals: new Map(), // approvalId -> { toolName, reason, askedAt }
@@ -179,6 +181,12 @@ function createTracker(ctx) {
 			compacting: false,
 			compactStartedAt: 0,
 			compactId: '',
+			// PTC（Programmatic Tool Calling / run_code）程序执行状态：一次 run_code 会包住若干子调用
+			// （wait_agent 等子代理 / job_output 等后台任务 / bash 长命令 / ask_user_question 等人），
+			// 子调用执行期间本会话可能长时间零事件——那是在干活/等人，不是卡住。卡住判定据此豁免。
+			ptcProgram: false,
+			ptcTool: '',
+			ptcStartedAt: 0,
 			phase: 'think',
 			phaseAt: Date.now(),
 			lastActivityAt: Date.now(),
@@ -198,6 +206,18 @@ function createTracker(ctx) {
 				s.isSubtask = h.origin === 'subagent'
 					|| (typeof h.delegationDepth === 'number' && h.delegationDepth > 0)
 				s.parentSessionId = typeof h.parentSession === 'string' && h.parentSession ? h.parentSession : ''
+				// 子任务：顺手解析主任务标题。优先内存里的父会话（常见：主任务还在跑），
+				// 没有再问标题服务；都拿不到就留空，结束时 finishSession 还会再兜一次。
+				if (s.isSubtask && s.parentSessionId) {
+					const liveParent = activeSessions.get(s.parentSessionId)
+					if (liveParent && (liveParent.title || liveParent.firstPrompt)) {
+						s.parentTitle = liveParent.title || truncate(liveParent.firstPrompt, 60)
+					} else {
+						readSessionFacts(s.parentSessionId, sessionQuery).then((pf) => {
+							if (activeSessions.get(sid) === s && pf.title) s.parentTitle = pf.title
+						}).catch(() => { /* 主任务标题读不到：通知退化为不带主任务名 */ })
+					}
+				}
 			}
 		}).catch(() => { /* 标题/归属读失败：title 走 firstPrompt 兜底，归属按主任务 */ })
 		return record
@@ -210,6 +230,14 @@ function createTracker(ctx) {
 		activeSessions.delete(sid)
 		const endTime = Date.now()
 		const duration = endTime - session.startTime
+		// 主任务标题三级兜底：还在跑的父会话（标题可能比子任务晚到，以结束时最新值为准）
+		// → 已归档的父会话 → 子任务开始时解析到的标题。都没有就留空（消费方显示「未知」）。
+		const liveParent = session.parentSessionId ? activeSessions.get(session.parentSessionId) : null
+		const archivedParent = session.parentSessionId && !liveParent
+			? completedSessions.find((r) => r.sessionId === session.parentSessionId) : null
+		const parentTitle = liveParent
+			? (liveParent.title || truncate(liveParent.firstPrompt, 60))
+			: (archivedParent ? archivedParent.title : (session.parentTitle || ''))
 		const record = {
 			sessionId: sid,
 			title: session.title || truncate(session.firstPrompt, 60) || '(无标题)',
@@ -229,6 +257,11 @@ function createTracker(ctx) {
 			lastText: session.lastText,
 			startTime: session.startTime,
 			endTime,
+			// 主/子归属进完成记录：结束通知（卡片/语音/系统通知/群推送）据此区分
+			// 「任务完成」与「子任务完成」，并点名是哪个主任务的哪个子任务
+			isSubtask: !!session.isSubtask,
+			parentSessionId: session.parentSessionId || '',
+			parentTitle: parentTitle || '',
 		}
 		completedSessions.unshift(record)
 		if (completedSessions.length > MAX_COMPLETED) completedSessions.pop()
@@ -330,6 +363,32 @@ function createTracker(ctx) {
 			// 调用落地 → 不再有在飞的调用（同一时刻只会有一个工具在跑）
 			s.pendingTool = ''
 			s.toolStartedAt = 0
+			// run_code（PTC 程序）整体落地：程序结束，清掉 PTC 忙标记。
+			s.ptcProgram = false
+			s.ptcTool = ''
+			s.ptcStartedAt = 0
+		} else if (event.type === 'tool/ptc-dispatch-start' && event.data) {
+			// PTC 子调用开始：run_code 程序正在执行某个子工具（wait_agent / job_output / bash /
+			// ask_user_question…）。这些子调用可阻塞数分钟（等子代理、等后台任务、等用户回答），
+			// 期间本会话零事件——但任务在干活/等人，不是卡住。标记整段 PTC 程序为「在忙」。
+			s.ptcProgram = true
+			const subName = typeof event.data.name === 'string' ? event.data.name : ''
+			s.ptcTool = subName
+			s.ptcStartedAt = now
+			s.lastMotionAt = now
+			// PTC 内的 ask_user_question：与直接 tool/call 一样要能弹「需回答」而不是「卡住」。
+			if (subName === 'ask_user_question') {
+				const subId = typeof event.data.subCallId === 'string' ? event.data.subCallId : ''
+				if (subId) s.questions.set(subId, describeQuestion(event.data.arguments, now))
+			}
+		} else if (event.type === 'tool/ptc-dispatch' && event.data) {
+			// PTC 子调用结束：清掉对应提问挂起项；程序本身可能还有后续子调用（ptcProgram 保持到
+			// 外层 run_code 的 tool/result 再清）。
+			const subId2 = typeof event.data.subCallId === 'string' ? event.data.subCallId : ''
+			if (subId2) s.questions.delete(subId2)
+			s.ptcTool = ''
+			s.ptcStartedAt = 0
+			s.lastMotionAt = now
 		} else if (event.type === 'compaction/start' && event.data) {
 			// 压缩上下文开始：期间会话零事件，但这是**正在干活**。记成在忙，别按停滞算。
 			s.compacting = true
@@ -457,11 +516,16 @@ function createTracker(ctx) {
 					// 卡住播报/卡住卡专用：主/子归属（会话头判定）与最后调用的工具
 					isSubtask: !!s.isSubtask,
 					parentSessionId: s.parentSessionId || '',
+					parentTitle: s.parentTitle || '',
 					lastToolName: s.lastToolName || '',
 					approvals: [...s.approvals.entries()].map(([id, v]) => ({ id, ...v })),
 					// 等人回答的提问（ask_user_question 挂起中）：与 approvals 同属「等人介入」，
 					// 客户端据此显示「等待回答」而不是「卡住」。
 					questions: [...s.questions.entries()].map(([id, v]) => ({ id, ...v })),
+					// PTC（run_code 程序）执行状态：客户端据此把整段程序当「在忙」，避免等待子代理 /
+					// 后台任务 / 用户回答期间被误判成「卡住」（见 src/shared.js 的 taskBusy）。
+					ptcProgram: !!s.ptcProgram,
+					ptcTool: s.ptcTool || '',
 				})
 			}
 			return { now: at, active, recent: completedSessions.slice(0, 20) }

@@ -113,7 +113,7 @@ async function writeModelConfig(ctx, body) {
 /** 功能注册表条目：index.js 组装 hostSetups 时使用。 */
 export const feature = {
   id: 'modelconfig',
-  name: '模型设置',
+  name: '模型能力',
   description: '模型目录：编辑各模型的输入模态与思考强度，写回官方配置热生效',
   defaultEnabled: false,
   setup(ctx) {

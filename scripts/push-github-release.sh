@@ -48,7 +48,7 @@ fi
 # 2) 用 main 的整棵树造一条提交，父提交 = 上一次发版提交。
 #    过程文档不进公开发版库（release-redaction 硬要求，2026-10-28 定）：造树时剔除
 #    下列文件——开发库照常跟踪它们，公开侧从此不再出现（历史旧副本另行决定是否清理）。
-TREE_EXCLUDE=(docs/session-notes.md docs/workflow.md)
+TREE_EXCLUDE=(docs/session-notes.md docs/workflow.md .mimocode)
 REL_INDEX="$(git rev-parse --git-dir)/release-tmp-index"
 rm -f "$REL_INDEX" # GIT_INDEX_FILE 要求目标文件不存在
 GIT_INDEX_FILE="$REL_INDEX" git read-tree 'main^{tree}'

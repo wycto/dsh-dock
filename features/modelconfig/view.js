@@ -420,10 +420,10 @@ function ModelsStat() {
 
 export const feature = {
 	id: "modelconfig",
-	name: "模型设置",
+	name: "模型能力",
 	order: 100,
 	accent: "#22d3ee",
-	description: "编辑各 Provider 模型的输入类型与思考强度档位，写回官方配置热生效；Provider 自身的增删改在「模型提供商」里管理",
+	description: "编辑各 Provider 模型的输入类型与思考强度档位，写回官方配置热生效；Provider 自身的增删改在「模型管理」里管理",
 	css: [
 		".dkm-note{color:var(--dsw-alias-label-secondary);font-size:12px;}",
 		".dkm-warn{color:var(--dk-warn);}",

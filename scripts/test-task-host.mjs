@@ -299,7 +299,6 @@ try {
 } finally {
   globalThis.fetch = realFetch
 }
-
 // ---------- 用例 3：引用计数——逐个停用后追踪才退订 ----------
 disposeAnimation()
 assert.equal(host.listenerCount('session/event'), 1, '动画停用后通知/运行状态仍需要追踪')
@@ -314,6 +313,44 @@ assert.equal((await host.call('/dsh-dock/runstate', 'status')).body.data.active.
 disposeRunState()
 assert.equal(host.listenerCount('session/event'), 0, '三个模块都停用后必须退订会话事件')
 assert.equal(host.routes.has('/dsh-dock/runstate'), false, '运行状态停用后其路由应注销')
+
+// ---------- 用例 2b：PTC（run_code）长时子调用不当作卡住 + PTC 内 ask_user_question 挂起 ----------
+// 真实会话（2026-11-06）里 run_code（Programmatic Tool Calling）一个工具就包住若干子调用：
+// wait_agent 等子代理最长 600s、job_output 等后台任务 188s、ask_user_question 等用户 120s，
+// 期间本会话零事件。此前只按外层 run_code 的「在飞调用」180s 上限判，超过就误报「卡住」，
+// 任务随后却正常完成（用户反馈「完成了却报卡住」）。这里锁死追踪快照如实标出 PTC 程序在忙。
+{
+  const h = makeHost()
+  const dNotify = notifyFeature.setup(h.ctx)
+  try {
+    h.emit('agent/status', { agent: { id: 'sess-ptc' }, status: 'running' })
+    h.emit('session/event', { id: 'sess-ptc' }, { type: 'tool/call', time: Date.now(), data: { name: 'run_code', callId: 'c1' } })
+    h.emit('session/event', { id: 'sess-ptc' }, { type: 'tool/ptc-dispatch-start', time: Date.now(), data: { name: 'wait_agent', subCallId: 'c1:ptc:1', arguments: { timeout_ms: 600000 } } })
+    let st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    assert.equal(st.active.length, 1)
+    assert.equal(st.active[0].ptcProgram, true, 'run_code 子调用期间应标记 PTC 程序在忙（卡住判定据此豁免）')
+    assert.equal(st.active[0].ptcTool, 'wait_agent', '应记录当前 PTC 子调用名')
+    h.emit('session/event', { id: 'sess-ptc' }, { type: 'tool/ptc-dispatch', time: Date.now(), data: { name: 'wait_agent', subCallId: 'c1:ptc:1' } })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    assert.equal(st.active[0].ptcTool, '', '子调用结束后清掉当前子调用名')
+    assert.equal(st.active[0].ptcProgram, true, '子调用结束但程序仍在（可能还有后续子调用）')
+    h.emit('session/event', { id: 'sess-ptc' }, { type: 'tool/result', time: Date.now(), data: { message: { toolCallId: 'c1', toolName: 'run_code' } } })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    assert.equal(st.active[0].ptcProgram, false, 'run_code 整体落地后清掉 PTC 忙标记')
+    // PTC 内的 ask_user_question 也要进 questions（客户端弹「需回答」而不是「卡住」）
+    h.emit('session/event', { id: 'sess-ptc' }, { type: 'tool/call', time: Date.now(), data: { name: 'run_code', callId: 'c2' } })
+    h.emit('session/event', { id: 'sess-ptc' }, { type: 'tool/ptc-dispatch-start', time: Date.now(), data: { name: 'ask_user_question', subCallId: 'c2:ptc:1', arguments: { questions: [{ id: 'q1', header: '总开关层级', question: '选哪个层级？' }] } } })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    assert.equal(st.active[0].questions.length, 1, 'PTC 内 ask_user_question 应进入「提问挂起」')
+    assert.equal(st.active[0].questions[0].header, '总开关层级')
+    h.emit('session/event', { id: 'sess-ptc' }, { type: 'tool/ptc-dispatch', time: Date.now(), data: { name: 'ask_user_question', subCallId: 'c2:ptc:1' } })
+    st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    assert.equal(st.active[0].questions.length, 0, '提问回答落地后应移除挂起项')
+    console.log('PTC host: ok（run_code 子调用标记在忙 + ask_user_question 挂起/恢复）')
+  } finally {
+    dNotify()
+  }
+}
 
 // ---------- 用例 4：一次性迁移（老 animation 段的通知配置搬进 notify 段） ----------
 {
@@ -557,4 +594,87 @@ assert.equal(host.routes.has('/dsh-dock/runstate'), false, '运行状态停用�
   }
 }
 
-console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移 + 卡住快照字段 + 提问挂起快照 + 压缩/在飞豁免信号)')
+// ---------- 用例 10：子任务完成 → 完成记录带归属；群推送标「子任务」并点名主任务（三挡） ----------
+// 用户实测（2026-11-05）：结束的是派发的子任务，主任务还在跑，通知却报「任务完成」，
+// 像整个任务结束了。这里锁死：完成记录带 isSubtask/parentSessionId/parentTitle，
+// 钉钉/飞书推送的标题与正文标「子任务」并点名所属主任务（简洁挡也带归属）。
+{
+  const h = makeHost()
+  const dispose = notifyFeature.setup(h.ctx)
+  const pushed = []
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    pushed.push({ url, body: JSON.parse(init.body) })
+    return { ok: true, status: 200, text: async () => JSON.stringify({ errcode: 0, code: 0 }) }
+  }
+  const realLog = console.log
+  console.log = () => {} // 推送成功会打日志，静音保持输出干净
+  try {
+    await h.call('/dsh-dock/notify', 'config', {
+      dingtalkEnabled: true, dingtalkWebhook: 'https://oapi.dingtalk.com/robot/send?access_token=test',
+      feishuEnabled: true, feishuWebhook: 'https://open.feishu.cn/open-apis/bot/v2/hook/test',
+    })
+    // 主任务在跑 + 子任务派发：活跃快照应解析出主任务标题（完成卡归属行用）
+    h.emit('agent/status', { agent: { id: 'root-1' }, status: 'running' })
+    h.emit('agent/status', { agent: { id: 'sub-1' }, status: 'running' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    const sub = st.active.find((x) => x.sessionId === 'sub-1')
+    assert.equal(sub.parentTitle, '测试会话', '活跃快照应解析出主任务标题')
+
+    // 三挡口径：子任务完成推送都要标「子任务完成」+ 主任务；简洁挡裁掉明细但保留归属
+    for (const mode of ['brief', 'medium', 'detailed']) {
+      await h.call('/dsh-dock/notify', 'config', { pushMode: mode })
+      const sid = 'sub-' + mode
+      h.emit('agent/status', { agent: { id: sid }, status: 'running' })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      h.emit('agent/status', { agent: { id: sid }, status: 'idle' })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    const ding = pushed.filter((p) => /oapi\.dingtalk/.test(p.url))
+    assert.equal(ding.length, 3, '三挡各推送一次钉钉')
+    for (const p of ding) {
+      assert.match(p.body.markdown.title, /^dsh 子任务完成/, '推送标题应标「子任务完成」')
+      assert.ok(p.body.markdown.text.includes('**子任务**'), '正文应标子任务')
+      assert.ok(p.body.markdown.text.includes('**主任务**: 测试会话'), '三挡都应点名所属主任务')
+    }
+    assert.ok(!ding[0].body.markdown.text.includes('**模型**'), 'brief 不带模型明细')
+    assert.ok(ding[1].body.markdown.text.includes('**模型**'), 'medium 带模型明细')
+    assert.ok(ding[2].body.markdown.text.includes('**Token**'), 'detailed 带 Token 明细')
+    const feishu = pushed.filter((p) => /feishu/.test(p.url))
+    assert.equal(feishu.length, 3, '三挡各推送一次飞书')
+    assert.match(feishu[0].body.card.header.title.content, /子任务完成/, '飞书卡片标题应标「子任务完成」')
+
+    // 完成记录带归属（客户端卡片/语音/系统通知的数据源）
+    h.emit('agent/status', { agent: { id: 'sub-1' }, status: 'idle' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const rec = (await h.call('/dsh-dock/notify', 'status')).body.data.recent.find((r) => r.sessionId === 'sub-1')
+    assert.equal(rec.isSubtask, true, '完成记录应标子任务')
+    assert.equal(rec.parentSessionId, 'root-1', '完成记录应带父会话 id')
+    assert.equal(rec.parentTitle, '测试会话', '完成记录应带主任务标题（主任务还在跑时取最新值）')
+
+    // 主任务自己完成：仍是「任务完成」，不带主任务归属行
+    h.emit('agent/status', { agent: { id: 'root-1' }, status: 'idle' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const rootRec = (await h.call('/dsh-dock/notify', 'status')).body.data.recent.find((r) => r.sessionId === 'root-1')
+    assert.equal(rootRec.isSubtask, false, '主任务完成记录不得标子任务')
+    const lastDing = [...pushed].reverse().find((p) => /oapi\.dingtalk/.test(p.url))
+    assert.match(lastDing.body.markdown.title, /^dsh 任务完成/, '主任务完成推送仍是「任务完成」')
+    assert.ok(!lastDing.body.markdown.text.includes('**主任务**'), '主任务推送不带归属行')
+
+    // 父会话已归档（不在活跃列表）：子任务完成仍能从归档记录兜出主任务标题
+    h.emit('agent/status', { agent: { id: 'sub-orphan' }, status: 'running' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    h.emit('agent/status', { agent: { id: 'sub-orphan' }, status: 'idle' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const orphan = (await h.call('/dsh-dock/notify', 'status')).body.data.recent.find((r) => r.sessionId === 'sub-orphan')
+    assert.equal(orphan.parentTitle, '测试会话', '父会话已归档时主任务标题应有兜底')
+  } finally {
+    globalThis.fetch = realFetch
+    console.log = realLog
+    dispose()
+    assert.equal(h.listenerCount('session/event'), 0, '用例收尾必须退订（不留常驻监听）')
+  }
+}
+
+console.log('task/animation+notify+runstate host: ok (共享追踪 1 份订阅 + 配置路由隔离 + 只读运行状态 + 群机器人推送 + 一次性迁移 + 卡住快照字段 + 提问挂起快照 + 压缩/在飞豁免信号 + 子任务完成归属与三挡推送)')

@@ -194,6 +194,21 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		if (String(url).includes("dsh-dock/providerconfig")) {
 			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
 		}
+		// MCP 管理：托管一台 xiaomi_ocr（含实时状态与已注册工具），覆盖卡片/状态渲染分支
+		if (String(url).includes("dsh-dock/mcpconfig")) {
+			return Promise.resolve({ ok: true, status: 200, json: async () => ({
+				ok: true,
+				patchPath: "/root/.dsh/profiles/web/cordis.patch.yml",
+				hmrAvailable: true,
+				warnings: [],
+				servers: [{
+					serverName: "xiaomi_ocr", transport: "stdio", command: "/usr/bin/python3",
+					args: ["/www/wwwroot/xiaomi-ocr/mcp_ocr.py"], env: {}, cwd: "/www/wwwroot/xiaomi-ocr",
+					url: "", headers: {}, enabled: true, failOnStartupError: false, toolCallTimeoutMs: 300000,
+					state: "active", error: null, tools: ["mcp__xiaomi_ocr__ocr_image", "mcp__xiaomi_ocr__ocr_health"], toolCount: 2,
+				}],
+			}) });
+		}
 		// 模型余额：宿主直接返回快照（不包 ok/data）
 		if (String(url).includes("dsh-dock/balance")) {
 			return Promise.resolve({ ok: true, status: 200, json: async () => BALANCE_SNAPSHOT });
@@ -219,6 +234,9 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 					calls: 1, inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200, cacheWriteTokens: 0, reasoningTokens: 0,
 					billedInput: 1200, totalTokens: 1700, cacheHitPct: 17, cost: 0.5, llmMs: 1200, timed: 1,
 				},
+				directTotals: null, sessionBreakdown: [],
+				sessionScope: { sessionId: '', scope: 'session', sessionIds: [], rootSessionId: '', descendantCount: 0, complete: true },
+				defaultSessionScope: 'tree',
 				summary: [],
 			};
 		}
@@ -543,12 +561,11 @@ const FEATURES = [
 	// 会让「视图抛错降级为一行提示」也被判为渲染正常（曾实际发生，见下方 tokenlog 断言）。
 	{ id: "tokenlog", name: "用量记录", marker: "调用明细", deep: true },
 	{ id: "balance", name: "模型余额", marker: "余额", deep: true },
-	{ id: "modelconfig", name: "模型设置", marker: "模型", deep: true },
-	{ id: "providerconfig", name: "模型提供商", marker: "模型提供商", deep: true },
-	{ id: "heartbeat", name: "心跳监视", marker: "心跳", deep: true },
-	{ id: "theme", name: "主题信息", marker: "主题", deep: true },
+	{ id: "modelconfig", name: "模型能力", marker: "模型", deep: true },
+	{ id: "providerconfig", name: "模型管理", marker: "模型管理", deep: true },
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
 	{ id: "mobile-relay", name: "远程访问", marker: "远程", deep: true },
+	{ id: "mcpconfig", name: "MCP管理", marker: "托管块", deep: true },
 ];
 
 let failed = 0;
@@ -627,7 +644,7 @@ for (const f of FEATURES) {
 			const formHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, { params: { openProviderForm: true } }));
 			// 沙箱只序列化文本节点（不含 input 的 placeholder 属性），故用表单特有的文本断言：
 			// 页面标题 + api 下拉项（仅表单有）、默认输入类型标签（仅表单有）、模型行按钮、表单标题。
-			for (const needle of ["模型提供商", "新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
+			for (const needle of ["模型管理", "新增 Provider", "OpenAI Responses", "Anthropic Messages", "默认输入类型", "添加模型"]) {
 				if (!formHtml.includes(needle)) { detail = "新增 Provider 表单缺少「" + needle + "」"; break; }
 			}
 		}
@@ -635,7 +652,7 @@ for (const f of FEATURES) {
 		detail = "Provider 表单渲染抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { failed++; console.log("✗ " + detail); }
-	else console.log("✓ 模型提供商 Provider 表单：params.openProviderForm 直接展开「新增 Provider」表单（路由/api/baseURL/key/模型行）");
+	else console.log("✓ 模型管理 Provider 表单：params.openProviderForm 直接展开「新增 Provider」表单（路由/api/baseURL/key/模型行）");
 }
 
 // ---------- 用例 1.4b：模型提供商页（独立功能，行卡片列表）----------
@@ -651,7 +668,7 @@ for (const f of FEATURES) {
 		if (!reg) detail = "没有注册 settings.section";
 		else {
 			const pageHtml = await renderSettled(runtime, runtime.react.createElement(reg.comp, null));
-			for (const needle of ["模型提供商", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
+			for (const needle of ["模型管理", "魔搭 ModelScope", "modelscope", "MODELSCOPE_API_KEY 已配置", "1 模型", "编辑", "删除", "＋ 新增 Provider"]) {
 				if (!pageHtml.includes(needle)) { detail = "模型提供商页缺少「" + needle + "」"; break; }
 			}
 			// 模型设置页的内容（图片理解代理 / 模型目录编辑器）不该串进来——两个功能各自独立
@@ -661,7 +678,7 @@ for (const f of FEATURES) {
 		detail = "模型提供商页渲染抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { failed++; console.log("✗ " + detail); }
-	else console.log("✓ 模型提供商页：独立功能渲染行卡片列表（密钥状态/模型数/编辑/删除/新增）");
+	else console.log("✓ 模型管理页：独立功能渲染行卡片列表（密钥状态/模型数/编辑/删除/新增）");
 }
 
 	if (failed) {
@@ -728,6 +745,56 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 			else { failed++; console.log("✗ 图表统计页签被错误边界降级（视图里有「渲染出错」）"); }
 		}
 	}
+}
+
+// ---------- 用例 1.7：用量记录主任务+子任务累计口径、拆分与 chip ----------
+// 不是把父会话 KPI 与子会话 KPI 再相加：宿主返回去重后的实际调用列表和 totals，
+// 客户端只展示。这里锁住口径切换、累计拆分、会话身份与输入区 compact chip。
+{
+	const enabled = {};
+	for (const f of FEATURES) enabled[f.id] = f.id === "tokenlog";
+	const requests = [];
+	const total = (calls, tokens, cost) => ({ calls, inputTokens: tokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0, billedInput: tokens, totalTokens: tokens, cacheHitPct: 0, cost, llmMs: 0, timed: 0 });
+	const treeData = {
+		records: [
+			{ id: 'root:1', time: 1_700_000_000_000, sessionId: 'root', parentSessionId: '', rootSessionId: 'root', sessionDepth: 0, isSubtask: false, provider: 'deepseek', model: 'm', inputTokens: 100, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0, billedInput: 100, totalTokens: 100, cacheHitPercent: 0, cost: 1, status: 'completed', llmMs: 0, turn: 1, step: 1 },
+			{ id: 'child:1', time: 1_700_000_000_001, sessionId: 'child', parentSessionId: 'root', rootSessionId: 'root', sessionDepth: 1, isSubtask: true, provider: 'deepseek', model: 'm', inputTokens: 200, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0, billedInput: 200, totalTokens: 200, cacheHitPercent: 0, cost: 2, status: 'completed', llmMs: 0, turn: 1, step: 1 },
+		],
+		counts: { total: 2, matching: 2 }, providers: ['deepseek'], models: ['m'], modelsByProvider: { deepseek: ['m'] }, statuses: ['completed'], efforts: [], sessionIds: ['root', 'child'], rateUsdCny: 1,
+		pricingInfo: { hasCustom: false, customCount: 0, fetchOfficial: false, sources: [] },
+		totals: total(2, 300, 3), directTotals: total(1, 100, 1),
+		sessionBreakdown: [Object.assign({ sessionId: 'root', parentSessionId: '', rootSessionId: 'root', sessionDepth: 0, isSubtask: false }, total(1, 100, 1)), Object.assign({ sessionId: 'child', parentSessionId: 'root', rootSessionId: 'root', sessionDepth: 1, isSubtask: true }, total(1, 200, 2))],
+		sessionScope: { sessionId: 'root', scope: 'tree', sessionIds: ['root', 'child'], rootSessionId: 'root', descendantCount: 1, complete: true }, defaultSessionScope: 'tree', summary: [],
+	};
+	const fetch = async (url, init) => {
+		const body = JSON.parse(init && init.body || '{}'); requests.push({ url: String(url), body });
+		let data = {};
+		if (String(url).includes('/tokenlog/query')) {
+			data = body.sessionScope === 'session' ? Object.assign({}, treeData, { records: [treeData.records[0]], counts: { total: 2, matching: 1 }, totals: total(1, 100, 1), sessionBreakdown: [treeData.sessionBreakdown[0]], sessionScope: Object.assign({}, treeData.sessionScope, { scope: 'session', sessionIds: ['root'], descendantCount: 0 }) }) : treeData;
+		}
+		return { ok: true, status: 200, json: async () => ({ ok: true, data }) };
+	};
+	const { runtime, regs } = loadDock(enabled, ANIMATION_STATUS, NOTIFY_STATUS, undefined, undefined, { fetch });
+	const reg = regs.find((r) => r.def && r.def.name === 'settings.section' && r.def.id === 'dsh-dock');
+	const node = runtime.react.createElement(reg.comp, { params: { sessionId: 'root', navAt: 1 } });
+	let html = await renderSettled(runtime, node);
+	let detail = '';
+	for (const needle of ['任务累计（含子任务）', '累计 Token（含子任务）', '会话用量拆分', '本会话 100 Token', '子任务 200 Token', '子任务']) {
+		if (!html.includes(needle)) detail = '累计视图缺少「' + needle + '」';
+	}
+	if (!detail) {
+		const select = runtime.elements.find((e) => e.tag === 'select' && e.event === 'onChange' && e.className === 'dtok-select' && requests.some((r) => r.body.sessionId === 'root') && e.handler.toString().includes('changeScope'));
+		if (!select) detail = '找不到会话口径下拉框';
+		else { select.handler({ target: { value: 'session' } }); html = await renderSettled(runtime, node); }
+	}
+	if (!detail && !requests.some((r) => r.url.includes('/tokenlog/config') && r.body.sessionScope === 'session')) detail = '切换口径没有持久化服务端默认值';
+	if (!detail && !requests.some((r) => r.url.includes('/tokenlog/query') && r.body.sessionScope === 'session')) detail = '切换后没有按仅本会话重查';
+	if (!detail && !html.includes('仅统计当前会话自己的调用')) detail = '仅本会话口径说明未显示';
+	// esbuild 可能把非 ASCII 字符转成 \uXXXX；静态契约同时接受原文与转义形式。
+	const bundleText = bundle.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+	if (!detail && !bundleText.includes('任务累计（含子任务）')) detail = '构建产物缺累计 chip 口径';
+	if (detail) { console.log('✗ 用量记录主子任务累计：' + detail); process.exit(1); }
+	console.log('✓ 用量记录主子任务累计：默认含后代、展示本会话/子任务拆分、切换仅本会话并重查和持久化，明细带会话归属');
 }
 
 // ---------- 用例 2：视图渲染抛错必须被错误边界隔离，不能打没整块面板 ----------
@@ -2172,6 +2239,45 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	} catch (e) {
 		detail = "⑦适中完成播报用例抛错：" + ((e && e.message) || e);
 	}
+	// —— ⑦b 子任务完成 → 简洁「子任务完成」；适中点名主任务与子任务（主任务可能还在跑） ——
+	// 2026-11-05 用户反馈：结束的是派发的子任务，播报却说「任务完成」，像整个任务结束了。
+	if (!detail) try {
+		const subTask = Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [], isSubtask: true, parentSessionId: "root-1", parentTitle: "主任务标题" });
+		const subRecord = Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: subTask.sessionId, isSubtask: true, parentSessionId: "root-1", parentTitle: "主任务标题" });
+		const live = { active: [subTask], recent: [], config: cfgOf() };
+		const speech = makeSpeechStub();
+		const { runtime, node, poke } = setup(live, speech);
+		await renderSettled(runtime, node);
+		await poke();
+		live.active = [];
+		live.recent = [subRecord];
+		await poke();
+		if (speech.spoken.length < 1) throw new Error("⑦b子任务完成没有播报");
+		if (lastSpeech(speech) !== "子任务完成") detail = "⑦b简洁子任务完成播报不对：" + lastSpeech(speech);
+		// 适中：主任务与子任务一起点名
+		const live2 = { active: [subTask], recent: [], config: cfgOf({ voiceMode: "medium" }) };
+		const speech2 = makeSpeechStub();
+		const s2 = setup(live2, speech2);
+		await renderSettled(s2.runtime, s2.node);
+		await s2.poke();
+		live2.active = [];
+		live2.recent = [subRecord];
+		await s2.poke();
+		const t2 = lastSpeech(speech2);
+		if (!detail && t2 !== "主任务「主任务标题」的子任务「上一个任务」完成了，耗时30秒。") detail = "⑦b适中子任务播报没点名主任务与子任务：" + t2;
+		// 旧宿主兼容：完成记录没带归属时，活跃快照的归属也要能兜住
+		const live3 = { active: [subTask], recent: [], config: cfgOf() };
+		const speech3 = makeSpeechStub();
+		const s3 = setup(live3, speech3);
+		await renderSettled(s3.runtime, s3.node);
+		await s3.poke();
+		live3.active = [];
+		live3.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: subTask.sessionId })];
+		await s3.poke();
+		if (!detail && lastSpeech(speech3) !== "子任务完成") detail = "⑦b记录缺归属时没按活跃快照兜底：" + lastSpeech(speech3);
+	} catch (e) {
+		detail = "⑦b子任务完成播报用例抛错：" + ((e && e.message) || e);
+	}
 	// —— ⑧ 适中口径：卡住 → 主/子 + 标题 + 停滞时长（不念最后动作） ——
 	if (!detail) try {
 		const stalled = Object.assign({}, NOTIFY_STATUS.active[0], {
@@ -2210,7 +2316,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		detail = "⑨适中需授权播报用例抛错：" + ((e && e.message) || e);
 	}
 	if (detail) { console.log(`✗ 任务通知语音播报：${detail}`); process.exit(1); }
-	console.log("✓ 任务通知语音播报：完成/需授权/卡住/停止 × 简洁/适中/详细三挡逐句对账，同一停点不重复，指定音色生效且换设备按语言回落");
+	console.log("✓ 任务通知语音播报：完成/需授权/卡住/停止 × 简洁/适中/详细三挡逐句对账，子任务完成报「子任务」并点名主任务，同一停点不重复，指定音色生效且换设备按语言回落");
 }
 
 // ---------- 用例 21b：【任务通知】语音播报「服务端总开关 + 本机开关」双层开关 UI ----------
@@ -2626,6 +2732,18 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 			html = await renderSettled(s.runtime, s.node);
 			if (!html.includes("卡住了")) detail = "⑨f压缩结束后真停滞时没有恢复报卡住";
 		}
+		// ⑩ PTC（run_code 程序）执行期间不算卡住：一次 run_code 会包住 wait_agent / job_output /
+		// bash / ask_user_question 等子调用，可能阻塞数分钟且期间零事件（真实会话实测 wait_agent
+		// 最长 600s）。此前只按外层 run_code 的「在飞调用」180s 上限判定，超过 3 分钟就误报「卡住了」，
+		// 而任务随后照常完成——正是用户 2026-11-06 反馈的「任务完成了却报卡住」。
+		if (!detail) {
+			live = { active: [stalledTask({ ptcProgram: true, ptcTool: "wait_agent", pendingTool: "run_code", toolStartedAt: Date.now() - 600000 })], recent: [], config: cfgOf() };
+			s = setup(live);
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (html.includes("卡住了")) detail = "⑩PTC（run_code 等子代理/后台任务）执行期间仍弹了「卡住了」卡";
+		}
 	} catch (e) {
 		detail = "⑨正在干活不算卡住用例抛错：" + ((e && e.message) || e);
 	}
@@ -2743,8 +2861,28 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 	} catch (e) {
 		detail = "⑤简洁卡住卡用例抛错：" + ((e && e.message) || e);
 	}
+	// —— ⑥ 子任务完成卡：标题标「子任务完成」，三挡都点名主任务（简洁也带归属） ——
+	// 2026-11-05 用户反馈：子任务完成被报成「任务完成」，主任务其实还在跑。
+	if (!detail) try {
+		for (const mode of ["brief", "medium", "detailed"]) {
+			const subTask = Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [], isSubtask: true, parentSessionId: "root-1", parentTitle: "主任务标题" });
+			const live = { active: [subTask], recent: [], config: cfgOf({ cardMode: mode }) };
+			const { runtime, node, poke } = setup(live);
+			await renderSettled(runtime, node);
+			await poke();
+			live.active = [];
+			live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: subTask.sessionId, isSubtask: true, parentSessionId: "root-1", parentTitle: "主任务标题" })];
+			await poke();
+			const html = await renderSettled(runtime, node);
+			if (!html.includes("子任务完成")) throw new Error("⑥" + mode + " 子任务完成卡标题没标「子任务」");
+			if (!html.includes("子任务：上一个任务")) { detail = "⑥" + mode + " 子任务完成卡缺子任务标题行"; break; }
+			if (!html.includes("主任务：主任务标题")) { detail = "⑥" + mode + " 子任务完成卡没点名主任务（三挡都应带归属）"; break; }
+		}
+	} catch (e) {
+		detail = "⑥子任务完成卡用例抛错：" + ((e && e.message) || e);
+	}
 	if (detail) { console.log(`✗ 任务通知卡片口径三挡：${detail}`); process.exit(1); }
-	console.log("✓ 任务通知卡片口径三挡：结束卡/需确认卡/卡住卡按简洁·适中·详细裁剪正文，默认详细不缩水；语音三挡由用例 21 覆盖");
+	console.log("✓ 任务通知卡片口径三挡：结束卡/需确认卡/卡住卡按简洁·适中·详细裁剪正文，默认详细不缩水，子任务完成卡三挡都点名主任务；语音三挡由用例 21 覆盖");
 }
 
 // 全部用例都是顶层 await，跑完即终局。显式退出：浮层用例留下的轮询 setTimeout 挂在

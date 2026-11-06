@@ -430,9 +430,9 @@ function ProvidersView(props) {
 
 	const piProviders = providers.filter((p) => p.kind === "pi-ai");
 	const body = [
-		react.createElement("h2", { key: "title", className: "dkp-title" }, "模型提供商"),
+		react.createElement("h2", { key: "title", className: "dkp-title" }, "模型管理"),
 		react.createElement("p", { key: "intro", className: "dkp-intro" },
-			"新增 / 编辑 / 删除自定义模型 Provider（OpenAI 兼容、Anthropic 等），写入官方配置并热生效；API Key 存本机凭据库（文件仅 root 可读）。内置 DeepSeek 官方 Provider 在本页只读，其模型目录在「模型设置」里编辑。本功能可单独停用：停用后这些写配置与出站请求的路由一并关闭。")
+			"新增 / 编辑 / 删除自定义模型 Provider（OpenAI 兼容、Anthropic 等），写入官方配置并热生效；API Key 存本机凭据库（文件仅 root 可读）。内置 DeepSeek 官方 Provider 在本页只读，其模型目录在「模型能力」里编辑。本功能可单独停用：停用后这些写配置与出站请求的路由一并关闭。")
 	];
 	if (snap.error) {
 		body.push(react.createElement("p", { key: "err", className: "dkp-error" }, "模型目录拉取失败：" + snap.error));
@@ -503,8 +503,8 @@ function ProvidersStat() {
 
 export const feature = {
 	id: "providerconfig",
-	name: "模型提供商",
-	order: 101,
+	name: "模型管理",
+	order: 99,
 	accent: "#8b5cf6",
 	description: "管理自定义模型 Provider：新增/编辑/删除、拉取上游模型列表、写入 API Key（可单独停用）",
 	css: [

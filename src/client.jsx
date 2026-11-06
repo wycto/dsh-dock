@@ -21,8 +21,6 @@ import {
 import { feature as fTokenlog } from "../features/tokenlog/view.jsx";
 import { feature as fModelconfig } from "../features/modelconfig/view.js";
 import { feature as fProviderConfig } from "../features/providerconfig/view.js";
-import { feature as fHeartbeat } from "../features/heartbeat/view.js";
-import { feature as fTheme } from "../features/theme/view.js";
 import { feature as fBalance } from "../features/balance/view.js";
 import { feature as fAnimation } from "../features/animation/view.jsx";
 import { feature as fNotify } from "../features/notify/view.jsx";
@@ -30,12 +28,13 @@ import { feature as fRunState } from "../features/runstate/view.jsx";
 import { feature as fTts } from "../features/tts/view.jsx";
 import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
+import { feature as fMcpConfig } from "../features/mcpconfig/view.js";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.21.2";
+const DOCK_VERSION = "0.23.0";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fHeartbeat, fTheme, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fMcpConfig, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
@@ -169,8 +168,10 @@ const SHELL_CSS = [
 	".dockm-page-wide-btn{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:12px;cursor:pointer;}",
 	".dockm-page-wide-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}",
 	/* 面板页的左侧菜单收窄：给右侧列表/表格让出宽度，别留大片空白 */
-	".dockm-page .dockm-nav{width:140px;padding:8px 6px;}",
-	".dockm-page .dockm-nav-item{padding:7px 8px;font-size:12.5px;gap:6px;}",
+	// 左侧菜单列：内容只有 8px 圆点 + 4 字标签，140px 会留一大条空白（用户反馈「这个宽度可以缩小点」）。
+	// 用 border-box 收到 110px（含内距）：既够放最长标签「MCP管理 / 远程访问」，又把右侧死区收掉，正文区更宽。
+	".dockm-page .dockm-nav{box-sizing:border-box;width:110px;padding:8px 7px;}",
+	".dockm-page .dockm-nav-item{padding:7px 8px;font-size:12.5px;gap:6px;overflow:hidden;}",
 	".dockm-page-body>.dockm-body{flex:1;min-height:0;}",
 	".dockm-page-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}",
 	".dockm-page-titles{min-width:0;}",

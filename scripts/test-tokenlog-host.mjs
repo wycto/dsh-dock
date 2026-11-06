@@ -35,7 +35,7 @@ const OFFICIAL_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>�
 </body></html>`
 
 // ---------- 宿主桩：settings（内存）+ webServer（路由槽）+ sessionQuery（事件总线） ----------
-function makeHost(seedSettings) {
+function makeHost(seedSettings, sessionFixtures = []) {
   const settingsStore = new Map()
   const routes = new Map() // path -> { handler, route }
   const sessionListeners = new Map()
@@ -58,9 +58,38 @@ function makeHost(seedSettings) {
     },
   }
 
+  const fixtureById = new Map(sessionFixtures.map((s) => [s.header.id, s]))
   const sessionQuery = {
-    async listSessions() { return [] },
-    async readSession() { return { events: [] } },
+    async listSessions() { return sessionFixtures.map((s) => ({ header: { ...s.header }, live: false, persisted: true })) },
+    async readSession(id) {
+      const fixture = fixtureById.get(id)
+      return fixture ? { session: { ...fixture.header }, inheritedEventCount: fixture.inheritedEventCount || 0, events: fixture.events || [] } : { events: [] }
+    },
+    // 官方谱系 API 的最小桩；不实现时生产代码必须回退 sessionMeta 图（旧宿主兼容另测）。
+    async traceSession(id) {
+      const target = fixtureById.get(id)
+      if (!target) throw new Error('missing session')
+      const ancestors = []
+      let parent = target.header.parentSession
+      const seen = new Set([id])
+      let complete = true
+      while (parent) {
+        if (seen.has(parent)) throw new Error('cycle')
+        seen.add(parent)
+        const row = fixtureById.get(parent)
+        if (!row) { complete = false; break }
+        ancestors.push({ header: { ...row.header }, live: false, persisted: true })
+        parent = row.header.parentSession
+      }
+      const descendantsOf = (sid) => sessionFixtures.filter((s) => s.header.parentSession === sid).map((s) => ({
+        session: { header: { ...s.header }, live: false, persisted: true }, descendants: descendantsOf(s.header.id),
+      }))
+      return {
+        target: { header: { ...target.header }, live: false, persisted: true }, ancestors,
+        descendants: descendantsOf(id), complete,
+        ...(complete ? { root: ancestors.at(-1) || { header: { ...target.header } } } : { unresolvedParentId: parent }),
+      }
+    },
   }
 
   const ctx = {
@@ -107,7 +136,7 @@ function makeHost(seedSettings) {
   }
 
   return {
-    ctx, settings, routes,
+    ctx, settings, routes, sessionQuery,
     mutateCount: () => mutateCount,
     emit(event, ...args) {
       const set = sessionListeners.get(event)
@@ -467,6 +496,83 @@ try {
     assert.equal(fetchedUrls.length, 1, '合法 https 地址应发起一次抓取')
     dispose()
   }
+  // ---------- 用例 7：主任务 + 多级子任务累计；仅本会话、去重、导出与旧宿主兼容 ----------
+  {
+    const header = (id, parentSession, origin, delegationDepth = 0) => ({
+      id, parentSession, origin, delegationDepth, createdAt: atHour(19), isSeeded: false,
+    })
+    const callEvent = (seq, input, output) => ({
+      type: 'assistant/message', time: atHour(20), seq,
+      data: { turn: 1, step: 1, usage: { inputTokens: input, outputTokens: output, cacheReadTokens: 0, cacheWriteTokens: 0 } },
+    })
+    const fixtures = [
+      { header: header('root'), events: [callEvent(0, 100, 10)] },
+      { header: header('child', 'root', 'subagent', 1), events: [callEvent(0, 200, 20)] },
+      { header: header('grandchild', 'child', 'subagent', 2), inheritedEventCount: 1, events: [callEvent(0, 900, 90), callEvent(1, 300, 30)] },
+      { header: header('other'), events: [callEvent(0, 400, 40)] },
+    ]
+    const host = makeHost({ tokenlog: { fetchOfficial: false, usdCnyRate: 1, fallback: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 } } }, fixtures)
+    const dispose = tokenlogFeature.setup(host.ctx)
+    await host.call('scan')
+
+    const tree = (await host.call('query', { sessionId: 'root', sessionScope: 'tree' })).body.data
+    assert.equal(tree.records.length, 3, '主任务累计应含自己、子任务、孙任务，不含旁支')
+    assert.equal(tree.totals.totalTokens, 660, '110+220+330 应按实际调用累加，孙任务继承的 990 Token seed 不重算')
+    assert.equal(tree.directTotals.totalTokens, 110, '本会话拆分只算主会话自己')
+    assert.equal(tree.sessionScope.descendantCount, 2)
+    assert.equal(tree.sessionScope.rootSessionId, 'root')
+    assert.equal(tree.sessionScope.complete, true)
+    assert.deepEqual(tree.sessionBreakdown.map((r) => [r.sessionId, r.totalTokens]), [['root', 110], ['child', 220], ['grandchild', 330]])
+    assert.equal(tree.records.find((r) => r.sessionId === 'grandchild').rootSessionId, 'root')
+    assert.equal(tree.records.find((r) => r.sessionId === 'grandchild').parentSessionId, 'child')
+
+    const own = (await host.call('query', { sessionId: 'root', sessionScope: 'session' })).body.data
+    assert.equal(own.totals.totalTokens, 110, '仅本会话不得包含子任务')
+    assert.equal(own.records.length, 1)
+    const middle = (await host.call('query', { sessionId: 'child', sessionScope: 'tree' })).body.data
+    assert.equal(middle.totals.totalTokens, 550, '从子任务入口看，应累计它自己+它的后代，不反向加父任务')
+    assert.equal(middle.sessionScope.rootSessionId, 'root')
+    const all = (await host.call('query', {})).body.data
+    assert.equal(all.totals.totalTokens, 1100, '全局按实际调用一次统计，不能按父子树重复加总')
+    assert.equal(all.sessionScope.scope, 'session', '未选会话时不启用树口径')
+
+    // 历史扫描 + 实时事件重叠：Map<sessionId:seq> 去重，累计不得翻倍。
+    host.emit('session/event', { id: 'child', header: fixtures[1].header }, fixtures[1].events[0])
+    await host.call('scan')
+    const dedup = (await host.call('query', { sessionId: 'root', sessionScope: 'tree' })).body.data
+    assert.equal(dedup.totals.totalTokens, 660, '重叠采集不得重复累计')
+    const ex = (await host.call('export', { sessionId: 'root', sessionScope: 'tree' })).body.data
+    assert.equal(ex.count, 3, '导出跟随任务累计口径')
+    assert.ok(ex.rows.every((r) => r.rootSessionId === 'root'), '导出应带根会话归属')
+
+    // 新会话只在实时事件里出现，尚未历史扫描，也应立即归到主任务。
+    const liveHeader = header('live-child', 'root', 'subagent', 1)
+    fixtures.push({ header: liveHeader, events: [] }) // 官方 trace 可观察新建但尚无用量的 live session
+    host.emit('session/event', { id: 'live-child', header: liveHeader }, { type: 'request/header', time: atHour(20), seq: 19, data: { header: { config: { provider: 'test', model: 'x' } } } })
+    host.emit('session/event', { id: 'live-child', header: liveHeader }, { type: 'step/start', time: atHour(20) - 1000, seq: 20, data: { turn: 1, step: 1 } })
+    host.emit('session/event', { id: 'live-child', header: liveHeader }, { type: 'assistant/message', time: atHour(20), seq: 21, data: { turn: 1, step: 1, usage: { inputTokens: 10, outputTokens: 5 } } })
+    const live = (await host.call('query', { sessionId: 'root', sessionScope: 'tree' })).body.data
+    assert.equal(live.totals.totalTokens, 675, '实时新子任务应纳入累计')
+
+    // 默认口径可持久化，非法值拒绝且不落盘。
+    const badScope = await host.call('config', { sessionScope: 'everything' })
+    assert.equal(badScope.status, 400)
+    const savedScope = await host.call('config', { sessionScope: 'session' })
+    assert.equal(savedScope.body.data.sessionScope, 'session')
+    const defaultOwn = (await host.call('query', { sessionId: 'root' })).body.data
+    assert.equal(defaultOwn.totals.totalTokens, 110, '未显式传口径时应采用已保存的仅本会话默认值')
+    dispose()
+
+    // 旧宿主无 traceSession：用扫描/实时采集的 header 图递归兜底。
+    const legacy = makeHost({ tokenlog: { fetchOfficial: false } }, fixtures)
+    delete legacy.sessionQuery.traceSession
+    const legacyDispose = tokenlogFeature.setup(legacy.ctx)
+    await legacy.call('scan')
+    const fallback = (await legacy.call('query', { sessionId: 'root', sessionScope: 'tree' })).body.data
+    assert.equal(fallback.totals.totalTokens, 660, '旧宿主无官方谱系 API 时仍应累计已知后代')
+    legacyDispose()
+  }
+
   // ---------- 用例 6：export 返回结构化全量明细（中文表头由客户端统一格式化） ----------
   {
     const host = makeHost({ tokenlog: { fetchOfficial: false, usdCnyRate: 8 } })
@@ -492,4 +598,4 @@ try {
   globalThis.clearInterval = realClearInterval
 }
 
-console.log('tokenlog host: ok (自定义单价优先 + 查询即重算 + 参数校验 4xx + 工作日/周末/节假日峰谷 + pricingUrl SSRF 防护 + export 结构化明细)')
+console.log('tokenlog host: ok (自定义单价优先 + 查询即重算 + 参数校验 4xx + 工作日/周末/节假日峰谷 + pricingUrl SSRF 防护 + export 结构化明细 + 主子任务递归累计/去重/旧宿主兜底)')

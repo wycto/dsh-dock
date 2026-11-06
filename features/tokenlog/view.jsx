@@ -2,7 +2,8 @@
 //
 // 嵌入功能坞面板的统计视图（无独立 overlay 外壳；全屏用 dock 弹窗自带的「最大化」）：
 //  - 秒级时间范围查询 + 会话ID/提供商/模型(联动)/状态/推理强度 筛选，条件本地暂存
-//  - 9 张 KPI 卡 + 分组统计表 + 明细表（点击表头排序、会话ID点击即筛选、100 行/页上下双分页）
+//  - 会话可选「任务累计（含全部后代子任务）/仅本会话」；同时展示自身与子任务拆分
+//  - 8 张 KPI 卡 + 分组统计表 + 明细表（点击表头排序、会话ID点击即筛选、100 行/页上下双分页）
 //  - 状态列显示 HTTP 状态码徽章，行内【查看详情】弹窗展示完整信息；CSV 导出（中文表头，列序与明细表一致 + 合计行）
 //  - 独立的「单价设置」子弹窗：按模型配置单价（多段分时价 + 日期类型/法定节假日）并持久化，费用按自填单价重算
 //  - 挂载即扫描历史+按暂存条件查询；挂载期间每 5s 静默自动刷新
@@ -102,6 +103,10 @@ function hourOf(ts) { return new Date(ts).getHours(); }
 const EXPORT_COLUMNS = [
 	["时间", (r) => fmtTime(r.time)],
 	["会话ID", (r) => r.sessionId || ""],
+	["直接父会话ID", (r) => r.parentSessionId || ""],
+	["根会话ID", (r) => r.rootSessionId || r.sessionId || ""],
+	["会话层级", (r) => String(r.sessionDepth || 0)],
+	["会话类型", (r) => r.isSubtask ? "子任务" : "主会话"],
 	["提供商", (r) => r.provider || "—"],
 	["模型", (r) => r.model || "—"],
 	["输入(命中)", (r) => fmtNum(r.cacheReadTokens)],
@@ -149,7 +154,7 @@ function buildExportCsv(rows, rate) {
 // ---------- 筛选条件暂存(本地) ----------
 // 打开视图时恢复上次保存的条件; 从未保存过则时间范围不选(显示全部记录)。
 const STORE_KEY = "dsh-dock/tokenlog/filters/v1";
-const FILTER_FIELDS = ["fromStr", "toStr", "provider", "model", "status", "effort", "sessionId", "dim"];
+const FILTER_FIELDS = ["fromStr", "toStr", "provider", "model", "status", "effort", "sessionId", "sessionScope", "dim"];
 function loadSavedFilters() {
 	try {
 		if (typeof localStorage === "undefined") return null;
@@ -173,6 +178,7 @@ function shortId(sid) {
 	if (sid.length <= 16) return sid;
 	return sid.slice(0, 8) + "…" + sid.slice(-6);
 }
+function sessionType(r) { return r && r.isSubtask ? "子任务" : "主会话"; }
 function statusInfo(r) {
 	if (r.status === "completed") return { code: 200, label: "200", cls: "ok", title: "成功" };
 	if (r.status === "max-tokens") return { code: 200, label: "200", cls: "warn", title: "完成(达到输出上限)" };
@@ -407,6 +413,9 @@ const css = `
 .dtok-empty{text-align:center;color:var(--dsw-alias-label-secondary);padding:32px 0;font-size:13px;}
 .dtok-sid{color:var(--dk-accent);cursor:pointer;text-decoration:underline dotted;}
 .dtok-sid:hover{filter:brightness(1.25);}
+.dtok-scope-note{font-size:12px;color:var(--dsw-alias-label-secondary);padding:7px 10px;border-left:3px solid var(--dk-accent);background:var(--dsw-alias-bg-layer-1);border-radius:4px;line-height:1.5;}
+.dtok-session-kind{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:4px;font-size:10px;color:var(--dk-accent);background:rgb(96 165 250 / .12);vertical-align:middle;}
+.dtok-session-tree{font-family:ui-monospace,monospace;}
 .dtok-code{font-weight:700;font-family:ui-monospace,monospace;}
 .dtok-code.ok{color:var(--dsw-alias-state-success-primary,#4ade80);}
 .dtok-code.warn{color:var(--dk-warn);}
@@ -549,6 +558,10 @@ function Detail({ rec, onClose, rate }) {
 	const rateCny = Number(rate) > 0 ? Number(rate) : 7.2;
 	const rows = [
 		["会话 ID", rec.sessionId],
+		["会话类型", sessionType(rec)],
+		["直接父会话 ID", rec.parentSessionId || "—"],
+		["根会话 ID", rec.rootSessionId || rec.sessionId],
+		["会话层级", String(rec.sessionDepth || 0)],
 		["时间", fmtTime(rec.time)],
 		["提供商", rec.provider],
 		["模型", rec.model],
@@ -993,6 +1006,10 @@ export function TokenLogView(props) {
 	const [effort, setEffort] = useState(() => (savedFilters && savedFilters.effort) || "");
 	// 会话入口（chip/深链）带入的 sessionId 优先于暂存条件：下拉框初值即选中该会话
 	const [sessionId, setSessionId] = useState(() => navSession || (savedFilters && savedFilters.sessionId) || "");
+	// 新入口默认任务累计；用户切到仅本会话后记住选择。宿主 config 是跨浏览器默认值，
+	// 本地 filter 是这台浏览器上次的显式选择；首次没有本地值时采用宿主返回值。
+	const [sessionScope, setSessionScope] = useState(() => (savedFilters && savedFilters.sessionScope) || "tree");
+	const scopeTouchedRef = useRef(!!(savedFilters && savedFilters.sessionScope));
 	const [dim, setDim] = useState(() => (savedFilters && savedFilters.dim) || "");
 	const [sortKey, setSortKey] = useState("time");
 	const [sortDir, setSortDir] = useState("desc");
@@ -1028,8 +1045,8 @@ export function TokenLogView(props) {
 
 	// 暂存筛选条件: 任一筛选变化即写入 localStorage, 下次打开恢复同样条件
 	useEffect(() => {
-		saveFilters({ fromStr, toStr, provider, model, status, effort, sessionId, dim });
-	}, [fromStr, toStr, provider, model, status, effort, sessionId, dim]);
+		saveFilters({ fromStr, toStr, provider, model, status, effort, sessionId, sessionScope, dim });
+	}, [fromStr, toStr, provider, model, status, effort, sessionId, sessionScope, dim]);
 
 	// 挂载时: 扫描历史后按暂存条件查询(未设置时间则不限制, 显示全部记录)
 	useEffect(() => {
@@ -1044,6 +1061,7 @@ export function TokenLogView(props) {
 			if (savedFilters.status) q.status = savedFilters.status;
 			if (savedFilters.effort) q.effort = savedFilters.effort;
 			if (savedFilters.sessionId) q.sessionId = savedFilters.sessionId;
+			if (savedFilters.sessionScope) q.sessionScope = savedFilters.sessionScope;
 			if (savedFilters.dim) q.dim = savedFilters.dim;
 		}
 		// 从会话入口点入时按带入的会话查（优先于暂存条件）：打开即出当前会话结果，
@@ -1054,6 +1072,7 @@ export function TokenLogView(props) {
 			.then((d) => {
 				if (cancel) return;
 				setData(d);
+				if (!scopeTouchedRef.current && d && (d.defaultSessionScope === "tree" || d.defaultSessionScope === "session")) setSessionScope(d.defaultSessionScope);
 			})
 			.catch((e) => { if (!cancel) setErr(String((e && e.message) || e)); })
 			.finally(() => { if (!cancel) setLoading(false); });
@@ -1069,10 +1088,11 @@ export function TokenLogView(props) {
 		if (status) q.status = status;
 		if (effort) q.effort = effort;
 		if (sessionId) q.sessionId = sessionId;
+		if (sessionId) q.sessionScope = sessionScope;
 		const dimNow = dimOverride !== undefined ? dimOverride : dim;
 		if (withDim && dimNow) q.dim = dimNow;
 		return q;
-	}, [fromStr, toStr, provider, model, status, effort, sessionId, dim]);
+	}, [fromStr, toStr, provider, model, status, effort, sessionId, sessionScope, dim]);
 
 	// dimOverride：分组按钮点击时按「即将切换到」的维度立即查询（闭包里的 dim 还是旧值）
 	const runQuery = useCallback((dimOverride) => {
@@ -1087,16 +1107,18 @@ export function TokenLogView(props) {
 	// 挂载时的首次带入已并入初始查询（sessionId 初值 + 挂载 effect），以 navAt 判同跳过，
 	// 避免打开面板时同一条件跑两遍、且挂载查询链路较慢把会话结果覆盖回全量。
 	const navAppliedRef = useRef(navAt);
+	const lastNavSessionRef = useRef(navSession);
 	useEffect(() => {
-		if (!navSession || navAppliedRef.current === navAt) return;
+		if (!navSession || (navAppliedRef.current === navAt && lastNavSessionRef.current === navSession)) return;
 		navAppliedRef.current = navAt;
+		lastNavSessionRef.current = navSession;
 		setSessionId(navSession);
 		setLoading(true); setErr("");
-		rpcCall("query", Object.assign({}, buildQ(true), { sessionId: navSession }))
+		rpcCall("query", Object.assign({}, buildQ(true), { sessionId: navSession, sessionScope }))
 			.then((d) => { setData(d); setPage(0); })
 			.catch((e) => setErr(String((e && e.message) || e)))
 			.finally(() => setLoading(false));
-	}, [navAt]);
+	}, [navAt, navSession]);
 
 	// USD→CNY 汇率: host 返回(默认 7.2, 可被 settings dsh-dock.tokenlog.usdCnyRate 覆盖)。
 	// 必须在所有引用它的表达式(cards/summaryRows/detailRows/Detail/exportCsv)之前声明,
@@ -1105,7 +1127,8 @@ export function TokenLogView(props) {
 
 	// 重置: 清空所有筛选(时间不选=显示全部记录), 并立即查询
 	const resetFilters = useCallback(() => {		setFromStr(""); setToStr("");
-		setProvider(""); setModel(""); setStatus(""); setEffort(""); setSessionId(""); setDim("");
+		setProvider(""); setModel(""); setStatus(""); setEffort(""); setSessionId(""); setSessionScope("tree"); setDim("");
+		scopeTouchedRef.current = false;
 		setLoading(true); setErr("");
 		rpcCall("query", {})
 			.then((d) => { setData(d); setPage(0); })
@@ -1151,6 +1174,14 @@ export function TokenLogView(props) {
 
 	const records = (data && data.records) || [];
 	const totals = data && data.totals;
+	const scopeInfo = data && data.sessionScope;
+	const directTotals = data && data.directTotals;
+	const breakdown = (data && data.sessionBreakdown) || [];
+	const childTotals = scopeInfo && scopeInfo.scope === "tree" ? {
+		calls: Math.max(0, (totals && totals.calls || 0) - (directTotals && directTotals.calls || 0)),
+		totalTokens: Math.max(0, (totals && totals.totalTokens || 0) - (directTotals && directTotals.totalTokens || 0)),
+		cost: Math.max(0, (totals && totals.cost || 0) - (directTotals && directTotals.cost || 0)),
+	} : null;
 	const sessionIds = (data && data.sessionIds) || [];
 	const sorted = useMemo(() => {
 		const arr = records.slice();
@@ -1171,12 +1202,12 @@ export function TokenLogView(props) {
 
 	const cards = totals ? [
 		{ v: fmtNum(totals.calls), l: "调用次数" },
-		{ v: fmtCompact(totals.totalTokens), l: "总 Token" },
+		{ v: fmtCompact(totals.totalTokens), l: scopeInfo && scopeInfo.scope === "tree" ? "累计 Token（含子任务）" : "总 Token" },
 		{ v: fmtCompact(totals.cacheReadTokens), l: "输入(命中)" },
 		{ v: fmtCompact(totals.inputTokens), l: "输入(未命中)" },
 		{ v: totals.cacheHitPct + "%", l: "缓存命中率" },
 		{ v: fmtCompact(totals.outputTokens), l: "输出" },
-		{ v: fmtCostCny(totals.cost, rateCny), l: "消耗金额(估算·人民币)" },
+		{ v: fmtCostCny(totals.cost, rateCny), l: (scopeInfo && scopeInfo.scope === "tree" ? "累计金额" : "消耗金额") + "(估算·人民币)" },
 		{ v: fmtDuration(totals.llmMs), l: "累计耗时" + (totals.timed ? " (" + totals.timed + "步)" : "") },
 	] : [];
 
@@ -1188,6 +1219,19 @@ export function TokenLogView(props) {
 		? (data.modelsByProvider[provider] || [])
 		: (data && data.models) || [];
 
+	const changeScope = (next) => {
+		scopeTouchedRef.current = true;
+		setSessionScope(next);
+		setLoading(true); setErr("");
+		// 先保存跨浏览器默认值，再按新口径查询，避免 query 先读到旧默认值。
+		// 保存失败不阻断本次查询（本地筛选仍生效），但保留可见错误提示。
+		rpcCall("config", { sessionScope: next })
+			.catch((e) => { setErr(String((e && e.message) || e)); })
+			.then(() => rpcCall("query", Object.assign({}, buildQ(true), { sessionScope: next })))
+			.then((d) => { setData(d); setPage(0); })
+			.catch((e) => setErr(String((e && e.message) || e)))
+			.finally(() => setLoading(false));
+	};
 	const summaryRows = (data && data.summary || []).map((r) => (
 		<tr key={r.key}>
 			<td>{r.key}</td><td>{fmtNum(r.calls)}</td><td>{fmtCompact(r.cacheReadTokens)}</td>
@@ -1209,7 +1253,7 @@ export function TokenLogView(props) {
 		return (
 			<tr key={r.id}>
 				<td>{fmtTime(r.time)}</td>
-				<td><span className="dtok-sid" title="点击按此会话筛选" onClick={() => { setSessionId(r.sessionId); runQuery(); }}>{shortId(r.sessionId)}</span></td>
+				<td><span className="dtok-sid" title={"会话：" + r.sessionId + (r.parentSessionId ? "\n直接父会话：" + r.parentSessionId : "") + "\n点击按此会话筛选"} onClick={() => { setSessionId(r.sessionId); setLoading(true); setErr(""); rpcCall("query", Object.assign({}, buildQ(true), { sessionId: r.sessionId })).then((d) => { setData(d); setPage(0); }).catch((e) => setErr(String((e && e.message) || e))).finally(() => setLoading(false)); }}>{shortId(r.sessionId)}</span><span className="dtok-session-kind">{sessionType(r)}</span></td>
 				<td>{r.provider || "—"}</td>
 				<td>{r.model || "—"}</td>
 				<td>{fmtNum(r.cacheReadTokens)}</td>
@@ -1245,10 +1289,32 @@ export function TokenLogView(props) {
 			<ChartsPanel key={"charts-" + fetchedAt} records={records} rate={rateCny} />
 		);
 	} else {
+	if (scopeInfo && scopeInfo.sessionId) bodyNodes.push(
+		<div key="scope-note" className="dtok-scope-note">
+			{scopeInfo.scope === "tree"
+				? "任务累计 = 本会话 + 全部后代子任务；按实际调用 ID 去重，子任务继承的历史不会重复计算。"
+				: "仅统计当前会话自己的调用，不包含派发的子任务。"}
+			{" 本会话 " + fmtCompact(directTotals && directTotals.totalTokens || 0) + " Token"}
+			{childTotals ? " · 子任务 " + fmtCompact(childTotals.totalTokens) + " Token / " + fmtCostCny(childTotals.cost, rateCny) + "（" + scopeInfo.descendantCount + " 个会话）" : ""}
+			{scopeInfo.complete === false ? " · 谱系部分缺失，仅累计已知会话" : ""}
+		</div>
+	);
 	if (cards.length) bodyNodes.push(
 		// key 带 fetchedAt：每次「手动查询 / 首次加载」拿到新数据时重建一次，KPI 卡重播回弹动画
 		<div className={"dtok-cards" + (fetchedAt ? " dtok-pop" : "")} key={"cards-" + fetchedAt}>
 			{cards.map((c, i) => <div className="dtok-card" key={c.l} style={{ "--i": String(i) }}><div className="v">{c.v}</div><div className="l">{c.l}</div></div>)}
+		</div>
+	);
+	if (breakdown.length) bodyNodes.push(
+		<div key="session-sum" className="dtok-section-title">会话用量拆分（{breakdown.length} 个有用量的会话）</div>,
+		<div key="session-sum-table" className="dtok-table-wrap">
+			<table className="dtok-table">
+				<thead><tr><th>会话</th><th>类型</th><th>调用</th><th>总 Token</th><th>金额（人民币）</th></tr></thead>
+				<tbody>{breakdown.map((r) => <tr key={r.sessionId}>
+					<td className="dtok-session-tree" title={"会话：" + r.sessionId + (r.parentSessionId ? "\n直接父会话：" + r.parentSessionId : "")}>{r.sessionDepth ? "└ ".repeat(Math.min(r.sessionDepth, 4)) : ""}{shortId(r.sessionId)}</td>
+					<td>{r.sessionId === scopeInfo.sessionId ? "当前会话" : sessionType(r)}</td><td>{fmtNum(r.calls)}</td><td>{fmtCompact(r.totalTokens)}</td><td>{fmtCostCny(r.cost, rateCny)}</td>
+				</tr>)}</tbody>
+			</table>
 		</div>
 	);
 	if (summaryRows.length) bodyNodes.push(
@@ -1323,6 +1389,9 @@ export function TokenLogView(props) {
 				<select className="dtok-select" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
 					<option value="">全部</option>{opts(sessionIds)}
 				</select>
+				{sessionId ? <><label>会话口径</label><select className="dtok-select" value={sessionScope} aria-label="会话用量口径" onChange={(e) => changeScope(e.target.value)}>
+					<option value="tree">任务累计（含子任务）</option><option value="session">仅本会话</option>
+				</select></> : null}
 				<label>提供商</label>
 				<select className="dtok-select" value={provider} onChange={(e) => { setProvider(e.target.value); setModel("") }}>
 					<option value="">全部</option>{opts(data && data.providers)}
@@ -1388,10 +1457,10 @@ function TokenLogHomeStat() {
 	return <span>今日 {fmtNum(t.calls)} 次调用 · {fmtCompact(t.totalTokens)} Token · {fmtCostCny(t.cost, snap.rate)}</span>;
 }
 
-// ---------- 会话输入区 chip：显示当前会话总 Token（10s 静默刷新），点击打开功能坞并按该会话筛选 ----------
+// ---------- 会话输入区 chip：默认显示当前会话+后代子任务累计（10s 静默刷新） ----------
 export function TokenLogChip(props) {
 	const sid = (props && props.sessionId) || (props && props.session && props.session.sessionId) || null;
-	const [snap, setSnap] = useState({ totals: null, rate: 7.2, err: "" });
+	const [snap, setSnap] = useState({ totals: null, directTotals: null, scope: null, rate: 7.2, err: "" });
 	useEffect(() => {
 		if (!sid) return;
 		let cancel = false;
@@ -1401,8 +1470,8 @@ export function TokenLogChip(props) {
 			// 无效请求、不再刷控制台报错。此前会一直重试到页面关闭（实测控制台连续 405）。
 			if (cancel || isTokenlogRouteGone()) return null;
 			return rpcCall("query", { sessionId: sid })
-				.then((d) => { if (!cancel) setSnap({ totals: d && d.totals, rate: (d && d.rateUsdCny) || 7.2, err: "" }); })
-				.catch((e) => { if (!cancel) setSnap((s) => ({ totals: s.totals, rate: s.rate, err: String((e && e.message) || e) })); });
+				.then((d) => { if (!cancel) setSnap({ totals: d && d.totals, directTotals: d && d.directTotals, scope: d && d.sessionScope, rate: (d && d.rateUsdCny) || 7.2, err: "" }); })
+				.catch((e) => { if (!cancel) setSnap((s) => ({ ...s, err: String((e && e.message) || e) })); });
 		};
 		load();
 		timer = setInterval(load, 10000);
@@ -1410,6 +1479,10 @@ export function TokenLogChip(props) {
 	}, [sid]);
 	if (!sid) return null;
 	const t = snap.totals;
+	const cumulative = snap.scope && snap.scope.scope === "tree";
+	const own = snap.directTotals;
+	const childTokens = cumulative ? Math.max(0, (t && t.totalTokens || 0) - (own && own.totalTokens || 0)) : 0;
+	const childCost = cumulative ? Math.max(0, (t && t.cost || 0) - (own && own.cost || 0)) : 0;
 	const gone = isTokenlogRouteGone();
 	// chip 文案用紧凑人民币金额（2 位小数），避免撑爆输入卡工具行；
 	// 完整金额在 title 悬浮提示里。
@@ -1426,11 +1499,13 @@ export function TokenLogChip(props) {
 	const title = gone
 		? routeGoneMessage() + "\n（可在功能坞里启用「用量记录」）"
 		: t
-		? "本会话 " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCostCny(t.cost, snap.rate) + "（估算）\n点击在功能坞查看用量记录"
+		? (cumulative ? "任务累计（含子任务）" : "仅本会话") + " " + fmtNum(t.calls) + " 次调用 · " + fmtNum(t.totalTokens) + " Token · " + fmtCostCny(t.cost, snap.rate) + "（估算）"
+			+ (cumulative ? "\n本会话 " + fmtCompact(own && own.totalTokens || 0) + " Token / " + fmtCostCny(own && own.cost || 0, snap.rate) + " · 子任务 " + fmtCompact(childTokens) + " Token / " + fmtCostCny(childCost, snap.rate) + "（" + snap.scope.descendantCount + " 个会话）" : "")
+			+ (cumulative && snap.scope.complete === false ? "\n谱系部分缺失，仅累计已知会话" : "") + "\n点击在功能坞查看用量记录"
 		: (snap.err ? snap.err + "\n" : "") + "点击在功能坞查看用量记录";
 	// 路由不可用时不做成报错态（红色），它不是错误，是「这个功能当前没开」。
 	return (
-		<button type="button" className={"dockchip" + (snap.err && !t && !gone ? " err" : "")} title={title} aria-label="会话用量"
+		<button type="button" className={"dockchip" + (snap.err && !t && !gone ? " err" : "")} title={title} aria-label={cumulative ? "任务累计用量（含子任务）" : "本会话用量"}
 			onClick={() => openPanel("tokenlog", { sessionId: sid, navAt: Date.now() })}>
 			{/* 窄屏只显示这枚小图标：点它进配方看具体数据（title 里是完整数值） */}
 			<span className="dockchip-svg" aria-hidden="true">
@@ -1440,7 +1515,7 @@ export function TokenLogChip(props) {
 			</span>
 			<span className="dockchip-dot" style={{ background: gone ? "var(--dsw-alias-label-tertiary,#8b95ab)" : "var(--dk-warn)" }} />
 			{labelIcon ? <span className="dockchip-ic">{labelIcon}</span> : null}
-			{hasData ? <span className="dockchip-pre-s">用量 </span> : null}<span className="dockchip-val">{labelMain}</span>{labelExtra ? <span className="dockchip-x">{labelExtra}</span> : null}
+			{hasData ? <span className="dockchip-pre-s">{cumulative ? "累计 " : "用量 "}</span> : null}<span className="dockchip-val">{labelMain}</span>{labelExtra ? <span className="dockchip-x">{labelExtra}</span> : null}
 		</button>
 	);
 }
@@ -1450,7 +1525,7 @@ export const feature = {
 	name: "用量记录",
 	order: 110,
 	accent: "#fbbf24",
-	description: "记录全部 LLM API 调用：秒级时间筛选、Token/费用统计（可配置各模型单价，持久保存并按自填单价计费；多段分时价可限定工作日/周末节假日，内置峰谷计价+官网价目自动同步作兜底）、分组汇总、明细检索与 CSV 导出",
+	description: "记录全部 LLM API 调用：秒级筛选、主任务+后代子任务累计/仅本会话切换、会话用量拆分、Token/费用统计（自定义单价与峰谷价）、分组汇总、明细检索与 CSV 导出",
 	css,
 	View: TokenLogView,
 	HomeStat: TokenLogHomeStat,
