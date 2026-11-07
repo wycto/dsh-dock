@@ -2,6 +2,23 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.23.1 — 2026-11-07
+
+### 修复
+
+- **任务已完成却一直挂「卡住」卡、底部显示「思考中」十几个小时**（用户 2026-11-07 反馈）：
+  根因是共享追踪只按 `agent/status` 的 `idle` / `agent/disposed` 归档，而这两个事件是按
+  **agent 作用域**发出的，追踪在 `inject(sessionQuery)` 上下文里普通订阅**收不到**（需
+  `{ global: true }`）。于是会话永远留在 active：运行时长无限增长、完成通知不触发、卡住卡
+  也永远不自动收起。修正：
+  - 宿主 `agent/status`、`agent/disposed` 订阅改为 `{ global: true }`，恢复「回合空闲即归档」。
+  - 另以稳定收到的 `session/event` `turn/end` 直接归档（turn/end 一到即 `finishSession`），
+    不再单靠 idle。
+  - 客户端 `handleTaskEnd` 在任务结束时主动收起该会话已挂的「卡住」卡；卡住卡在任务离开活跃
+    列表时也会自动淡出。
+  - 验证：host 新增「用例 2c：turn/end 即归档（不发 idle）」；client 新增 ⑪「任务结束 → 卡住卡
+    自动收起」。
+
 ## v0.23.0 — 2026-11-06
 
 ### 变更
