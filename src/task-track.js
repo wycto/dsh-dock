@@ -314,13 +314,20 @@ function createTracker(ctx) {
 			s.lastActivityAt = now
 			return
 		}
-		if (event.type === 'turn/end' && event.data && event.data.reason) {
-			const reason = event.data.reason
-			s.endReason = (reason.kind || 'completed')
-			if (reason.kind === 'error' && reason.error) {
+		if (event.type === 'turn/end') {
+			const reason = (event.data && event.data.reason) || null
+			s.endReason = (reason && reason.kind) || 'completed'
+			if (reason && reason.kind === 'error' && reason.error) {
 				const msg = (reason.error && (reason.error.message || reason.error.code)) || ''
 				s.errorMessage = typeof msg === 'string' ? msg : String(msg)
 			}
+			// 关键修复（2026-11-07 用户反馈「任务都结束了还一直挂『卡住』卡、底部显示 2 个任务『思考中』13 小时」）：
+			// 回合结束（turn/end）即视为该「任务」结束，立即归档——不再只依赖 agent/status 的 idle 事件。
+			// 后者在 inject(sessionQuery) 上下文中订阅时**收不到**（事件作用域不同，要用 global），
+			// 于是会话永远留在 active：运行时长无限增长、完成通知不触发、卡住卡也无法自动收起。
+			// turn/end 是 session/event，已被本追踪稳定接收（工具数 / 步数 / 用量都靠它），用它归档最可靠。
+			finishSession(sid)
+			return
 		} else if (event.type === 'approval/asked' && event.data) {
 			// 工具等待用户确认/批准：挂在会话记录上，/status 下发给浏览器弹"需确认"通知
 			const id = typeof event.data.id === 'string' ? event.data.id : ''
@@ -465,13 +472,16 @@ function createTracker(ctx) {
 				console.error('[dsh-dock] task-track handle event error', err)
 			}
 		}))
+		// agent/status、agent/disposed 是**按 agent 作用域**发出的事件；在 sqCtx（inject 出来的
+		// sessionQuery 上下文）上普通订阅收不到（2026-11-07 实测：任务永远不结束、卡住卡不自动收）。
+		// 加 { global: true } 收全局，才能拿到任意 agent 的 idle / disposed。
 		disposers.push(sqCtx.on('agent/status', (payload) => {
 			try {
 				handleAgentStatus(sessionQuery, payload && payload.agent, payload && payload.status)
 			} catch (err) {
 				console.error('[dsh-dock] task-track handle agent/status error', err)
 			}
-		}))
+		}, { global: true }))
 		// agent 销毁兜底归档（会话直接关闭时也产出完成记录）
 		disposers.push(sqCtx.on('agent/disposed', (payload) => {
 			try {
@@ -480,7 +490,7 @@ function createTracker(ctx) {
 			} catch (err) {
 				console.error('[dsh-dock] task-track handle agent/disposed error', err)
 			}
-		}))
+		}, { global: true }))
 	}))
 
 	return {

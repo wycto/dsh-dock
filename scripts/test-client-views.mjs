@@ -2744,6 +2744,21 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 			html = await renderSettled(s.runtime, s.node);
 			if (html.includes("卡住了")) detail = "⑩PTC（run_code 等子代理/后台任务）执行期间仍弹了「卡住了」卡";
 		}
+		// ⑪ 任务结束（离开活跃列表）→ 已挂的「卡住」卡必须自动收起（用户 2026-11-07：中途卡住、后来结束
+		// 要自动消失，不能一直挂着）。此前宿主若不发/收不到 agent/status idle，任务永远留在 active，
+		// 卡住卡就永远不收；现宿主按 turn/end 归档，客户端也在 handleTaskEnd 里主动收起同会话卡住卡。
+		if (!detail) {
+			live = { active: [stalledTask()], recent: [], config: cfgOf() };
+			s = setup(live);
+			await renderSettled(s.runtime, s.node);
+			await s.poke();
+			html = await renderSettled(s.runtime, s.node);
+			if (!html.includes("卡住了")) throw new Error("⑪前置条件不成立：没有先弹出卡住卡");
+			live.active = []; // 任务结束
+			await s.poke();
+			html = await waitGone(() => renderSettled(s.runtime, s.node), (h) => h.includes("卡住了"));
+			if (html.includes("卡住了")) detail = "⑪任务结束后卡住卡没有自动收起";
+		}
 	} catch (e) {
 		detail = "⑨正在干活不算卡住用例抛错：" + ((e && e.message) || e);
 	}

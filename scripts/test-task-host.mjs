@@ -352,6 +352,27 @@ assert.equal(host.routes.has('/dsh-dock/runstate'), false, '运行状态停用�
   }
 }
 
+// ---------- 用例 2c：回合结束（turn/end）即归档，不等 agent/status idle ----------
+// 2026-11-07 用户反馈：任务都结束了还一直挂「卡住」卡，底部显示「2 个任务·思考中 13 小时」。根因是
+// agent/status 的 idle 在 inject(sessionQuery) 上下文里收不到（需 global:true），任务永远留在 active。
+// 现除把 agent/status 订阅改成 global 外，另用稳定的 session/event turn/end 直接归档兜底。
+{
+  const h = makeHost()
+  const d = notifyFeature.setup(h.ctx)
+  try {
+    h.emit('agent/status', { agent: { id: 'sess-end' }, status: 'running' })
+    h.emit('session/event', { id: 'sess-end' }, { type: 'step/start', time: Date.now(), data: { turn: 1, step: 1 } })
+    h.emit('session/event', { id: 'sess-end' }, { type: 'turn/end', time: Date.now(), data: { reason: { kind: 'completed' } } })
+    // 关键：不 emit agent/status idle，直接看快照
+    const st = (await h.call('/dsh-dock/notify', 'status')).body.data
+    assert.equal(st.active.filter((x) => x.sessionId === 'sess-end').length, 0, 'turn/end 后任务应立即离开 active（不等 idle）')
+    assert.ok(st.recent.some((r) => r.sessionId === 'sess-end' && r.endReason === 'completed'), 'turn/end 应产出完成记录')
+    console.log('turn/end finalize: ok（不依赖 agent/status idle，回合结束即归档）')
+  } finally {
+    d()
+  }
+}
+
 // ---------- 用例 4：一次性迁移（老 animation 段的通知配置搬进 notify 段） ----------
 {
   const legacy = makeHost()

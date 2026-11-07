@@ -1075,6 +1075,19 @@ export function NotifyOverlay(props) {
 	}, [snap.status]);
 
 	const handleTaskEnd = (task, record, cfg) => {
+		// 任务结束 → 该会话若还挂着「卡住」卡，立即淡出收起（用户 2026-11-07：中途卡住、后来结束了，
+		// 通知卡片要自动消失，不能一直挂着）。
+		setToasts((prev) => {
+			let changed = false;
+			const next = prev.map((x) => {
+				if (x.kind === "stuck" && !x.closing && x.sessionId && task && x.sessionId === task.sessionId) {
+					changed = true;
+					return Object.assign({}, x, { closing: true });
+				}
+				return x;
+			});
+			return changed ? next : prev;
+		});
 		const reason = (record && record.endReason) || "";
 		const success = isSuccessReason(reason);
 		const info = endInfo(reason);
