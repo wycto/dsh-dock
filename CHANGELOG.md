@@ -2,6 +2,62 @@
 
 本文件记录 dsh-dock 各版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## v0.24.0 — 2026-11-15
+
+### 新增
+
+- **【DSH功能】模块**（用户 2026-11-13 要求：给 DSH 自带界面补能力，按分组勾选）：
+  - 新模块 `features/dshtools/`（宿主半部 + 面板页），功能坞菜单「DSH功能」；页面按「分组 × 勾选项」渲染，
+    勾选状态持久化在宿主 settings 的 `dshtools` 段（跨浏览器一致），取消勾选即撤掉对应入口。
+  - 首个能力「文件右键 → 大文件下载（流式）」：DSH 自带「下载」走 Remote 整文件读取（默认上限
+    `maxFileBytes` = 32 MiB），超过只提示「无法保存文件」。勾选后，右键「下载」被**接管**为本模块的
+    流式下载（客户端启动时 HEAD 探测 `dsh-dock/download?probe=1`，宿主返回 204 才接管，旧宿主保持
+    原行为），按 1 MiB 分块 `readByteRange` 流式发送原文件（`Content-Disposition: attachment`，
+    RFC 5987 中文文件名），不受上限影响、不整份驻留内存；大于 32 MiB 的文件另多一条「下载（大文件）」入口。
+  - 安全：路由与其它 `/dsh-dock/*` 一样先过 `connection.requestRejection` 信任栅栏；可读性由 fs
+    读取策略决定（与 DSH `/api/file` 同一套），只接受绝对路径；`FS_NOT_FOUND`/越权映射 404/403。
+  - 扩展：新增能力 = `features/dshtools/host.js` 的 `DSH_TOOL_GROUPS` 加一项 + 按 `settingValue()` 接行为，
+    面板页自动出现勾选框；宿主清单同时是客户端渲染的数据源。
+  - 测试：`scripts/test-dshtools-host.mjs`（信任栅栏、设置读写的默认值/回读/参数校验、流式分块与
+    Content-Disposition 编码、HEAD、探测 204、404/403/405、disposer 摘路由）并入 `test:host`；
+    `scripts/test-dshtools-client.mjs` 直接加载构建产物 client.js，断言菜单贡献、接管跳转、
+    非 `/api/file` 来源回退、探测失败不接管，并入 `test:client`。
+
+### 变更
+
+- **语音播报文案统一顺序：先说「主任务/子任务」，再说事件，任务名接在后面**（用户 2026-11-07 要求）：
+  如「主任务完成了「标题」」「子任务卡住了「标题」」「主任务需要授权「标题」」「子任务需要你回答「标题」」；
+  三挡（简洁 / 适中 / 详细）与完成 / 停止 / 需授权 / 需要回答 / 卡住全部事件统一此顺序。页内卡片文案不变。
+
+### 修复
+
+- **宿主升到 DSH 0.2.2-rc.2+ 后功能坞全线报错**（用户 2026-11-14 反馈，截图：输入区
+  「用量·失败 / 余额 失败」，用量记录面板「错误: 浏览器信任栅栏不可用，已拒绝请求」，
+  模型余额面板「余额查询失败：余额接口 HTTP 401」）：根因是宿主把**插件路由的准入**从
+  Connection 迁到 WebServer——`connection.requestRejection` 已随
+  `docs/upgrade-guide/v0.2.2-rc.2/connection-page-peer` 删除，而 `rejectUntrustedRequest`
+  把它当唯一栅栏，取不到就 fail-closed 一律 401，于是 13 处 `/dsh-dock/*` 路由被自己挡死。
+  面板里那句红字本来就是本插件回的 401（余额的「HTTP 401」是同一原因的另一种措辞）。修正：
+
+  - `src/host-core.js`：`rejectUntrustedRequest(ctx, req, res, peer)` 兼容两代宿主——拿到载体
+    准入的 `peer` 即放行；否则回退老宿主的 `connection.requestRejection`；两代栅栏面都没有
+    才 fail-closed（并且在新宿主上漏传 peer 时，错误文案直接指回 `auth: 'required'`）。
+    **不再二次 `connection.admit`**：那会重新认证出一个新 Peer，白耗一份凭据与生命周期。
+  - 13 处 `webServer.register` 全部**显式声明 `auth: 'required'`**，并把 handler 第三个参数
+    `peer` 透传给守卫（不写也落在默认值上，但显式声明才挡得住将来默认值变化）。涉及
+    功能开关路由 + 模型管理 / 模型能力 / MCP管理 / 模型余额 / 用量记录 / 语音朗读 /
+    任务动画 / 任务通知 / 运行状态 / 远程访问 / DSH功能（含大文件下载）。
+  - 【远程访问】上游会话兑换：`connection.authenticatedUrl` 同样已删除，令牌改由
+    `host-authentication-token` 贡献到 `webserver/entry-url`。改为缓存该公告地址重建令牌 URL；
+    老宿主仍走 `authenticatedUrl`；两条都拿不到时退回官方行为（远程浏览器自己访问一次令牌地址）。
+  - 测试：`scripts/test-route-trust-host.mjs` 的静态约定从「挂了守卫」升级为「挂了守卫 +
+    透传 peer + 显式 `auth: 'required'`」三查，并新增新宿主用例（带 peer 放行 / 不带 peer
+    fail-closed 且错误指回 auth 声明）。`test:host`（11 个用例）与 `test:client` 全绿。
+  - 兼容性：只动宿主半部，**要重启 `dsh web` 才生效**；客户端半部无改动，不需要重建 `client.js`。
+  - 附带事实记录：`docs/dsh-compat.md` 新增「插件路由准入代际」与「依赖闭包版本」两节
+    （安装闭包里 `@deepseek-ai/schemastery` 还是 3.18.2、没有 `.volatile()`，直接在仓库里
+    `npm run test:host` 会在导入配置 schema 时就报错，与本修复无关）。
+
 ## v0.23.1 — 2026-11-07
 
 ### 修复

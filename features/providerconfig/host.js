@@ -206,8 +206,8 @@ export const feature = {
   setup(ctx) {
     const webServer = ctx.get('webServer')
     if (webServer === undefined) throw new Error('webServer 服务不可用，无法提供模型提供商路由')
-    const handler = async (req, res) => {
-      if (rejectUntrustedRequest(ctx, req, res)) return
+    const handler = async (req, res, peer) => {
+      if (rejectUntrustedRequest(ctx, req, res, peer)) return
       try {
         if (req.method === 'GET') {
           const payload = readModelDirectory(ctx)
@@ -230,6 +230,6 @@ export const feature = {
         sendJson(res, status, { ok: false, error: e instanceof Error ? e.message : String(e) })
       }
     }
-    return webServer.register({ kind: 'exact', path: '/dsh-dock/providerconfig', handler })
+    return webServer.register({ kind: 'exact', auth: 'required', path: '/dsh-dock/providerconfig', handler })
   },
 }

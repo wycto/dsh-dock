@@ -194,7 +194,7 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 		if (String(url).includes("dsh-dock/providerconfig")) {
 			return Promise.resolve({ ok: true, status: 200, json: async () => MODELCONFIG_DIR });
 		}
-		// MCP 管理：托管一台 xiaomi_ocr（含实时状态与已注册工具），覆盖卡片/状态渲染分支
+		// MCP 管理：托管一台 demo_ocr（含实时状态与已注册工具），覆盖卡片/状态渲染分支
 		if (String(url).includes("dsh-dock/mcpconfig")) {
 			return Promise.resolve({ ok: true, status: 200, json: async () => ({
 				ok: true,
@@ -202,10 +202,10 @@ function makeFetch(animationStatus, notifyStatus, posts, persisted, runstateStat
 				hmrAvailable: true,
 				warnings: [],
 				servers: [{
-					serverName: "xiaomi_ocr", transport: "stdio", command: "/usr/bin/python3",
-					args: ["/www/wwwroot/xiaomi-ocr/mcp_ocr.py"], env: {}, cwd: "/www/wwwroot/xiaomi-ocr",
+					serverName: "demo_ocr", transport: "stdio", command: "/usr/bin/python3",
+					args: ["/home/me/work/demo-service/mcp_ocr.py"], env: {}, cwd: "/home/me/work/demo-service",
 					url: "", headers: {}, enabled: true, failOnStartupError: false, toolCallTimeoutMs: 300000,
-					state: "active", error: null, tools: ["mcp__xiaomi_ocr__ocr_image", "mcp__xiaomi_ocr__ocr_health"], toolCount: 2,
+					state: "active", error: null, tools: ["mcp__demo_ocr__ocr_image", "mcp__demo_ocr__ocr_health"], toolCount: 2,
 				}],
 			}) });
 		}
@@ -566,6 +566,8 @@ const FEATURES = [
 	{ id: "games", name: "趣味游戏", marker: "游戏", deep: true },
 	{ id: "mobile-relay", name: "远程访问", marker: "远程", deep: true },
 	{ id: "mcpconfig", name: "MCP管理", marker: "托管块", deep: true },
+	// DSH功能：清单由宿主返回，测试桩没有宿主路由时页面仍有引导文案 + 错误提示
+	{ id: "dshtools", name: "DSH功能", marker: "自带界面补充能力", deep: true },
 ];
 
 let failed = 0;
@@ -2003,7 +2005,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		live.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId })];
 		await poke();
 		if (speech.spoken.length !== 1) throw new Error("①任务完成没有播报（spoken=" + speech.spoken.length + "）");
-		if (lastSpeech(speech) !== "任务完成") detail = "①简洁口径播报文本不对：" + lastSpeech(speech);
+		if (lastSpeech(speech) !== "主任务完成了「上一个任务」") detail = "①简洁口径播报文本不对：" + lastSpeech(speech);
 		// 换详细口径的完成：应带标题与耗时
 		const live2 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: cfgOf({ voiceMode: "detailed" }) };
 		const speech2 = makeSpeechStub();
@@ -2014,7 +2016,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		live2.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: NOTIFY_STATUS.active[0].sessionId, duration: 125000 })];
 		await s2.poke();
 		const t2 = lastSpeech(speech2);
-		if (!t2.includes("上一个任务") || !t2.includes("已完成")) detail = "①详细口径缺少标题或结果（实际：" + t2.slice(0, 50) + "）";
+		if (!t2.includes("上一个任务") || !t2.includes("完成")) detail = "①详细口径缺少标题或结果（实际：" + t2.slice(0, 50) + "）";
 		// 总开关关：同样的结束不说话
 		const live3 = { active: [Object.assign({}, NOTIFY_STATUS.active[0], { approvals: [] })], recent: [], config: Object.assign({}, NOTIFY_STATUS.config, { voiceNotify: false }) };
 		const speech3 = makeSpeechStub();
@@ -2110,7 +2112,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await renderSettled(runtime, node);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("②出现待确认项没有播报");
-		if (lastSpeech(speech) !== "任务需要授权") detail = "②需授权简洁播报不对：" + lastSpeech(speech);
+		if (lastSpeech(speech) !== "主任务需要授权「回归测试任务」") detail = "②需授权简洁播报不对：" + lastSpeech(speech);
 	} catch (e) {
 		detail = "②需授权播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2128,7 +2130,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await renderSettled(runtime, node);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("③卡住没有播报");
-		if (lastSpeech(speech) !== "主任务「回归测试任务」卡住了") detail = "③卡住简洁播报没带主任务与标题：" + lastSpeech(speech);
+		if (lastSpeech(speech) !== "主任务卡住了「回归测试任务」") detail = "③卡住简洁播报没带主任务与标题：" + lastSpeech(speech);
 		const before = speech.spoken.length;
 		await poke();
 		await poke(); // 同一 lastActivityAt：不得重复轰炸
@@ -2152,7 +2154,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await renderSettled(runtime, node);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("④b子任务卡住没有播报");
-		if (lastSpeech(speech) !== "子任务「回归测试任务」卡住了") detail = "④b子任务卡住播报没带子任务标识：" + lastSpeech(speech);
+		if (lastSpeech(speech) !== "子任务卡住了「回归测试任务」") detail = "④b子任务卡住播报没带子任务标识：" + lastSpeech(speech);
 	} catch (e) {
 		detail = "④b子任务卡住播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2169,7 +2171,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("④c详细口径卡住没有播报");
 		const t = lastSpeech(speech);
-		if (!/^主任务「回归测试任务」卡住了/.test(t)) detail = "④c详细口径缺主任务与标题：" + t;
+		if (!/^主任务卡住了「回归测试任务」/.test(t)) detail = "④c详细口径缺主任务与标题：" + t;
 		else if (!t.includes("20秒")) detail = "④c详细口径缺停滞时长：" + t;
 		else if (!t.includes("最后在执行bash（执行命令）")) detail = "④c详细口径缺最后动作：" + t;
 	} catch (e) {
@@ -2188,7 +2190,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		})];
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("⑤任务停止没有播报");
-		if (lastSpeech(speech) !== "任务停止了") detail = "⑤停止播报文本不对：" + lastSpeech(speech);
+		if (lastSpeech(speech) !== "主任务停止了「上一个任务」") detail = "⑤停止播报文本不对：" + lastSpeech(speech);
 	} catch (e) {
 		detail = "⑤停止播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2235,7 +2237,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("⑦适中口径完成没有播报");
 		const t = lastSpeech(speech);
-		if (t !== "任务「上一个任务」完成了，耗时30秒。") detail = "⑦适中完成播报文本不对：" + t;
+		if (t !== "主任务完成了「上一个任务」，耗时30秒。") detail = "⑦适中完成播报文本不对：" + t;
 	} catch (e) {
 		detail = "⑦适中完成播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2253,7 +2255,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		live.recent = [subRecord];
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("⑦b子任务完成没有播报");
-		if (lastSpeech(speech) !== "子任务完成") detail = "⑦b简洁子任务完成播报不对：" + lastSpeech(speech);
+		if (lastSpeech(speech) !== "子任务完成了「上一个任务」") detail = "⑦b简洁子任务完成播报不对：" + lastSpeech(speech);
 		// 适中：主任务与子任务一起点名
 		const live2 = { active: [subTask], recent: [], config: cfgOf({ voiceMode: "medium" }) };
 		const speech2 = makeSpeechStub();
@@ -2264,7 +2266,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		live2.recent = [subRecord];
 		await s2.poke();
 		const t2 = lastSpeech(speech2);
-		if (!detail && t2 !== "主任务「主任务标题」的子任务「上一个任务」完成了，耗时30秒。") detail = "⑦b适中子任务播报没点名主任务与子任务：" + t2;
+		if (!detail && t2 !== "子任务完成了「上一个任务」（主任务「主任务标题」），耗时30秒。") detail = "⑦b适中子任务播报没点名主任务与子任务：" + t2;
 		// 旧宿主兼容：完成记录没带归属时，活跃快照的归属也要能兜住
 		const live3 = { active: [subTask], recent: [], config: cfgOf() };
 		const speech3 = makeSpeechStub();
@@ -2274,7 +2276,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		live3.active = [];
 		live3.recent = [Object.assign({}, NOTIFY_STATUS.recent[0], { sessionId: subTask.sessionId })];
 		await s3.poke();
-		if (!detail && lastSpeech(speech3) !== "子任务完成") detail = "⑦b记录缺归属时没按活跃快照兜底：" + lastSpeech(speech3);
+		if (!detail && lastSpeech(speech3) !== "子任务完成了「上一个任务」") detail = "⑦b记录缺归属时没按活跃快照兜底：" + lastSpeech(speech3);
 	} catch (e) {
 		detail = "⑦b子任务完成播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2291,7 +2293,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("⑧适中口径卡住没有播报");
 		const t = lastSpeech(speech);
-		if (!/^主任务「回归测试任务」卡住了，已经2\d秒没有任何动静。$/.test(t)) detail = "⑧适中卡住播报文本不对：" + t;
+		if (!/^主任务卡住了「回归测试任务」，已经2\d秒没有任何动静。$/.test(t)) detail = "⑧适中卡住播报文本不对：" + t;
 		if (!detail && t.indexOf("最后在执行") !== -1) detail = "⑧适中口径不该念最后动作：" + t;
 	} catch (e) {
 		detail = "⑧适中卡住播报用例抛错：" + ((e && e.message) || e);
@@ -2311,7 +2313,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		await poke();
 		if (speech.spoken.length < 1) throw new Error("⑨适中口径需授权没有播报");
 		const t = lastSpeech(speech);
-		if (t !== "任务「回归测试任务」需要授权，正在等你批准执行命令。") detail = "⑨适中需授权播报文本不对：" + t;
+		if (t !== "主任务需要授权「回归测试任务」，正在等你批准执行命令。") detail = "⑨适中需授权播报文本不对：" + t;
 	} catch (e) {
 		detail = "⑨适中需授权播报用例抛错：" + ((e && e.message) || e);
 	}
@@ -2529,7 +2531,7 @@ console.log(`\n全部 ${FEATURES.length} 个内置功能视图渲染正常。`);
 		const html = await renderSettled(runtime, node);
 		if (html.includes("卡住了")) detail = "③卡住提醒关闭仍弹了卡住卡";
 		else if (speech.spoken.length < 1) detail = "③关掉卡住卡后语音也哑了（卡片开关不得连坐语音）";
-		else if (!/主任务「回归测试任务」卡住了/.test(speech.spoken[speech.spoken.length - 1].text)) {
+		else if (!/主任务卡住了「回归测试任务」/.test(speech.spoken[speech.spoken.length - 1].text)) {
 			detail = "③卡住语音文本不对：" + speech.spoken[speech.spoken.length - 1].text;
 		}
 	} catch (e) {

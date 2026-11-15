@@ -42,9 +42,9 @@ plugin_manager。本模块补上这块。
 
 ```json
 { "ok": true, "patchPath": "…", "hmrAvailable": true,
-  "servers": [{ "serverName": "xiaomi_ocr", "transport": "stdio", "enabled": true,
+  "servers": [{ "serverName": "demo_ocr", "transport": "stdio", "enabled": true,
                 "state": "active", "error": null,
-                "tools": ["mcp__xiaomi_ocr__ocr_image"], "toolCount": 1 }],
+                "tools": ["mcp__demo_ocr__ocr_image"], "toolCount": 1 }],
   "warnings": [] }
 ```
 

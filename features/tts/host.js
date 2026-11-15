@@ -119,9 +119,10 @@ export const feature = {
     disposers.push(ctx.inject(['webServer'], (wsCtx) => {
       wsCtx.effect(() => wsCtx.webServer.register({
         kind: 'prefix',
+        auth: 'required',
         path: '/dsh-dock/tts',
-        async handler(req, res) {
-          if (rejectUntrustedRequest(ctx, req, res)) return
+        async handler(req, res, peer) {
+          if (rejectUntrustedRequest(ctx, req, res, peer)) return
           try {
             const url = new URL(req.url || '/', 'http://dsh.internal')
             const method = url.pathname.replace(/^\/dsh-dock\/tts\/?/, '').split('/')[0] || ''

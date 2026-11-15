@@ -40,18 +40,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// node_modules/qrcode/lib/can-promise.js
+// .devdeps/node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  "node_modules/qrcode/lib/can-promise.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/can-promise.js"(exports, module2) {
     module2.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/utils.js
+// .devdeps/node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  "node_modules/qrcode/lib/core/utils.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -128,9 +128,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-level.js
+// .devdeps/node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -173,9 +173,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-buffer.js
+// .devdeps/node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module2) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -208,9 +208,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-matrix.js
+// .devdeps/node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module2) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -237,9 +237,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alignment-pattern.js
+// .devdeps/node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -272,9 +272,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/finder-pattern.js
+// .devdeps/node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -291,9 +291,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mask-pattern.js
+// .devdeps/node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -433,9 +433,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-code.js
+// .devdeps/node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -794,9 +794,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/galois-field.js
+// .devdeps/node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -827,9 +827,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/polynomial.js
+// .devdeps/node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p2) {
       const coeff = new Uint8Array(p1.length + p2.length - 1);
@@ -863,9 +863,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// .devdeps/node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module2) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -895,18 +895,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version-check.js
+// .devdeps/node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  "node_modules/qrcode/lib/core/version-check.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/regex.js
+// .devdeps/node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  "node_modules/qrcode/lib/core/regex.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -932,9 +932,9 @@ var require_regex = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mode.js
+// .devdeps/node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  "node_modules/qrcode/lib/core/mode.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1013,9 +1013,9 @@ var require_mode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version.js
+// .devdeps/node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  "node_modules/qrcode/lib/core/version.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1108,9 +1108,9 @@ var require_version = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/format-info.js
+// .devdeps/node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  "node_modules/qrcode/lib/core/format-info.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1126,9 +1126,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/numeric-data.js
+// .devdeps/node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/core/numeric-data.js"(exports, module2) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1161,9 +1161,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alphanumeric-data.js
+// .devdeps/node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module2) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1240,9 +1240,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/byte-data.js
+// .devdeps/node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  "node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/core/byte-data.js"(exports, module2) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1270,9 +1270,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/kanji-data.js
+// .devdeps/node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
+  ".devdeps/node_modules/qrcode/lib/core/kanji-data.js"(exports, module2) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1309,9 +1309,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// node_modules/dijkstrajs/dijkstra.js
+// .devdeps/node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  "node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
+  ".devdeps/node_modules/dijkstrajs/dijkstra.js"(exports, module2) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s, d) {
@@ -1410,9 +1410,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/segments.js
+// .devdeps/node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  "node_modules/qrcode/lib/core/segments.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1596,9 +1596,9 @@ var require_segments = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/qrcode.js
+// .devdeps/node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1857,9 +1857,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/utils.js
+// .devdeps/node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1937,9 +1937,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/canvas.js
+// .devdeps/node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1990,9 +1990,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/svg-tag.js
+// .devdeps/node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2048,9 +2048,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/browser.js
+// .devdeps/node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  "node_modules/qrcode/lib/browser.js"(exports) {
+  ".devdeps/node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -2126,7 +2126,7 @@ __export(client_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(client_exports);
-var import_react22 = __toESM(require("react"), 1);
+var import_react23 = __toESM(require("react"), 1);
 
 // src/shared.js
 var import_react = __toESM(require("react"), 1);
@@ -7759,24 +7759,22 @@ function endBroadcastText(success, record, task, cfg) {
   const reason = record && record.endReason || "";
   const title = record && record.title || task && task.title || "";
   const sub = !!(record && record.isSubtask || task && task.isSubtask);
+  const role = sub ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1";
   const parentTitle = record && record.parentTitle || task && task.parentTitle || "";
-  if (mode === "brief") {
-    if (sub) return success ? "\u5B50\u4EFB\u52A1\u5B8C\u6210" : "\u5B50\u4EFB\u52A1\u505C\u6B62\u4E86";
-    return success ? "\u4EFB\u52A1\u5B8C\u6210" : "\u4EFB\u52A1\u505C\u6B62\u4E86";
-  }
+  const head = role + (success ? "\u5B8C\u6210\u4E86" : "\u505C\u6B62\u4E86") + (title ? "\u300C" + truncate2(title, 30) + "\u300D" : "");
+  if (mode === "brief") return head;
   if (mode === "medium") {
-    const who = sub ? (parentTitle ? "\u4E3B\u4EFB\u52A1\u300C" + truncate2(parentTitle, 20) + "\u300D\u7684" : "") + (title ? "\u5B50\u4EFB\u52A1\u300C" + truncate2(title, 30) + "\u300D" : "\u5B50\u4EFB\u52A1") : title ? "\u4EFB\u52A1\u300C" + truncate2(title, 30) + "\u300D" : "\u4EFB\u52A1";
-    const parts2 = [success ? who + "\u5B8C\u6210\u4E86" : who + "\u505C\u6B62\u4E86"];
+    const parts2 = [head];
     if (!success) parts2.push("\uFF0C\u539F\u56E0\uFF1A" + endReasonSpeech(reason));
+    if (sub && parentTitle) parts2.push("\uFF08\u4E3B\u4EFB\u52A1\u300C" + truncate2(parentTitle, 20) + "\u300D\uFF09");
     const dur2 = record && record.duration || 0;
     if (dur2 > 0) parts2.push("\uFF0C\u8017\u65F6" + fmtDur(dur2));
     parts2.push("\u3002");
     return parts2.join("");
   }
-  const parts = [];
+  const parts = [head + "\u3002"];
   if (sub && parentTitle) parts.push("\u4E3B\u4EFB\u52A1\uFF1A" + truncate2(parentTitle, 30) + "\u3002");
-  if (title) parts.push((sub ? "\u5B50\u4EFB\u52A1\uFF1A" : "\u4EFB\u52A1\uFF1A") + truncate2(title, 30) + "\u3002");
-  parts.push(success ? "\u5DF2\u5B8C\u6210\u3002" : "\u7ED3\u675F\uFF0C\u539F\u56E0\uFF1A" + endReasonSpeech(reason) + "\u3002");
+  if (!success) parts.push("\u539F\u56E0\uFF1A" + endReasonSpeech(reason) + "\u3002");
   const dur = record && record.duration || 0;
   if (dur > 0) parts.push("\u8017\u65F6" + fmtDur(dur) + "\u3002");
   const turns = record && record.turns || task && task.turns || 0;
@@ -7792,32 +7790,32 @@ function endBroadcastText(success, record, task, cfg) {
 }
 function confirmBroadcastText(task, approval, cfg) {
   const mode = voiceTone(cfg);
-  if (mode === "brief") return "\u4EFB\u52A1\u9700\u8981\u6388\u6743";
+  const role = task && task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1";
+  const title = task && task.title || "";
+  const head = role + "\u9700\u8981\u6388\u6743" + (title ? "\u300C" + truncate2(title, 30) + "\u300D" : "");
   const tool = approval && approval.toolName || "\u5DE5\u5177";
   const scene = toolLabel(tool);
-  if (mode === "medium") {
-    const who = task && task.title ? "\u4EFB\u52A1\u300C" + truncate2(task.title, 30) + "\u300D" : "\u4EFB\u52A1";
-    return who + "\u9700\u8981\u6388\u6743\uFF0C\u6B63\u5728\u7B49\u4F60\u6279\u51C6" + (scene || "\u5DE5\u5177 " + tool) + "\u3002";
-  }
-  const parts = [];
-  if (task && task.title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(task.title, 30) + "\u3002");
+  if (mode === "brief") return head;
+  if (mode === "medium") return head + "\uFF0C\u6B63\u5728\u7B49\u4F60\u6279\u51C6" + (scene || "\u5DE5\u5177 " + tool) + "\u3002";
+  const parts = [head + "\u3002"];
   parts.push("\u6B63\u5728\u7B49\u5F85\u4F60\u6279\u51C6" + (scene ? "\u6267\u884C" + scene : "") + "\uFF0C\u5DE5\u5177\u662F" + tool + "\uFF0C\u8BF7\u56DE\u5230\u4F1A\u8BDD\u5904\u7406\u3002");
   return parts.join("");
 }
 function questionBroadcastText(task, question, cfg) {
   const mode = voiceTone(cfg);
-  if (mode === "brief") return "\u4EFB\u52A1\u9700\u8981\u4F60\u56DE\u7B54";
-  const who = task && task.title ? "\u4EFB\u52A1\u300C" + truncate2(task.title, 30) + "\u300D" : "\u4EFB\u52A1";
-  const head = question && question.header || "";
+  const role = task && task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1";
+  const title = task && task.title || "";
+  const head = role + "\u9700\u8981\u4F60\u56DE\u7B54" + (title ? "\u300C" + truncate2(title, 30) + "\u300D" : "");
+  const qhead = question && question.header || "";
   const body = question && question.question || "";
   const what = body ? truncate2(body.replace(/[#*_`>\[\]()!]/g, ""), 40) : "";
+  if (mode === "brief") return head;
   if (mode === "medium") {
-    const tail = what ? "\uFF1A" + what : head ? "\uFF1A" + head : "";
-    return who + "\u5728\u7B49\u4F60\u56DE\u7B54" + tail + "\u3002";
+    const tail = what ? "\uFF1A" + what : qhead ? "\uFF1A" + qhead : "";
+    return head + tail + "\u3002";
   }
-  const parts = [];
-  if (task && task.title) parts.push("\u4EFB\u52A1\uFF1A" + truncate2(task.title, 30) + "\u3002");
-  parts.push(what ? "\u6B63\u5728\u7B49\u4F60\u56DE\u7B54\u95EE\u9898\uFF1A" + what + "\u3002" : "\u6B63\u5728\u7B49\u4F60\u56DE\u7B54\u95EE\u9898\u3002");
+  const parts = [head + "\u3002"];
+  parts.push(what ? "\u95EE\u9898\uFF1A" + what + "\u3002" : qhead ? "\u95EE\u9898\uFF1A" + qhead + "\u3002" : "\u6B63\u5728\u7B49\u4F60\u56DE\u7B54\u95EE\u9898\u3002");
   const count = question && question.count || 0;
   if (count > 1) parts.push("\u5171 " + count + " \u4E2A\u95EE\u9898\u3002");
   parts.push("\u8BF7\u56DE\u5230\u4F1A\u8BDD\u9009\u62E9\u7B54\u6848\u3002");
@@ -7825,12 +7823,14 @@ function questionBroadcastText(task, question, cfg) {
 }
 function stuckBroadcastText(task, cfg) {
   const mode = voiceTone(cfg);
-  const where = (task && task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1") + (task && task.title ? "\u300C" + truncate2(task.title, 30) + "\u300D" : "");
-  if (mode === "brief") return where + "\u5361\u4F4F\u4E86";
+  const role = task && task.isSubtask ? "\u5B50\u4EFB\u52A1" : "\u4E3B\u4EFB\u52A1";
+  const title = task && task.title || "";
+  const head = role + "\u5361\u4F4F\u4E86" + (title ? "\u300C" + truncate2(title, 30) + "\u300D" : "");
+  if (mode === "brief") return head;
   if (mode === "medium") {
-    return where + "\u5361\u4F4F\u4E86\uFF0C\u5DF2\u7ECF" + fmtDur(Math.max(0, cfg && cfg.stuckMs || STUCK_MS)) + "\u6CA1\u6709\u4EFB\u4F55\u52A8\u9759\u3002";
+    return head + "\uFF0C\u5DF2\u7ECF" + fmtDur(Math.max(0, cfg && cfg.stuckMs || STUCK_MS)) + "\u6CA1\u6709\u4EFB\u4F55\u52A8\u9759\u3002";
   }
-  const parts = [where + "\u5361\u4F4F\u4E86\u3002"];
+  const parts = [head + "\u3002"];
   parts.push("\u7F16\u7A0B\u9636\u6BB5\u5DF2\u7ECF" + fmtDur(Math.max(0, cfg && cfg.stuckMs || STUCK_MS)) + "\u6CA1\u6709\u4EFB\u4F55\u52A8\u9759\uFF0C");
   const tool = task && task.lastToolName || "";
   const scene = tool ? toolLabel(tool) : "";
@@ -9996,11 +9996,11 @@ function drainQueue() {
 }
 function closingMarkdown(owner) {
   const turn = owner && owner.turn;
-  const store = turn && turn.data;
-  if (!store || typeof store.get !== "function") return "";
+  const store2 = turn && turn.data;
+  if (!store2 || typeof store2.get !== "function") return "";
   let tail = null;
   try {
-    tail = store.get("turn-tail");
+    tail = store2.get("turn-tail");
   } catch {
     return "";
   }
@@ -14413,7 +14413,7 @@ function RemoteCard() {
   const [messageKind, setMessageKind] = (0, import_react20.useState)("error");
   const [changing, setChanging] = (0, import_react20.useState)(false);
   const [remote, setRemote] = (0, import_react20.useState)(false);
-  const notify = (0, import_react20.useCallback)((text, kind) => {
+  const notify2 = (0, import_react20.useCallback)((text, kind) => {
     setMessage(text);
     setMessageKind(kind || "error");
   }, []);
@@ -14424,9 +14424,9 @@ function RemoteCard() {
       setAddress((prev) => prev || (data.addresses && data.addresses[0] ? data.addresses[0].address : ""));
       setUsername((prev) => prev || (data.username || ""));
     } catch (e) {
-      notify(e && e.message ? e.message : String(e));
+      notify2(e && e.message ? e.message : String(e));
     }
-  }, [notify]);
+  }, [notify2]);
   (0, import_react20.useEffect)(() => {
     refresh();
     const timer = setInterval(refresh, 3e3);
@@ -14456,9 +14456,9 @@ function RemoteCard() {
     };
   }, [lanLink]);
   async function enable() {
-    notify("");
+    notify2("");
     if (!lan.accountSet && (!username.trim() || password.length < 6)) {
-      notify("\u9996\u6B21\u5F00\u542F\u8BF7\u8BBE\u7F6E\u8D26\u53F7\u548C\u81F3\u5C11 6 \u4F4D\u7684\u5BC6\u7801\u3002");
+      notify2("\u9996\u6B21\u5F00\u542F\u8BF7\u8BBE\u7F6E\u8D26\u53F7\u548C\u81F3\u5C11 6 \u4F4D\u7684\u5BC6\u7801\u3002");
       return;
     }
     setBusy("start");
@@ -14478,30 +14478,30 @@ function RemoteCard() {
       setPassword("");
       setNewPassword("");
       setChanging(false);
-      notify("\u8FDC\u7A0B\u8BBF\u95EE\u5DF2\u5F00\u542F\uFF1A\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\u5E76\u7528\u8D26\u53F7\u5BC6\u7801\u767B\u5F55\u3002" + (data.needsRestart ? "\uFF08\u5DE5\u4F5C\u533A\u76EE\u5F55\u7684\u6D4F\u89C8\u9009\u62E9\u9700\u91CD\u542F dsh web \u540E\u53EF\u7528\uFF09" : ""), "success");
+      notify2("\u8FDC\u7A0B\u8BBF\u95EE\u5DF2\u5F00\u542F\uFF1A\u8BBE\u5907\u8BBF\u95EE\u4E0B\u65B9\u5730\u5740\u5E76\u7528\u8D26\u53F7\u5BC6\u7801\u767B\u5F55\u3002" + (data.needsRestart ? "\uFF08\u5DE5\u4F5C\u533A\u76EE\u5F55\u7684\u6D4F\u89C8\u9009\u62E9\u9700\u91CD\u542F dsh web \u540E\u53EF\u7528\uFF09" : ""), "success");
     } catch (e) {
-      notify(e && e.message ? e.message : String(e));
+      notify2(e && e.message ? e.message : String(e));
     } finally {
       setBusy("");
     }
   }
   async function disable() {
-    notify("");
+    notify2("");
     setBusy("stop");
     try {
       const data = await rpc("lan/stop", {});
       setLan(data);
-      notify("\u8FDC\u7A0B\u8BBF\u95EE\u5DF2\u5173\u95ED\uFF0C\u5DF2\u767B\u5F55\u8BBE\u5907\u5168\u90E8\u9000\u51FA\u3002" + (data.needsRestart ? "\u91CD\u542F dsh web \u540E\u6062\u590D\u5DE5\u4F5C\u533A\u539F\u751F\u9009\u62E9\u5668\u3002" : ""), "success");
+      notify2("\u8FDC\u7A0B\u8BBF\u95EE\u5DF2\u5173\u95ED\uFF0C\u5DF2\u767B\u5F55\u8BBE\u5907\u5168\u90E8\u9000\u51FA\u3002" + (data.needsRestart ? "\u91CD\u542F dsh web \u540E\u6062\u590D\u5DE5\u4F5C\u533A\u539F\u751F\u9009\u62E9\u5668\u3002" : ""), "success");
     } catch (e) {
-      notify(e && e.message ? e.message : String(e));
+      notify2(e && e.message ? e.message : String(e));
     } finally {
       setBusy("");
     }
   }
   async function saveAuth() {
-    notify("");
+    notify2("");
     if (!username.trim() || newPassword.length < 6) {
-      notify("\u8BF7\u586B\u5199\u8D26\u53F7\u548C\u81F3\u5C11 6 \u4F4D\u7684\u65B0\u5BC6\u7801\u3002");
+      notify2("\u8BF7\u586B\u5199\u8D26\u53F7\u548C\u81F3\u5C11 6 \u4F4D\u7684\u65B0\u5BC6\u7801\u3002");
       return;
     }
     setBusy("auth");
@@ -14511,15 +14511,15 @@ function RemoteCard() {
       setPassword("");
       setNewPassword("");
       setChanging(false);
-      notify("\u8D26\u53F7\u5BC6\u7801\u5DF2\u66F4\u65B0\uFF0C\u6240\u6709\u8BBE\u5907\u9700\u91CD\u65B0\u767B\u5F55\u3002", "success");
+      notify2("\u8D26\u53F7\u5BC6\u7801\u5DF2\u66F4\u65B0\uFF0C\u6240\u6709\u8BBE\u5907\u9700\u91CD\u65B0\u767B\u5F55\u3002", "success");
     } catch (e) {
-      notify(e && e.message ? e.message : String(e));
+      notify2(e && e.message ? e.message : String(e));
     } finally {
       setBusy("");
     }
   }
   function copyLink() {
-    copy(lanLink).then(() => notify("\u5730\u5740\u5DF2\u590D\u5236\u3002", "success")).catch((e) => notify(e.message));
+    copy(lanLink).then(() => notify2("\u5730\u5740\u5DF2\u590D\u5236\u3002", "success")).catch((e) => notify2(e.message));
   }
   function logout() {
     const info = typeof window !== "undefined" ? window.__DSH_REMOTE__ : null;
@@ -14918,7 +14918,7 @@ function ServerForm(props) {
       hint: "\u5DE5\u5177\u540D\u524D\u7F00\uFF1A\u6A21\u578B\u770B\u5230\u7684\u662F mcp__<serverName>__<tool>\uFF1B\u987B\u5339\u914D " + SERVER_NAME_RE
     }, input({
       value: form.serverName,
-      placeholder: "xiaomi_ocr",
+      placeholder: "demo_ocr",
       disabled: isEdit,
       onChange: (e) => patch({ serverName: e.target.value })
     })),
@@ -14958,7 +14958,7 @@ function ServerForm(props) {
           rows: 4,
           spellCheck: false,
           value: form.argsText,
-          placeholder: "/www/wwwroot/xiaomi-ocr/mcp_ocr.py",
+          placeholder: "/home/me/work/demo-service/mcp_ocr.py",
           onChange: (e) => patch({ argsText: e.target.value })
         })
       ),
@@ -14975,7 +14975,7 @@ function ServerForm(props) {
       ),
       Field(
         { label: "cwd\uFF08\u53EF\u9009\uFF09" },
-        input({ value: form.cwd, placeholder: "/www/wwwroot/xiaomi-ocr", onChange: (e) => patch({ cwd: e.target.value }) })
+        input({ value: form.cwd, placeholder: "/home/me/work/demo-service", onChange: (e) => patch({ cwd: e.target.value }) })
       )
     ),
     import_react21.default.createElement(
@@ -15128,16 +15128,16 @@ function McpConfigView() {
     commit(next, "\u5DF2\u5220\u9664\u300C" + draft.serverName + "\u300D");
   };
   const fillXiaomiExample = () => {
-    if (drafts.some((d) => d.serverName === "xiaomi_ocr")) {
-      setMsg({ tone: "warn", text: "\u5217\u8868\u91CC\u5DF2\u7ECF\u6709 xiaomi_ocr\uFF08\u53EF\u76F4\u63A5\u70B9\u8BE5\u5361\u7247\u7684\u300C\u7F16\u8F91\u300D\u67E5\u770B/\u4FEE\u6539\uFF09" });
+    if (drafts.some((d) => d.serverName === "demo_ocr")) {
+      setMsg({ tone: "warn", text: "\u5217\u8868\u91CC\u5DF2\u7ECF\u6709 demo_ocr\uFF08\u53EF\u76F4\u63A5\u70B9\u8BE5\u5361\u7247\u7684\u300C\u7F16\u8F91\u300D\u67E5\u770B/\u4FEE\u6539\uFF09" });
       return;
     }
     setForm(Object.assign(emptyForm(), {
-      serverName: "xiaomi_ocr",
+      serverName: "demo_ocr",
       transport: "stdio",
       command: "/usr/bin/python3",
-      argsText: "/www/wwwroot/xiaomi-ocr/mcp_ocr.py",
-      cwd: "/www/wwwroot/xiaomi-ocr",
+      argsText: "/home/me/work/demo-service/mcp_ocr.py",
+      cwd: "/home/me/work/demo-service",
       envText: "",
       toolCallTimeoutMs: "300000",
       failOnStartupError: false
@@ -15402,9 +15402,371 @@ var feature11 = {
   ].join("\n")
 };
 
+// features/dshtools/view.jsx
+var import_react22 = __toESM(require("react"), 1);
+var ENDPOINT2 = "dsh-dock/dshtools";
+var LARGE_FILE_BYTES = 32 * 1024 * 1024;
+var store = {
+  /** 宿主 /dsh-dock/dshtools 是否已成功读过一次：没读过就绝不接管菜单。 */
+  ready: false,
+  error: "",
+  groups: [],
+  listeners: /* @__PURE__ */ new Set(),
+  loading: null
+};
+function notify() {
+  for (const fn of store.listeners) {
+    try {
+      fn();
+    } catch (e) {
+      console.error("[dsh-dock] DSH\u529F\u80FD\u8BA2\u9605\u8005\u51FA\u9519\uFF1A", e);
+    }
+  }
+}
+function subscribe(fn) {
+  store.listeners.add(fn);
+  return () => {
+    store.listeners.delete(fn);
+  };
+}
+function applyPayload(data) {
+  const groups = data && data.ok === true && Array.isArray(data.groups) ? data.groups : null;
+  if (!groups) {
+    store.error = data && data.error || "\u5BBF\u4E3B\u8FD4\u56DE\u7684\u914D\u7F6E\u683C\u5F0F\u4E0D\u6B63\u786E";
+    notify();
+    return false;
+  }
+  store.groups = groups;
+  store.error = "";
+  store.ready = true;
+  notify();
+  return true;
+}
+function ensureLoaded() {
+  if (store.ready) return Promise.resolve(true);
+  if (store.loading) return store.loading;
+  if (typeof fetch !== "function") {
+    store.error = "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301 fetch";
+    notify();
+    return Promise.resolve(false);
+  }
+  store.loading = fetch(ENDPOINT2, { headers: { accept: "application/json" } }).then(async (res) => {
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }).then((data) => applyPayload(data)).catch(() => {
+    store.error = "\u5BBF\u4E3B\u6CA1\u6709\u300CDSH\u529F\u80FD\u300D\u63A5\u53E3\uFF1A\u5BBF\u4E3B\u8FDB\u7A0B\u53EF\u80FD\u662F\u65E7\u7248\u672C\uFF0C\u6216\u8BE5\u529F\u80FD\u5728\u5BBF\u4E3B\u4FA7\u672A\u542F\u7528\uFF08\u91CD\u542F dsh web\uFF0C\u6216\u5728\u529F\u80FD\u575E\u91CC\u5173\u6389\u518D\u6253\u5F00\u672C\u529F\u80FD\uFF09";
+    notify();
+    return false;
+  }).finally(() => {
+    store.loading = null;
+  });
+  return store.loading;
+}
+function valueOf(groupId, key) {
+  const group = store.groups.find((g) => g.id === groupId);
+  const item = group && Array.isArray(group.items) ? group.items.find((i) => i.key === key) : void 0;
+  return item ? item.value === true : void 0;
+}
+async function setValue(groupId, key, value) {
+  const res = await fetch(ENDPOINT2, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ group: groupId, key, value: value === true })
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || data.ok !== true) {
+    throw new Error(data && data.error || "HTTP " + res.status);
+  }
+  applyPayload(data);
+}
+function filePathOf(url) {
+  if (typeof url !== "string" || url.length === 0) return void 0;
+  let parsed;
+  try {
+    parsed = new URL(url, document.baseURI);
+  } catch (e) {
+    return void 0;
+  }
+  if (typeof location !== "undefined" && parsed.origin !== location.origin) return void 0;
+  if (!/\/api\/file$/.test(parsed.pathname)) return void 0;
+  const path = parsed.searchParams.get("path");
+  return path && path.length > 0 ? path : void 0;
+}
+var routeReady = false;
+var routeProbe = null;
+function ensureRoute() {
+  if (routeReady) return Promise.resolve(true);
+  if (routeProbe) return routeProbe;
+  if (typeof fetch !== "function") return Promise.resolve(false);
+  routeProbe = fetch("dsh-dock/download?probe=1", { method: "HEAD", cache: "no-store" }).then((res) => {
+    routeReady = res.status === 204 || res.ok === true;
+    return routeReady;
+  }).catch(() => false).finally(() => {
+    routeProbe = null;
+  });
+  return routeProbe;
+}
+function shouldTakeover() {
+  const state = stateOf("dshtools");
+  if (!state || state.enabled !== true) return false;
+  if (valueOf("fileContextMenu", "streamingDownload") === false) return false;
+  if (!routeReady) {
+    void ensureRoute();
+    return false;
+  }
+  return true;
+}
+function installDownloadTakeover(actions) {
+  if (!actions || typeof actions.save !== "function" || actions.__dshDockStreamingDownload === true) return;
+  const original = actions.save;
+  const wrapped = async function(source, mode) {
+    if (mode === "download" && actions.canSaveAs !== true && shouldTakeover()) {
+      const path = filePathOf(source && source.url);
+      if (path !== void 0) {
+        try {
+          startDownload(path);
+          return { status: "requested" };
+        } catch (e) {
+        }
+      }
+    }
+    return original.call(actions, source, mode);
+  };
+  wrapped.__original = original;
+  try {
+    actions.save = wrapped;
+    actions.__dshDockStreamingDownload = true;
+  } catch (e) {
+  }
+}
+function startDownload(absolutePath) {
+  if (typeof document === "undefined" || !document.body) return;
+  const base = document.baseURI || (typeof location !== "undefined" ? location.href : "http://localhost/");
+  const url = new URL("dsh-dock/download?path=" + encodeURIComponent(absolutePath), base);
+  const anchor = document.createElement("a");
+  anchor.href = url.href;
+  anchor.download = "";
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+}
+async function resolveFileMenu(remote, target, signal) {
+  const state = stateOf("dshtools");
+  if (!state || state.enabled !== true) return [];
+  if (!store.ready) {
+    void ensureLoaded();
+    return [];
+  }
+  if (valueOf("fileContextMenu", "streamingDownload") !== true) return [];
+  let result;
+  try {
+    result = await remote.workspaceFiles.stat(target.sessionId, target.path, signal);
+  } catch (e) {
+    return [];
+  }
+  if (!result || result.ok !== true || !result.value) return [];
+  const bytes = typeof result.value.bytes === "number" ? result.value.bytes : void 0;
+  if (bytes === void 0 || bytes <= LARGE_FILE_BYTES) return [];
+  const absolutePath = result.value.absolutePath;
+  if (typeof absolutePath !== "string" || absolutePath.length === 0) return [];
+  return [{
+    id: "download-large",
+    label: "\u4E0B\u8F7D\uFF08\u5927\u6587\u4EF6\uFF09",
+    icon: { key: "dsh-dock.download" },
+    run: () => startDownload(absolutePath)
+  }];
+}
+function DownloadIcon() {
+  return import_react22.default.createElement(
+    "svg",
+    {
+      width: 14,
+      height: 14,
+      viewBox: "0 0 16 16",
+      fill: "none",
+      "aria-hidden": "true"
+    },
+    import_react22.default.createElement("path", {
+      d: "M8 2.5v7.2m0 0 2.8-2.8M8 9.7 5.2 6.9M3 13h10",
+      stroke: "currentColor",
+      strokeWidth: 1.4,
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    })
+  );
+}
+function serviceOf(scope, name) {
+  if (!scope) return void 0;
+  const direct = scope[name];
+  if (direct !== void 0) return direct;
+  return typeof scope.get === "function" ? scope.get(name) : void 0;
+}
+function onServices(ctx, names, run) {
+  if (typeof ctx.inject === "function") {
+    try {
+      ctx.inject(names, (scope) => run(scope));
+      return;
+    } catch (e) {
+    }
+  }
+  run(ctx);
+}
+function installClient(ctx) {
+  if (!ctx || typeof ctx !== "object") return;
+  ensureLoaded();
+  onServices(ctx, ["slots"], (scope) => {
+    const slots = serviceOf(scope, "slots");
+    if (!slots || typeof slots.inject !== "function" || typeof slots.register !== "function") return;
+    slots.inject("contextMenu.icon", function* () {
+      yield slots.register({ name: "contextMenu.icon", key: "dsh-dock.download" }, DownloadIcon);
+    });
+  });
+  onServices(ctx, ["contextMenus", "remote.workspaceFiles"], (scope) => {
+    const menus = serviceOf(scope, "contextMenus");
+    const remote = serviceOf(scope, "remote");
+    if (!menus || typeof menus.register !== "function") return;
+    if (!remote || !remote.workspaceFiles || typeof remote.workspaceFiles.stat !== "function") return;
+    const register = () => menus.register({
+      id: "dsh-dock.dshtools.file",
+      target: "file",
+      // 排在 DSH 自带 file-actions（order 200）之后：同菜单里我们的是补充项。
+      order: 210,
+      resolve: (target, signal) => resolveFileMenu(remote, target, signal)
+    });
+    if (typeof scope.effect === "function") scope.effect(register, "dsh-dock: DSH\u529F\u80FD \xB7 \u6587\u4EF6\u53F3\u952E");
+    else register();
+  });
+  ensureRoute();
+  onServices(ctx, ["fileActions"], (scope) => {
+    const actions = serviceOf(scope, "fileActions");
+    if (!actions) return;
+    installDownloadTakeover(actions);
+    if (typeof scope.effect === "function") {
+      scope.effect(() => () => {
+        if (actions.__dshDockStreamingDownload !== true) return;
+        const restore = actions.save && actions.save.__original;
+        if (typeof restore === "function") {
+          try {
+            actions.save = restore;
+          } catch (e) {
+          }
+        }
+        delete actions.__dshDockStreamingDownload;
+      }, "dsh-dock: DSH\u529F\u80FD \xB7 \u4E0B\u8F7D\u63A5\u7BA1");
+    }
+  });
+}
+var CSS2 = [
+  ".dkht{display:flex;flex-direction:column;gap:12px;}",
+  ".dkht-intro{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.7;border:1px dashed var(--dsw-alias-border-l1);border-radius:8px;padding:8px 10px;}",
+  ".dkht-group{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--dsw-alias-bg-layer-1);}",
+  ".dkht-group-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}",
+  ".dkht-group-name{font-weight:600;font-size:13px;}",
+  ".dkht-group-desc{font-size:11px;color:var(--dsw-alias-label-tertiary);}",
+  ".dkht-item{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:background .12s,border-color .12s;}",
+  ".dkht-item:hover{background:var(--dsw-alias-interactive-bg-hover);}",
+  ".dkht-item.on{border-color:color-mix(in srgb,var(--dk-accent) 35%,transparent);background:var(--dk-hover-tint);}",
+  ".dkht-item.busy{opacity:.6;cursor:progress;}",
+  ".dkht-check{width:15px;height:15px;margin:2px 0 0;accent-color:var(--dk-accent);flex:none;cursor:pointer;}",
+  ".dkht-text{display:flex;flex-direction:column;gap:2px;min-width:0;}",
+  ".dkht-name{font-size:12px;font-weight:600;}",
+  ".dkht-desc{font-size:11px;line-height:1.6;color:var(--dsw-alias-label-secondary);}",
+  ".dkht-error{color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:1.6;}",
+  ".dkht-empty{color:var(--dsw-alias-label-tertiary);font-size:12px;}",
+  ".dkht-note{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.6;}"
+].join("\n");
+function DshToolsView(props) {
+  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [busy, setBusy] = import_react22.default.useState("");
+  const [error, setError] = import_react22.default.useState("");
+  import_react22.default.useEffect(() => {
+    const off = subscribe(() => force());
+    ensureLoaded().then(() => force());
+    return off;
+  }, []);
+  const toggle = async (group, item) => {
+    const id = group.id + "/" + item.key;
+    if (busy) return;
+    setBusy(id);
+    setError("");
+    try {
+      await setValue(group.id, item.key, item.value !== true);
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+  const groups = store.groups;
+  return import_react22.default.createElement(
+    "div",
+    { className: "dkht" },
+    import_react22.default.createElement(
+      "div",
+      { className: "dkht-intro" },
+      "\u8FD9\u91CC\u7ED9 DSH \u81EA\u5E26\u754C\u9762\u8865\u5145\u80FD\u529B\uFF0C\u6309\u5206\u7EC4\u9010\u9879\u52FE\u9009\uFF1B\u52FE\u9009\u72B6\u6001\u4FDD\u5B58\u5728\u529F\u80FD\u575E\u8BBE\u7F6E\u91CC\uFF0C\u6362\u6D4F\u89C8\u5668\u4E5F\u4E00\u81F4\u3002",
+      "\u53D6\u6D88\u52FE\u9009\u5373\u5B8C\u5168\u64A4\u6389\u5BF9\u5E94\u5165\u53E3\uFF0C\u4E0D\u5F71\u54CD DSH \u539F\u6709\u529F\u80FD\u3002"
+    ),
+    error ? import_react22.default.createElement("div", { className: "dkht-error" }, error) : null,
+    store.error ? import_react22.default.createElement("div", { className: "dkht-error" }, store.error) : null,
+    !store.ready && !store.error ? import_react22.default.createElement("div", { className: "dkht-empty" }, "\u6B63\u5728\u8BFB\u53D6\u914D\u7F6E\u2026") : null,
+    groups.map((group) => import_react22.default.createElement(
+      "div",
+      { className: "dkht-group", key: group.id },
+      import_react22.default.createElement(
+        "div",
+        { className: "dkht-group-head" },
+        import_react22.default.createElement("span", { className: "dkht-group-name" }, group.name),
+        group.description ? import_react22.default.createElement("span", { className: "dkht-group-desc" }, group.description) : null
+      ),
+      group.items.map((item) => {
+        const id = group.id + "/" + item.key;
+        return import_react22.default.createElement(
+          "label",
+          {
+            key: item.key,
+            className: "dkht-item" + (item.value === true ? " on" : "") + (busy === id ? " busy" : "")
+          },
+          import_react22.default.createElement("input", {
+            type: "checkbox",
+            className: "dkht-check",
+            checked: item.value === true,
+            disabled: busy !== "",
+            onChange: () => {
+              void toggle(group, item);
+            }
+          }),
+          import_react22.default.createElement(
+            "span",
+            { className: "dkht-text" },
+            import_react22.default.createElement("span", { className: "dkht-name" }, item.name),
+            item.description ? import_react22.default.createElement("span", { className: "dkht-desc" }, item.description) : null
+          )
+        );
+      })
+    )),
+    import_react22.default.createElement(
+      "div",
+      { className: "dkht-note" },
+      "\u540E\u7EED\u65B0\u589E\u7684 DSH \u589E\u5F3A\u80FD\u529B\u4F1A\u4EE5\u65B0\u5206\u7EC4/\u65B0\u52FE\u9009\u9879\u51FA\u73B0\u5728\u8FD9\u91CC\uFF0C\u65E0\u9700\u53E6\u5916\u914D\u7F6E\u3002"
+    )
+  );
+}
+var feature12 = {
+  id: "dshtools",
+  name: "DSH\u529F\u80FD",
+  order: 170,
+  accent: "#8b5cf6",
+  description: "\u7ED9 DSH \u81EA\u5E26\u754C\u9762\u8865\u5145\u80FD\u529B\uFF08\u6587\u4EF6\u53F3\u952E\u7B49\uFF09\uFF0C\u6309\u5206\u7EC4\u52FE\u9009\u542F\u7528",
+  defaultEnabled: true,
+  css: CSS2,
+  View: DshToolsView
+};
+
 // src/client.jsx
-var DOCK_VERSION = "0.23.1";
-var BUILTIN_FEATURES = [feature, feature2, feature3, feature11, feature4, feature5, feature6, feature7, feature8, feature9, feature10];
+var DOCK_VERSION = "0.24.0";
+var BUILTIN_FEATURES = [feature, feature2, feature3, feature11, feature4, feature5, feature6, feature7, feature8, feature9, feature10, feature12];
 var PLANNED_FEATURES = [];
 var PLANNED_NOTES = {};
 var externalDefs = [];
@@ -15647,8 +16009,8 @@ function ensureCss() {
   }
 }
 function useExternalVersion() {
-  const [, bump] = import_react22.default.useReducer((n) => n + 1, 0);
-  import_react22.default.useEffect(() => {
+  const [, bump] = import_react23.default.useReducer((n) => n + 1, 0);
+  import_react23.default.useEffect(() => {
     externalListeners.add(bump);
     return () => {
       externalListeners.delete(bump);
@@ -15658,25 +16020,25 @@ function useExternalVersion() {
 var lastGeom = { x: null, y: null, w: null, h: null };
 function DockIcon(props) {
   const size = props && props.size || 16;
-  return import_react22.default.createElement(
+  return import_react23.default.createElement(
     "svg",
     { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
-    import_react22.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react22.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react22.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
-    import_react22.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
+    import_react23.default.createElement("rect", { x: 2.5, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react23.default.createElement("rect", { x: 9, y: 2.5, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react23.default.createElement("rect", { x: 2.5, y: 9, width: 4.4, height: 4.4, rx: 1.2 }),
+    import_react23.default.createElement("rect", { x: 9, y: 9, width: 4.4, height: 4.4, rx: 1.2 })
   );
 }
 function DockWorkspace() {
-  const [nav, setNav] = import_react22.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
-  import_react22.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
+  const [nav, setNav] = import_react23.default.useState({ open: panelNav.open, active: panelNav.active, params: panelNav.params });
+  import_react23.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open, active: panelNav.active, params: panelNav.params })), []);
   const active = nav.active;
   const navParams = nav.params;
   const setActive = navigatePanel;
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react23.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  const contentRef = import_react22.default.useRef(null);
-  import_react22.default.useEffect(() => {
+  const contentRef = import_react23.default.useRef(null);
+  import_react23.default.useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [active]);
   const MODULES = allModules();
@@ -15684,26 +16046,26 @@ function DockWorkspace() {
   const mod = isHome ? null : MODULES.find((m) => m.id === active) || MODULES[0];
   const st = mod ? stateOf(mod.id) : null;
   const View = mod ? mod.View : null;
-  const viewNode = mod && View ? import_react22.default.createElement(
+  const viewNode = mod && View ? import_react23.default.createElement(
     "div",
     { className: "dockm-view" },
-    import_react22.default.createElement(
+    import_react23.default.createElement(
       FeatureBoundary,
       { key: mod.id, label: mod.name },
-      import_react22.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
+      import_react23.default.createElement(View, { ctx: ctxRef.current, feature: mod, params: navParams })
     )
   ) : null;
   const enabledCount = MODULES.filter((m) => {
     const s = stateOf(m.id);
     return !!(s && s.enabled);
   }).length;
-  return import_react22.default.createElement(
+  return import_react23.default.createElement(
     "div",
     { className: "dockm-body" },
-    import_react22.default.createElement(
+    import_react23.default.createElement(
       "nav",
       { className: "dockm-nav", "aria-label": "\u529F\u80FD\u6A21\u5757" },
-      import_react22.default.createElement(
+      import_react23.default.createElement(
         "button",
         {
           type: "button",
@@ -15711,10 +16073,10 @@ function DockWorkspace() {
           className: "dockm-nav-item" + (isHome ? " on" : ""),
           onClick: () => setActive("home")
         },
-        import_react22.default.createElement("span", { className: "dockm-navhome" }, import_react22.default.createElement(DockIcon, null)),
-        import_react22.default.createElement("span", null, "\u9996\u9875")
+        import_react23.default.createElement("span", { className: "dockm-navhome" }, import_react23.default.createElement(DockIcon, null)),
+        import_react23.default.createElement("span", null, "\u9996\u9875")
       ),
-      MODULES.map((m) => import_react22.default.createElement(
+      MODULES.map((m) => import_react23.default.createElement(
         "button",
         {
           type: "button",
@@ -15722,42 +16084,42 @@ function DockWorkspace() {
           className: "dockm-nav-item" + (m.id === active ? " on" : ""),
           onClick: () => setActive(m.id)
         },
-        import_react22.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-        import_react22.default.createElement("span", null, m.name),
-        m.planned ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-        m.external ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
+        import_react23.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+        import_react23.default.createElement("span", null, m.name),
+        m.planned ? import_react23.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+        m.external ? import_react23.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8") : null
       ))
     ),
-    import_react22.default.createElement(
+    import_react23.default.createElement(
       "div",
       { className: "dockm-content", ref: contentRef },
-      import_react22.default.createElement(
+      import_react23.default.createElement(
         "div",
         { className: "dockm-content-head" },
-        import_react22.default.createElement(
+        import_react23.default.createElement(
           "div",
           { className: "dockm-name" },
-          isHome ? import_react22.default.createElement("span", { className: "dockm-navhome" }, import_react22.default.createElement(DockIcon, null)) : import_react22.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
+          isHome ? import_react23.default.createElement("span", { className: "dockm-navhome" }, import_react23.default.createElement(DockIcon, null)) : import_react23.default.createElement("span", { className: "dockm-dot", style: { background: mod.accent } }),
           isHome ? "\u9996\u9875" : mod.name,
-          !isHome && mod.planned ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
-          !isHome && mod.external ? import_react22.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
+          !isHome && mod.planned ? import_react23.default.createElement("span", { className: "dockm-badge" }, "\u89C4\u5212\u4E2D") : null,
+          !isHome && mod.external ? import_react23.default.createElement("span", { className: "dockm-badge" }, "\u5916\u90E8\u5305" + (mod.package ? " \xB7 " + mod.package : "")) : null
         ),
-        import_react22.default.createElement(
+        import_react23.default.createElement(
           "div",
           { className: "dockm-desc" },
           isHome ? "\u6240\u6709\u5B50\u529F\u80FD\u603B\u63FD\uFF1A\u8FD0\u884C\u72B6\u6001\u3001\u6982\u8981\u4E0E\u5FEB\u6377\u5F00\u5173\uFF0C\u70B9\u51FB\u5361\u7247\u8FDB\u5165\u5BF9\u5E94\u529F\u80FD\u9875\u3002" : mod.description
         )
       ),
-      isHome ? import_react22.default.createElement("div", { className: "dockm-view" }, import_react22.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react22.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react22.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react22.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
-      import_react22.default.createElement(
+      isHome ? import_react23.default.createElement("div", { className: "dockm-view" }, import_react23.default.createElement(HomeView, { ctx: ctxRef.current, onOpen: setActive, onToggle: force })) : mod.planned ? import_react23.default.createElement("div", { className: "dockm-note" }, PLANNED_NOTES[mod.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st && st.enabled && viewNode ? viewNode : st && st.error ? import_react23.default.createElement("div", { className: "dockm-note dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : import_react23.default.createElement("div", { className: "dockm-note" }, "\u8BE5\u529F\u80FD\u5F53\u524D\u4E3A\u505C\u7528\u72B6\u6001\uFF08\u5F00\u5173\u5DF2\u6301\u4E45\u5316\uFF0C\u91CD\u542F\u540E\u4FDD\u6301\uFF09"),
+      import_react23.default.createElement(
         "div",
         { className: "dockm-foot" },
-        import_react22.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
-        !isHome && mod && !mod.planned && st ? import_react22.default.createElement(
+        import_react23.default.createElement("span", null, isHome ? "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u5171 " + MODULES.length + " \u4E2A\u529F\u80FD\u6A21\u5757\uFF0C" + enabledCount + " \u4E2A\u5DF2\u542F\u7528" : "\u529F\u80FD\u575E v" + DOCK_VERSION + " \xB7 \u65B0\u529F\u80FD\u6309\u8DEF\u7EBF\u56FE\u8FFD\u52A0"),
+        !isHome && mod && !mod.planned && st ? import_react23.default.createElement(
           "span",
           { className: "dockm-foot-sw" },
-          import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
-          import_react22.default.createElement("button", {
+          import_react23.default.createElement("span", { className: "dockm-foot-swlabel" + (st.enabled ? " on" : "") }, st.enabled ? "\u5DF2\u542F\u7528" : "\u5DF2\u505C\u7528"),
+          import_react23.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -15770,11 +16132,11 @@ function DockWorkspace() {
             }
           })
         ) : null,
-        !isHome && mod && typeof mod.Chip === "function" ? import_react22.default.createElement(
+        !isHome && mod && typeof mod.Chip === "function" ? import_react23.default.createElement(
           "span",
           { className: "dockm-foot-sw" },
-          import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-          import_react22.default.createElement("button", {
+          import_react23.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(mod.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+          import_react23.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (chipShown(mod.id) ? " on" : ""),
             role: "switch",
@@ -15792,12 +16154,12 @@ function DockWorkspace() {
   );
 }
 function DockModal() {
-  const [nav, setNav] = import_react22.default.useState({ open: panelNav.open });
-  import_react22.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open })), []);
+  const [nav, setNav] = import_react23.default.useState({ open: panelNav.open });
+  import_react23.default.useEffect(() => subscribePanel(() => setNav({ open: panelNav.open })), []);
   const open = nav.open || typeof document === "undefined";
-  const [win, setWin] = import_react22.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
-  const dlgRef = import_react22.default.useRef(null);
-  import_react22.default.useEffect(() => {
+  const [win, setWin] = import_react23.default.useState(() => ({ mode: "normal", x: null, y: null, w: null, h: null }));
+  const dlgRef = import_react23.default.useRef(null);
+  import_react23.default.useEffect(() => {
     if (lastGeom.w) setWin({ mode: "normal", x: lastGeom.x, y: lastGeom.y, w: lastGeom.w, h: lastGeom.h });
   }, []);
   function beginDrag(e, type) {
@@ -15837,10 +16199,10 @@ function DockModal() {
     width: win.w != null ? win.w : void 0,
     height: win.mode === "min" ? "auto" : win.h != null ? win.h : void 0
   } : null;
-  return import_react22.default.createElement(
+  return import_react23.default.createElement(
     "div",
     { className: "dockm-backdrop", onClick: () => setPanelOpen(false) },
-    import_react22.default.createElement(
+    import_react23.default.createElement(
       "div",
       {
         className: "dockm-dialog" + (win.mode === "max" ? " dockm-max" : "") + (win.mode === "min" ? " dockm-min" : ""),
@@ -15848,59 +16210,59 @@ function DockModal() {
         ref: dlgRef,
         onClick: (e) => e.stopPropagation()
       },
-      import_react22.default.createElement(
+      import_react23.default.createElement(
         "div",
         {
           className: "dockm-head",
           onPointerDown: (e) => beginDrag(e, "move"),
           onDoubleClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
         },
-        import_react22.default.createElement(DockIcon, null),
-        import_react22.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
-        import_react22.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
-        import_react22.default.createElement(
+        import_react23.default.createElement(DockIcon, null),
+        import_react23.default.createElement("span", { className: "dockm-title" }, "\u529F\u80FD\u575E"),
+        import_react23.default.createElement("span", { className: "dockm-sub" }, "dsh-dock \xB7 \u4E5F\u53EF\u5728 \u8BBE\u7F6E \u2192 \u529F\u80FD\u575E \u6253\u5F00\u7BA1\u7406\u9875"),
+        import_react23.default.createElement(
           "span",
           { className: "dockm-ctrls" },
-          import_react22.default.createElement("button", {
+          import_react23.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "min" ? "\u8FD8\u539F" : "\u6700\u5C0F\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "min" ? "normal" : "min" }))
           }, "\u2581"),
-          import_react22.default.createElement("button", {
+          import_react23.default.createElement("button", {
             type: "button",
             className: "dockm-win",
             title: win.mode === "max" ? "\u8FD8\u539F" : "\u6700\u5927\u5316",
             onClick: () => setWin((s) => Object.assign({}, s, { mode: s.mode === "max" ? "normal" : "max" }))
           }, win.mode === "max" ? "\u2750" : "\u25A2"),
-          import_react22.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
+          import_react23.default.createElement("button", { type: "button", className: "dockm-close", "aria-label": "\u5173\u95ED", title: "\u5173\u95ED", onClick: () => setPanelOpen(false) }, "\u2715")
         )
       ),
-      import_react22.default.createElement(DockWorkspace, null),
-      win.mode === "normal" ? import_react22.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
+      import_react23.default.createElement(DockWorkspace, null),
+      win.mode === "normal" ? import_react23.default.createElement("div", { className: "dockm-resize", onPointerDown: (e) => beginDrag(e, "size") }) : null
     )
   );
 }
 function HomeView(props) {
   const ctx = props && props.ctx;
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react23.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const open = (id) => {
     if (props && typeof props.onOpen === "function") props.onOpen(id);
   };
-  return import_react22.default.createElement(
+  return import_react23.default.createElement(
     "div",
     { className: "dockh-grid" },
     allModules().map((m) => {
       const st = stateOf(m.id);
       const enabled = !!(st && st.enabled);
       const Stat = m.HomeStat;
-      const statNode = m.planned ? import_react22.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react22.default.createElement(
+      const statNode = m.planned ? import_react23.default.createElement("span", null, PLANNED_NOTES[m.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : enabled && Stat ? import_react23.default.createElement(
         FeatureBoundary,
         { key: m.id, label: m.name },
-        import_react22.default.createElement(Stat, { ctx })
-      ) : import_react22.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
-      return import_react22.default.createElement(
+        import_react23.default.createElement(Stat, { ctx })
+      ) : import_react23.default.createElement("span", null, "\u5DF2\u505C\u7528\uFF0C\u542F\u7528\u540E\u5728\u6B64\u5C55\u793A\u8FD0\u884C\u6982\u8981");
+      return import_react23.default.createElement(
         "div",
         {
           key: m.id,
@@ -15915,21 +16277,21 @@ function HomeView(props) {
             }
           }
         },
-        import_react22.default.createElement(
+        import_react23.default.createElement(
           "div",
           { className: "dockh-head" },
-          import_react22.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
-          import_react22.default.createElement("span", { className: "dockh-name" }, m.name),
-          m.external ? import_react22.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
+          import_react23.default.createElement("span", { className: "dockm-dot", style: { background: m.accent } }),
+          import_react23.default.createElement("span", { className: "dockh-name" }, m.name),
+          m.external ? import_react23.default.createElement("span", { className: "dockh-badge", title: m.package || void 0 }, "\u5916\u90E8") : null,
           // 状态标识：圆点 + 文字（纯展示，与开关视觉区分）
-          import_react22.default.createElement(
+          import_react23.default.createElement(
             "span",
             { className: "dockh-status" + (m.planned ? " plan" : enabled ? "" : " off") },
-            import_react22.default.createElement("span", { className: "dockh-sdot" }),
-            import_react22.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
+            import_react23.default.createElement("span", { className: "dockh-sdot" }),
+            import_react23.default.createElement("span", null, m.planned ? "\u89C4\u5212\u4E2D" : enabled ? "\u8FD0\u884C\u4E2D" : "\u5DF2\u505C\u7528")
           ),
           // 启停开关（规划中的功能不显示）
-          m.planned ? null : import_react22.default.createElement("button", {
+          m.planned ? null : import_react23.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (enabled ? " on" : ""),
             role: "switch",
@@ -15944,12 +16306,12 @@ function HomeView(props) {
             }
           })
         ),
-        import_react22.default.createElement("div", { className: "dockh-desc" }, m.description),
-        import_react22.default.createElement("div", { className: "dockh-stat" }, statNode),
-        import_react22.default.createElement(
+        import_react23.default.createElement("div", { className: "dockh-desc" }, m.description),
+        import_react23.default.createElement("div", { className: "dockh-stat" }, statNode),
+        import_react23.default.createElement(
           "div",
           { className: "dockh-foot" },
-          import_react22.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
+          import_react23.default.createElement("span", { className: "dockh-go" }, "\u67E5\u770B\u8BE6\u60C5 \u2192")
         )
       );
     })
@@ -15957,16 +16319,16 @@ function HomeView(props) {
 }
 function DockPanel(props) {
   const ctx = ctxRef.current;
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react23.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
   const toggle = (id) => {
     toggleFeature(id);
     force();
   };
-  return import_react22.default.createElement(
+  return import_react23.default.createElement(
     "div",
     { className: "dock-root" },
-    import_react22.default.createElement(
+    import_react23.default.createElement(
       "div",
       { className: "dock-intro" },
       "\u529F\u80FD\u575E\uFF08dsh-dock\uFF09\xB7 \u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u4E00\u4E2A\u9762\u677F\u91CC\u7BA1\u7406\u3002v0.4.0 \u8D77\u6BCF\u4E2A\u529F\u80FD\u662F\u72EC\u7ACB\u6A21\u5757\uFF08features/<id>/\uFF09\uFF0C",
@@ -15975,25 +16337,25 @@ function DockPanel(props) {
     allModules().map((f) => {
       const st = stateOf(f.id);
       const View = f.View;
-      const viewNode = !f.planned && st.enabled && View ? import_react22.default.createElement(
+      const viewNode = !f.planned && st.enabled && View ? import_react23.default.createElement(
         "div",
         { className: "dock-body" },
-        import_react22.default.createElement(
+        import_react23.default.createElement(
           FeatureBoundary,
           { key: f.id, label: f.name },
-          import_react22.default.createElement(View, { ctx, feature: f, params: props && props.params })
+          import_react23.default.createElement(View, { ctx, feature: f, params: props && props.params })
         )
       ) : null;
-      return import_react22.default.createElement(
+      return import_react23.default.createElement(
         "div",
         { className: "dock-card", key: f.id },
-        import_react22.default.createElement(
+        import_react23.default.createElement(
           "div",
           { className: "dock-card-head" },
-          import_react22.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
-          import_react22.default.createElement("span", { className: "dock-name" }, f.name),
-          import_react22.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
-          f.planned ? import_react22.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react22.default.createElement("button", {
+          import_react23.default.createElement("span", { className: "dock-dot" + (st.error ? " err" : st.enabled ? " on" : "") }),
+          import_react23.default.createElement("span", { className: "dock-name" }, f.name),
+          import_react23.default.createElement("span", { className: "dock-desc" }, f.description + (f.external ? "\uFF08\u6765\u81EA\u5916\u90E8\u5305" + (f.package ? " " + f.package : "") + "\uFF09" : "")),
+          f.planned ? import_react23.default.createElement("span", { className: "dock-badge" }, "\u89C4\u5212\u4E2D") : import_react23.default.createElement("button", {
             type: "button",
             className: "dock-sw" + (st.enabled ? " on" : ""),
             role: "switch",
@@ -16002,11 +16364,11 @@ function DockPanel(props) {
             title: st.enabled ? "\u505C\u7528\u300C" + f.name + "\u300D" : "\u542F\u7528\u300C" + f.name + "\u300D",
             onClick: () => toggle(f.id)
           }),
-          !f.planned && typeof f.Chip === "function" ? import_react22.default.createElement(
+          !f.planned && typeof f.Chip === "function" ? import_react23.default.createElement(
             "span",
             { className: "dockm-foot-sw" },
-            import_react22.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
-            import_react22.default.createElement("button", {
+            import_react23.default.createElement("span", { className: "dockm-foot-swlabel" + (chipShown(f.id) ? " on" : "") }, "\u4F1A\u8BDD\u9875\u5C0F\u63A7\u4EF6"),
+            import_react23.default.createElement("button", {
               type: "button",
               className: "dock-sw" + (chipShown(f.id) ? " on" : ""),
               role: "switch",
@@ -16020,7 +16382,7 @@ function DockPanel(props) {
             })
           ) : null
         ),
-        f.planned ? import_react22.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react22.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
+        f.planned ? import_react23.default.createElement("div", { className: "dock-body" }, PLANNED_NOTES[f.id] || "\u5F85\u63A5\u5165\uFF1A\u89C1 README \u8DEF\u7EBF\u56FE") : st.error ? import_react23.default.createElement("div", { className: "dock-body dockm-err" }, "\u529F\u80FD\u51FA\u9519\uFF1A" + st.error) : null,
         viewNode
       );
     })
@@ -16028,7 +16390,7 @@ function DockPanel(props) {
 }
 function DockPage() {
   const ctx = ctxRef.current;
-  const [wide, setWide] = import_react22.default.useState(false);
+  const [wide, setWide] = import_react23.default.useState(false);
   const toggleWide = () => {
     try {
       const layout = ctx && typeof ctx.get === "function" ? ctx.get("layout") : null;
@@ -16039,20 +16401,20 @@ function DockPage() {
     } catch (e) {
     }
   };
-  return import_react22.default.createElement(
+  return import_react23.default.createElement(
     "div",
     { className: "dockm-page" + (wide ? " dockm-page-wide" : "") },
-    import_react22.default.createElement(
+    import_react23.default.createElement(
       "div",
       { className: "dockm-page-head" },
-      import_react22.default.createElement("span", { className: "dockm-page-icon" }, import_react22.default.createElement(DockIcon, { size: 20 })),
-      import_react22.default.createElement(
+      import_react23.default.createElement("span", { className: "dockm-page-icon" }, import_react23.default.createElement(DockIcon, { size: 20 })),
+      import_react23.default.createElement(
         "div",
         { className: "dockm-page-titles" },
-        import_react22.default.createElement("div", { className: "dockm-page-title" }, "\u529F\u80FD\u575E"),
-        import_react22.default.createElement("div", { className: "dockm-page-sub" }, "\u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u91CC\u7BA1\u7406\u3002\u4FA7\u680F\u56FE\u6807\u53EF\u5728\u300C\u66F4\u591A\u300D\u83DC\u5355\u91CC Pin \u5230\u9876\u90E8\uFF0C\u6216\u53D6\u6D88\u56FA\u5B9A\u6536\u8FDB\u66F4\u591A\u3002")
+        import_react23.default.createElement("div", { className: "dockm-page-title" }, "\u529F\u80FD\u575E"),
+        import_react23.default.createElement("div", { className: "dockm-page-sub" }, "\u6240\u6709\u5C0F\u529F\u80FD\u96C6\u4E2D\u5728\u8FD9\u91CC\u7BA1\u7406\u3002\u4FA7\u680F\u56FE\u6807\u53EF\u5728\u300C\u66F4\u591A\u300D\u83DC\u5355\u91CC Pin \u5230\u9876\u90E8\uFF0C\u6216\u53D6\u6D88\u56FA\u5B9A\u6536\u8FDB\u66F4\u591A\u3002")
       ),
-      import_react22.default.createElement("button", {
+      import_react23.default.createElement("button", {
         type: "button",
         className: "dockm-page-wide-btn",
         title: wide ? "\u8FD8\u539F\u4FA7\u680F\u5BBD\u5EA6" : "\u6536\u8D77\u5DE6\u4FA7\u680F\uFF0C\u5168\u5C4F\u663E\u793A\u529F\u80FD\u575E",
@@ -16060,19 +16422,19 @@ function DockPage() {
         onClick: toggleWide
       }, wide ? "\u2750 \u8FD8\u539F" : "\u25A2 \u5168\u5C4F")
     ),
-    import_react22.default.createElement("div", { className: "dockm-page-body" }, import_react22.default.createElement(DockWorkspace, null))
+    import_react23.default.createElement("div", { className: "dockm-page-body" }, import_react23.default.createElement(DockWorkspace, null))
   );
 }
 function DockChips(props) {
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
-  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react23.default.useReducer((n) => n + 1, 0);
+  import_react23.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || !chipShown(f.id) || typeof f.Chip !== "function") continue;
-    items.push(import_react22.default.createElement(
+    items.push(import_react23.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react22.default.createElement(f.Chip, {
+      import_react23.default.createElement(f.Chip, {
         ctx: props.ctx,
         feature: f,
         session: props.session,
@@ -16082,38 +16444,38 @@ function DockChips(props) {
     ));
   }
   if (items.length === 0) return null;
-  return import_react22.default.createElement("div", { className: "dockchip-row" }, items);
+  return import_react23.default.createElement("div", { className: "dockchip-row" }, items);
 }
 function FeatureOverlays() {
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
+  const [, force] = import_react23.default.useReducer((n) => n + 1, 0);
   useExternalVersion();
-  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  import_react23.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.Overlay !== "function") continue;
-    items.push(import_react22.default.createElement(
+    items.push(import_react23.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react22.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
+      import_react23.default.createElement(f.Overlay, { ctx: ctxRef.current, feature: f })
     ));
   }
   if (items.length === 0) return null;
-  return import_react22.default.createElement(import_react22.default.Fragment, null, items);
+  return import_react23.default.createElement(import_react23.default.Fragment, null, items);
 }
 function FeatureTurnTail(props) {
-  const [, force] = import_react22.default.useReducer((n) => n + 1, 0);
-  import_react22.default.useEffect(() => subscribeFeatureState(() => force()), []);
+  const [, force] = import_react23.default.useReducer((n) => n + 1, 0);
+  import_react23.default.useEffect(() => subscribeFeatureState(() => force()), []);
   const items = [];
   for (const f of allModules()) {
     if (f.planned || !stateOf(f.id).enabled || typeof f.TurnTail !== "function") continue;
-    items.push(import_react22.default.createElement(
+    items.push(import_react23.default.createElement(
       FeatureBoundary,
       { key: f.id, label: f.name },
-      import_react22.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
+      import_react23.default.createElement(f.TurnTail, Object.assign({}, props, { ctx: ctxRef.current, feature: f }))
     ));
   }
   if (items.length === 0) return null;
-  return import_react22.default.createElement(import_react22.default.Fragment, null, items);
+  return import_react23.default.createElement(import_react23.default.Fragment, null, items);
 }
 var ctxRef = { current: null };
 function apply(ctx) {
@@ -16124,32 +16486,33 @@ function apply(ctx) {
   if (slots === void 0) return;
   slots.inject("sidebar.panellist", () => slots.register(
     { name: "sidebar.panellist", id: "dsh-dock", order: 30, label: "\u529F\u80FD\u575E" },
-    (props) => import_react22.default.createElement(DockIcon, { size: props && props.size || 18 })
+    (props) => import_react23.default.createElement(DockIcon, { size: props && props.size || 18 })
   ));
   slots.inject("main", () => slots.register(
     { name: "main", key: "dsh-dock", label: "\u529F\u80FD\u575E" },
-    () => import_react22.default.createElement(DockPage, null)
+    () => import_react23.default.createElement(DockPage, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-panel", order: 21, label: "\u529F\u80FD\u575E\u9762\u677F" },
-    () => import_react22.default.createElement(DockModal, null)
+    () => import_react23.default.createElement(DockModal, null)
   ));
   slots.inject("shell.overlay", () => slots.register(
     { name: "shell.overlay", id: "dsh-dock-feature-overlays", order: 22, label: "\u529F\u80FD\u575E\u5168\u5C40\u6D6E\u5C42" },
-    () => import_react22.default.createElement(FeatureOverlays, null)
+    () => import_react23.default.createElement(FeatureOverlays, null)
   ));
   slots.inject("settings.section", () => slots.register(
     { name: "settings.section", id: "dsh-dock", order: 90, label: "\u529F\u80FD\u575E" },
-    (props) => import_react22.default.createElement(DockPanel, props)
+    (props) => import_react23.default.createElement(DockPanel, props)
   ));
   slots.inject("conversation.input.left", () => slots.register(
     { name: "conversation.input.left", id: "dsh-dock-chips", order: 10, label: "\u529F\u80FD\u575E" },
-    (zone) => import_react22.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
+    (zone) => import_react23.default.createElement(DockChips, Object.assign({}, zone, { ctx: ctxRef.current }))
   ));
   slots.inject("conversation.chat.turnTail", () => slots.register(
     { name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "\u529F\u80FD\u575E" },
-    (owner) => import_react22.default.createElement(FeatureTurnTail, owner)
+    (owner) => import_react23.default.createElement(FeatureTurnTail, owner)
   ));
+  installClient(ctx);
 }
 var inject = ["timer"];
 

@@ -442,37 +442,33 @@ function endReasonSpeech(reason) {
 	return "完成了";
 }
 /** 结束播报文案（success 由调用方按 isSuccessReason 给）。kind: complete|error
- *  子任务结束（主任务可能还在跑）必须报「子任务」而不是「任务」——否则听着像整个
- *  任务完成了（2026-11-05 用户反馈）。简洁只报「子任务完成/停止了」；适中点名
- *  主任务与子任务；详细再带统计与摘要。归属字段来自完成记录/活跃快照（task-track）。 */
+ *  统一口径（用户 2026-11-07 要求）：**先说「主任务/子任务」，再说事件（完成了/停止了），
+ *  任务名接在后面**，例如「主任务完成了「标题」」「子任务停止了「标题」」。
+ *  子任务结束（主任务可能还在跑）必须报「子任务」而不是「主任务」——否则听着像整个任务结束。*/
 export function endBroadcastText(success, record, task, cfg) {
 	const mode = voiceTone(cfg);
 	const reason = (record && record.endReason) || "";
 	const title = (record && record.title) || (task && task.title) || "";
 	const sub = !!((record && record.isSubtask) || (task && task.isSubtask));
+	const role = sub ? "子任务" : "主任务";
 	const parentTitle = (record && record.parentTitle) || (task && task.parentTitle) || "";
-	if (mode === "brief") {
-		// 简洁口径不分原因细念：正常完成「任务完成」，其余一律「任务停止了」；子任务换主语
-		if (sub) return success ? "子任务完成" : "子任务停止了";
-		return success ? "任务完成" : "任务停止了";
-	}
+	// 先说角色 + 事件，再跟任务名
+	const head = role + (success ? "完成了" : "停止了") + (title ? "「" + truncate(title, 30) + "」" : "");
+	if (mode === "brief") return head;
 	if (mode === "medium") {
-		// 适中口径：点名是哪个任务 + 结果 + （停止时）原因 + 耗时；不念回合/Token 统计
-		// 子任务：主任务名截短些（20 字），整句别太长
-		const who = sub
-			? (parentTitle ? "主任务「" + truncate(parentTitle, 20) + "」的" : "") + (title ? "子任务「" + truncate(title, 30) + "」" : "子任务")
-			: (title ? "任务「" + truncate(title, 30) + "」" : "任务");
-		const parts = [success ? who + "完成了" : who + "停止了"];
+		// 适中口径：角色+结果+任务名 +（停止原因）+（子任务点名主任务）+ 耗时；不念回合/Token
+		const parts = [head];
 		if (!success) parts.push("，原因：" + endReasonSpeech(reason));
+		if (sub && parentTitle) parts.push("（主任务「" + truncate(parentTitle, 20) + "」）");
 		const dur = (record && record.duration) || 0;
 		if (dur > 0) parts.push("，耗时" + fmtDur(dur));
 		parts.push("。");
 		return parts.join("");
 	}
-	const parts = [];
+	// 详细：角色+结果+任务名 → 主任务（子任务时）→ 原因/耗时 → 统计 → 摘要
+	const parts = [head + "。"];
 	if (sub && parentTitle) parts.push("主任务：" + truncate(parentTitle, 30) + "。");
-	if (title) parts.push((sub ? "子任务：" : "任务：") + truncate(title, 30) + "。");
-	parts.push(success ? "已完成。" : "结束，原因：" + endReasonSpeech(reason) + "。");
+	if (!success) parts.push("原因：" + endReasonSpeech(reason) + "。");
 	const dur = (record && record.duration) || 0;
 	if (dur > 0) parts.push("耗时" + fmtDur(dur) + "。");
 	const turns = (record && record.turns) || (task && task.turns) || 0;
@@ -486,63 +482,59 @@ export function endBroadcastText(success, record, task, cfg) {
 	}
 	return parts.join("");
 }
-/** 需授权播报文案。 */
+/** 需授权播报文案。统一口径：先说「主任务/子任务」，再说「需要授权」，任务名接在后面。 */
 export function confirmBroadcastText(task, approval, cfg) {
 	const mode = voiceTone(cfg);
-	if (mode === "brief") return "任务需要授权";
+	const role = task && task.isSubtask ? "子任务" : "主任务";
+	const title = (task && task.title) || "";
+	const head = role + "需要授权" + (title ? "「" + truncate(title, 30) + "」" : "");
 	const tool = (approval && approval.toolName) || "工具";
 	const scene = toolLabel(tool);
-	if (mode === "medium") {
-		// 适中口径：点名任务 + 要批准的场景；不念工具名与「回到会话」的叮嘱
-		const who = task && task.title ? "任务「" + truncate(task.title, 30) + "」" : "任务";
-		return who + "需要授权，正在等你批准" + (scene || "工具 " + tool) + "。";
-	}
-	const parts = [];
-	if (task && task.title) parts.push("任务：" + truncate(task.title, 30) + "。");
+	if (mode === "brief") return head;
+	if (mode === "medium") return head + "，正在等你批准" + (scene || "工具 " + tool) + "。";
+	const parts = [head + "。"];
 	parts.push("正在等待你批准" + (scene ? "执行" + scene : "") + "，工具是" + tool + "，请回到会话处理。");
 	return parts.join("");
 }
 /**
  * 需回答播报文案（ask_user_question 挂起，等人选答案）。
- * 与「需授权」是两件事：批准是"要不要执行"，提问是"要选哪个答案"——播报不能混说。
- * 简洁口径只说「任务需要回答」；适中点名任务与问题；详细再补"共几问"与回到会话的叮嘱。
+ * 与「需授权」是两件事。统一口径：先说「主任务/子任务」，再说「需要你回答」，任务名/问题接后面。
  */
 export function questionBroadcastText(task, question, cfg) {
 	const mode = voiceTone(cfg);
-	if (mode === "brief") return "任务需要你回答";
-	const who = task && task.title ? "任务「" + truncate(task.title, 30) + "」" : "任务";
-	const head = (question && question.header) || "";
+	const role = task && task.isSubtask ? "子任务" : "主任务";
+	const title = (task && task.title) || "";
+	const head = role + "需要你回答" + (title ? "「" + truncate(title, 30) + "」" : "");
+	const qhead = (question && question.header) || "";
 	const body = (question && question.question) || "";
 	const what = body ? truncate(body.replace(/[#*_`>\[\]()!]/g, ""), 40) : "";
+	if (mode === "brief") return head;
 	if (mode === "medium") {
-		// 适中口径：点名任务 + 问的是什么（问题正文优先，没有正文退回标题）；句号统一补
-		const tail = what ? "：" + what : (head ? "：" + head : "");
-		return who + "在等你回答" + tail + "。";
+		const tail = what ? "：" + what : (qhead ? "：" + qhead : "");
+		return head + tail + "。";
 	}
-	const parts = [];
-	if (task && task.title) parts.push("任务：" + truncate(task.title, 30) + "。");
-	parts.push(what ? "正在等你回答问题：" + what + "。" : "正在等你回答问题。");
+	const parts = [head + "。"];
+	parts.push(what ? "问题：" + what + "。" : (qhead ? "问题：" + qhead + "。" : "正在等你回答问题。"));
 	const count = (question && question.count) || 0;
 	if (count > 1) parts.push("共 " + count + " 个问题。");
 	parts.push("请回到会话选择答案。");
 	return parts.join("");
 }
 /**
- * 卡住播报文案：必须回答「哪里卡住了」——主任务还是子任务、哪个会话、停了多久、
- * 最后在干什么。子任务静默会把「主任务明明在跑却突然播报」放大成困惑（2026-10-30
- * 用户实测：主任务进行中突然播「任务卡住了」，屏幕上却看不到卡住的东西），
- * 所以简洁口径也带「主/子 + 标题」，详细口径再补停滞时长与最后动作。
+ * 卡住播报文案：统一口径（用户 2026-11-07 要求）**先说「主任务/子任务」，再说「卡住了」，
+ * 任务名接在后面**，详细再补停滞时长与最后动作。例：「主任务卡住了「标题」」。
  * 归属字段来自宿主追踪快照（task-track 的 isSubtask/lastToolName）。
  */
 export function stuckBroadcastText(task, cfg) {
 	const mode = voiceTone(cfg);
-	const where = (task && task.isSubtask ? "子任务" : "主任务")
-		+ (task && task.title ? "「" + truncate(task.title, 30) + "」" : "");
-	if (mode === "brief") return where + "卡住了";
+	const role = task && task.isSubtask ? "子任务" : "主任务";
+	const title = (task && task.title) || "";
+	const head = role + "卡住了" + (title ? "「" + truncate(title, 30) + "」" : "");
+	if (mode === "brief") return head;
 	if (mode === "medium") {
-		return where + "卡住了，已经" + fmtDur(Math.max(0, (cfg && cfg.stuckMs) || STUCK_MS)) + "没有任何动静。";
+		return head + "，已经" + fmtDur(Math.max(0, (cfg && cfg.stuckMs) || STUCK_MS)) + "没有任何动静。";
 	}
-	const parts = [where + "卡住了。"];
+	const parts = [head + "。"];
 	parts.push("编程阶段已经" + fmtDur(Math.max(0, (cfg && cfg.stuckMs) || STUCK_MS)) + "没有任何动静，");
 	const tool = (task && task.lastToolName) || "";
 	const scene = tool ? toolLabel(tool) : "";

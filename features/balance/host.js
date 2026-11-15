@@ -601,8 +601,8 @@ export const feature = {
   setup(ctx) {
     const webServer = ctx.get('webServer')
     if (webServer === undefined) throw new Error('webServer 服务不可用，无法提供余额查询路由')
-    const handler = async (req, res) => {
-      if (rejectUntrustedRequest(ctx, req, res)) return
+    const handler = async (req, res, peer) => {
+      if (rejectUntrustedRequest(ctx, req, res, peer)) return
       try {
         sendJson(res, 200, await queryAll(ctx))
       } catch (e) {
@@ -612,6 +612,6 @@ export const feature = {
         })
       }
     }
-    return webServer.register({ kind: 'exact', path: '/dsh-dock/balance', handler })
+    return webServer.register({ kind: 'exact', auth: 'required', path: '/dsh-dock/balance', handler })
   },
 }

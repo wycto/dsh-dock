@@ -32,6 +32,7 @@ import { feature as fRunState } from './features/runstate/host.js'
 import { feature as fTts } from './features/tts/host.js'
 import { feature as fMobileRelay } from './features/mobile-relay/host.js'
 import { feature as fMcpConfig } from './features/mcpconfig/host.js'
+import { feature as fDshTools } from './features/dshtools/host.js'
 
 export const name = 'dsh-dock'
 
@@ -76,6 +77,7 @@ export function apply(ctx, config) {
     fTts,
     fMobileRelay,
     fMcpConfig,
+    fDshTools,
   ]
 
   // 绑定 Config 镜像（替代已移除的 settings.get）；volatile 字段热更时重绑。
@@ -197,9 +199,10 @@ export function apply(ctx, config) {
     if (webServer) {
       webServer.register({
         kind: 'exact',
+        auth: 'required',
         path: '/dsh-dock/features',
-        handler: async (req, res) => {
-          if (rejectUntrustedRequest(ctx, req, res)) return
+        handler: async (req, res, peer) => {
+          if (rejectUntrustedRequest(ctx, req, res, peer)) return
           try {
             if (req.method === 'POST') {
               const body = await readBody(req)

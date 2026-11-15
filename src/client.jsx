@@ -29,12 +29,13 @@ import { feature as fTts } from "../features/tts/view.jsx";
 import { feature as fGames } from "../features/games/view.jsx";
 import { feature as fMobileRelay } from "../features/mobile-relay/view.jsx";
 import { feature as fMcpConfig } from "../features/mcpconfig/view.js";
+import { feature as fDshTools, installClient as installDshTools } from "../features/dshtools/view.jsx";
 
 const name = "dsh-dock";
-const DOCK_VERSION = "0.23.1";
+const DOCK_VERSION = "0.24.0";
 
 // ---- 内置功能注册表：新功能 = features/<id>/ 加模块 + 这里 import 一行 ----
-const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fMcpConfig, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay];
+const BUILTIN_FEATURES = [fTokenlog, fModelconfig, fProviderConfig, fMcpConfig, fBalance, fAnimation, fNotify, fRunState, fTts, fGames, fMobileRelay, fDshTools];
 // 规划占位（路线图）：接入后移除并建 features/<id>/ 模块
 const PLANNED_FEATURES = [];
 const PLANNED_NOTES = {};
@@ -784,6 +785,8 @@ export function apply(ctx) {
 	slots.inject("conversation.chat.turnTail", () => slots.register(
 		{ name: "conversation.chat.turnTail", id: "dsh-dock-turn-tail", order: 40, label: "功能坞" },
 		(owner) => react.createElement(FeatureTurnTail, owner)));
+	// 【DSH功能】的全局接线（右键菜单等）：模块自带延迟注入，功能开关在菜单解析时判断
+	installDshTools(ctx);
 }
 
 export const inject = ["timer"];

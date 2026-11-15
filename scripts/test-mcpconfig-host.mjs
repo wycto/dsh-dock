@@ -109,8 +109,8 @@ async function main() {
     const save = await call(routes.get('/dsh-dock/mcpconfig'), 'POST', {
       action: 'save',
       servers: [{
-        serverName: 'xiaomi_ocr', transport: 'stdio', command: '/usr/bin/python3',
-        args: ['/www/wwwroot/xiaomi-ocr/mcp_ocr.py'], env: {}, cwd: '/www/wwwroot/xiaomi-ocr',
+        serverName: 'demo_ocr', transport: 'stdio', command: '/usr/bin/python3',
+        args: ['/home/me/work/demo-service/mcp_ocr.py'], env: {}, cwd: '/home/me/work/demo-service',
         enabled: true, failOnStartupError: false, toolCallTimeoutMs: 300000,
       }],
     })
@@ -118,7 +118,7 @@ async function main() {
     assert.equal(save.body.applied, true)
     const after = read()
     assert.ok(after.includes(BEGIN) && after.includes(END), '托管块已写入')
-    assert.ok(after.includes('dock-mcp-xiaomi_ocr'), '行 id 正确')
+    assert.ok(after.includes('dock-mcp-demo_ocr'), '行 id 正确')
     assert.ok(after.includes('# 用户手写内容'), '用户注释保留')
     assert.ok(after.includes('!!js process.env.ACME_KEY'), '!!js 表达式保留')
     assert.ok(after.includes('https://acme.example/v1'), '用户配置保留')
@@ -130,26 +130,26 @@ async function main() {
   {
     const { ctx, routes, calls } = makeCtx({
       patchPath,
-      loaderEntries: liveEntries('xiaomi_ocr'),
-      toolNames: ['mcp__xiaomi_ocr__ocr_image', 'mcp__xiaomi_ocr__ocr_health'],
+      loaderEntries: liveEntries('demo_ocr'),
+      toolNames: ['mcp__demo_ocr__ocr_image', 'mcp__demo_ocr__ocr_health'],
     })
     mcpFeature.setup(ctx)
     const res = await call(routes.get('/dsh-dock/mcpconfig'), 'GET')
     assert.equal(res.status, 200)
     assert.equal(res.body.servers.length, 1)
     const s = res.body.servers[0]
-    assert.equal(s.serverName, 'xiaomi_ocr')
+    assert.equal(s.serverName, 'demo_ocr')
     assert.equal(s.transport, 'stdio')
     assert.equal(s.enabled, true)
     assert.equal(s.state, 'active', JSON.stringify(s))
     assert.equal(s.toolCount, 2)
-    assert.ok(s.tools.includes('mcp__xiaomi_ocr__ocr_image'))
+    assert.ok(s.tools.includes('mcp__demo_ocr__ocr_image'))
 
     const save = await call(routes.get('/dsh-dock/mcpconfig'), 'POST', {
       action: 'save', servers: [{ ...s, args: s.args }],
     })
     assert.equal(save.status, 200)
-    assert.deepEqual(calls.reconcile.at(-1), ['dock-mcp-xiaomi_ocr'], 'reconcile 用托管行 id')
+    assert.deepEqual(calls.reconcile.at(-1), ['dock-mcp-demo_ocr'], 'reconcile 用托管行 id')
   }
   console.log('② 热应用 reconcileProfile(ids) / 状态与工具数：ok')
 
@@ -178,7 +178,7 @@ async function main() {
 
   // ---------- ④ 启停（disabled 行） ----------
   {
-    const { ctx, routes } = makeCtx({ patchPath, loaderEntries: liveEntries('xiaomi_ocr', { disabled: true, state: 'active' }) })
+    const { ctx, routes } = makeCtx({ patchPath, loaderEntries: liveEntries('demo_ocr', { disabled: true, state: 'active' }) })
     mcpFeature.setup(ctx)
     const handler = routes.get('/dsh-dock/mcpconfig')
     const res0 = await call(handler, 'GET')

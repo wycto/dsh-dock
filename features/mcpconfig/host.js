@@ -355,8 +355,8 @@ export const feature = {
   setup(ctx) {
     const webServer = ctx.get('webServer')
     if (webServer === undefined) throw new Error('webServer 服务不可用，无法提供 MCP 管理路由')
-    const handler = async (req, res) => {
-      if (rejectUntrustedRequest(ctx, req, res)) return
+    const handler = async (req, res, peer) => {
+      if (rejectUntrustedRequest(ctx, req, res, peer)) return
       try {
         if (req.method === 'GET') {
           const path = patchPathOf(ctx)
@@ -397,6 +397,6 @@ export const feature = {
         })
       }
     }
-    return webServer.register({ kind: 'exact', path: '/dsh-dock/mcpconfig', handler })
+    return webServer.register({ kind: 'exact', auth: 'required', path: '/dsh-dock/mcpconfig', handler })
   },
 }

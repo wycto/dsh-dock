@@ -255,7 +255,7 @@ function ServerForm(props) {
 			hint: "工具名前缀：模型看到的是 mcp__<serverName>__<tool>；须匹配 " + SERVER_NAME_RE,
 		}, input({
 			value: form.serverName,
-			placeholder: "xiaomi_ocr",
+			placeholder: "demo_ocr",
 			disabled: isEdit,
 			onChange: (e) => patch({ serverName: e.target.value }),
 		})),
@@ -287,7 +287,7 @@ function ServerForm(props) {
 						rows: 4,
 						spellCheck: false,
 						value: form.argsText,
-						placeholder: "/www/wwwroot/xiaomi-ocr/mcp_ocr.py",
+						placeholder: "/home/me/work/demo-service/mcp_ocr.py",
 						onChange: (e) => patch({ argsText: e.target.value }),
 					})),
 				Field({ label: "env（每行一个 KEY=VALUE）", hint: "环境变量会明文写进 profile 补丁层（文件 0600，仅本机可读）；没有可留空" },
@@ -300,7 +300,7 @@ function ServerForm(props) {
 						onChange: (e) => patch({ envText: e.target.value }),
 					})),
 				Field({ label: "cwd（可选）" },
-					input({ value: form.cwd, placeholder: "/www/wwwroot/xiaomi-ocr", onChange: (e) => patch({ cwd: e.target.value }) }))),
+					input({ value: form.cwd, placeholder: "/home/me/work/demo-service", onChange: (e) => patch({ cwd: e.target.value }) }))),
 		react.createElement("details", { className: "dkmc-advanced" },
 			react.createElement("summary", { className: "dkmc-summary" }, "高级"),
 			react.createElement("div", { className: "dkmc-advanced-body" },
@@ -423,16 +423,16 @@ function McpConfigView() {
 
 	// 一键填入本机 Xiaomi-OCR 示例（已存在则只提示，不覆盖）
 	const fillXiaomiExample = () => {
-		if (drafts.some((d) => d.serverName === "xiaomi_ocr")) {
-			setMsg({ tone: "warn", text: "列表里已经有 xiaomi_ocr（可直接点该卡片的「编辑」查看/修改）" });
+		if (drafts.some((d) => d.serverName === "demo_ocr")) {
+			setMsg({ tone: "warn", text: "列表里已经有 demo_ocr（可直接点该卡片的「编辑」查看/修改）" });
 			return;
 		}
 		setForm(Object.assign(emptyForm(), {
-			serverName: "xiaomi_ocr",
+			serverName: "demo_ocr",
 			transport: "stdio",
 			command: "/usr/bin/python3",
-			argsText: "/www/wwwroot/xiaomi-ocr/mcp_ocr.py",
-			cwd: "/www/wwwroot/xiaomi-ocr",
+			argsText: "/home/me/work/demo-service/mcp_ocr.py",
+			cwd: "/home/me/work/demo-service",
 			envText: "",
 			toolCallTimeoutMs: "300000",
 			failOnStartupError: false,

@@ -148,7 +148,7 @@ export const feature = {
   id: 'mobile-relay',
   name: '远程访问',
   description: '账号密码登录的远程入口：局域网/虚拟网设备访问同一个 DSH，任务进度实时一致',
-  // 宿主半部必须随插件加载（网关路由/账号服务都在这里），techfunway-dsh 等部署
+  // 宿主半部必须随插件加载（网关路由/账号服务都在这里），远程部署
   // 完全依赖它——保持默认开启。v0.9.6 起面板开关会同步到宿主：显式停用会连网关
   // 一起关掉（并持久化，重启后仍停用），部署环境请勿在面板里关闭本功能。
   defaultEnabled: true,
@@ -258,16 +258,36 @@ export const feature = {
       return sameText(username, auth.username) && sameText(hashPassword(auth.salt, password), auth.passwordHash)
     }
 
+    /** 宿主公告的带令牌入口地址（DSH ≥ 0.2.2-rc.2 的唯一令牌来源），由 entry-url 监听器填。 */
+    let upstreamEntryUrl = null
+
+    /** 把缓存的入口地址换成主实例端口上的令牌地址；没缓存/没令牌就返回 null。 */
+    function upstreamTokenUrl(mainPort) {
+      if (!upstreamEntryUrl) return null
+      try {
+        const token = new URL(upstreamEntryUrl).searchParams.get('token')
+        if (!token) return null
+        return `http://127.0.0.1:${mainPort}/?token=${encodeURIComponent(token)}`
+      } catch { return null }
+    }
+
     // 上游会话自动兑换：dsh web 自身还有一层启动令牌认证（首次访问 /?token= 换
-    // 30 天会话 Cookie，绑定回环 authority）。网关与主实例同进程，直接取
-    // connection.authenticatedUrl 生成的带令牌地址，服务端完成兑换并返回 Cookie
-    // 对，由网关在代理时自动附带——远程浏览器只需网关账号登录，无需再手动访问
-    // 令牌地址。老版本 dsh 没有 connection 服务时返回空，网关退回官方行为。
+    // 30 天会话 Cookie，绑定回环 authority）。网关与主实例同进程，直接取带令牌的地址，
+    // 服务端完成兑换并返回 Cookie 对，由网关在代理时自动附带——远程浏览器只需网关账号
+    // 登录，无需再手动访问令牌地址。带令牌地址有两个来源：
+    //  - DSH ≤ 0.2.2-rc.1：connection.authenticatedUrl(baseUrl)（现已删除，留作兼容）；
+    //  - DSH ≥ 0.2.2-rc.2：令牌迁入 host-authentication-token 插件，它把带令牌的入口地址
+    //    贡献到 webserver/entry-url（见 dsh 的 docs/upgrade-guide/v0.2.2-rc.2/
+    //    connection-page-peer/guide.zh.md）。这里缓存一份贡献值，兑换时换成主实例端口。
+    // 两条都拿不到（例如宿主没公告入口地址）时返回空，网关退回官方行为：远程浏览器自己
+    // 访问一次令牌地址。
     async function mintUpstreamSession(mainPort) {
       try {
         const connection = ctx.get('connection')
-        if (!connection || typeof connection.authenticatedUrl !== 'function') return null
-        const url = connection.authenticatedUrl(`http://127.0.0.1:${mainPort}`)
+        const url = connection && typeof connection.authenticatedUrl === 'function'
+          ? connection.authenticatedUrl(`http://127.0.0.1:${mainPort}`)
+          : upstreamTokenUrl(mainPort)
+        if (!url) return null
         const res = await fetch(url, { redirect: 'manual' })
         const cookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('set-cookie')].filter(Boolean)
         for (const raw of cookies) {
@@ -384,11 +404,24 @@ export const feature = {
       if (typeof wsCtx.webServer.tapIndex === 'function') {
         disposers.push(wsCtx.effect(() => wsCtx.webServer.tapIndex(injectLanCompat)))
       }
+      // 缓存宿主公告的带令牌入口地址：entries 是同步 emit、各监听器依次 push，
+      // 所以延一拍（微任务）再读，才能读到 token 插件贡献的那一条。
+      if (typeof wsCtx.on === 'function') {
+        disposers.push(wsCtx.effect(() => wsCtx.on('webserver/entry-url', (_baseUrl, entries) => {
+          queueMicrotask(() => {
+            for (const entry of entries || []) {
+              const raw = String((entry && entry.url) || '')
+              if (raw.includes('token=')) { upstreamEntryUrl = raw; return }
+            }
+          })
+        }, 'dsh-dock: mobile-relay upstream entry-url cache')))
+      }
       wsCtx.effect(() => wsCtx.webServer.register({
         kind: 'prefix',
+        auth: 'required',
         path: '/dsh-dock/mobile-relay',
-        async handler(req, res) {
-          if (rejectUntrustedRequest(ctx, req, res)) return
+        async handler(req, res, peer) {
+          if (rejectUntrustedRequest(ctx, req, res, peer)) return
           try {
             const method = routeMethod(req)
             const payload = await readBody(req)

@@ -184,6 +184,16 @@ export const DockConfig = z.object({
     /** 自动朗读时只读回复的前 N 句（0 = 不限）。眼睛不舒服想听结论的人通常只要前几句。 */
     maxSentences: z.number().default(0),
   }).default({}).volatile(),
+  // 【DSH功能】模块：给 DSH 自带界面补充能力，按「分组 × 勾选项」组织。
+  // 分组/键名以 features/dshtools/host.js 的 DSH_TOOL_GROUPS 为准；这里只声明可持久化的段，
+  // 新增能力时在清单里加一项即可（旧设置里没有的键按清单 default 兜底）。
+  dshtools: z.object({
+    /** 文件右键菜单的补充项。 */
+    fileContextMenu: z.object({
+      /** 大文件下载（流式）：文件超过 32 MiB 时右键多出「下载（大文件）」。 */
+      streamingDownload: z.boolean().default(true),
+    }).default({}),
+  }).default({}).volatile(),
 })
 
 // ── 本地配置镜像（替代已移除的 settings.get） ─────────────────────────────
@@ -523,31 +533,60 @@ export function sendJson(res, status, value) {
 let warnedNoTrustSurface = false
 
 /**
- * 浏览器信任栅栏：**每个自行注册的 `webServer` 路由都必须先调它**。
+ * 浏览器信任栅栏：**每个自行注册的 `webServer` 路由都必须先调它**（并把 handler 的
+ * 第三个参数 `peer` 传进来）。
  *
- * 为什么必须：`webServer` 的命名路由由载体直接派发给 handler（见 dsh 的
- * `packages/host/webserver` —— 匹配到路由就 `route.handler(req, res)`），载体本身
- * 「不拥有认证或 Origin 策略」；`/api` 的 Host/Origin 校验与会话认证由 Connection 在
- * 它自己的 FetchHandler 上做，**管不到插件注册的命名路由**。所以不检查的插件路由就是
- * 一扇对任何能连到端口的人都敞开的门，dsh-access 这类门禁插件也拦不到（它只有
- * exact 表 / fallback / connection-request / upgrades 四个缝）。
+ * 为什么必须：`webServer` 的命名路由由载体直接派发给 handler。DSH 0.2.2-rc.2 之前载体
+ * 「不拥有认证或 Origin 策略」，`/api` 的 Host/Origin 校验与会话认证由 Connection 在它
+ * 自己的 FetchHandler 上做，**管不到插件注册的命名路由**——不检查的插件路由就是一扇对
+ * 任何能连到端口的人都敞开的门，dsh-access 这类门禁插件也拦不到。
  *
- * 做法与官方插件一致：`dsh-host-open-in-app`、`dsh-experimental-inspector` 都在自己的
- * 路由入口调 `connection.requestRejection(req)`，值即 401（Host 可信但无会话）或
- * 403（Host/Origin 栅栏拒绝）。Connection 不可用时按 fail-closed 处理——dsh-dock 的
- * 路由本身就是 web 专用的。
+ * 0.2.2-rc.2 起准入换了地方（见 dsh 的
+ * `docs/upgrade-guide/v0.2.2-rc.2/connection-page-peer/guide.zh.md`）：Connection 上的
+ * `requestRejection`、`authenticatedUrl` 等被删除；`webServer.register` 的路由项新增
+ * `auth: 'anonymous' | 'required' | 'deny'`（**默认 required**），由载体在派发前完成
+ * Host/Origin 校验与认证，并把准入得到的 Peer 作为 handler 的第三个参数交下来。
  *
+ * 本函数因此同时兼容两代宿主，判断顺序很关键：
+ *  1. handler 收到了 `peer` —— 载体已经放行，直接返回 false。**绝不再调一次
+ *     `connection.admit`**：那会重新认证出一个新 Peer，白耗一份凭据与生命周期。
+ *  2. 没有 `peer` 但宿主提供 `requestRejection` —— 老宿主（命名路由不鉴权），照旧自己问
+ *     它，值即 401（Host 可信但无会话）或 403（Host/Origin 栅栏拒绝），与官方
+ *     `dsh-host-open-in-app`、`dsh-experimental-inspector` 当年的写法一致。
+ *  3. 两者都没有 —— fail-closed 按 401 拒绝。dsh-dock 的路由本来就是 web 专用的，
+ *     宁可面板报错，也不能给身份不明的请求开门。
+ *
+ * 走第 1 条的前提是每个注册点都**显式**写 `auth: 'required'`：不写也落在默认值上，但
+ * 显式声明才挡得住将来默认值变化。`scripts/test-route-trust-host.mjs` 静态检查这一点。
+ *
+ * @param ctx 插件上下文
+ * @param req 原始 HTTP 请求
+ * @param res 待写响应
+ * @param peer 新宿主准入后交给 handler 的 Peer；老宿主与测试桩为 undefined
  * @returns {boolean} true = 已拒绝并写完响应，调用方必须立即 return。
  */
-export function rejectUntrustedRequest(ctx, req, res) {
+export function rejectUntrustedRequest(ctx, req, res, peer) {
+  // ① 新宿主：载体已完成准入，拿到 peer 就是放行过的请求。
+  if (peer !== undefined && peer !== null) return false
+
   const connection = ctx && typeof ctx.get === 'function' ? ctx.get('connection') : null
   const requestRejection = connection && typeof connection.requestRejection === 'function'
     ? connection.requestRejection.bind(connection)
     : null
   if (requestRejection === null) {
+    // ③-a 新宿主 + 本路由没声明 auth: 'required'（例如 anonymous）：载体不会给它 peer。
+    if (connection && typeof connection.admit === 'function') {
+      if (!warnedNoTrustSurface) {
+        warnedNoTrustSurface = true
+        console.warn("[dsh-dock] 宿主已提供准入但本路由未拿到 peer：检查 webServer.register 是否显式声明 auth: 'required'")
+      }
+      sendJson(res, 401, { ok: false, error: { code: 'untrusted', message: "路由未声明 auth: 'required'，未通过宿主准入，已拒绝请求" } })
+      return true
+    }
+    // ③-b 既没有载体的 peer，也没有老宿主的栅栏面：fail-closed。
     if (!warnedNoTrustSurface) {
       warnedNoTrustSurface = true
-      console.warn('[dsh-dock] connection 服务不可用：/dsh-dock 路由将按未受信请求一律拒绝（401）')
+      console.warn('[dsh-dock] 宿主未提供路由准入（既无 peer 也无 connection.requestRejection）：/dsh-dock 路由一律按未受信请求拒绝（401）')
     }
     sendJson(res, 401, { ok: false, error: { code: 'untrusted', message: '浏览器信任栅栏不可用，已拒绝请求' } })
     return true

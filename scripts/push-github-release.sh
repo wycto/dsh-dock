@@ -48,12 +48,17 @@ fi
 # 2) 用 main 的整棵树造一条提交，父提交 = 上一次发版提交。
 #    过程文档不进公开发版库（release-redaction 硬要求，2026-10-28 定）：造树时剔除
 #    下列文件——开发库照常跟踪它们，公开侧从此不再出现（历史旧副本另行决定是否清理）。
-TREE_EXCLUDE=(docs/session-notes.md docs/workflow.md .mimocode)
+TREE_EXCLUDE=(docs/session-notes.md docs/workflow.md .mimocode screenshots)
 REL_INDEX="$(git rev-parse --git-dir)/release-tmp-index"
 rm -f "$REL_INDEX" # GIT_INDEX_FILE 要求目标文件不存在
 GIT_INDEX_FILE="$REL_INDEX" git read-tree 'main^{tree}'
 for f in "${TREE_EXCLUDE[@]}"; do
-  GIT_INDEX_FILE="$REL_INDEX" git update-index --force-remove "$f"
+  GIT_INDEX_FILE="$REL_INDEX" git update-index --force-remove "$f" 2>/dev/null || true
+  # 目录型条目：--force-remove 只删同名那一条，删不掉目录下的内容，
+  # 必须按前缀把每个文件逐个摘掉（screenshots 曾因此漏网，15 张原图差点进公开库）。
+  GIT_INDEX_FILE="$REL_INDEX" git ls-files --cached -z -- "$f/*" \
+    | GIT_INDEX_FILE="$REL_INDEX" git update-index -z --force-remove --stdin
+  GIT_INDEX_FILE="$REL_INDEX" git ls-files --cached -- "$f/*" | grep -c . | { read left; [ "$left" = 0 ] || echo "⚠️ $f 仍有 $left 个条目未摘除"; }
 done
 TREE="$(GIT_INDEX_FILE="$REL_INDEX" git write-tree)"
 rm -f "$REL_INDEX"
